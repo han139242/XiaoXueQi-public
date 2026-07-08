@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+target/
+dist/
+build/
+*.class
+
+# IDE and local tool settings
+.idea/
+.vscode/
+.claude/
+.github/modernize/
+
+# Logs and local environment
+*.log
+.env
+.env.*
+*.local
+**/src/main/resources/application.yml
+**/src/main/resources/application.yaml
+!**/src/main/resources/application-example.yml
+!**/src/main/resources/application-example.yaml
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1223 @@
+========== MES数据库表结构 ==========
+
+【表 1】eam_equipment
+  equipment_id                   BIGINT UNSIGNED(20) 可空:NO 
+  equipment_code                 VARCHAR        (64) 可空:YES
+  equipment_name                 VARCHAR        (128) 可空:YES
+  category_id                    BIGINT UNSIGNED(20) 可空:YES
+  model                          VARCHAR        (64) 可空:YES
+  manufacturer                   VARCHAR        (64) 可空:YES
+  purchase_date                  DATE           (10) 可空:YES
+  station_id                     BIGINT UNSIGNED(20) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 2】eam_equipment_category
+  category_id                    BIGINT UNSIGNED(20) 可空:NO 
+  parent_id                      BIGINT UNSIGNED(20) 可空:YES
+  category_code                  VARCHAR        (64) 可空:YES
+  category_name                  VARCHAR        (128) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 3】eam_equipment_status_log
+  status_log_id                  BIGINT UNSIGNED(20) 可空:NO 
+  equipment_id                   BIGINT UNSIGNED(20) 可空:YES
+  running_status                 VARCHAR        (32) 可空:YES
+  downtime_type                  VARCHAR        (32) 可空:YES
+  alert_level                    VARCHAR        (32) 可空:YES
+  station_id                     BIGINT UNSIGNED(20) 可空:YES
+  collected_time                 DATETIME       (19) 可空:YES
+  description                    VARCHAR        (500) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 4】eam_maintenance_plan
+  plan_id                        BIGINT UNSIGNED(20) 可空:NO 
+  equipment_id                   BIGINT UNSIGNED(20) 可空:YES
+  maintenance_type               VARCHAR        (32) 可空:YES
+  cycle_type                     VARCHAR        (32) 可空:YES
+  cycle_value                    DECIMAL        (18) 可空:NO 
+  maintenance_content            TEXT           (65535) 可空:YES
+  responsible_id                 BIGINT UNSIGNED(20) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 5】eam_maintenance_record
+  record_id                      BIGINT UNSIGNED(20) 可空:NO 
+  plan_id                        BIGINT UNSIGNED(20) 可空:YES
+  equipment_id                   BIGINT UNSIGNED(20) 可空:YES
+  maintainer_id                  BIGINT UNSIGNED(20) 可空:YES
+  maintenance_time               DATETIME       (19) 可空:YES
+  maintenance_result             VARCHAR        (500) 可空:YES
+  next_maintenance_time          DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 6】eam_repair_order
+  repair_id                      BIGINT UNSIGNED(20) 可空:NO 
+  repair_no                      VARCHAR        (64) 可空:YES
+  equipment_id                   BIGINT UNSIGNED(20) 可空:YES
+  exception_id                   BIGINT UNSIGNED(20) 可空:YES
+  reported_by                    BIGINT UNSIGNED(20) 可空:YES
+  reported_time                  DATETIME       (19) 可空:YES
+  fault_description              VARCHAR        (255) 可空:YES
+  repairer_id                    BIGINT UNSIGNED(20) 可空:YES
+  repair_result                  VARCHAR        (255) 可空:YES
+  repair_cost                    DECIMAL        (18) 可空:NO 
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 7】eam_spot_check_plan
+  plan_id                        BIGINT UNSIGNED(20) 可空:NO 
+  equipment_id                   BIGINT UNSIGNED(20) 可空:YES
+  check_cycle                    VARCHAR        (255) 可空:YES
+  check_items                    TEXT           (65535) 可空:YES
+  responsible_role               VARCHAR        (64) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 8】eam_spot_check_record
+  record_id                      BIGINT UNSIGNED(20) 可空:NO 
+  plan_id                        BIGINT UNSIGNED(20) 可空:YES
+  equipment_id                   BIGINT UNSIGNED(20) 可空:YES
+  checker_id                     BIGINT UNSIGNED(20) 可空:YES
+  check_time                     DATETIME       (19) 可空:YES
+  check_result                   VARCHAR        (500) 可空:YES
+  abnormal_description           VARCHAR        (255) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 9】factory_line
+  line_id                        BIGINT UNSIGNED(20) 可空:NO 
+  line_code                      VARCHAR        (64) 可空:YES
+  line_name                      VARCHAR        (128) 可空:YES
+  workshop_id                    BIGINT UNSIGNED(20) 可空:YES
+  daily_capacity                 DECIMAL        (18) 可空:NO 
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 10】factory_station
+  station_id                     BIGINT UNSIGNED(20) 可空:NO 
+  station_code                   VARCHAR        (64) 可空:YES
+  station_name                   VARCHAR        (128) 可空:YES
+  line_id                        BIGINT UNSIGNED(20) 可空:YES
+  station_type                   VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 11】factory_station_operation
+  id                             BIGINT UNSIGNED(20) 可空:NO 
+  station_id                     BIGINT UNSIGNED(20) 可空:YES
+  operation_id                   BIGINT UNSIGNED(20) 可空:YES
+  is_default                     TINYINT        (3) 可空:NO 
+  status                         VARCHAR        (32) 可空:YES
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 12】factory_workshop
+  workshop_id                    BIGINT UNSIGNED(20) 可空:NO 
+  workshop_code                  VARCHAR        (64) 可空:YES
+  workshop_name                  VARCHAR        (128) 可空:YES
+  manager_id                     BIGINT UNSIGNED(20) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 13】mdm_bom
+  bom_id                         BIGINT UNSIGNED(20) 可空:NO 
+  bom_code                       VARCHAR        (64) 可空:YES
+  product_id                     BIGINT UNSIGNED(20) 可空:YES
+  bom_version                    VARCHAR        (64) 可空:YES
+  effective_date                 DATE           (10) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 14】mdm_bom_item
+  bom_item_id                    BIGINT UNSIGNED(20) 可空:NO 
+  bom_id                         BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  quantity                       DECIMAL        (18) 可空:NO 
+  loss_rate                      DECIMAL        (9) 可空:NO 
+  sequence_no                    INT            (10) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 15】mdm_customer
+  customer_id                    BIGINT UNSIGNED(20) 可空:NO 
+  customer_code                  VARCHAR        (64) 可空:YES
+  customer_name                  VARCHAR        (128) 可空:YES
+  contact_name                   VARCHAR        (128) 可空:YES
+  contact_phone                  VARCHAR        (64) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 16】mdm_material
+  material_id                    BIGINT UNSIGNED(20) 可空:NO 
+  material_code                  VARCHAR        (64) 可空:YES
+  material_name                  VARCHAR        (128) 可空:YES
+  category_id                    BIGINT UNSIGNED(20) 可空:YES
+  spec_model                     VARCHAR        (64) 可空:YES
+  unit_id                        BIGINT UNSIGNED(20) 可空:YES
+  material_type                  VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 17】mdm_material_category
+  category_id                    BIGINT UNSIGNED(20) 可空:NO 
+  parent_id                      BIGINT UNSIGNED(20) 可空:YES
+  category_code                  VARCHAR        (64) 可空:YES
+  category_name                  VARCHAR        (128) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 18】mdm_product
+  product_id                     BIGINT UNSIGNED(20) 可空:NO 
+  product_code                   VARCHAR        (64) 可空:YES
+  product_name                   VARCHAR        (128) 可空:YES
+  product_model                  VARCHAR        (64) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 19】mdm_supplier
+  supplier_id                    BIGINT UNSIGNED(20) 可空:NO 
+  supplier_code                  VARCHAR        (64) 可空:YES
+  supplier_name                  VARCHAR        (128) 可空:YES
+  contact_name                   VARCHAR        (128) 可空:YES
+  contact_phone                  VARCHAR        (64) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 20】mdm_unit
+  unit_id                        BIGINT UNSIGNED(20) 可空:NO 
+  unit_code                      VARCHAR        (64) 可空:YES
+  unit_name                      VARCHAR        (128) 可空:YES
+  precision_scale                INT            (10) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 21】mfg_andon_alert
+  alert_id                       BIGINT UNSIGNED(20) 可空:NO 
+  alert_no                       VARCHAR        (64) 可空:YES
+  line_id                        BIGINT UNSIGNED(20) 可空:YES
+  station_id                     BIGINT UNSIGNED(20) 可空:YES
+  triggered_by                   BIGINT UNSIGNED(20) 可空:YES
+  alert_type                     VARCHAR        (32) 可空:YES
+  trigger_time                   DATETIME       (19) 可空:YES
+  response_time                  DATETIME       (19) 可空:YES
+  resolved_time                  DATETIME       (19) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 22】mfg_dispatch_order
+  dispatch_id                    BIGINT UNSIGNED(20) 可空:NO 
+  dispatch_no                    VARCHAR        (64) 可空:YES
+  work_order_id                  BIGINT UNSIGNED(20) 可空:YES
+  team_id                        BIGINT UNSIGNED(20) 可空:YES
+  planned_quantity               DECIMAL        (18) 可空:NO 
+  due_time                       DATETIME       (19) 可空:YES
+  material_ready_status          VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 23】mfg_exception
+  exception_id                   BIGINT UNSIGNED(20) 可空:NO 
+  exception_no                   VARCHAR        (64) 可空:YES
+  exception_type                 VARCHAR        (32) 可空:YES
+  source_alert_id                BIGINT UNSIGNED(20) 可空:YES
+  task_id                        BIGINT UNSIGNED(20) 可空:YES
+  station_id                     BIGINT UNSIGNED(20) 可空:YES
+  reported_by                    BIGINT UNSIGNED(20) 可空:YES
+  description                    VARCHAR        (500) 可空:YES
+  handle_result                  VARCHAR        (255) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 24】mfg_production_order
+  production_order_id            BIGINT UNSIGNED(20) 可空:NO 
+  production_order_no            VARCHAR        (64) 可空:YES
+  customer_id                    BIGINT UNSIGNED(20) 可空:YES
+  product_id                     BIGINT UNSIGNED(20) 可空:YES
+  order_quantity                 DECIMAL        (18) 可空:NO 
+  delivery_date                  DATE           (10) 可空:YES
+  source_type                    VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 25】mfg_production_plan
+  plan_id                        BIGINT UNSIGNED(20) 可空:NO 
+  plan_no                        VARCHAR        (64) 可空:YES
+  production_order_id            BIGINT UNSIGNED(20) 可空:YES
+  line_id                        BIGINT UNSIGNED(20) 可空:YES
+  planned_start_time             DATETIME       (19) 可空:YES
+  planned_end_time               DATETIME       (19) 可空:YES
+  planned_quantity               DECIMAL        (18) 可空:NO 
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 26】mfg_report_material
+  id                             BIGINT UNSIGNED(20) 可空:NO 
+  report_id                      BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  batch_id                       BIGINT UNSIGNED(20) 可空:YES
+  used_quantity                  DECIMAL        (18) 可空:NO 
+  scrap_quantity                 DECIMAL        (18) 可空:NO 
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 27】mfg_task
+  task_id                        BIGINT UNSIGNED(20) 可空:NO 
+  task_no                        VARCHAR        (64) 可空:YES
+  dispatch_id                    BIGINT UNSIGNED(20) 可空:YES
+  work_order_id                  BIGINT UNSIGNED(20) 可空:YES
+  operation_id                   BIGINT UNSIGNED(20) 可空:YES
+  station_id                     BIGINT UNSIGNED(20) 可空:YES
+  planned_quantity               DECIMAL        (18) 可空:NO 
+  completed_quantity             DECIMAL        (18) 可空:NO 
+  defect_quantity                DECIMAL        (18) 可空:NO 
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 28】mfg_task_operator
+  id                             BIGINT UNSIGNED(20) 可空:NO 
+  task_id                        BIGINT UNSIGNED(20) 可空:YES
+  employee_id                    BIGINT UNSIGNED(20) 可空:YES
+  role_in_task                   VARCHAR        (32) 可空:YES
+  assigned_time                  DATETIME       (19) 可空:YES
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 29】mfg_work_order
+  work_order_id                  BIGINT UNSIGNED(20) 可空:NO 
+  work_order_no                  VARCHAR        (64) 可空:YES
+  plan_id                        BIGINT UNSIGNED(20) 可空:YES
+  product_id                     BIGINT UNSIGNED(20) 可空:YES
+  bom_id                         BIGINT UNSIGNED(20) 可空:YES
+  route_id                       BIGINT UNSIGNED(20) 可空:YES
+  planned_quantity               DECIMAL        (18) 可空:NO 
+  completed_quantity             DECIMAL        (18) 可空:NO 
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 30】mfg_work_order_material
+  requirement_id                 BIGINT UNSIGNED(20) 可空:NO 
+  work_order_id                  BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  required_quantity              DECIMAL        (18) 可空:NO 
+  issued_quantity                DECIMAL        (18) 可空:NO 
+  shortage_quantity              DECIMAL        (18) 可空:NO 
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 31】mfg_work_report
+  report_id                      BIGINT UNSIGNED(20) 可空:NO 
+  report_no                      VARCHAR        (64) 可空:YES
+  task_id                        BIGINT UNSIGNED(20) 可空:YES
+  operator_id                    BIGINT UNSIGNED(20) 可空:YES
+  station_id                     BIGINT UNSIGNED(20) 可空:YES
+  qualified_quantity             DECIMAL        (18) 可空:NO 
+  defect_quantity                DECIMAL        (18) 可空:NO 
+  actual_work_hours              DECIMAL        (18) 可空:NO 
+  report_time                    DATETIME       (19) 可空:YES
+  audit_status                   VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 32】org_department
+  department_id                  BIGINT UNSIGNED(20) 可空:NO 
+  parent_id                      BIGINT UNSIGNED(20) 可空:YES
+  department_code                VARCHAR        (64) 可空:YES
+  department_name                VARCHAR        (128) 可空:YES
+  manager_id                     BIGINT UNSIGNED(20) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 33】org_employee
+  employee_id                    BIGINT UNSIGNED(20) 可空:NO 
+  employee_no                    VARCHAR        (64) 可空:YES
+  employee_name                  VARCHAR        (128) 可空:YES
+  department_id                  BIGINT UNSIGNED(20) 可空:YES
+  position_name                  VARCHAR        (128) 可空:YES
+  skill_level                    VARCHAR        (64) 可空:YES
+  phone                          VARCHAR        (64) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 34】org_shift
+  shift_id                       BIGINT UNSIGNED(20) 可空:NO 
+  shift_code                     VARCHAR        (64) 可空:YES
+  shift_name                     VARCHAR        (128) 可空:YES
+  start_time                     DATETIME       (19) 可空:YES
+  end_time                       DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 35】org_team
+  team_id                        BIGINT UNSIGNED(20) 可空:NO 
+  team_code                      VARCHAR        (64) 可空:YES
+  team_name                      VARCHAR        (128) 可空:YES
+  leader_id                      BIGINT UNSIGNED(20) 可空:YES
+  department_id                  BIGINT UNSIGNED(20) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 36】org_team_member
+  id                             BIGINT UNSIGNED(20) 可空:NO 
+  team_id                        BIGINT UNSIGNED(20) 可空:YES
+  employee_id                    BIGINT UNSIGNED(20) 可空:YES
+  join_date                      DATE           (10) 可空:YES
+  leave_date                     DATE           (10) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 37】process_operation
+  operation_id                   BIGINT UNSIGNED(20) 可空:NO 
+  operation_code                 VARCHAR        (64) 可空:YES
+  operation_name                 VARCHAR        (128) 可空:YES
+  operation_type                 VARCHAR        (32) 可空:YES
+  standard_time                  DATETIME       (19) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 38】process_parameter
+  parameter_id                   BIGINT UNSIGNED(20) 可空:NO 
+  operation_id                   BIGINT UNSIGNED(20) 可空:YES
+  parameter_name                 VARCHAR        (128) 可空:YES
+  standard_value                 VARCHAR        (64) 可空:YES
+  upper_limit                    VARCHAR        (64) 可空:YES
+  lower_limit                    VARCHAR        (64) 可空:YES
+  unit_id                        BIGINT UNSIGNED(20) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 39】process_route
+  route_id                       BIGINT UNSIGNED(20) 可空:NO 
+  route_code                     VARCHAR        (64) 可空:YES
+  route_name                     VARCHAR        (128) 可空:YES
+  product_id                     BIGINT UNSIGNED(20) 可空:YES
+  version                        VARCHAR        (64) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 40】process_route_item
+  route_item_id                  BIGINT UNSIGNED(20) 可空:NO 
+  route_id                       BIGINT UNSIGNED(20) 可空:YES
+  operation_id                   BIGINT UNSIGNED(20) 可空:YES
+  sequence_no                    INT            (10) 可空:YES
+  standard_time                  DATETIME       (19) 可空:YES
+  qc_required                    TINYINT        (3) 可空:NO 
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 41】process_work_instruction
+  instruction_id                 BIGINT UNSIGNED(20) 可空:NO 
+  operation_id                   BIGINT UNSIGNED(20) 可空:YES
+  product_id                     BIGINT UNSIGNED(20) 可空:YES
+  version                        VARCHAR        (64) 可空:YES
+  title                          VARCHAR        (128) 可空:YES
+  file_id                        BIGINT UNSIGNED(20) 可空:YES
+  effective_time                 DATETIME       (19) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 42】qms_inspection_item
+  item_id                        BIGINT UNSIGNED(20) 可空:NO 
+  item_code                      VARCHAR        (64) 可空:YES
+  item_name                      VARCHAR        (128) 可空:YES
+  item_type                      VARCHAR        (32) 可空:YES
+  inspection_method              VARCHAR        (255) 可空:YES
+  unit_id                        BIGINT UNSIGNED(20) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 43】qms_inspection_order
+  inspection_id                  BIGINT UNSIGNED(20) 可空:NO 
+  inspection_no                  VARCHAR        (64) 可空:YES
+  inspection_type                VARCHAR        (32) 可空:YES
+  scheme_id                      BIGINT UNSIGNED(20) 可空:YES
+  work_order_id                  BIGINT UNSIGNED(20) 可空:YES
+  task_id                        BIGINT UNSIGNED(20) 可空:YES
+  report_id                      BIGINT UNSIGNED(20) 可空:YES
+  batch_id                       BIGINT UNSIGNED(20) 可空:YES
+  inspector_id                   BIGINT UNSIGNED(20) 可空:YES
+  inspection_result              VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 44】qms_inspection_result
+  result_id                      BIGINT UNSIGNED(20) 可空:NO 
+  inspection_id                  BIGINT UNSIGNED(20) 可空:YES
+  item_id                        BIGINT UNSIGNED(20) 可空:YES
+  measured_value                 VARCHAR        (64) 可空:YES
+  result                         VARCHAR        (32) 可空:YES
+  defect_description             VARCHAR        (255) 可空:YES
+  photo_file_id                  BIGINT UNSIGNED(20) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 45】qms_inspection_scheme
+  scheme_id                      BIGINT UNSIGNED(20) 可空:NO 
+  scheme_code                    VARCHAR        (64) 可空:YES
+  scheme_name                    VARCHAR        (128) 可空:YES
+  product_id                     BIGINT UNSIGNED(20) 可空:YES
+  operation_id                   BIGINT UNSIGNED(20) 可空:YES
+  inspection_type                VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 46】qms_inspection_scheme_item
+  id                             BIGINT UNSIGNED(20) 可空:NO 
+  scheme_id                      BIGINT UNSIGNED(20) 可空:YES
+  item_id                        BIGINT UNSIGNED(20) 可空:YES
+  standard_id                    BIGINT UNSIGNED(20) 可空:YES
+  sample_quantity                DECIMAL        (18) 可空:NO 
+  sequence_no                    INT            (10) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 47】qms_inspection_standard
+  standard_id                    BIGINT UNSIGNED(20) 可空:NO 
+  item_id                        BIGINT UNSIGNED(20) 可空:YES
+  product_id                     BIGINT UNSIGNED(20) 可空:YES
+  operation_id                   BIGINT UNSIGNED(20) 可空:YES
+  standard_value                 VARCHAR        (64) 可空:YES
+  upper_limit                    VARCHAR        (64) 可空:YES
+  lower_limit                    VARCHAR        (64) 可空:YES
+  judgement_rule                 VARCHAR        (255) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 48】qms_nonconforming_detail
+  detail_id                      BIGINT UNSIGNED(20) 可空:NO 
+  ncr_id                         BIGINT UNSIGNED(20) 可空:YES
+  barcode_id                     BIGINT UNSIGNED(20) 可空:YES
+  inspection_result_id           BIGINT UNSIGNED(20) 可空:YES
+  defect_quantity                DECIMAL        (18) 可空:NO 
+  final_disposition              VARCHAR        (32) 可空:YES
+  recheck_result                 VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 49】qms_nonconforming_order
+  ncr_id                         BIGINT UNSIGNED(20) 可空:NO 
+  ncr_no                         VARCHAR        (64) 可空:YES
+  inspection_id                  BIGINT UNSIGNED(20) 可空:YES
+  product_lot_id                 BIGINT UNSIGNED(20) 可空:YES
+  defect_reason                  VARCHAR        (128) 可空:YES
+  disposition_type               VARCHAR        (32) 可空:YES
+  approval_status                VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 50】sys_approval_record
+  approval_id                    BIGINT UNSIGNED(20) 可空:NO 
+  biz_type                       VARCHAR        (32) 可空:YES
+  biz_id                         BIGINT UNSIGNED(20) 可空:YES
+  approval_node                  VARCHAR        (64) 可空:YES
+  approver_id                    BIGINT UNSIGNED(20) 可空:YES
+  approval_result                VARCHAR        (32) 可空:YES
+  approval_comment               VARCHAR        (500) 可空:YES
+  approval_time                  DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 51】sys_dict_data
+  dict_data_id                   BIGINT UNSIGNED(20) 可空:NO 
+  dict_type_code                 VARCHAR        (64) 可空:YES
+  dict_value                     VARCHAR        (64) 可空:YES
+  dict_label                     VARCHAR        (128) 可空:YES
+  sort_no                        INT            (10) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 52】sys_dict_type
+  dict_type_id                   BIGINT UNSIGNED(20) 可空:NO 
+  dict_type_code                 VARCHAR        (64) 可空:YES
+  dict_type_name                 VARCHAR        (128) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 53】sys_file
+  file_id                        BIGINT UNSIGNED(20) 可空:NO 
+  file_name                      VARCHAR        (128) 可空:YES
+  file_url                       VARCHAR        (255) 可空:YES
+  file_type                      VARCHAR        (32) 可空:YES
+  biz_type                       VARCHAR        (32) 可空:YES
+  biz_id                         BIGINT UNSIGNED(20) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 54】sys_menu
+  menu_id                        BIGINT UNSIGNED(20) 可空:NO 
+  parent_id                      BIGINT UNSIGNED(20) 可空:YES
+  menu_name                      VARCHAR        (128) 可空:YES
+  menu_type                      VARCHAR        (32) 可空:YES
+  permission_code                VARCHAR        (64) 可空:YES
+  route_path                     VARCHAR        (255) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 55】sys_operation_log
+  log_id                         BIGINT UNSIGNED(20) 可空:NO 
+  user_id                        BIGINT UNSIGNED(20) 可空:YES
+  operation_type                 VARCHAR        (32) 可空:YES
+  module_code                    VARCHAR        (64) 可空:YES
+  biz_id                         BIGINT UNSIGNED(20) 可空:YES
+  request_ip                     VARCHAR        (64) 可空:YES
+  operation_time                 DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 56】sys_role
+  role_id                        BIGINT UNSIGNED(20) 可空:NO 
+  role_code                      VARCHAR        (64) 可空:YES
+  role_name                      VARCHAR        (128) 可空:YES
+  data_scope                     VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 57】sys_role_menu
+  id                             BIGINT UNSIGNED(20) 可空:NO 
+  role_id                        BIGINT UNSIGNED(20) 可空:YES
+  menu_id                        BIGINT UNSIGNED(20) 可空:YES
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 58】sys_status_change_log
+  log_id                         BIGINT UNSIGNED(20) 可空:NO 
+  biz_type                       VARCHAR        (32) 可空:YES
+  biz_id                         BIGINT UNSIGNED(20) 可空:YES
+  old_status                     VARCHAR        (32) 可空:YES
+  new_status                     VARCHAR        (32) 可空:YES
+  change_reason                  VARCHAR        (255) 可空:YES
+  changed_by                     BIGINT UNSIGNED(20) 可空:YES
+  changed_time                   DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 59】sys_system_param
+  param_id                       BIGINT UNSIGNED(20) 可空:NO 
+  param_key                      VARCHAR        (64) 可空:YES
+  param_value                    VARCHAR        (500) 可空:YES
+  param_name                     VARCHAR        (128) 可空:YES
+  module_code                    VARCHAR        (64) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 60】sys_user
+  user_id                        BIGINT UNSIGNED(20) 可空:NO 
+  username                       VARCHAR        (64) 可空:YES
+  password_hash                  VARCHAR        (128) 可空:YES
+  employee_id                    BIGINT UNSIGNED(20) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  last_login_time                DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 61】sys_user_role
+  id                             BIGINT UNSIGNED(20) 可空:NO 
+  user_id                        BIGINT UNSIGNED(20) 可空:YES
+  role_id                        BIGINT UNSIGNED(20) 可空:YES
+  assigned_time                  DATETIME       (19) 可空:YES
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 62】trace_barcode
+  barcode_id                     BIGINT UNSIGNED(20) 可空:NO 
+  barcode_value                  VARCHAR        (128) 可空:YES
+  barcode_type                   VARCHAR        (32) 可空:YES
+  biz_type                       VARCHAR        (32) 可空:YES
+  biz_id                         BIGINT UNSIGNED(20) 可空:YES
+  generated_rule                 VARCHAR        (255) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 63】trace_material_usage
+  usage_id                       BIGINT UNSIGNED(20) 可空:NO 
+  product_lot_id                 BIGINT UNSIGNED(20) 可空:YES
+  barcode_id                     BIGINT UNSIGNED(20) 可空:YES
+  work_order_id                  BIGINT UNSIGNED(20) 可空:YES
+  report_id                      BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  batch_id                       BIGINT UNSIGNED(20) 可空:YES
+  used_quantity                  DECIMAL        (18) 可空:NO 
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 64】trace_product_lot
+  product_lot_id                 BIGINT UNSIGNED(20) 可空:NO 
+  lot_no                         VARCHAR        (64) 可空:YES
+  product_id                     BIGINT UNSIGNED(20) 可空:YES
+  work_order_id                  BIGINT UNSIGNED(20) 可空:YES
+  batch_quantity                 DECIMAL        (18) 可空:NO 
+  qualified_quantity             DECIMAL        (18) 可空:NO 
+  defect_quantity                DECIMAL        (18) 可空:NO 
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 65】wms_inbound_detail
+  detail_id                      BIGINT UNSIGNED(20) 可空:NO 
+  inbound_id                     BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  batch_id                       BIGINT UNSIGNED(20) 可空:YES
+  location_id                    BIGINT UNSIGNED(20) 可空:YES
+  inbound_quantity               DECIMAL        (18) 可空:NO 
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 66】wms_inbound_order
+  inbound_id                     BIGINT UNSIGNED(20) 可空:NO 
+  inbound_no                     VARCHAR        (64) 可空:YES
+  inbound_type                   VARCHAR        (32) 可空:YES
+  warehouse_id                   BIGINT UNSIGNED(20) 可空:YES
+  source_order_type              VARCHAR        (32) 可空:YES
+  source_order_id                BIGINT UNSIGNED(20) 可空:YES
+  audit_status                   VARCHAR        (32) 可空:YES
+  inbound_time                   DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 67】wms_inventory
+  inventory_id                   BIGINT UNSIGNED(20) 可空:NO 
+  warehouse_id                   BIGINT UNSIGNED(20) 可空:YES
+  location_id                    BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  batch_id                       BIGINT UNSIGNED(20) 可空:YES
+  available_quantity             DECIMAL        (18) 可空:NO 
+  locked_quantity                DECIMAL        (18) 可空:NO 
+  inspection_quantity            DECIMAL        (18) 可空:NO 
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 68】wms_location
+  location_id                    BIGINT UNSIGNED(20) 可空:NO 
+  location_code                  VARCHAR        (64) 可空:YES
+  location_name                  VARCHAR        (128) 可空:YES
+  warehouse_id                   BIGINT UNSIGNED(20) 可空:YES
+  location_type                  VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 69】wms_material_batch
+  batch_id                       BIGINT UNSIGNED(20) 可空:NO 
+  batch_no                       VARCHAR        (64) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  supplier_id                    BIGINT UNSIGNED(20) 可空:YES
+  supplier_batch_no              VARCHAR        (64) 可空:YES
+  production_date                DATE           (10) 可空:YES
+  received_date                  DATE           (10) 可空:YES
+  quality_status                 VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  source_order_type              VARCHAR        (32) 可空:YES
+  source_order_id                BIGINT UNSIGNED(20) 可空:YES
+  source_product_lot_id          BIGINT UNSIGNED(20) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 70】wms_outbound_detail
+  detail_id                      BIGINT UNSIGNED(20) 可空:NO 
+  outbound_id                    BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  batch_id                       BIGINT UNSIGNED(20) 可空:YES
+  location_id                    BIGINT UNSIGNED(20) 可空:YES
+  outbound_quantity              DECIMAL        (18) 可空:NO 
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 71】wms_outbound_order
+  outbound_id                    BIGINT UNSIGNED(20) 可空:NO 
+  outbound_no                    VARCHAR        (64) 可空:YES
+  outbound_type                  VARCHAR        (32) 可空:YES
+  warehouse_id                   BIGINT UNSIGNED(20) 可空:YES
+  work_order_id                  BIGINT UNSIGNED(20) 可空:YES
+  applicant_id                   BIGINT UNSIGNED(20) 可空:YES
+  audit_status                   VARCHAR        (32) 可空:YES
+  outbound_time                  DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 72】wms_replenishment_suggestion
+  suggestion_id                  BIGINT UNSIGNED(20) 可空:NO 
+  suggestion_no                  VARCHAR        (64) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  required_quantity              DECIMAL        (18) 可空:NO 
+  available_quantity             DECIMAL        (18) 可空:NO 
+  suggested_quantity             DECIMAL        (18) 可空:NO 
+  source_type                    VARCHAR        (32) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 73】wms_return_detail
+  detail_id                      BIGINT UNSIGNED(20) 可空:NO 
+  return_id                      BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  batch_id                       BIGINT UNSIGNED(20) 可空:YES
+  return_quantity                DECIMAL        (18) 可空:NO 
+  return_reason                  VARCHAR        (255) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 74】wms_return_order
+  return_id                      BIGINT UNSIGNED(20) 可空:NO 
+  return_no                      VARCHAR        (64) 可空:YES
+  return_type                    VARCHAR        (32) 可空:YES
+  work_order_id                  BIGINT UNSIGNED(20) 可空:YES
+  applicant_id                   BIGINT UNSIGNED(20) 可空:YES
+  audit_status                   VARCHAR        (32) 可空:YES
+  return_time                    DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 75】wms_stock_movement
+  movement_id                    BIGINT UNSIGNED(20) 可空:NO 
+  movement_no                    VARCHAR        (64) 可空:YES
+  movement_type                  VARCHAR        (32) 可空:YES
+  source_order_type              VARCHAR        (32) 可空:YES
+  source_order_id                BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  batch_id                       BIGINT UNSIGNED(20) 可空:YES
+  quantity                       DECIMAL        (18) 可空:NO 
+  direction                      VARCHAR        (32) 可空:YES
+  operation_time                 DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 76】wms_stocktake_detail
+  detail_id                      BIGINT UNSIGNED(20) 可空:NO 
+  stocktake_id                   BIGINT UNSIGNED(20) 可空:YES
+  material_id                    BIGINT UNSIGNED(20) 可空:YES
+  batch_id                       BIGINT UNSIGNED(20) 可空:YES
+  location_id                    BIGINT UNSIGNED(20) 可空:YES
+  book_quantity                  DECIMAL        (18) 可空:NO 
+  actual_quantity                DECIMAL        (18) 可空:NO 
+  difference_quantity            DECIMAL        (18) 可空:NO 
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 77】wms_stocktake_order
+  stocktake_id                   BIGINT UNSIGNED(20) 可空:NO 
+  stocktake_no                   VARCHAR        (64) 可空:YES
+  warehouse_id                   BIGINT UNSIGNED(20) 可空:YES
+  stocktake_type                 VARCHAR        (32) 可空:YES
+  stocktake_status               VARCHAR        (32) 可空:YES
+  started_time                   DATETIME       (19) 可空:YES
+  finished_time                  DATETIME       (19) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+【表 78】wms_warehouse
+  warehouse_id                   BIGINT UNSIGNED(20) 可空:NO 
+  warehouse_code                 VARCHAR        (64) 可空:YES
+  warehouse_name                 VARCHAR        (128) 可空:YES
+  warehouse_type                 VARCHAR        (32) 可空:YES
+  manager_id                     BIGINT UNSIGNED(20) 可空:YES
+  status                         VARCHAR        (32) 可空:YES
+  remark                         VARCHAR        (500) 可空:YES
+  version                        INT            (10) 可空:NO 
+  created_by                     BIGINT UNSIGNED(20) 可空:YES
+  created_time                   DATETIME       (19) 可空:YES
+  updated_by                     BIGINT UNSIGNED(20) 可空:YES
+  updated_time                   DATETIME       (19) 可空:YES
+  deleted_flag                   TINYINT        (3) 可空:NO 
+
+========== 共 78 张表 ==========
