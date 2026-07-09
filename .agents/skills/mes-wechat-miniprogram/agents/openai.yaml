@@ -1,0 +1,3 @@
+interface:
+  display_name: "MES 微信小程序"
+  short_description: "设计移动端扫码、任务、报工和检验流程"

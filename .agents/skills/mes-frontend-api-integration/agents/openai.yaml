@@ -1,0 +1,3 @@
+interface:
+  display_name: "MES 前后端联调"
+  short_description: "联调路径、token、分页和 ResultData 解析"

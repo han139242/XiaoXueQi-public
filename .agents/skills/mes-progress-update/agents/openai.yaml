@@ -1,0 +1,3 @@
+interface:
+  display_name: "MES 进度更新"
+  short_description: "提交前更新 COLLABORATION.md 的进度和风险"

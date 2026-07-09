@@ -1,0 +1,3 @@
+interface:
+  display_name: "MES 后端业务流"
+  short_description: "处理生产、库存、质量、追溯等事务流程"

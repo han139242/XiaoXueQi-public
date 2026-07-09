@@ -1,0 +1,3 @@
+interface:
+  display_name: "MES 后端资源模块"
+  short_description: "实现 Spring Boot CRUD、分页和软删除"

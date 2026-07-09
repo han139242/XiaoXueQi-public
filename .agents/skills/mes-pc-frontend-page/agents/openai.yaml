@@ -1,0 +1,3 @@
+interface:
+  display_name: "MES PC 前端页面"
+  short_description: "创建 Vue 管理端页面、表格、表单和路由"

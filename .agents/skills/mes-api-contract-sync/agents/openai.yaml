@@ -1,0 +1,3 @@
+interface:
+  display_name: "MES 接口契约同步"
+  short_description: "对齐接口文档、Controller 和前端调用"
