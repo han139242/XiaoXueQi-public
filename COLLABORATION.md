@@ -77,6 +77,7 @@
 
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
+| 2026-07-09 | A + AI 协助 | 字典数据管理 | 新增 `sys_dict_data` 后端通用 CRUD、按字典类型查询和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续系统参数 |
 | 2026-07-09 | A + AI 协助 | 字典类型管理 | 新增 `sys_dict_type` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持字典类型编码/名称关键字和状态筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典数据 |
 | 2026-07-09 | A + AI 协助 | 用户和菜单管理 | 将早期 `UserController` / `UserService` / `UserServiceImpl` 收敛为接口文档要求的 `SysUserController` / `SysUserService` / `SysUserServiceImpl`；保留 `/api/sys/user` 路径，补充分页、软删除、重置密码、分配角色接口；新增 `sys_menu` 后端 CRUD、菜单树和导出接口 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典类型 |
 | 2026-07-09 | A + AI 协助 | 班次管理 | 新增 `org_shift` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典类型 |
