@@ -1,0 +1,23 @@
+#!/bin/sh
+
+if [ "$SKIP_COLLAB_DOC" = "1" ]; then
+  echo "[协作提醒] 已临时跳过 COLLABORATION.md 检查。"
+  exit 0
+fi
+
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^COLLABORATION\.md$'; then
+  exit 0
+fi
+
+cat <<'MSG'
+[协作提醒] 本次提交没有暂存 COLLABORATION.md。
+
+请先更新协作进度、模块状态、验证结果或风险说明，然后执行：
+  git add COLLABORATION.md
+  git commit ...
+
+如果这次确实是非常小的无关修正，可以临时跳过：
+  SKIP_COLLAB_DOC=1 git commit ...
+MSG
+
+exit 1
