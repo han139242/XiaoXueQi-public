@@ -12,7 +12,10 @@ import java.time.LocalDateTime;
 import java.math.BigDecimal;
 
 /**
- * mfg_production_order
+ * mfg_production_order 生产订单表
+ * 用于管理生产订单信息，包括订单编号、客户、产品、订单数量、交付日期和状态等
+ * 来源类型：ERP同步、手工创建
+ * 订单状态：新建、已排产、生产中、已完成、已关闭
  */
 @Data
 @AllArgsConstructor
