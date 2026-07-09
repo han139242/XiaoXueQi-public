@@ -77,6 +77,7 @@
 
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
+| 2026-07-09 | A + AI 协助 | 状态变更日志管理 | 新增 `sys_status_change_log` 只读后端接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持分页、详情、导出，以及业务类型、业务 ID、状态、变更人、时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续审批记录 |
 | 2026-07-09 | A + AI 协助 | 操作日志管理 | 新增 `sys_operation_log` 只读后端接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持分页、详情、导出，以及用户、操作类型、模块、业务 ID、时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续状态变更日志 |
 | 2026-07-09 | A + AI 协助 | 附件文件管理 | 新增 `sys_file` 上传、下载、通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；复用现有文件工具并补充通用上传方法 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续操作日志 |
 | 2026-07-09 | A + AI 协助 | 系统参数管理 | 新增 `sys_system_param` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持参数键/名称关键字和模块编码筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续附件文件 |
