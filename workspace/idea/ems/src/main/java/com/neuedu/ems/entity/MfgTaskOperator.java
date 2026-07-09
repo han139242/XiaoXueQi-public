@@ -18,8 +18,8 @@ import java.time.LocalDateTime;
 @TableName("mfg_task_operator")
 public class MfgTaskOperator {
 
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-    @TableId(value = "task_id", type = IdType.AUTO)
     private Long taskId;
     private Long employeeId;
     private String roleInTask;

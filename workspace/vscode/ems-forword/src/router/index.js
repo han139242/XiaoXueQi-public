@@ -1,5 +1,7 @@
 //路由
 import { createRouter, createWebHashHistory } from 'vue-router'
+import Login from '../pages/login/index.vue'
+import Regist from '../pages/regist/index.vue'
 
 // 路由规则
 const routes = [
@@ -9,7 +11,17 @@ const routes = [
   },  
   {
     path: '/login',
+    meta: {
+      title: '登录'
+    },
     component: Login
+  },
+  {
+    path: '/regist',
+    meta: {
+      title: '注册'
+    },
+    component: Regist
   },
 ]
 
@@ -23,7 +35,8 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   console.log(to.path,'========')
   if (to.meta.title) {
-    document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE}`
+    const appTitle = import.meta.env.VITE_APP_TITLE || '羽毛球 MES'
+    document.title = `${to.meta.title} - ${appTitle}`
   }
   next()
 })

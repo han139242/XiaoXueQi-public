@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * 认证控制器
  */
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RestController
 public class AuthController {
 

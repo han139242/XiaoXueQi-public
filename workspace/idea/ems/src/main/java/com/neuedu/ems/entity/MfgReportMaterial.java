@@ -19,8 +19,8 @@ import java.math.BigDecimal;
 @TableName("mfg_report_material")
 public class MfgReportMaterial {
 
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-    @TableId(value = "report_id", type = IdType.AUTO)
     private Long reportId;
     private Long materialId;
     private Long batchId;

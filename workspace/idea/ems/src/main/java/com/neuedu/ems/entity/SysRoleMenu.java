@@ -18,8 +18,8 @@ import java.time.LocalDateTime;
 @TableName("sys_role_menu")
 public class SysRoleMenu {
 
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-    @TableId(value = "role_id", type = IdType.AUTO)
     private Long roleId;
     private Long menuId;
     private Long createdBy;

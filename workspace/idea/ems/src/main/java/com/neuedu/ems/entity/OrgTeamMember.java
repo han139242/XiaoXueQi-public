@@ -19,8 +19,8 @@ import java.time.LocalDateTime;
 @TableName("org_team_member")
 public class OrgTeamMember {
 
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-    @TableId(value = "team_id", type = IdType.AUTO)
     private Long teamId;
     private Long employeeId;
     private LocalDate joinDate;

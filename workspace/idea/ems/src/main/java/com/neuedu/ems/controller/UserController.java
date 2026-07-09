@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/user")
+@RequestMapping("/api/sys/user")
 public class UserController {
 
     @Autowired
@@ -26,7 +26,7 @@ public class UserController {
     /**
      * 分页查询用户列表
      */
-    @GetMapping("/list")
+    @GetMapping("/page")
     public ResultData list(@RequestParam(defaultValue = "1") Integer current,
                            @RequestParam(defaultValue = "10") Integer size) {
         Page<SysUser> page = new Page<>(current, size);

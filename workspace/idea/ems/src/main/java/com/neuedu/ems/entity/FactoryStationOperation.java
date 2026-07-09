@@ -18,8 +18,8 @@ import java.time.LocalDateTime;
 @TableName("factory_station_operation")
 public class FactoryStationOperation {
 
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-    @TableId(value = "station_id", type = IdType.AUTO)
     private Long stationId;
     private Long operationId;
     private Integer isDefault;

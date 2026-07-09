@@ -18,8 +18,8 @@ import java.time.LocalDateTime;
 @TableName("sys_user_role")
 public class SysUserRole {
 
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-    @TableId(value = "user_id", type = IdType.AUTO)
     private Long userId;
     private Long roleId;
     private LocalDateTime assignedTime;

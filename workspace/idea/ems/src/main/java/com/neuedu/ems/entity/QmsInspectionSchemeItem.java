@@ -19,8 +19,8 @@ import java.math.BigDecimal;
 @TableName("qms_inspection_scheme_item")
 public class QmsInspectionSchemeItem {
 
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-    @TableId(value = "scheme_id", type = IdType.AUTO)
     private Long schemeId;
     private Long itemId;
     private Long standardId;
