@@ -77,7 +77,11 @@
 
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
+<<<<<<< Updated upstream
 | 2026-07-09 | C + AI 协助 | 生产计划 | 新增 `mfg_production_plan` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持计划编号搜索、状态筛选、生产订单筛选、产线筛选 | Maven 测试通过 | C 继续生产工单或仓储模块 |
+=======
+| 2026-07-09 | A + AI 协助 | 部门管理 | 新增 `org_department` 后端通用 CRUD、部门树和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续员工管理 |
+>>>>>>> Stashed changes
 | 2026-07-09 | A + AI 协助 | 角色菜单关联 | 新增 `sys_role_menu` 后端通用 CRUD、按角色查询菜单关联接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；ServiceImpl 显式调用 `baseMapper`，查询默认过滤 `deleted_flag = 0`，删除为软删除 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续组织基础模块 |
 | 2026-07-09 | A + AI 协助 | 用户角色关联 | 新增 `sys_user_role` 后端通用 CRUD、按用户查询角色关联接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；ServiceImpl 显式调用 `baseMapper`，查询默认过滤 `deleted_flag = 0`，删除为软删除 | 已使用 JDK 21 和本机 MySQL 环境变量运行 Maven test，通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续 `sys_role_menu` |
 | 2026-07-09 | C + AI 协助 | 生产订单 | 新增 `mfg_production_order` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持订单编号搜索、状态筛选、客户筛选、产品筛选 | Maven 测试通过 | C 继续生产计划或生产工单模块 |
