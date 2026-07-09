@@ -17,12 +17,25 @@ import java.util.List;
 @Service
 public class WmsWarehouseServiceImpl extends ServiceImpl<WmsWarehouseMapper, WmsWarehouse> implements WmsWarehouseService {
 
+    /**
+     * 分页查询仓库列表，支持关键字搜索和状态筛选。
+     * @param current 当前页码
+     * @param size 每页记录数
+     * @param keyword 关键字（匹配仓库编码或仓库名称）
+     * @param status 仓库状态
+     * @return 分页结果
+     */
     @Override
     public Page<WmsWarehouse> pageWarehouses(Integer current, Integer size, String keyword, String status) {
         Page<WmsWarehouse> page = new Page<>(current, size);
         return baseMapper.selectPage(page, buildWarehouseQuery(keyword, status));
     }
 
+    /**
+     * 根据仓库ID查询仓库信息。
+     * @param warehouseId 仓库ID
+     * @return 仓库实体
+     */
     @Override
     public WmsWarehouse getWarehouseById(Long warehouseId) {
         QueryWrapper<WmsWarehouse> wrapper = new QueryWrapper<>();
@@ -31,6 +44,11 @@ public class WmsWarehouseServiceImpl extends ServiceImpl<WmsWarehouseMapper, Wms
         return baseMapper.selectOne(wrapper);
     }
 
+    /**
+     * 新增仓库，自动设置删除标志为0。
+     * @param warehouse 仓库实体
+     * @return 是否成功
+     */
     @Override
     public boolean saveWarehouse(WmsWarehouse warehouse) {
         if (warehouse.getDeletedFlag() == null) {
@@ -39,6 +57,11 @@ public class WmsWarehouseServiceImpl extends ServiceImpl<WmsWarehouseMapper, Wms
         return baseMapper.insert(warehouse) > 0;
     }
 
+    /**
+     * 更新仓库信息，不允许修改删除标志。
+     * @param warehouse 仓库实体
+     * @return 是否成功
+     */
     @Override
     public boolean updateWarehouse(WmsWarehouse warehouse) {
         if (warehouse.getWarehouseId() == null) {
@@ -48,6 +71,11 @@ public class WmsWarehouseServiceImpl extends ServiceImpl<WmsWarehouseMapper, Wms
         return baseMapper.updateById(warehouse) > 0;
     }
 
+    /**
+     * 根据ID删除仓库（软删除，将删除标志设为1）。
+     * @param warehouseId 仓库ID
+     * @return 是否成功
+     */
     @Override
     public boolean removeWarehouseById(Long warehouseId) {
         WmsWarehouse warehouse = new WmsWarehouse();
@@ -56,11 +84,23 @@ public class WmsWarehouseServiceImpl extends ServiceImpl<WmsWarehouseMapper, Wms
         return baseMapper.updateById(warehouse) > 0;
     }
 
+    /**
+     * 查询仓库列表，支持关键字搜索和状态筛选。
+     * @param keyword 关键字（匹配仓库编码或仓库名称）
+     * @param status 仓库状态
+     * @return 仓库列表
+     */
     @Override
     public List<WmsWarehouse> listWarehouses(String keyword, String status) {
         return baseMapper.selectList(buildWarehouseQuery(keyword, status));
     }
 
+    /**
+     * 构建仓库查询条件，过滤已删除记录。
+     * @param keyword 关键字
+     * @param status 状态
+     * @return 查询条件包装器
+     */
     private QueryWrapper<WmsWarehouse> buildWarehouseQuery(String keyword, String status) {
         QueryWrapper<WmsWarehouse> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted_flag", 0);
