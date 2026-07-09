@@ -20,7 +20,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     @Override
     public Page<SysRole> pageRoles(Integer current, Integer size, String keyword, String status) {
         Page<SysRole> page = new Page<>(current, size);
-        return page(page, buildRoleQuery(keyword, status));
+        return baseMapper.selectPage(page, buildRoleQuery(keyword, status));
     }
 
     @Override
@@ -28,7 +28,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         QueryWrapper<SysRole> wrapper = new QueryWrapper<>();
         wrapper.eq("role_id", roleId);
         wrapper.eq("deleted_flag", 0);
-        return getOne(wrapper, false);
+        return baseMapper.selectOne(wrapper);
     }
 
     @Override
@@ -36,7 +36,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         if (role.getDeletedFlag() == null) {
             role.setDeletedFlag(0);
         }
-        return save(role);
+        return baseMapper.insert(role) > 0;
     }
 
     @Override
@@ -45,7 +45,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
             return false;
         }
         role.setDeletedFlag(null);
-        return updateById(role);
+        return baseMapper.updateById(role) > 0;
     }
 
     @Override
@@ -53,12 +53,12 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         SysRole role = new SysRole();
         role.setRoleId(roleId);
         role.setDeletedFlag(1);
-        return updateById(role);
+        return baseMapper.updateById(role) > 0;
     }
 
     @Override
     public List<SysRole> listRoles(String keyword, String status) {
-        return list(buildRoleQuery(keyword, status));
+        return baseMapper.selectList(buildRoleQuery(keyword, status));
     }
 
     private QueryWrapper<SysRole> buildRoleQuery(String keyword, String status) {
