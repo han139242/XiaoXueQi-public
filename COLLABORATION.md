@@ -77,6 +77,7 @@
 
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
+| 2026-07-09 | A + AI 协助 | 角色菜单关联 | 新增 `sys_role_menu` 后端通用 CRUD、按角色查询菜单关联接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；ServiceImpl 显式调用 `baseMapper`，查询默认过滤 `deleted_flag = 0`，删除为软删除 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续组织基础模块 |
 | 2026-07-09 | A + AI 协助 | 用户角色关联 | 新增 `sys_user_role` 后端通用 CRUD、按用户查询角色关联接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；ServiceImpl 显式调用 `baseMapper`，查询默认过滤 `deleted_flag = 0`，删除为软删除 | 已使用 JDK 21 和本机 MySQL 环境变量运行 Maven test，通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续 `sys_role_menu` |
 | 2026-07-09 | B + AI 协助 | 工位工序 | 新增 `factory_station_operation` 后端通用管理接口，包含分页、详情、新增、修改、软删除、按工位查询可执行工序、导出和 Mapper XML | Maven 测试通过 | B 分工后端模块已完成，等待联调或补接口细节 |
 | 2026-07-09 | B + AI 协助 | 工位 | 新增 `factory_station` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工位工序模块 |
