@@ -34,6 +34,7 @@
 | `相关文档/md/后端接口文档.md` | 后端接口路径、请求参数、返回格式 |
 | `相关文档/md/MES系统设计文档.md` | MES 总体设计和阶段规划 |
 | `相关文档/md/后端分层理解手册.md` | 解释 Controller、Service、Mapper、XML 分层和答辩说法 |
+| `相关文档/md/后端ABC分工AI提示词规范.md` | 群发用 A/B/C 后端分工和 AI 执行提示词 |
 | `相关文档/does/mes.pdf` | 原始/参考 PDF 文档 |
 | `workspace/idea/ems/docs/羽毛球MES开发约束框架.md` | 后端落地约束和模块边界 |
 | `workspace/idea/ems/src/main/resources/db/schema.sql` | 当前数据库建表脚本 |
@@ -76,6 +77,7 @@
 
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
+| 2026-07-09 | A + AI 协助 | 后端协作分工 | 新增 Markdown 版 A/B/C 后端分工 AI 提示词，补充分层风格、并行冲突处理、单模块流程和群内交接格式 | 文档入口和 Markdown 标题已检查 | 群内按 A/B/C 认领后每次只让 AI 做一个模块 |
 | 2026-07-09 | A + AI 协助 | 角色管理 | 将 `SysRoleServiceImpl` 的通用 CRUD 调整为显式 `baseMapper` 调用，并同步分层手册说明 | Maven 测试通过 | 后续普通模块优先使用更直观的 `baseMapper` 风格 |
 | 2026-07-09 | A + AI 协助 | 后端分层理解 | 新增后端分层理解手册，说明 `SysRole` 模块写法、Mapper 为空原因、Service 业务边界和答辩说明 | Maven 测试通过，文档入口已检查 | 后续成员按手册理解普通 CRUD 和复杂业务分层 |
 | 2026-07-09 | A + AI 协助 | 角色管理 | 调整 `sys_role` 分层：Controller 只处理请求返回，查询、默认值、软删除等规则下沉到 Service | Maven 测试通过 | 后续模块按此分层模板继续实现 |

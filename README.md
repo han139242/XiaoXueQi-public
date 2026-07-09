@@ -11,6 +11,7 @@
 - [后端接口文档](相关文档/md/后端接口文档.md)
 - [MES 系统设计文档](相关文档/md/MES系统设计文档.md)
 - [后端分层理解手册](相关文档/md/后端分层理解手册.md)
+- [后端 A/B/C 分工 AI 提示词](相关文档/md/后端ABC分工AI提示词规范.md)
 - [MES 参考 PDF](相关文档/does/mes.pdf)
 - [后端开发约束框架](workspace/idea/ems/docs/羽毛球MES开发约束框架.md)
 
