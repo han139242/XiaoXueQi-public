@@ -11,7 +11,9 @@ import java.time.LocalDateTime;
 import java.math.BigDecimal;
 
 /**
- * mfg_work_order
+ * mfg_work_order 生产工单表
+ * 用于管理生产工单信息，包括工单编号、生产计划、产品、BOM、工艺路线、计划数量、完成数量和状态等
+ * 工单状态：新建、已审核、已下达、生产中、已完成、已关闭
  */
 @Data
 @AllArgsConstructor
