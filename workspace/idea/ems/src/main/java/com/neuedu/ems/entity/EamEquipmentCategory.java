@@ -10,7 +10,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * eam_equipment_category
+ * eam_equipment_category 设备分类表
+ * 用于管理设备分类信息，支持树形结构（通过 parentId 实现）
  */
 @Data
 @AllArgsConstructor
