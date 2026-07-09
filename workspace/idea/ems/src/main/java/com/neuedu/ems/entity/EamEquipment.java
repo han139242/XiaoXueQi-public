@@ -11,7 +11,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * eam_equipment
+ * eam_equipment 设备台账表
+ * 用于管理设备的基本信息，包括设备编码、名称、分类、规格型号、厂家、购入日期、所在工位和运行状态等
  */
 @Data
 @AllArgsConstructor
