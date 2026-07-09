@@ -10,7 +10,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * qms_inspection_item
+ * qms_inspection_item 检验项目表
+ * 用于定义质量检验项目的基本信息，包括项目编码、名称、类型、检验方法等
  */
 @Data
 @AllArgsConstructor
