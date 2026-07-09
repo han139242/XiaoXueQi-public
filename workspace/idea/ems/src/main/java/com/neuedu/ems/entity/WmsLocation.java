@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * wms_location
+ * wms_location 库位表
  */
 @Data
 @AllArgsConstructor
