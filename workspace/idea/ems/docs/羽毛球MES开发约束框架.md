@@ -13,8 +13,8 @@
 
 设计源文档：
 
-- `../../../md/database_table_analysis（数据库）.md`
-- `../../../md/后端接口文档.md`
+- `../../../../相关文档/md/database_table_analysis（数据库）.md`
+- `../../../../相关文档/md/后端接口文档.md`
 
 项目内落地文件：
 
