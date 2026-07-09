@@ -77,6 +77,7 @@
 
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
+| 2026-07-09 | A + AI 协助 | 班组成员管理 | 新增 `org_team_member` 后端通用 CRUD、按班组查询成员接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；查询默认过滤 `deleted_flag = 0`，删除为软删除 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班次管理 |
 | 2026-07-09 | C + AI 协助 | 生产工单 | 新增 `mfg_work_order` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持工单编号搜索、状态筛选、生产计划筛选、产品筛选 | Maven 测试通过 | C 继续仓储模块或其他生产模块 |
 | 2026-07-09 | A + AI 协助 | 班组管理 | 新增 `org_team` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持班组编码/名称、部门、班组长筛选；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班组成员管理 |
 | 2026-07-09 | A + AI 协助 | 员工管理 | 新增 `org_employee` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持工号/姓名/电话关键字、部门、状态筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班组管理 |
