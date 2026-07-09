@@ -164,6 +164,29 @@ public class FileUtil {
         }
     }
 
+    public String uploadFile(MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                throw new RuntimeException("文件不能为空！");
+            }
+            checkAvatarFileType(file);
+            String twoPath = generateTwoLevelRandomPath();
+            String formalFileName = generateUniqueFileName(file.getOriginalFilename());
+            String formalFullPath = twoPath + formalFileName;
+            File pathFile = new File(rootPath + twoPath);
+            if (!pathFile.exists()) {
+                boolean isCreated = pathFile.mkdirs();
+                if (!isCreated) {
+                    throw new RuntimeException("文件夹创建失败：" + rootPath + twoPath);
+                }
+            }
+            file.transferTo(new File(rootPath + formalFullPath));
+            return formalFullPath;
+        } catch (Exception e) {
+            throw new RuntimeException("文件上传失败：" + e.getMessage());
+        }
+    }
+
     /**
      * 4. 临时文件转正式路径（核心：剪切粘贴）
      * @param tempPath 临时文件完整路径
