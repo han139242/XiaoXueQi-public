@@ -2,6 +2,7 @@ package com.neuedu.ems.config;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -59,6 +60,7 @@ public class RedisConfig {
 
             // 配置ObjectMapper（与之前逻辑一致）
             ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.registerModule(new JavaTimeModule());
             objectMapper.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
             objectMapper.setSerializationInclusion(JsonInclude.Include.ALWAYS);
 
