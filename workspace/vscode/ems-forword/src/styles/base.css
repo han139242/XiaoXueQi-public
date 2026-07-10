@@ -1,0 +1,162 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+html {
+  background: var(--mes-bg);
+}
+
+body {
+  color: var(--mes-text);
+  background: var(--mes-bg);
+  font-family: var(--mes-font);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+button {
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid rgb(8 127 91 / 35%);
+  outline-offset: 2px;
+}
+
+::selection {
+  color: #fff;
+  background: var(--mes-primary);
+}
+
+.mes-page {
+  width: 100%;
+  max-width: 1760px;
+  margin: 0 auto;
+}
+
+.mes-page-header {
+  display: flex;
+  min-height: 48px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.mes-page-title {
+  color: var(--mes-text);
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.mes-page-subtitle {
+  margin-top: 5px;
+  color: var(--mes-text-secondary);
+  font-size: 13px;
+}
+
+.mes-panel {
+  border: 1px solid var(--mes-border);
+  border-radius: var(--mes-radius);
+  background: var(--mes-surface);
+  box-shadow: var(--mes-shadow-sm);
+}
+
+.mes-panel-header {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--mes-border);
+}
+
+.mes-panel-title {
+  color: var(--mes-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.mes-icon-button.el-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+.el-card,
+.el-dialog,
+.el-drawer {
+  --el-border-radius-base: var(--mes-radius);
+}
+
+.el-button {
+  font-weight: 550;
+}
+
+.el-tag {
+  border-radius: 3px;
+  font-weight: 550;
+}
+
+.el-table {
+  --el-table-header-bg-color: #f5f8f6;
+  --el-table-row-hover-bg-color: #f4faf7;
+}
+
+.el-table th.el-table__cell {
+  color: #4f5e57;
+  font-weight: 650;
+}
+
+.el-overlay {
+  backdrop-filter: blur(2px);
+}
+
+@media (max-width: 768px) {
+  .mes-page-header {
+    min-height: auto;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mes-page-title {
+    font-size: 20px;
+  }
+}

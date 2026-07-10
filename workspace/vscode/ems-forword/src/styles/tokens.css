@@ -1,0 +1,48 @@
+:root {
+  --mes-primary: #087f5b;
+  --mes-primary-hover: #066a4c;
+  --mes-primary-soft: #e8f5ef;
+  --mes-data: #2463a7;
+  --mes-data-soft: #eaf1f8;
+  --mes-warning: #c77b12;
+  --mes-warning-soft: #fff5e5;
+  --mes-danger: #c2413b;
+  --mes-danger-soft: #fff0ef;
+  --mes-info: #5c6770;
+  --mes-sidebar: #18211e;
+  --mes-sidebar-raised: #222d29;
+  --mes-sidebar-text: #c6d0cb;
+  --mes-sidebar-muted: #83918a;
+  --mes-bg: #f3f5f4;
+  --mes-surface: #ffffff;
+  --mes-surface-muted: #f8faf9;
+  --mes-border: #dde3e0;
+  --mes-border-strong: #cbd4cf;
+  --mes-text: #1f2b26;
+  --mes-text-secondary: #64716b;
+  --mes-text-muted: #8a9690;
+  --mes-shadow-sm: 0 1px 2px rgb(31 43 38 / 5%);
+  --mes-shadow-md: 0 8px 24px rgb(31 43 38 / 8%);
+  --mes-radius-sm: 4px;
+  --mes-radius: 6px;
+  --mes-sidebar-width: 236px;
+  --mes-sidebar-collapsed-width: 72px;
+  --mes-header-height: 60px;
+  --mes-tabs-height: 40px;
+  --mes-font: Inter, 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
+
+  --el-color-primary: var(--mes-primary);
+  --el-color-primary-light-3: #4ba78a;
+  --el-color-primary-light-5: #83bda9;
+  --el-color-primary-light-7: #b8d9cd;
+  --el-color-primary-light-8: #d3e8e0;
+  --el-color-primary-light-9: var(--mes-primary-soft);
+  --el-color-primary-dark-2: var(--mes-primary-hover);
+  --el-border-radius-base: var(--mes-radius-sm);
+  --el-border-color: var(--mes-border);
+  --el-border-color-light: #e7ece9;
+  --el-fill-color-light: var(--mes-surface-muted);
+  --el-text-color-primary: var(--mes-text);
+  --el-text-color-regular: var(--mes-text-secondary);
+  --el-font-family: var(--mes-font);
+}

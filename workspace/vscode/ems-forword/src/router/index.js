@@ -1,67 +1,67 @@
-// 路由： 根据不同的访问路径，显示不同的页面
-
-// 1： 创建一个路由对象，给这个路由对象匹配路由规则（路径和页面的映射）
-
-
 import { createRouter, createWebHashHistory } from 'vue-router'
-import Login from '@/pages/login/index.vue'
-import Regist from '@/pages/regist/index.vue'
-
-import Layout from '@/pages/layout/index.vue'
+import aRoutes from './modules/a'
+import bRoutes from './modules/b'
+import cRoutes from './modules/c'
+import { hasAuthenticatedSession } from '@/utils/auth'
 
 const routes = [
-    {
-        path: '/',
-        redirect: '/layout'
-    },
-    {
-        path: '/login',
-        component: Login
-    },
-    {
-        path: '/regist',
-        component: Regist
-    },
-    {
-        path: '/layout',
-        component: Layout
-    }
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/pages/login/index.vue'),
+    meta: { public: true, title: '登录' }
+  },
+  {
+    path: '/',
+    component: () => import('@/pages/layout/index.vue'),
+    redirect: '/dashboard',
+    children: [
+      ...aRoutes,
+      ...bRoutes,
+      ...cRoutes,
+      {
+        path: 'module/:moduleKey',
+        name: 'ModuleHub',
+        component: () => import('@/pages/module/index.vue'),
+        meta: { title: '模块总览', icon: 'package' }
+      }
+    ]
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/pages/error/not-found.vue'),
+    meta: { public: true, title: '页面未找到' }
+  }
 ]
 
-
-// 创建路由实例对象
 const router = createRouter({
-    // 路由的模式
-    history: createWebHashHistory(),
-    routes: routes
+  history: createWebHashHistory(),
+  routes,
+  scrollBehavior: () => ({ top: 0 })
 })
 
+router.beforeEach((to) => {
+  if (to.meta.public) {
+    if (to.name === 'Login' && hasAuthenticatedSession()) {
+      return to.query.redirect || '/dashboard'
+    }
+    return true
+  }
 
-// 将这个路由对象进行导出
+  if (!hasAuthenticatedSession()) {
+    return {
+      path: '/login',
+      query: { redirect: to.fullPath }
+    }
+  }
+
+  return true
+})
+
+router.afterEach((to) => {
+  const title = to.meta.title ? `${to.meta.title} - 羽球智造 MES` : '羽球智造 MES'
+  document.title = title
+})
+
 export default router
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // 路由守卫：修改页面标题
-// router.beforeEach((to, from, next) => {
-//   console.log(to.path,'========')
-//   if (to.meta.title) {
-//     document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE}`
-//   }
-//   next()
-// })
