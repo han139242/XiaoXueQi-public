@@ -60,12 +60,12 @@
 | 主数据/工艺/工厂 | 已完成 | B + AI 协助 | 已完成 B 分工全部后端接口，包含主数据、工艺、车间、产线、工位和工位工序 |
 | 工艺管理 | 待联调 | B + AI 协助 | 已完成工序、工艺路线、路线明细、工艺参数和作业指导书后端接口 |
 | 工厂建模 | 待联调 | B + AI 协助 | 已完成车间、产线、工位和工位工序后端接口 |
-| 生产制造 | 进行中 | C + AI 协助 | 已完成生产订单、生产计划、生产工单后端接口，核心业务分阶段做 |
-| 仓储库存 | 进行中 | C + AI 协助 | 已完成仓库管理、库位管理后端接口，待补充库存、出入库、盘点等模块 |
-| 质量管理 | 进行中 | C + AI 协助 | 已完成质检项目后端接口，待补充质检标准、质检方案等 |
-| 设备管理 | 进行中 | C + AI 协助 | 已完成设备分类和设备台账后端接口，待补充设备状态日志、保养、点检、维修 |
-| 条码追溯 | 未开始 | 待认领 | 等生产、仓储、质量有基础数据后做 |
-| 首页看板 | 未开始 | 待认领 | 最后汇总统计 |
+| 生产制造 | 进行中 | C + AI 协助 | 已完成生产订单、生产计划、生产工单、工单用料、派工、任务、任务人员、报工、报工用料、异常和安灯告警后端接口，核心业务待联调 |
+| 仓储库存 | 进行中 | C + AI 协助 | 已完成仓库、库位、物料批次、库存余额、库存流水、入库单/明细、出库单/明细、退料单/明细、盘点单/明细、补货建议后端接口；入库、出库、退料和盘点确认已联动库存余额和库存流水，待联调业务闭环 |
+| 质量管理 | 进行中 | C + AI 协助 | 已完成质检项目、质检标准、质检方案、检验单、检验结果、不合格品处理单和处理明细后端接口，待联调质量闭环 |
+| 设备管理 | 已完成 | C + AI 协助 | 已完成设备分类、设备台账、设备状态日志、保养、点检、维修后端接口 |
+| 条码追溯 | 已完成 | C + AI 协助 | 已完成 `trace_barcode`、`trace_product_lot`、`trace_material_usage` 后端接口，支持条码生成/扫码、批次追溯、按原料批次查询物料追溯和通用 CRUD/导出 |
+| 首页看板 | 已完成 | C + AI 协助 | 已完成 `/api/dashboard` 汇总、生产趋势、质量统计和设备状态统计接口 |
 | PC 端前端 | 进行中 | 待认领 | 现有登录/注册基础页面，后续按模块补页面 |
 | 微信小程序 | 未开始 | 待认领 | 后续根据演示需求补移动端功能 |
 
@@ -77,6 +77,12 @@
 
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
+| 2026-07-10 | C + AI 协助 | 条码追溯/首页看板 | 新增 `trace_barcode`、`trace_product_lot`、`trace_material_usage` 后端接口和 `/api/dashboard` 看板接口；条码支持生成、扫码、通用 CRUD 和导出；产品批次支持按批次号追溯物料使用与检验摘要；物料使用支持按原料批次查询；看板提供汇总、生产趋势、质量统计和设备状态统计 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续前后端联调或补充追溯看板细节 |
+| 2026-07-10 | C + AI 协助 | 设备管理 | 新增 `eam_equipment_status_log`、`eam_maintenance_plan`、`eam_maintenance_record`、`eam_spot_check_plan`、`eam_spot_check_record`、`eam_repair_order` 后端接口；设备状态日志仅开放分页、详情和导出；保养计划/记录与点检计划/记录提供通用 CRUD 和导出；维修单补充派工 `/assign` 和关闭 `/close`，并同步设备状态、设备状态日志、状态变更日志和操作日志 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续追溯、看板或前后端联调 |
+| 2026-07-10 | C + AI 协助 | 补货/报工/质检/不合格品 | 新增 `wms_replenishment_suggestion`、`mfg_work_report`、`mfg_report_material`、`qms_inspection_order`、`qms_inspection_result`、`qms_nonconforming_order`、`qms_nonconforming_detail` 后端接口；补货建议支持按物料/仓库生成；报工支持提交、审核和用料明细 `/full`；检验单支持主从表 `/full`、提交检验结果和检验结果批量保存；不合格品处理单支持主从表 `/full` 和审批；已审核/已完成单据禁止通过主表或明细接口绕过修改 | schema/entity 数量检查通过：78/78/78；Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0；`git diff --check` 仅提示 `COLLABORATION.md` LF/CRLF | C 继续追溯、看板或前后端联调 |
+| 2026-07-10 | C + AI 协助 | 仓储出库/退料/盘点 | 新增 `wms_outbound_order`、`wms_outbound_detail`、`wms_return_order`、`wms_return_detail`、`wms_stocktake_order`、`wms_stocktake_detail` 后端接口；主单支持分页、详情、新增、修改、软删除、导出、`/full` 主从表保存和业务确认；出库确认扣减库存并写出库流水，退料确认回加库存并写退料流水，盘点完成按差异调整库存并写盘点流水；已确认/已完成单据禁止重复确认、修改、删除及通过明细接口绕过修改 | schema/entity 数量检查通过：78/78/78；Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0；`git diff --check` 仅提示 `COLLABORATION.md` LF/CRLF | C 继续仓储补货建议、报工/质检联动或前后端联调 |
+| 2026-07-10 | C + AI 协助 | 仓储批次/库存/入库 | 新增 `wms_material_batch`、`wms_inventory`、`wms_stock_movement`、`wms_inbound_order`、`wms_inbound_detail` 后端接口；库存余额和库存流水仅开放查询/详情/导出；入库单支持主从表 `/full` 和确认入库，确认时事务内更新库存余额、写入库存流水、状态日志和操作日志，已确认入库单禁止重复确认、修改和删除 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续出库单/明细、退料或盘点模块 |
+| 2026-07-10 | C + AI 协助 | 生产任务/人员/异常/安灯 | 新增 `mfg_task`、`mfg_task_operator`、`mfg_exception`、`mfg_andon_alert` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；补充任务开始/完成、按任务查人员、异常处理、安灯触发/关闭接口；安灯触发字段以 `schema.sql` 实体为准，文档示例中不存在的字段不落库 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续报工、报工用料或仓储库存模块 |
 | 2026-07-10 | C + AI 协助 | C 后端注释和接口修复 | 补齐 `mfg_work_order_material`、`qms_inspection_standard`、`qms_inspection_scheme`、`qms_inspection_scheme_item` Controller/Service/ServiceImpl 方法注释；移除质检标准旧 `getPage/export` Service 方法；补充按工单查用料和按检验方案查明细接口；统一导出标题和 Mapper 中文说明 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续后续生产、仓储、质量模块联调 |
 | 2026-07-09 | C + AI 协助 | C 后端代码检查修复 | 检查并修复 `mfg_work_order_material`、`qms_inspection_standard`、`qms_inspection_scheme`、`qms_inspection_scheme_item` 后端代码；统一 QMS 接口 `/api/qms/...` 路径、`current/size` 分页和 `/excel` 导出，修复质检标准物理删除风险，查询过滤 `deleted_flag = 0`，删除改为软删除 | Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续后续生产/仓储/质量模块联调 |
 | 2026-07-09 | A + AI 协助 | 审批记录管理 | 新增 `sys_approval_record` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持业务、审批节点、审批人、审批结果和时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步复查 A 模块完整性 |
