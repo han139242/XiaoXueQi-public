@@ -3,6 +3,7 @@ package com.neuedu.ems.service.impl.trace;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.trace.TraceBarcode;
 import com.neuedu.ems.mapper.trace.TraceBarcodeMapper;
 import com.neuedu.ems.service.trace.TraceBarcodeService;
@@ -76,6 +77,15 @@ public class TraceBarcodeServiceImpl extends ServiceImpl<TraceBarcodeMapper, Tra
     @Override
     public boolean saveBarcode(TraceBarcode barcode) {
         LocalDateTime now = LocalDateTime.now();
+        if (!StringUtils.hasText(barcode.getStatus())) {
+            barcode.setStatus(BusinessStatus.Common.ENABLE);
+        } else {
+            String normalizedStatus = BusinessStatus.normalizeCode(barcode.getStatus());
+            if (normalizedStatus == null) {
+                return false;
+            }
+            barcode.setStatus(normalizedStatus);
+        }
         if (barcode.getDeletedFlag() == null) {
             barcode.setDeletedFlag(0);
         }
@@ -95,6 +105,13 @@ public class TraceBarcodeServiceImpl extends ServiceImpl<TraceBarcodeMapper, Tra
     public boolean updateBarcode(TraceBarcode barcode) {
         if (barcode.getBarcodeId() == null) {
             return false;
+        }
+        if (StringUtils.hasText(barcode.getStatus())) {
+            String normalizedStatus = BusinessStatus.normalizeCode(barcode.getStatus());
+            if (normalizedStatus == null) {
+                return false;
+            }
+            barcode.setStatus(normalizedStatus);
         }
         barcode.setUpdatedTime(LocalDateTime.now());
         barcode.setDeletedFlag(null);
@@ -139,7 +156,7 @@ public class TraceBarcodeServiceImpl extends ServiceImpl<TraceBarcodeMapper, Tra
             barcode.setBizType(bizType);
             barcode.setBizId(bizId);
             barcode.setGeneratedRule("BC+yyyyMMddHHmmssSSS+SEQ");
-            barcode.setStatus("启用");
+            barcode.setStatus(BusinessStatus.Common.ENABLE);
             barcode.setRemark(remark);
             barcode.setCreatedTime(now);
             barcode.setUpdatedTime(now);

@@ -1,6 +1,7 @@
 package com.neuedu.ems.common;
 
 import com.neuedu.ems.exception.BusinessException;
+import com.neuedu.ems.exception.AiServiceException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.stream.Collectors;
+import java.util.Map;
 
 /**
  * 全局异常处理器
@@ -67,6 +69,15 @@ public class GlobalExceptionHandler {
     public ResultData handle404Exception(NoHandlerFoundException e) {
         log.warn("404异常：请求路径不存在 - {}", e.getRequestURL());
         return ResultData.fail(ResultCode.NOT_FOUND);
+    }
+
+    /**
+     * AI 服务错误只返回可公开的简短原因，不暴露第三方响应、密钥或调用栈。
+     */
+    @ExceptionHandler(AiServiceException.class)
+    public ResultData handleAiServiceException(AiServiceException e) {
+        log.warn("AI服务调用失败：{}", e.getMessage());
+        return ResultData.fail(ResultCode.BUSINESS_ERROR, Map.of("message", e.getMessage()));
     }
 
     /**

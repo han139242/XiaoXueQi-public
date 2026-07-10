@@ -3,6 +3,7 @@ package com.neuedu.ems.service.impl.qms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.qms.QmsInspectionResult;
 import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
@@ -20,8 +21,6 @@ import java.util.List;
  */
 @Service
 public class QmsInspectionResultServiceImpl extends ServiceImpl<QmsInspectionResultMapper, QmsInspectionResult> implements QmsInspectionResultService {
-
-    private static final String FINISHED_STATUS = "FINISHED";
 
     @Autowired
     private QmsInspectionOrderMapper qmsInspectionOrderMapper;
@@ -88,6 +87,9 @@ public class QmsInspectionResultServiceImpl extends ServiceImpl<QmsInspectionRes
         if (!canChangeInspectionOrder(inspectionResult.getInspectionId())) {
             return false;
         }
+        if (!normalizeInspectionResult(inspectionResult)) {
+            return false;
+        }
         if (inspectionResult.getDeletedFlag() == null) {
             inspectionResult.setDeletedFlag(0);
         }
@@ -108,6 +110,11 @@ public class QmsInspectionResultServiceImpl extends ServiceImpl<QmsInspectionRes
         }
         if (results == null) {
             return true;
+        }
+        for (QmsInspectionResult result : results) {
+            if (!normalizeInspectionResult(result)) {
+                return false;
+            }
         }
         for (QmsInspectionResult result : results) {
             result.setInspectionId(inspectionId);
@@ -134,6 +141,9 @@ public class QmsInspectionResultServiceImpl extends ServiceImpl<QmsInspectionRes
             return false;
         }
         if (inspectionResult.getInspectionId() != null && !canChangeInspectionOrder(inspectionResult.getInspectionId())) {
+            return false;
+        }
+        if (!normalizeInspectionResult(inspectionResult)) {
             return false;
         }
         inspectionResult.setDeletedFlag(null);
@@ -189,6 +199,18 @@ public class QmsInspectionResultServiceImpl extends ServiceImpl<QmsInspectionRes
         queryWrapper.eq(QmsInspectionOrder::getInspectionId, inspectionId)
                 .eq(QmsInspectionOrder::getDeletedFlag, 0);
         QmsInspectionOrder inspectionOrder = qmsInspectionOrderMapper.selectOne(queryWrapper);
-        return inspectionOrder != null && !FINISHED_STATUS.equals(inspectionOrder.getStatus());
+        return inspectionOrder != null && !BusinessStatus.Production.FINISHED.equals(inspectionOrder.getStatus());
+    }
+
+    private boolean normalizeInspectionResult(QmsInspectionResult inspectionResult) {
+        if (!StringUtils.hasText(inspectionResult.getResult())) {
+            return true;
+        }
+        String normalized = BusinessStatus.normalizeCode(inspectionResult.getResult());
+        if (!BusinessStatus.isInspectionResult(normalized)) {
+            return false;
+        }
+        inspectionResult.setResult(normalized);
+        return true;
     }
 }

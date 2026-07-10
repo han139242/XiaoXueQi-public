@@ -3,15 +3,20 @@ package com.neuedu.ems.service.impl.qms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.qms.QmsNonconformingDetail;
 import com.neuedu.ems.entity.qms.QmsNonconformingOrder;
+import com.neuedu.ems.entity.sys.SysApprovalRecord;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.qms.QmsNonconformingDetailMapper;
 import com.neuedu.ems.mapper.qms.QmsNonconformingOrderMapper;
+import com.neuedu.ems.mapper.sys.SysApprovalRecordMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.qms.QmsNonconformingOrderService;
+import com.neuedu.ems.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,10 +32,6 @@ import java.util.List;
 @Service
 public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformingOrderMapper, QmsNonconformingOrder> implements QmsNonconformingOrderService {
 
-    private static final String SUBMITTED_STATUS = "SUBMITTED";
-    private static final String APPROVED_STATUS = "APPROVED";
-    private static final String CLOSED_STATUS = "CLOSED";
-
     @Autowired
     private QmsNonconformingDetailMapper qmsNonconformingDetailMapper;
 
@@ -39,6 +40,9 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired
+    private SysApprovalRecordMapper sysApprovalRecordMapper;
 
     /**
      * 分页查询不合格品处理单，支持单号、检验单、产品批次、处理方式、审批状态和状态筛选。
@@ -124,9 +128,13 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
             return false;
         }
         QmsNonconformingOrder existing = getNonconformingOrderById(nonconformingOrder.getNcrId());
-        if (existing == null || APPROVED_STATUS.equals(existing.getApprovalStatus()) || CLOSED_STATUS.equals(existing.getStatus())) {
+        if (existing == null || BusinessStatus.isApprovalResult(existing.getApprovalStatus())
+                || BusinessStatus.Document.CLOSED.equals(existing.getStatus())) {
             return false;
         }
+        nonconformingOrder.setApprovalStatus(null);
+        nonconformingOrder.setStatus(null);
+        normalizeDisposition(nonconformingOrder);
         nonconformingOrder.setDeletedFlag(null);
         return baseMapper.updateById(nonconformingOrder) > 0;
     }
@@ -159,7 +167,8 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
     @Transactional
     public boolean removeNonconformingOrderById(Long ncrId) {
         QmsNonconformingOrder existing = getNonconformingOrderById(ncrId);
-        if (existing == null || APPROVED_STATUS.equals(existing.getApprovalStatus()) || CLOSED_STATUS.equals(existing.getStatus())) {
+        if (existing == null || BusinessStatus.isApprovalResult(existing.getApprovalStatus())
+                || BusinessStatus.Document.CLOSED.equals(existing.getStatus())) {
             return false;
         }
         QmsNonconformingOrder order = new QmsNonconformingOrder();
@@ -181,23 +190,29 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
     @Override
     @Transactional
     public boolean approveNonconformingOrder(Long ncrId, String approvalResult, String approvalComment, Long operatorId) {
-        if (!StringUtils.hasText(approvalResult)) {
+        String normalizedApprovalResult = BusinessStatus.normalizeCode(approvalResult);
+        if (!BusinessStatus.isApprovalResult(normalizedApprovalResult)) {
             return false;
         }
         QmsNonconformingOrder existing = getNonconformingOrderById(ncrId);
-        if (existing == null || APPROVED_STATUS.equals(existing.getApprovalStatus()) || CLOSED_STATUS.equals(existing.getStatus())) {
+        if (existing == null || BusinessStatus.isApprovalResult(existing.getApprovalStatus())
+                || BusinessStatus.Document.CLOSED.equals(existing.getStatus())) {
             return false;
         }
+        String targetStatus = BusinessStatus.Document.APPROVED.equals(normalizedApprovalResult)
+                ? BusinessStatus.Workflow.PROCESSING
+                : BusinessStatus.Document.CLOSED;
         QmsNonconformingOrder update = new QmsNonconformingOrder();
         update.setNcrId(ncrId);
-        update.setApprovalStatus(approvalResult);
-        update.setStatus(approvalResult);
+        update.setApprovalStatus(normalizedApprovalResult);
+        update.setStatus(targetStatus);
         update.setRemark(StringUtils.hasText(approvalComment) ? approvalComment : existing.getRemark());
         boolean updated = baseMapper.updateById(update) > 0;
         if (updated) {
             LocalDateTime now = LocalDateTime.now();
-            insertStatusChangeLog(ncrId, existing.getApprovalStatus(), approvalResult, "QMS_NONCONFORMING_ORDER",
+            insertStatusChangeLog(ncrId, existing.getStatus(), targetStatus, "QMS_NONCONFORMING_ORDER",
                     "APPROVE_NONCONFORMING", operatorId, approvalComment, now);
+            insertApprovalRecord(ncrId, normalizedApprovalResult, approvalComment, operatorId, now);
             insertOperationLog(ncrId, "APPROVE_NONCONFORMING", "qms_nonconforming_order", operatorId, approvalComment, now);
         }
         return updated;
@@ -238,15 +253,23 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
         if (!StringUtils.hasText(order.getNcrNo())) {
             order.setNcrNo("NCR" + System.currentTimeMillis());
         }
-        if (!StringUtils.hasText(order.getApprovalStatus())) {
-            order.setApprovalStatus(SUBMITTED_STATUS);
-        }
-        if (!StringUtils.hasText(order.getStatus())) {
-            order.setStatus(SUBMITTED_STATUS);
-        }
+        order.setApprovalStatus(BusinessStatus.Document.SUBMITTED);
+        order.setStatus(BusinessStatus.Document.SUBMITTED);
+        normalizeDisposition(order);
         if (order.getDeletedFlag() == null) {
             order.setDeletedFlag(0);
         }
+    }
+
+    /**
+     * 校验并规范不合格品处理方式。
+     * @param order 不合格品处理单
+     */
+    private void normalizeDisposition(QmsNonconformingOrder order) {
+        if (!StringUtils.hasText(order.getDispositionType())) {
+            return;
+        }
+        order.setDispositionType(normalizeDispositionCode(order.getDispositionType()));
     }
 
     /**
@@ -259,6 +282,16 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
             return;
         }
         for (QmsNonconformingDetail detail : details) {
+            if (StringUtils.hasText(detail.getFinalDisposition())) {
+                detail.setFinalDisposition(normalizeDispositionCode(detail.getFinalDisposition()));
+            }
+            if (StringUtils.hasText(detail.getRecheckResult())) {
+                String normalizedResult = BusinessStatus.normalizeCode(detail.getRecheckResult());
+                if (!BusinessStatus.isInspectionResult(normalizedResult)) {
+                    throw new BusinessException(ResultCode.PARAM_ERROR);
+                }
+                detail.setRecheckResult(normalizedResult);
+            }
             detail.setDetailId(null);
             detail.setNcrId(ncrId);
             if (detail.getDefectQuantity() == null) {
@@ -269,6 +302,14 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
             }
             qmsNonconformingDetailMapper.insert(detail);
         }
+    }
+
+    private String normalizeDispositionCode(String value) {
+        String normalized = BusinessStatus.normalizeCode(value);
+        if (!BusinessStatus.isDisposition(normalized)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR);
+        }
+        return normalized;
     }
 
     /**
@@ -314,6 +355,25 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
         statusLog.setRemark(remark);
         statusLog.setDeletedFlag(0);
         sysStatusChangeLogMapper.insert(statusLog);
+    }
+
+    /**
+     * 写入不合格品审批记录。
+     */
+    private void insertApprovalRecord(Long ncrId, String approvalResult, String approvalComment,
+                                      Long approverId, LocalDateTime approvalTime) {
+        SysApprovalRecord approvalRecord = new SysApprovalRecord();
+        approvalRecord.setBizType("QMS_NONCONFORMING_ORDER");
+        approvalRecord.setBizId(ncrId);
+        approvalRecord.setApprovalNode("DISPOSITION_APPROVAL");
+        approvalRecord.setApproverId(approverId);
+        approvalRecord.setApprovalResult(approvalResult);
+        approvalRecord.setApprovalComment(approvalComment);
+        approvalRecord.setApprovalTime(approvalTime);
+        approvalRecord.setCreatedBy(approverId);
+        approvalRecord.setCreatedTime(approvalTime);
+        approvalRecord.setDeletedFlag(0);
+        sysApprovalRecordMapper.insert(approvalRecord);
     }
 
     /**

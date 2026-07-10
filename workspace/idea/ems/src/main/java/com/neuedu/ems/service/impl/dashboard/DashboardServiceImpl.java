@@ -2,6 +2,7 @@ package com.neuedu.ems.service.impl.dashboard;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.eam.EamEquipment;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgTask;
@@ -71,7 +72,7 @@ public class DashboardServiceImpl implements DashboardService {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("productionOrderCount", countProductionOrders(beginDate, endDate));
         summary.put("workOrderCount", countWorkOrders(beginDate, endDate));
-        summary.put("runningTaskCount", countTasks("生产中"));
+        summary.put("runningTaskCount", countTasks(BusinessStatus.Production.RUNNING));
         LocalDateTime quantityStart = normalizeStart(beginDate, endDate);
         LocalDateTime quantityEnd = normalizeEnd(beginDate, endDate);
         summary.put("todayQualifiedQuantity", sumReportQuantity(quantityStart, quantityEnd, true));
@@ -141,8 +142,12 @@ public class DashboardServiceImpl implements DashboardService {
                 .le(QmsInspectionOrder::getCreatedTime, end);
         List<QmsInspectionOrder> orders = qmsInspectionOrderMapper.selectList(queryWrapper);
         long inspectionCount = orders.size();
-        long qualifiedCount = orders.stream().filter(item -> "合格".equals(item.getInspectionResult())).count();
-        long unqualifiedCount = orders.stream().filter(item -> "不合格".equals(item.getInspectionResult())).count();
+        long qualifiedCount = orders.stream()
+                .filter(item -> BusinessStatus.Quality.PASS.equals(item.getInspectionResult()))
+                .count();
+        long unqualifiedCount = orders.stream()
+                .filter(item -> BusinessStatus.Quality.FAIL.equals(item.getInspectionResult()))
+                .count();
         BigDecimal qualifiedRate = inspectionCount == 0
                 ? BigDecimal.ZERO
                 : BigDecimal.valueOf(qualifiedCount)
@@ -163,10 +168,11 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public Map<String, Object> getEquipmentStatus() {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("running", countEquipmentByStatus("运行"));
-        result.put("stopped", countEquipmentByStatus("停机"));
-        result.put("fault", countEquipmentByStatus("故障"));
-        result.put("maintenance", countEquipmentByStatus("维修中"));
+        result.put("running", countEquipmentByStatus(BusinessStatus.Equipment.RUNNING));
+        result.put("stopped", countEquipmentByStatus(BusinessStatus.Equipment.STOPPED));
+        result.put("fault", countEquipmentByStatus(BusinessStatus.Equipment.FAULT));
+        result.put("maintenance", countEquipmentByStatuses(
+                BusinessStatus.Equipment.MAINTAINING, BusinessStatus.Equipment.REPAIRING));
         return result;
     }
 
@@ -254,7 +260,7 @@ public class DashboardServiceImpl implements DashboardService {
     private long countInventoryWarnings() {
         LambdaQueryWrapper<WmsReplenishmentSuggestion> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(WmsReplenishmentSuggestion::getDeletedFlag, 0)
-                .eq(WmsReplenishmentSuggestion::getStatus, "待处理");
+                .eq(WmsReplenishmentSuggestion::getStatus, BusinessStatus.Document.SUBMITTED);
         return wmsReplenishmentSuggestionMapper.selectCount(queryWrapper);
     }
 
@@ -265,7 +271,7 @@ public class DashboardServiceImpl implements DashboardService {
     private long countEquipmentFaults() {
         LambdaQueryWrapper<EamEquipment> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(EamEquipment::getDeletedFlag, 0)
-                .eq(EamEquipment::getStatus, "故障");
+                .eq(EamEquipment::getStatus, BusinessStatus.Equipment.FAULT);
         return eamEquipmentMapper.selectCount(queryWrapper);
     }
 
@@ -278,6 +284,18 @@ public class DashboardServiceImpl implements DashboardService {
         LambdaQueryWrapper<EamEquipment> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(EamEquipment::getDeletedFlag, 0)
                 .eq(EamEquipment::getStatus, status);
+        return eamEquipmentMapper.selectCount(queryWrapper);
+    }
+
+    /**
+     * 统计多个设备状态的合计数量。
+     * @param statuses 设备状态编码
+     * @return 数量
+     */
+    private long countEquipmentByStatuses(String... statuses) {
+        LambdaQueryWrapper<EamEquipment> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(EamEquipment::getDeletedFlag, 0)
+                .in(EamEquipment::getStatus, List.of(statuses));
         return eamEquipmentMapper.selectCount(queryWrapper);
     }
 

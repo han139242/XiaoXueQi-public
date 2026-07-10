@@ -3,6 +3,7 @@ package com.neuedu.ems.service.impl.trace;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.qms.QmsInspectionResult;
 import com.neuedu.ems.entity.trace.TraceMaterialUsage;
@@ -87,6 +88,15 @@ public class TraceProductLotServiceImpl extends ServiceImpl<TraceProductLotMappe
      */
     @Override
     public boolean saveProductLot(TraceProductLot productLot) {
+        if (!StringUtils.hasText(productLot.getStatus())) {
+            productLot.setStatus(BusinessStatus.Production.RUNNING);
+        } else {
+            String normalizedStatus = BusinessStatus.normalizeCode(productLot.getStatus());
+            if (normalizedStatus == null) {
+                return false;
+            }
+            productLot.setStatus(normalizedStatus);
+        }
         if (productLot.getCreatedTime() == null) {
             productLot.setCreatedTime(java.time.LocalDateTime.now());
         }
@@ -106,6 +116,13 @@ public class TraceProductLotServiceImpl extends ServiceImpl<TraceProductLotMappe
     public boolean updateProductLot(TraceProductLot productLot) {
         if (productLot.getProductLotId() == null) {
             return false;
+        }
+        if (StringUtils.hasText(productLot.getStatus())) {
+            String normalizedStatus = BusinessStatus.normalizeCode(productLot.getStatus());
+            if (normalizedStatus == null) {
+                return false;
+            }
+            productLot.setStatus(normalizedStatus);
         }
         productLot.setUpdatedTime(java.time.LocalDateTime.now());
         productLot.setDeletedFlag(null);
@@ -223,7 +240,8 @@ public class TraceProductLotServiceImpl extends ServiceImpl<TraceProductLotMappe
         if (results.isEmpty()) {
             return null;
         }
-        boolean hasUnqualified = results.stream().anyMatch(item -> "不合格".equals(item.getResult()));
-        return hasUnqualified ? "不合格" : "合格";
+        boolean hasUnqualified = results.stream()
+                .anyMatch(item -> BusinessStatus.Quality.FAIL.equals(item.getResult()));
+        return hasUnqualified ? BusinessStatus.Quality.FAIL : BusinessStatus.Quality.PASS;
     }
 }

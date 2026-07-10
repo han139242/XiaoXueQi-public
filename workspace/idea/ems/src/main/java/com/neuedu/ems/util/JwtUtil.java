@@ -122,7 +122,6 @@ public class JwtUtil {
             return null;
         }
         // 截取前缀后的token（"Bearer "长度为7）
-        //Bearer eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOjEyLCJ1c2VybmFtZSI6InpoYW5nd3VqaSIsImp0aSI6IjEyIiwiaWF0IjoxNzgzNDc1NDIzLCJleHAiOjE3ODM0ODI2MjN9.m_EKEUoWc8kxpoZy5wZ925wHimY2r3DaJPUYLyksdUWzxG1FdQJtiWVQJKDugMMI
         return headerValue.substring(JwtConstants.JWT_PREFIX.length()).trim();
     }
 }

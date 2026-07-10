@@ -3,6 +3,8 @@ package com.neuedu.ems.service.impl.qms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.qms.QmsInspectionResult;
 import com.neuedu.ems.entity.sys.SysOperationLog;
@@ -12,6 +14,7 @@ import com.neuedu.ems.mapper.qms.QmsInspectionResultMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.qms.QmsInspectionOrderService;
+import com.neuedu.ems.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,9 +28,6 @@ import java.util.List;
  */
 @Service
 public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrderMapper, QmsInspectionOrder> implements QmsInspectionOrderService {
-
-    private static final String DRAFT_STATUS = "DRAFT";
-    private static final String FINISHED_STATUS = "FINISHED";
 
     @Autowired
     private QmsInspectionResultMapper qmsInspectionResultMapper;
@@ -134,9 +134,11 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
             return false;
         }
         QmsInspectionOrder existing = getInspectionOrderById(inspectionOrder.getInspectionId());
-        if (existing == null || FINISHED_STATUS.equals(existing.getStatus())) {
+        if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
             return false;
         }
+        inspectionOrder.setStatus(null);
+        inspectionOrder.setInspectionResult(null);
         inspectionOrder.setDeletedFlag(null);
         return baseMapper.updateById(inspectionOrder) > 0;
     }
@@ -169,7 +171,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     @Transactional
     public boolean removeInspectionOrderById(Long inspectionId) {
         QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
-        if (existing == null || FINISHED_STATUS.equals(existing.getStatus())) {
+        if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
             return false;
         }
         QmsInspectionOrder inspectionOrder = new QmsInspectionOrder();
@@ -191,22 +193,23 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     @Override
     @Transactional
     public boolean submitInspectionOrder(Long inspectionId, String inspectionResult, String remark, Long operatorId) {
-        if (!StringUtils.hasText(inspectionResult)) {
+        String normalizedInspectionResult = BusinessStatus.normalizeCode(inspectionResult);
+        if (!BusinessStatus.isInspectionResult(normalizedInspectionResult)) {
             return false;
         }
         QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
-        if (existing == null || FINISHED_STATUS.equals(existing.getStatus())) {
+        if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
             return false;
         }
         QmsInspectionOrder update = new QmsInspectionOrder();
         update.setInspectionId(inspectionId);
-        update.setInspectionResult(inspectionResult);
-        update.setStatus(FINISHED_STATUS);
+        update.setInspectionResult(normalizedInspectionResult);
+        update.setStatus(BusinessStatus.Production.FINISHED);
         update.setRemark(StringUtils.hasText(remark) ? remark : existing.getRemark());
         boolean updated = baseMapper.updateById(update) > 0;
         if (updated) {
             LocalDateTime now = LocalDateTime.now();
-            insertStatusChangeLog(inspectionId, existing.getStatus(), FINISHED_STATUS, "QMS_INSPECTION_ORDER",
+            insertStatusChangeLog(inspectionId, existing.getStatus(), BusinessStatus.Production.FINISHED, "QMS_INSPECTION_ORDER",
                     "SUBMIT_INSPECTION", operatorId, remark, now);
             insertOperationLog(inspectionId, "SUBMIT_INSPECTION", "qms_inspection_order", operatorId, remark, now);
         }
@@ -256,9 +259,8 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         if (!StringUtils.hasText(inspectionOrder.getInspectionNo())) {
             inspectionOrder.setInspectionNo("QI" + System.currentTimeMillis());
         }
-        if (!StringUtils.hasText(inspectionOrder.getStatus())) {
-            inspectionOrder.setStatus(DRAFT_STATUS);
-        }
+        inspectionOrder.setStatus(BusinessStatus.Document.DRAFT);
+        inspectionOrder.setInspectionResult(null);
         if (inspectionOrder.getDeletedFlag() == null) {
             inspectionOrder.setDeletedFlag(0);
         }
@@ -274,6 +276,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
             return;
         }
         for (QmsInspectionResult result : results) {
+            normalizeInspectionResult(result);
             result.setResultId(null);
             result.setInspectionId(inspectionId);
             if (result.getDeletedFlag() == null) {
@@ -281,6 +284,17 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
             }
             qmsInspectionResultMapper.insert(result);
         }
+    }
+
+    private void normalizeInspectionResult(QmsInspectionResult inspectionResult) {
+        if (!StringUtils.hasText(inspectionResult.getResult())) {
+            return;
+        }
+        String normalized = BusinessStatus.normalizeCode(inspectionResult.getResult());
+        if (!BusinessStatus.isInspectionResult(normalized)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR);
+        }
+        inspectionResult.setResult(normalized);
     }
 
     /**

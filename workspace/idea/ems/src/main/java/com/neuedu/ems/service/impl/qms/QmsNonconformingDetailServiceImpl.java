@@ -3,11 +3,14 @@ package com.neuedu.ems.service.impl.qms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.qms.QmsNonconformingDetail;
 import com.neuedu.ems.entity.qms.QmsNonconformingOrder;
 import com.neuedu.ems.mapper.qms.QmsNonconformingDetailMapper;
 import com.neuedu.ems.mapper.qms.QmsNonconformingOrderMapper;
 import com.neuedu.ems.service.qms.QmsNonconformingDetailService;
+import com.neuedu.ems.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,9 +23,6 @@ import java.util.List;
  */
 @Service
 public class QmsNonconformingDetailServiceImpl extends ServiceImpl<QmsNonconformingDetailMapper, QmsNonconformingDetail> implements QmsNonconformingDetailService {
-
-    private static final String APPROVED_STATUS = "APPROVED";
-    private static final String CLOSED_STATUS = "CLOSED";
 
     @Autowired
     private QmsNonconformingOrderMapper qmsNonconformingOrderMapper;
@@ -176,7 +176,8 @@ public class QmsNonconformingDetailServiceImpl extends ServiceImpl<QmsNonconform
         queryWrapper.eq(QmsNonconformingOrder::getNcrId, ncrId)
                 .eq(QmsNonconformingOrder::getDeletedFlag, 0);
         QmsNonconformingOrder order = qmsNonconformingOrderMapper.selectOne(queryWrapper);
-        return order != null && !APPROVED_STATUS.equals(order.getApprovalStatus()) && !CLOSED_STATUS.equals(order.getStatus());
+        return order != null && !BusinessStatus.isApprovalResult(order.getApprovalStatus())
+                && !BusinessStatus.Document.CLOSED.equals(order.getStatus());
     }
 
     /**
@@ -184,11 +185,35 @@ public class QmsNonconformingDetailServiceImpl extends ServiceImpl<QmsNonconform
      * @param detail 不合格品处理明细实体
      */
     private void prepareNonconformingDetail(QmsNonconformingDetail detail) {
+        detail.setFinalDisposition(normalizeDisposition(detail.getFinalDisposition()));
+        detail.setRecheckResult(normalizeInspectionResult(detail.getRecheckResult()));
         if (detail.getDefectQuantity() == null) {
             detail.setDefectQuantity(BigDecimal.ZERO);
         }
         if (detail.getDeletedFlag() == null) {
             detail.setDeletedFlag(0);
         }
+    }
+
+    private String normalizeDisposition(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String normalized = BusinessStatus.normalizeCode(value);
+        if (!BusinessStatus.isDisposition(normalized)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR);
+        }
+        return normalized;
+    }
+
+    private String normalizeInspectionResult(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String normalized = BusinessStatus.normalizeCode(value);
+        if (!BusinessStatus.isInspectionResult(normalized)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR);
+        }
+        return normalized;
     }
 }

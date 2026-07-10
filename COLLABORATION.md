@@ -66,7 +66,8 @@
 | 设备管理 | 已完成 | C + AI 协助 | 已完成设备分类、设备台账、设备状态日志、保养、点检、维修后端接口 |
 | 条码追溯 | 已完成 | C + AI 协助 | 已完成 `trace_barcode`、`trace_product_lot`、`trace_material_usage` 后端接口，支持条码生成/扫码、批次追溯、按原料批次查询物料追溯和通用 CRUD/导出 |
 | 首页看板 | 已完成 | C + AI 协助 | 已完成 `/api/dashboard` 汇总、生产趋势、质量统计和设备状态统计接口 |
-| PC 端前端 | 进行中 | 待认领 | 现有登录/注册基础页面，后续按模块补页面 |
+| AI 智能助手 | 待联调 | C + AI 协助 | 已完成 `/api/ai/status`、`chat`、`dashboard-insight`、`module-suggestion`；默认关闭，需配置后端模型密钥后完成真实调用验收 |
+| PC 端前端 | 进行中 | A/B/C + AI 协助 | 已完成新版前端分工和并行规划：A 负责底座/系统/组织/设备，B 负责主数据/工艺/工厂/生产，C 负责仓储/质量/追溯/大屏/全部 AI；AI 正式后端契约已可联调，业务页尚未开始 |
 | 微信小程序 | 未开始 | 待认领 | 后续根据演示需求补移动端功能 |
 
 完成一个明确功能、模块状态变化、接口或数据库发生变化、出现需要交接的风险时，更新上表状态和下面的进度记录。普通小修、样式微调、同一功能内的连续提交，不强制每次更新。
@@ -77,6 +78,9 @@
 
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
+| 2026-07-10 | AI 协助 | AI 后端/状态统一 | 新增 OpenAI 兼容 AI Controller/Service、状态查询、普通问答、真实看板解读和模块建议；过滤敏感上下文且禁止 AI 自动写业务；统一看板/质检/追溯状态为英文编码，修复不合格品审批状态混写并补齐审批/状态审计记录，新增幂等状态迁移脚本并移除 `schema.sql` 硬编码 `USE mes` | Maven 全量测试通过：20 tests、0 failures/errors；MySQL 8.0 临时库建表 78 张，迁移脚本连续执行两次后编码和审批状态正确；schema/entity/@TableId/Mapper 均为 78；`git diff --check` 通过 | 前端 C 先联调 `/api/ai/status` 和失败状态；后端配置真实 `AI_API_KEY` 后完成一次成功问答与超时/失败验收；旧业务库先备份再执行状态迁移 |
+| 2026-07-10 | AI 协助 | PC 前端 ABC 分工复核 | 重写前端 ABC 分工、文件所有权、并行轮次、UI/大屏/AI 验收和三份 AI 执行提示词；调整为 A 略少、B/C 略多且接近，AI 全部归 C；核对实际 Controller/ResultData/package.json，记录认证、主从接口和状态值差异 | Markdown 代码块、表格、尾随空格和关键路径检查通过；官网链接可访问，14 个 GitHub 仓库均可解析 HEAD；只改文档，未运行前端构建 | 三人分别对 AI 说“我负责前端 A/B/C”启动第 0 轮；同时优先补 AI Controller 契约并统一后端状态值 |
+| 2026-07-10 | AI 协助 | PC 前端开发规划 | 新增 `相关文档/md/前端ABC分工开发计划.md`，整理前端资源参考、视觉规范、目录约定、A/B/C 分工、并行轮次、可视化大屏、AI 接入、页面验收标准和联调规则 | 文档检查通过；未改业务代码，未运行构建 | 按第 0 轮先完成 Layout、请求封装、CRUD 模板、可视化大屏草案和 AI 助手入口 |
 | 2026-07-10 | AI 协助 | 项目提交前整理 | 完成后端分业务域目录整理；修正 Swagger 扫描旧 `com.neuedu.health` 包、移除未使用的 DeepSeek 明文密钥配置、规范 `HelloController` 为 `/api/hello` + `ResultData`；保留并验证 PC 前端基础框架改动 | 后端 Maven `test` 通过；MySQL 8.0 临时库执行 `schema.sql` 生成 78 张表；schema/entity/主键/Mapper namespace 检查通过；前端 `npm run build` 通过；`git diff --check` 通过 | 推送后进入 PC 前端页面开发和前后端联调 |
 | 2026-07-10 | AI 协助 | 后端包结构整理 | 将后端 Controller、Service、ServiceImpl、Mapper、Entity 按业务域整理到 sys/org/mdm/process/factory/mfg/wms/qms/eam/trace/dashboard/common 等子包；同步更新 Java package/import 与 Mapper XML namespace/type 引用，并移除批量改写产生的 UTF-8 BOM | 后端 Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0；静态检查未发现旧根包引用或 BOM | 后续前后端联调时按新包路径查找后端文件，接口路径保持不变 |
 | 2026-07-10 | C + AI 协助 | 条码追溯/首页看板 | 新增 `trace_barcode`、`trace_product_lot`、`trace_material_usage` 后端接口和 `/api/dashboard` 看板接口；条码支持生成、扫码、通用 CRUD 和导出；产品批次支持按批次号追溯物料使用与检验摘要；物料使用支持按原料批次查询；看板提供汇总、生产趋势、质量统计和设备状态统计 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续前后端联调或补充追溯看板细节 |

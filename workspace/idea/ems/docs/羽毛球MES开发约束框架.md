@@ -4,12 +4,13 @@
 
 ## 1. 当前基线
 
-项目当前处于后端接口开发前置阶段：
+项目当前已完成后端主体接口，进入前端开发和联调阶段：
 
 - 数据库设计已完成，核心表为 78 张。
 - MySQL 数据库为 `mes`，当前实际表数量和 `schema.sql` 一致。
 - 实体类已生成，并已完成实体数量、表名、字段、主键的基础一致性检查。
-- 后端接口文档已有，但接口代码尚未全量落地。
+- Controller、Service、Mapper 主体已落地，生产、库存、质量、追溯和看板核心流程待前端联调。
+- AI 后端已提供 OpenAI 兼容接口，默认关闭，必须由运行环境注入开关和密钥。
 
 设计源文档：
 
@@ -49,6 +50,7 @@
 | 设备管理 | `eam_` | `/api/eam` | 设备、状态、保养、点检、维修 |
 | 条码追溯 | `trace_` | `/api/trace` | 条码、产品批次、物料使用追溯 |
 | 看板 | 无固定表 | `/api/dashboard` | 汇总查询，按需调用各业务 Mapper |
+| AI 智能助手 | 无固定表 | `/api/ai` | 只读调用业务汇总和第三方模型，不执行业务写操作 |
 
 模块之间的调用必须遵守业务方向，不允许反向污染。例如库存模块可以被生产报工和入库确认调用，但普通库存编辑接口不能直接修改库存数量。
 
@@ -256,6 +258,20 @@ URGENT
 ```
 
 新增状态值前必须先确认 `sys_dict_type`、`sys_dict_data` 设计，不能在业务代码里临时写死中文状态。
+
+旧数据库如果已有中文状态，先备份并执行 `src/main/resources/db/status_code_migration.sql`。迁移脚本可重复执行；迁移后不允许前端再兼容或提交中文状态。
+
+不合格品处理单的审批状态和处理状态不得混写：审批通过时 `approval_status=APPROVED`、`status=PROCESSING`，审批驳回时 `approval_status=REJECTED`、`status=CLOSED`。
+
+## 10.1 AI 接入约束
+
+- 正式接口为 `/api/ai/status`、`/api/ai/chat`、`/api/ai/dashboard-insight`、`/api/ai/module-suggestion`。
+- 前端只能访问本系统后端，不能直接调用第三方模型或保存 API Key。
+- 密钥只通过后端 `AI_API_KEY` 环境变量注入，默认 `AI_ENABLED=false`。
+- 看板解读由后端调用 `DashboardService` 获取真实汇总，不信任前端传入的完整统计结果。
+- 上下文必须限制体积并过滤密码、token、Authorization、API Key、数据库连接等敏感字段。
+- AI 输出只作为建议，不得自动下达工单、修改库存、审批、删除或执行其它写操作。
+- `/status` 的 `READY` 仅表示配置完整，真实接入验收必须完成至少一次成功问答和一次失败降级。
 
 ## 11. 库存约束
 
