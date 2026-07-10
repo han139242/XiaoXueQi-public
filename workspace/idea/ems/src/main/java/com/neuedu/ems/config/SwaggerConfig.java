@@ -24,9 +24,9 @@ public class SwaggerConfig {
         return new OpenAPI()
             // API 文档基本信息
             .info(new Info()
-                .title("东软个人健康管理系统的 API 文档")  // 文档标题
+                .title("羽毛球 MES 系统 API 文档")  // 文档标题
                 .version("1.0.0")              // 接口版本
-                .description("这是基于 SpringBoot 3.5.11 + Swagger 3.x 实现的用户管理系统接口文档，包含用户的增删改查功能")  // 文档描述
+                .description("基于 Spring Boot 3.x 和 Swagger 3.x 的羽毛球 MES 后端接口文档")  // 文档描述
                 // 联系人信息
                 .contact(new Contact()
                         .name("开发团队")
@@ -39,20 +39,11 @@ public class SwaggerConfig {
     }
 
     @Bean
-    public GroupedOpenApi userApi() {
+    public GroupedOpenApi mesApi() {
         return GroupedOpenApi.builder()
-                .group("用户管理")
-                .pathsToMatch("/user/**")
-                .packagesToScan("com.neuedu.health.controller")
-                .build();
-    }
-
-    @Bean
-    public GroupedOpenApi captchaApi() {
-        return GroupedOpenApi.builder()
-                .group("验证码")
-                .pathsToMatch("/captcha/**")
-                .packagesToScan("com.neuedu.health.controller")
+                .group("MES 后端接口")
+                .pathsToMatch("/api/**")
+                .packagesToScan("com.neuedu.ems.controller")
                 .build();
     }
 }

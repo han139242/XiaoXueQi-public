@@ -1,9 +1,16 @@
+<script setup>
+import { RouterView } from 'vue-router';
+
+
+// js代码
+</script>
+
 <template>
-  <main>
-    <h1>显示界面</h1>
-    <RouterView />
-  </main>
+  <RouterView></RouterView>
 </template>
 
+
 <style>
+/* css样式 */
+
 </style>

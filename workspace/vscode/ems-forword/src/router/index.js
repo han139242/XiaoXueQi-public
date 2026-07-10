@@ -1,44 +1,67 @@
-//路由
-import { createRouter, createWebHashHistory } from 'vue-router'
-import Login from '../pages/login/index.vue'
-import Regist from '../pages/regist/index.vue'
+// 路由： 根据不同的访问路径，显示不同的页面
 
-// 路由规则
+// 1： 创建一个路由对象，给这个路由对象匹配路由规则（路径和页面的映射）
+
+
+import { createRouter, createWebHashHistory } from 'vue-router'
+import Login from '@/pages/login/index.vue'
+import Regist from '@/pages/regist/index.vue'
+
+import Layout from '@/pages/layout/index.vue'
+
 const routes = [
-  {
-    path: '/',
-    redirect: '/login' // 重定向到登录页,自动跳转到登录页
-  },  
-  {
-    path: '/login',
-    meta: {
-      title: '登录'
+    {
+        path: '/',
+        redirect: '/layout'
     },
-    component: Login
-  },
-  {
-    path: '/regist',
-    meta: {
-      title: '注册'
+    {
+        path: '/login',
+        component: Login
     },
-    component: Regist
-  },
+    {
+        path: '/regist',
+        component: Regist
+    },
+    {
+        path: '/layout',
+        component: Layout
+    }
 ]
 
-// 创建路由实例
+
+// 创建路由实例对象
 const router = createRouter({
-  history: createWebHashHistory(), // hash模式（兼容低版本浏览器）
-  routes
+    // 路由的模式
+    history: createWebHashHistory(),
+    routes: routes
 })
 
-// 路由守卫：修改页面标题
-router.beforeEach((to, from, next) => {
-  console.log(to.path,'========')
-  if (to.meta.title) {
-    const appTitle = import.meta.env.VITE_APP_TITLE || '羽毛球 MES'
-    document.title = `${to.meta.title} - ${appTitle}`
-  }
-  next()
-})
 
+// 将这个路由对象进行导出
 export default router
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // 路由守卫：修改页面标题
+// router.beforeEach((to, from, next) => {
+//   console.log(to.path,'========')
+//   if (to.meta.title) {
+//     document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE}`
+//   }
+//   next()
+// })
