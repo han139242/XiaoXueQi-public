@@ -56,6 +56,10 @@ request.interceptors.response.use(
     return Promise.reject(error)
   },
   (error) => {
+    if (axios.isCancel(error)) {
+      return Promise.reject(error)
+    }
+
     const status = error.response?.status
     let message = '网络连接失败，请检查后端服务'
     if (status === 401) {

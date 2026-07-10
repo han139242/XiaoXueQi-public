@@ -103,8 +103,8 @@ export const navigationGroups = [
   {
     label: '重点能力',
     items: [
-      { label: '可视化大屏', icon: 'monitor', path: '/module/big-screen' },
-      { label: 'AI 智能助手', icon: 'bot', path: '/module/ai' }
+      { label: '可视化大屏', icon: 'monitor', path: '/big-screen/production', featured: true },
+      { label: 'AI 智能助手', icon: 'bot', action: 'ai', featured: true }
     ]
   }
 ]

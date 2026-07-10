@@ -1,8 +1,9 @@
 <script setup>
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/common/AppIcon.vue'
-import { navigationGroups } from '@/config/navigation'
+import { getNavigationItems, navigationGroups } from '@/config/navigation'
+import { openAiAssistant } from '@/utils/app-events'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
@@ -11,8 +12,26 @@ const props = defineProps({
 
 const emit = defineEmits(['navigate'])
 const route = useRoute()
+const router = useRouter()
+const navigationItems = getNavigationItems()
 const activePath = computed(() => route.path)
 const menuCollapsed = computed(() => props.collapsed && !props.mobile)
+
+function itemIndex(item) {
+  return item.path || `action:${item.action}`
+}
+
+function handleSelect(index) {
+  const item = navigationItems.find((candidate) => itemIndex(candidate) === index)
+  if (!item) return
+
+  if (item.action === 'ai') {
+    openAiAssistant()
+  } else if (item.path) {
+    router.push(item.path)
+  }
+  emit('navigate')
+}
 </script>
 
 <template>
@@ -33,12 +52,16 @@ const menuCollapsed = computed(() => props.collapsed && !props.mobile)
         :default-active="activePath"
         :collapse="menuCollapsed"
         :collapse-transition="false"
-        router
-        @select="emit('navigate')"
+        @select="handleSelect"
       >
         <template v-for="group in navigationGroups" :key="group.label">
           <div v-if="!menuCollapsed" class="menu-group-label">{{ group.label }}</div>
-          <el-menu-item v-for="item in group.items" :key="item.path" :index="item.path">
+          <el-menu-item
+            v-for="item in group.items"
+            :key="item.path || item.action"
+            :index="itemIndex(item)"
+            :class="{ 'is-featured': item.featured }"
+          >
             <AppIcon :name="item.icon" :size="18" />
             <template #title>{{ item.label }}</template>
           </el-menu-item>
@@ -164,6 +187,19 @@ const menuCollapsed = computed(() => props.collapsed && !props.mobile)
 :deep(.el-menu-item.is-active) {
   color: #e7fff5;
   background: #0b7456;
+}
+
+:deep(.el-menu-item.is-featured) {
+  color: #d7eee5;
+  border: 1px solid rgb(109 204 166 / 12%);
+  background: rgb(53 93 77 / 22%);
+}
+
+:deep(.el-menu-item.is-featured:hover),
+:deep(.el-menu-item.is-featured.is-active) {
+  color: #effff8;
+  border-color: rgb(109 204 166 / 28%);
+  background: #245b48;
 }
 
 :deep(.el-menu--collapse .el-menu-item) {

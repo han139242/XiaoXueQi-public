@@ -1,9 +1,12 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppTabs from '@/components/layout/AppTabs.vue'
+import AiAssistant from '@/components/ai/AiAssistant.vue'
+import AppIcon from '@/components/common/AppIcon.vue'
+import { OPEN_AI_ASSISTANT_EVENT } from '@/utils/app-events'
 
 const route = useRoute()
 const collapsed = ref(localStorage.getItem('mes_sidebar_collapsed') === 'true')
@@ -11,6 +14,11 @@ const mobile = ref(false)
 const mobileMenuOpen = ref(false)
 const viewVersion = ref(0)
 const tabs = ref([{ path: '/dashboard', title: '运营工作台', affix: true }])
+const aiOpen = ref(false)
+const aiModule = computed(() => {
+  if (route.path === '/dashboard') return 'dashboard'
+  return String(route.params.moduleKey || 'general')
+})
 
 function updateViewport() {
   mobile.value = window.innerWidth < 1024
@@ -33,6 +41,10 @@ function closeMobileMenu() {
   }
 }
 
+function handleOpenAi() {
+  aiOpen.value = true
+}
+
 watch(collapsed, (value) => {
   localStorage.setItem('mes_sidebar_collapsed', String(value))
 })
@@ -42,10 +54,12 @@ watch(() => route.fullPath, closeMobileMenu)
 onMounted(() => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
+  window.addEventListener(OPEN_AI_ASSISTANT_EVENT, handleOpenAi)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateViewport)
+  window.removeEventListener(OPEN_AI_ASSISTANT_EVENT, handleOpenAi)
 })
 </script>
 
@@ -74,6 +88,13 @@ onBeforeUnmount(() => {
         </RouterView>
       </main>
     </section>
+
+    <el-tooltip content="AI 智能助手" placement="left">
+      <button class="ai-floating-trigger" type="button" aria-label="打开 AI 智能助手" @click="aiOpen = true">
+        <AppIcon name="bot" :size="21" />
+      </button>
+    </el-tooltip>
+    <AiAssistant v-model="aiOpen" :module="aiModule" />
   </div>
 </template>
 
@@ -118,6 +139,31 @@ onBeforeUnmount(() => {
   background: rgb(13 24 20 / 45%);
 }
 
+.ai-floating-trigger {
+  position: fixed;
+  z-index: 22;
+  right: 24px;
+  bottom: 22px;
+  display: inline-flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  color: #e7fff5;
+  border: 1px solid #54ad89;
+  border-radius: 50%;
+  background: #146b50;
+  box-shadow: 0 8px 24px rgb(18 70 52 / 24%);
+  cursor: pointer;
+  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.ai-floating-trigger:hover {
+  background: #0b7d5a;
+  box-shadow: 0 10px 28px rgb(18 70 52 / 32%);
+  transform: translateY(-2px);
+}
+
 .page-fade-enter-active,
 .page-fade-leave-active {
   transition: opacity 0.14s ease, transform 0.14s ease;
@@ -149,6 +195,13 @@ onBeforeUnmount(() => {
 @media (max-width: 768px) {
   .content-region {
     padding: 14px;
+  }
+
+  .ai-floating-trigger {
+    right: 16px;
+    bottom: 16px;
+    width: 44px;
+    height: 44px;
   }
 }
 </style>

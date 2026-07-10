@@ -12,6 +12,12 @@ const routes = [
     meta: { public: true, title: '登录' }
   },
   {
+    path: '/big-screen/production',
+    name: 'ProductionBigScreen',
+    component: () => import('@/pages/big-screen/production.vue'),
+    meta: { title: '生产运营大屏' }
+  },
+  {
     path: '/',
     component: () => import('@/pages/layout/index.vue'),
     redirect: '/dashboard',

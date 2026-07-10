@@ -10,7 +10,9 @@ import {
   getProductionTrend,
   getQualityStatistics
 } from '@/api/dashboard'
+import { createDashboardPreview } from '@/config/dashboard-preview'
 import { isFrameworkPreview } from '@/utils/auth'
+import { openAiAssistant } from '@/utils/app-events'
 
 const router = useRouter()
 const loading = ref(false)
@@ -22,42 +24,7 @@ const trend = ref([])
 const quality = ref({})
 const equipment = ref({})
 
-const previewPayload = {
-  summary: {
-    productionOrderCount: 24,
-    workOrderCount: 38,
-    runningTaskCount: 12,
-    todayQualifiedQuantity: 12860,
-    todayDefectQuantity: 126,
-    inventoryWarningCount: 4,
-    equipmentFaultCount: 2
-  },
-  trend: [
-    [6, 820, 18],
-    [5, 1080, 21],
-    [4, 960, 17],
-    [3, 1420, 25],
-    [2, 1310, 19],
-    [1, 1680, 16],
-    [0, 1820, 10]
-  ].map(([offset, qualifiedQuantity, defectQuantity]) => ({
-    date: dayjs().subtract(offset, 'day').format('YYYY-MM-DD'),
-    qualifiedQuantity,
-    defectQuantity
-  })),
-  quality: {
-    inspectionCount: 34,
-    qualifiedCount: 31,
-    unqualifiedCount: 3,
-    qualifiedRate: 91.18
-  },
-  equipment: {
-    running: 42,
-    stopped: 6,
-    fault: 2,
-    maintenance: 3
-  }
-}
+const previewPayload = createDashboardPreview()
 
 const dateSubtitle = computed(() => {
   const week = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][dayjs().day()]
@@ -309,12 +276,16 @@ onMounted(loadDashboard)
 <template>
   <div class="mes-page dashboard-page" v-loading="loading">
     <header class="mes-page-header dashboard-header">
-      <div>
+      <div class="command-copy">
+        <span class="command-kicker"><i />LIVE MANUFACTURING OVERVIEW</span>
         <div class="title-line">
           <h1 class="mes-page-title">运营工作台</h1>
           <el-tag v-if="previewMode" size="small" effect="plain">预览数据</el-tag>
         </div>
         <p class="mes-page-subtitle">{{ dateSubtitle }} · 制造运营总览</p>
+      </div>
+      <div class="command-visual" aria-hidden="true">
+        <span>羽毛球产品制造</span>
       </div>
       <div class="dashboard-actions">
         <el-date-picker
@@ -332,7 +303,11 @@ onMounted(loadDashboard)
             <AppIcon name="refresh" :size="17" />
           </el-button>
         </el-tooltip>
-        <el-button type="primary" plain @click="router.push('/module/big-screen')">
+        <el-button class="ai-insight-command" @click="openAiAssistant">
+          <AppIcon name="bot" :size="16" />
+          AI 解读
+        </el-button>
+        <el-button type="primary" plain @click="router.push('/big-screen/production')">
           <AppIcon name="monitor" :size="16" />
           生产大屏
         </el-button>
@@ -448,7 +423,86 @@ onMounted(loadDashboard)
 }
 
 .dashboard-header {
+  position: relative;
+  min-height: 112px;
   align-items: center;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 190px auto;
+  gap: 22px;
+  overflow: hidden;
+  padding: 18px 20px;
+  border: 1px solid #2b443a;
+  border-radius: var(--mes-radius);
+  background: #17231e;
+  box-shadow: 0 10px 26px rgb(22 41 33 / 12%);
+}
+
+.command-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.command-kicker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+  color: #72b79b;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.command-kicker i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #51cd9b;
+  box-shadow: 0 0 0 4px rgb(81 205 155 / 10%);
+}
+
+.dashboard-header .mes-page-title {
+  color: #f1faf6;
+}
+
+.dashboard-header .mes-page-subtitle {
+  color: #8ea198;
+}
+
+.dashboard-header :deep(.el-tag) {
+  color: #9fe2c6;
+  border-color: #3c735d;
+  background: #18382b;
+}
+
+.command-visual {
+  position: relative;
+  width: 190px;
+  height: 72px;
+  overflow: hidden;
+  border: 1px solid #45665a;
+  border-radius: 4px;
+  background: url('@/assets/login-badminton.jpg') center 45% / cover no-repeat;
+}
+
+.command-visual::after {
+  position: absolute;
+  inset: 0;
+  background: rgb(10 25 19 / 42%);
+  content: '';
+}
+
+.command-visual span {
+  position: absolute;
+  z-index: 1;
+  right: 9px;
+  bottom: 8px;
+  left: 9px;
+  padding: 4px 7px;
+  color: #e5f7ef;
+  border-left: 2px solid #5dd0a5;
+  background: rgb(10 25 19 / 74%);
+  font-size: 9px;
+  font-weight: 650;
 }
 
 .title-line,
@@ -462,9 +516,35 @@ onMounted(loadDashboard)
 }
 
 .dashboard-actions {
+  position: relative;
+  z-index: 1;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.dashboard-actions .ai-insight-command.el-button {
+  color: #bdebd8;
+  border-color: #3c705b;
+  background: #203f32;
+}
+
+.dashboard-actions .ai-insight-command.el-button:hover {
+  color: #edfff7;
+  border-color: #59a785;
+  background: #285641;
+}
+
+.dashboard-actions :deep(.el-button--primary.is-plain) {
+  color: #17392d;
+  border-color: #71cfaa;
+  background: #8ee0bf;
+}
+
+.dashboard-actions :deep(.el-button--primary.is-plain:hover) {
+  color: #fff;
+  border-color: #13926a;
+  background: #13926a;
 }
 
 .dashboard-actions :deep(.el-date-editor) {
@@ -499,6 +579,13 @@ onMounted(loadDashboard)
   border-radius: var(--mes-radius);
   background: #fff;
   box-shadow: var(--mes-shadow-sm);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.metric-card:hover {
+  border-color: color-mix(in srgb, var(--tone-color) 38%, var(--mes-border));
+  box-shadow: 0 9px 24px rgb(34 55 46 / 9%);
+  transform: translateY(-2px);
 }
 
 .metric-card.tone-green {
@@ -640,9 +727,20 @@ onMounted(loadDashboard)
 
 .dashboard-grid {
   display: grid;
+  min-width: 0;
   grid-template-columns: minmax(0, 1.9fr) minmax(300px, 1fr);
   gap: 14px;
   margin-top: 14px;
+}
+
+.dashboard-grid > .mes-panel {
+  min-width: 0;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.dashboard-grid > .mes-panel:hover {
+  border-color: #bdccc5;
+  box-shadow: 0 8px 22px rgb(34 55 46 / 7%);
 }
 
 .mes-panel-header > div {
@@ -657,6 +755,8 @@ onMounted(loadDashboard)
 }
 
 .chart-body {
+  min-width: 0;
+  overflow: hidden;
   padding: 8px 12px 4px;
 }
 
@@ -727,6 +827,14 @@ onMounted(loadDashboard)
 }
 
 @media (max-width: 1280px) {
+  .dashboard-header {
+    grid-template-columns: minmax(240px, 1fr) auto;
+  }
+
+  .command-visual {
+    display: none;
+  }
+
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -746,8 +854,14 @@ onMounted(loadDashboard)
 }
 
 @media (max-width: 900px) {
+  .dashboard-header {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .dashboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dashboard-actions {
@@ -783,6 +897,7 @@ onMounted(loadDashboard)
   }
 
   .process-flow {
+    max-width: 100%;
     justify-content: flex-start;
   }
 }

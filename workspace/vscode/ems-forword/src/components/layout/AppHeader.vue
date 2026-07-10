@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import AppIcon from '@/components/common/AppIcon.vue'
 import { clearAuth, getCurrentUser, isFrameworkPreview } from '@/utils/auth'
 import { getModuleDefinition, getNavigationItems } from '@/config/navigation'
+import { openAiAssistant } from '@/utils/app-events'
 
 defineProps({
   mobile: { type: Boolean, default: false }
@@ -48,7 +49,11 @@ function openSearch() {
 async function navigateTo(item) {
   searchOpen.value = false
   searchKeyword.value = ''
-  await router.push(item.path)
+  if (item.action === 'ai') {
+    openAiAssistant()
+  } else if (item.path) {
+    await router.push(item.path)
+  }
 }
 
 async function toggleFullscreen() {
@@ -157,7 +162,12 @@ onBeforeUnmount(() => {
         <template #prefix><AppIcon name="search" :size="18" /></template>
       </el-input>
       <div class="search-results">
-        <button v-for="item in searchResults" :key="item.path" type="button" @click="navigateTo(item)">
+        <button
+          v-for="item in searchResults"
+          :key="item.path || item.action"
+          type="button"
+          @click="navigateTo(item)"
+        >
           <span class="search-result-icon"><AppIcon :name="item.icon" :size="18" /></span>
           <span>{{ item.label }}</span>
           <AppIcon name="right" :size="15" />
