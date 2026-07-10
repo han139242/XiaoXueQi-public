@@ -61,7 +61,7 @@
 | 工艺管理 | 待联调 | B + AI 协助 | 已完成工序、工艺路线、路线明细、工艺参数和作业指导书后端接口 |
 | 工厂建模 | 待联调 | B + AI 协助 | 已完成车间、产线、工位和工位工序后端接口 |
 | 生产制造 | 进行中 | C + AI 协助 | 已完成生产订单、生产计划、生产工单后端接口，核心业务分阶段做 |
-| 仓储库存 | 未开始 | 待认领 | 高风险模块，必须保留流水 |
+| 仓储库存 | 进行中 | C + AI 协助 | 已完成仓库管理、库位管理后端接口，待补充库存、出入库、盘点等模块 |
 | 质量管理 | 进行中 | C + AI 协助 | 已完成质检项目后端接口，待补充质检标准、质检方案等 |
 | 设备管理 | 进行中 | C + AI 协助 | 已完成设备分类和设备台账后端接口，待补充设备状态日志、保养、点检、维修 |
 | 条码追溯 | 未开始 | 待认领 | 等生产、仓储、质量有基础数据后做 |
@@ -77,6 +77,8 @@
 
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
+| 2026-07-10 | C + AI 协助 | C 后端注释和接口修复 | 补齐 `mfg_work_order_material`、`qms_inspection_standard`、`qms_inspection_scheme`、`qms_inspection_scheme_item` Controller/Service/ServiceImpl 方法注释；移除质检标准旧 `getPage/export` Service 方法；补充按工单查用料和按检验方案查明细接口；统一导出标题和 Mapper 中文说明 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续后续生产、仓储、质量模块联调 |
+| 2026-07-09 | C + AI 协助 | C 后端代码检查修复 | 检查并修复 `mfg_work_order_material`、`qms_inspection_standard`、`qms_inspection_scheme`、`qms_inspection_scheme_item` 后端代码；统一 QMS 接口 `/api/qms/...` 路径、`current/size` 分页和 `/excel` 导出，修复质检标准物理删除风险，查询过滤 `deleted_flag = 0`，删除改为软删除 | Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续后续生产/仓储/质量模块联调 |
 | 2026-07-09 | A + AI 协助 | 审批记录管理 | 新增 `sys_approval_record` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持业务、审批节点、审批人、审批结果和时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步复查 A 模块完整性 |
 | 2026-07-09 | A + AI 协助 | 状态变更日志管理 | 新增 `sys_status_change_log` 只读后端接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持分页、详情、导出，以及业务类型、业务 ID、状态、变更人、时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续审批记录 |
 | 2026-07-09 | A + AI 协助 | 操作日志管理 | 新增 `sys_operation_log` 只读后端接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持分页、详情、导出，以及用户、操作类型、模块、业务 ID、时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续状态变更日志 |
@@ -87,6 +89,8 @@
 | 2026-07-09 | A + AI 协助 | 用户和菜单管理 | 将早期 `UserController` / `UserService` / `UserServiceImpl` 收敛为接口文档要求的 `SysUserController` / `SysUserService` / `SysUserServiceImpl`；保留 `/api/sys/user` 路径，补充分页、软删除、重置密码、分配角色接口；新增 `sys_menu` 后端 CRUD、菜单树和导出接口 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典类型 |
 | 2026-07-09 | A + AI 协助 | 班次管理 | 新增 `org_shift` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典类型 |
 | 2026-07-09 | A + AI 协助 | 班组成员管理 | 新增 `org_team_member` 后端通用 CRUD、按班组查询成员接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；查询默认过滤 `deleted_flag = 0`，删除为软删除 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班次管理 |
+| 2026-07-09 | C + AI 协助 | 库位管理 | 新增 `wms_location` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持库位编码/名称搜索、仓库筛选、库位类型筛选、状态筛选 | Maven 测试通过 | C 继续仓储其他模块（库存、出入库等） |
+| 2026-07-09 | C + AI 协助 | 仓库管理 | 新增 `wms_warehouse` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持仓库编码/名称搜索、仓库类型筛选、状态筛选 | Maven 测试通过 | C 继续库位管理模块 |
 | 2026-07-09 | C + AI 协助 | 生产工单 | 新增 `mfg_work_order` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持工单编号搜索、状态筛选、生产计划筛选、产品筛选 | Maven 测试通过 | C 继续仓储模块或其他生产模块 |
 | 2026-07-09 | A + AI 协助 | 班组管理 | 新增 `org_team` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持班组编码/名称、部门、班组长筛选；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班组成员管理 |
 | 2026-07-09 | A + AI 协助 | 员工管理 | 新增 `org_employee` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持工号/姓名/电话关键字、部门、状态筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班组管理 |
