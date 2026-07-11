@@ -1,0 +1,96 @@
+package com.neuedu.ems.service.impl.mfg;
+
+import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.math.BigDecimal;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class MfgTaskServiceImplTest {
+
+    private MfgTaskServiceImpl service;
+    private MfgTaskMapper taskMapper;
+
+    @BeforeEach
+    void setUp() {
+        service = new MfgTaskServiceImpl();
+        taskMapper = mock(MfgTaskMapper.class);
+        ReflectionTestUtils.setField(service, "baseMapper", taskMapper);
+    }
+
+    @Test
+    void startOnlyAcceptsWaitingTaskAndKeepsStationWhenNotProvided() {
+        when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.WAIT_START));
+        when(taskMapper.update(any(MfgTask.class), any())).thenReturn(1);
+
+        assertTrue(service.startTask(1L, null));
+
+        ArgumentCaptor<MfgTask> update = ArgumentCaptor.forClass(MfgTask.class);
+        verify(taskMapper).update(update.capture(), any());
+        assertEquals(BusinessStatus.Production.RUNNING, update.getValue().getStatus());
+        assertNull(update.getValue().getStationId());
+    }
+
+    @Test
+    void repeatedStartIsRejectedBeforeUpdate() {
+        when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.RUNNING));
+
+        assertFalse(service.startTask(1L, 2L));
+        verify(taskMapper, never()).update(any(MfgTask.class), any());
+    }
+
+    @Test
+    void finishRequiresRunningTaskAndNonnegativeQuantities() {
+        when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.RUNNING));
+        when(taskMapper.update(any(MfgTask.class), any())).thenReturn(1);
+
+        assertTrue(service.finishTask(1L, BigDecimal.TEN, BigDecimal.ONE, "完成"));
+
+        ArgumentCaptor<MfgTask> update = ArgumentCaptor.forClass(MfgTask.class);
+        verify(taskMapper).update(update.capture(), any());
+        assertEquals(BusinessStatus.Production.FINISHED, update.getValue().getStatus());
+        assertEquals(BigDecimal.TEN, update.getValue().getCompletedQuantity());
+        assertEquals(BigDecimal.ONE, update.getValue().getDefectQuantity());
+    }
+
+    @Test
+    void ordinaryUpdateCannotBypassRunningState() {
+        when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.RUNNING));
+        MfgTask request = new MfgTask();
+        request.setTaskId(1L);
+        request.setStatus(BusinessStatus.Production.FINISHED);
+
+        assertFalse(service.updateTask(request));
+        verify(taskMapper, never()).update(any(MfgTask.class), any());
+    }
+
+    @Test
+    void startFailsWhenAnotherRequestChangesStateBeforeUpdate() {
+        when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.WAIT_START));
+        when(taskMapper.update(any(MfgTask.class), any())).thenReturn(0);
+
+        assertFalse(service.startTask(1L, 2L));
+        verify(taskMapper).update(any(MfgTask.class), any());
+    }
+
+    private MfgTask task(String status) {
+        MfgTask task = new MfgTask();
+        task.setTaskId(1L);
+        task.setStatus(status);
+        return task;
+    }
+}

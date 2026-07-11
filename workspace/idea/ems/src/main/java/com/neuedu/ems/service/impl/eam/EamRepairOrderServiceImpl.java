@@ -1,8 +1,10 @@
 package com.neuedu.ems.service.impl.eam;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.eam.EamEquipment;
 import com.neuedu.ems.entity.eam.EamEquipmentStatusLog;
 import com.neuedu.ems.entity.eam.EamRepairOrder;
@@ -30,9 +32,10 @@ import java.util.List;
 public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper, EamRepairOrder>
         implements EamRepairOrderService {
 
-    private static final String STATUS_REPAIRING = "REPAIRING";
-    private static final String STATUS_CLOSED = "CLOSED";
-    private static final String EQUIPMENT_STATUS_RUNNING = "RUNNING";
+    private static final String STATUS_REPAIRING = BusinessStatus.Repair.REPAIRING;
+    private static final String STATUS_CLOSED = BusinessStatus.Repair.CLOSED;
+    private static final String EQUIPMENT_STATUS_REPAIRING = BusinessStatus.Equipment.REPAIRING;
+    private static final String EQUIPMENT_STATUS_RUNNING = BusinessStatus.Equipment.RUNNING;
     private static final String BIZ_TYPE = "EAM_REPAIR_ORDER";
     private static final String MODULE_CODE = "eam_repair_order";
 
@@ -104,6 +107,10 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         if (repairOrder.getDeletedFlag() == null) {
             repairOrder.setDeletedFlag(0);
         }
+        repairOrder.setRepairerId(null);
+        repairOrder.setRepairResult(null);
+        repairOrder.setRepairCost(null);
+        repairOrder.setStatus(BusinessStatus.Repair.SUBMITTED);
         return baseMapper.insert(repairOrder) > 0;
     }
 
@@ -117,8 +124,17 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         if (repairOrder.getRepairId() == null) {
             return false;
         }
+        EamRepairOrder existing = getRepairOrderById(repairOrder.getRepairId());
+        if (existing == null || !BusinessStatus.Repair.SUBMITTED.equals(existing.getStatus())) {
+            return false;
+        }
         repairOrder.setDeletedFlag(null);
-        return baseMapper.updateById(repairOrder) > 0;
+        repairOrder.setRepairerId(null);
+        repairOrder.setRepairResult(null);
+        repairOrder.setRepairCost(null);
+        repairOrder.setStatus(null);
+        return baseMapper.update(repairOrder,
+                repairOrderInState(repairOrder.getRepairId(), existing.getStatus())) > 0;
     }
 
     /**
@@ -128,10 +144,14 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
      */
     @Override
     public boolean removeRepairOrderById(Long repairId) {
+        EamRepairOrder existing = getRepairOrderById(repairId);
+        if (existing == null || !BusinessStatus.Repair.SUBMITTED.equals(existing.getStatus())) {
+            return false;
+        }
         EamRepairOrder repairOrder = new EamRepairOrder();
         repairOrder.setRepairId(repairId);
         repairOrder.setDeletedFlag(1);
-        return baseMapper.updateById(repairOrder) > 0;
+        return baseMapper.update(repairOrder, repairOrderInState(repairId, existing.getStatus())) > 0;
     }
 
     /**
@@ -145,7 +165,8 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
     @Transactional
     public boolean assignRepairOrder(Long repairId, Long repairerId, String remark) {
         EamRepairOrder existing = getRepairOrderById(repairId);
-        if (existing == null || repairerId == null || STATUS_CLOSED.equals(existing.getStatus())) {
+        if (existing == null || repairerId == null
+                || !BusinessStatus.Repair.SUBMITTED.equals(existing.getStatus())) {
             return false;
         }
         LocalDateTime now = LocalDateTime.now();
@@ -154,10 +175,10 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         update.setRepairerId(repairerId);
         update.setStatus(STATUS_REPAIRING);
         update.setRemark(StringUtils.hasText(remark) ? remark : existing.getRemark());
-        boolean updated = baseMapper.updateById(update) > 0;
+        boolean updated = baseMapper.update(update, repairOrderInState(repairId, existing.getStatus())) > 0;
         if (updated) {
-            EamEquipment equipment = updateEquipmentStatus(existing.getEquipmentId(), STATUS_REPAIRING);
-            insertEquipmentStatusLog(existing.getEquipmentId(), equipment, STATUS_REPAIRING, remark, repairerId, now);
+            EamEquipment equipment = updateEquipmentStatus(existing.getEquipmentId(), EQUIPMENT_STATUS_REPAIRING);
+            insertEquipmentStatusLog(existing.getEquipmentId(), equipment, EQUIPMENT_STATUS_REPAIRING, remark, repairerId, now);
             insertStatusChangeLog(existing, STATUS_REPAIRING, "ASSIGN_REPAIR", repairerId, remark, now);
             insertOperationLog(existing.getRepairId(), "ASSIGN_REPAIR", repairerId, remark, now);
         }
@@ -175,7 +196,11 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
     @Transactional
     public boolean closeRepairOrder(Long repairId, String repairResult, BigDecimal repairCost) {
         EamRepairOrder existing = getRepairOrderById(repairId);
-        if (existing == null || STATUS_CLOSED.equals(existing.getStatus())) {
+        boolean closeable = existing != null
+                && (STATUS_REPAIRING.equals(existing.getStatus())
+                || BusinessStatus.Repair.WAIT_ACCEPTANCE.equals(existing.getStatus()));
+        if (!closeable || !StringUtils.hasText(repairResult)
+                || (repairCost != null && repairCost.signum() < 0)) {
             return false;
         }
         LocalDateTime now = LocalDateTime.now();
@@ -184,7 +209,7 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         update.setRepairResult(repairResult);
         update.setRepairCost(repairCost);
         update.setStatus(STATUS_CLOSED);
-        boolean updated = baseMapper.updateById(update) > 0;
+        boolean updated = baseMapper.update(update, repairOrderInState(repairId, existing.getStatus())) > 0;
         if (updated) {
             Long operatorId = existing.getRepairerId();
             EamEquipment equipment = updateEquipmentStatus(existing.getEquipmentId(), EQUIPMENT_STATUS_RUNNING);
@@ -193,6 +218,17 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
             insertOperationLog(existing.getRepairId(), "CLOSE_REPAIR", operatorId, repairResult, now);
         }
         return updated;
+    }
+
+    /**
+     * 构建带当前状态的更新条件，避免并发请求重复派工、关闭或绕过锁定。
+     */
+    private LambdaUpdateWrapper<EamRepairOrder> repairOrderInState(Long repairId, String currentStatus) {
+        LambdaUpdateWrapper<EamRepairOrder> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(EamRepairOrder::getRepairId, repairId)
+                .eq(EamRepairOrder::getDeletedFlag, 0)
+                .eq(EamRepairOrder::getStatus, currentStatus);
+        return updateWrapper;
     }
 
     /**

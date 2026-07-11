@@ -37,21 +37,21 @@ const metrics = computed(() => [
     value: formatNumber(summary.value.productionOrderCount),
     unit: '单',
     icon: 'clipboard',
-    tone: 'green'
+    tone: 'primary'
   },
   {
     label: '运行中任务',
     value: formatNumber(summary.value.runningTaskCount),
     unit: '项',
     icon: 'activity',
-    tone: 'blue'
+    tone: 'primary'
   },
   {
     label: '今日合格产量',
     value: formatNumber(summary.value.todayQualifiedQuantity),
     unit: '件',
     icon: 'check',
-    tone: 'teal'
+    tone: 'data'
   },
   {
     label: '检验合格率',
@@ -85,10 +85,10 @@ const operationalStatus = computed(() => [
 
 const trendOption = computed(() => ({
   animationDuration: 500,
-  color: ['#087f5b', '#c2413b'],
+  color: ['#1688b5', '#c44842'],
   tooltip: {
     trigger: 'axis',
-    backgroundColor: '#17201d',
+    backgroundColor: '#171d25',
     borderWidth: 0,
     textStyle: { color: '#fff', fontSize: 12 }
   },
@@ -97,24 +97,24 @@ const trendOption = computed(() => ({
     right: 2,
     itemWidth: 14,
     itemHeight: 3,
-    textStyle: { color: '#64716b', fontSize: 11 }
+    textStyle: { color: '#647384', fontSize: 11 }
   },
   grid: { top: 44, right: 12, bottom: 24, left: 52 },
   xAxis: {
     type: 'category',
     boundaryGap: false,
     data: trend.value.map((item) => dayjs(item.date).format('MM/DD')),
-    axisLine: { lineStyle: { color: '#dde3e0' } },
+    axisLine: { lineStyle: { color: '#dfe4ea' } },
     axisTick: { show: false },
-    axisLabel: { color: '#8a9690', fontSize: 10 }
+    axisLabel: { color: '#8a96a3', fontSize: 10 }
   },
   yAxis: {
     type: 'value',
     splitNumber: 4,
     axisLine: { show: false },
     axisTick: { show: false },
-    axisLabel: { color: '#8a9690', fontSize: 10 },
-    splitLine: { lineStyle: { color: '#edf1ef' } }
+    axisLabel: { color: '#8a96a3', fontSize: 10 },
+    splitLine: { lineStyle: { color: '#edf1f4' } }
   },
   series: [
     {
@@ -124,7 +124,7 @@ const trendOption = computed(() => ({
       symbol: 'circle',
       symbolSize: 6,
       lineStyle: { width: 2.5 },
-      areaStyle: { color: 'rgba(8,127,91,.08)' },
+      areaStyle: { color: 'rgba(22,136,181,.09)' },
       data: trend.value.map((item) => Number(item.qualifiedQuantity || 0))
     },
     {
@@ -145,10 +145,10 @@ const qualityOption = computed(() => {
   const hasData = qualified + unqualified > 0
   return {
     animationDuration: 500,
-    color: hasData ? ['#087f5b', '#c2413b'] : ['#dde3e0'],
+    color: hasData ? ['#1688b5', '#c44842'] : ['#dfe4ea'],
     tooltip: {
       trigger: 'item',
-      backgroundColor: '#17201d',
+      backgroundColor: '#171d25',
       borderWidth: 0,
       textStyle: { color: '#fff', fontSize: 12 }
     },
@@ -157,7 +157,7 @@ const qualityOption = computed(() => {
       left: 'center',
       itemWidth: 8,
       itemHeight: 8,
-      textStyle: { color: '#64716b', fontSize: 11 }
+      textStyle: { color: '#647384', fontSize: 11 }
     },
     series: [{
       type: 'pie',
@@ -168,7 +168,7 @@ const qualityOption = computed(() => {
         show: true,
         position: 'center',
         formatter: `${Number(quality.value.qualifiedRate || 0).toFixed(1)}%`,
-        color: '#1f2b26',
+        color: '#202a36',
         fontSize: 23,
         fontWeight: 650
       },
@@ -185,48 +185,48 @@ const qualityOption = computed(() => {
 
 const equipmentOption = computed(() => ({
   animationDuration: 500,
-  color: ['#2463a7'],
+  color: ['#2f6fae'],
   tooltip: {
     trigger: 'axis',
     axisPointer: { type: 'shadow' },
-    backgroundColor: '#17201d',
+    backgroundColor: '#171d25',
     borderWidth: 0,
     textStyle: { color: '#fff', fontSize: 12 }
   },
   grid: { top: 12, right: 20, bottom: 18, left: 58 },
   xAxis: {
     type: 'value',
-    axisLabel: { color: '#8a9690', fontSize: 10 },
-    splitLine: { lineStyle: { color: '#edf1ef' } }
+    axisLabel: { color: '#8794a2', fontSize: 10 },
+    splitLine: { lineStyle: { color: '#edf1f5' } }
   },
   yAxis: {
     type: 'category',
     data: ['运行', '停机', '保养', '故障'],
     axisTick: { show: false },
     axisLine: { show: false },
-    axisLabel: { color: '#64716b', fontSize: 11 }
+    axisLabel: { color: '#647384', fontSize: 11 }
   },
   series: [{
     type: 'bar',
     barWidth: 12,
     itemStyle: { borderRadius: 2 },
     data: [
-      { value: Number(equipment.value.running || 0), itemStyle: { color: '#087f5b' } },
-      { value: Number(equipment.value.stopped || 0), itemStyle: { color: '#7b8781' } },
-      { value: Number(equipment.value.maintenance || 0), itemStyle: { color: '#c77b12' } },
-      { value: Number(equipment.value.fault || 0), itemStyle: { color: '#c2413b' } }
+      { value: Number(equipment.value.running || 0), itemStyle: { color: '#327ed0' } },
+      { value: Number(equipment.value.stopped || 0), itemStyle: { color: '#788592' } },
+      { value: Number(equipment.value.maintenance || 0), itemStyle: { color: '#c48618' } },
+      { value: Number(equipment.value.fault || 0), itemStyle: { color: '#c44842' } }
     ]
   }]
 }))
 
 const processSteps = [
-  ['订单', 'clipboard'],
-  ['工单', 'package'],
-  ['派工', 'users'],
-  ['报工', 'activity'],
-  ['质检', 'shield-check'],
-  ['入库', 'warehouse'],
-  ['追溯', 'scan']
+  { label: '订单', icon: 'clipboard', path: '/mfg/production-orders' },
+  { label: '工单', icon: 'package', path: '/mfg/work-orders' },
+  { label: '派工', icon: 'users', path: '/mfg/dispatch-orders' },
+  { label: '报工', icon: 'activity', path: '/mfg/work-reports' },
+  { label: '质检', icon: 'shield-check', path: '/qms/inspection-orders' },
+  { label: '入库', icon: 'warehouse', path: '/wms/inbound-orders' },
+  { label: '追溯', icon: 'scan', path: '/trace/product-lots' }
 ]
 
 function formatNumber(value) {
@@ -283,9 +283,6 @@ onMounted(loadDashboard)
           <el-tag v-if="previewMode" size="small" effect="plain">预览数据</el-tag>
         </div>
         <p class="mes-page-subtitle">{{ dateSubtitle }} · 制造运营总览</p>
-      </div>
-      <div class="command-visual" aria-hidden="true">
-        <span>羽毛球产品制造</span>
       </div>
       <div class="dashboard-actions">
         <el-date-picker
@@ -364,7 +361,7 @@ onMounted(loadDashboard)
             <h2 class="mes-panel-title">近七日生产趋势</h2>
             <span class="panel-caption">合格产量与不良产量</span>
           </div>
-          <el-tag size="small" type="success" effect="plain">按日</el-tag>
+          <el-tag size="small" effect="plain">按日</el-tag>
         </div>
         <div class="chart-body"><MesChart :option="trendOption" height="286px" /></div>
       </article>
@@ -389,11 +386,11 @@ onMounted(loadDashboard)
           <span class="chain-state"><span />流程在线</span>
         </div>
         <div class="process-flow">
-          <template v-for="(step, index) in processSteps" :key="step[0]">
-            <div class="process-step">
-              <span><AppIcon :name="step[1]" :size="19" /></span>
-              <strong>{{ step[0] }}</strong>
-            </div>
+          <template v-for="(step, index) in processSteps" :key="step.label">
+            <button class="process-step" type="button" @click="router.push(step.path)">
+              <span><AppIcon :name="step.icon" :size="19" /></span>
+              <strong>{{ step.label }}</strong>
+            </button>
             <div v-if="index < processSteps.length - 1" class="process-link">
               <AppIcon name="right" :size="15" />
             </div>
@@ -427,14 +424,14 @@ onMounted(loadDashboard)
   min-height: 112px;
   align-items: center;
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 190px auto;
+  grid-template-columns: minmax(260px, 1fr) auto;
   gap: 22px;
   overflow: hidden;
   padding: 18px 20px;
-  border: 1px solid #2b443a;
+  border: 1px solid #2e3a47;
   border-radius: var(--mes-radius);
-  background: #17231e;
-  box-shadow: 0 10px 26px rgb(22 41 33 / 12%);
+  background: #171d25;
+  box-shadow: 0 10px 26px rgb(24 33 43 / 13%);
 }
 
 .command-copy {
@@ -447,7 +444,7 @@ onMounted(loadDashboard)
   align-items: center;
   gap: 7px;
   margin-bottom: 7px;
-  color: #72b79b;
+  color: #7eb7e2;
   font-size: 9px;
   font-weight: 750;
 }
@@ -456,53 +453,22 @@ onMounted(loadDashboard)
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #51cd9b;
-  box-shadow: 0 0 0 4px rgb(81 205 155 / 10%);
+  background: #4d9de0;
+  box-shadow: 0 0 0 4px rgb(77 157 224 / 13%);
 }
 
 .dashboard-header .mes-page-title {
-  color: #f1faf6;
+  color: #f1f6fb;
 }
 
 .dashboard-header .mes-page-subtitle {
-  color: #8ea198;
+  color: #91a1b1;
 }
 
 .dashboard-header :deep(.el-tag) {
-  color: #9fe2c6;
-  border-color: #3c735d;
-  background: #18382b;
-}
-
-.command-visual {
-  position: relative;
-  width: 190px;
-  height: 72px;
-  overflow: hidden;
-  border: 1px solid #45665a;
-  border-radius: 4px;
-  background: url('@/assets/login-badminton.jpg') center 45% / cover no-repeat;
-}
-
-.command-visual::after {
-  position: absolute;
-  inset: 0;
-  background: rgb(10 25 19 / 42%);
-  content: '';
-}
-
-.command-visual span {
-  position: absolute;
-  z-index: 1;
-  right: 9px;
-  bottom: 8px;
-  left: 9px;
-  padding: 4px 7px;
-  color: #e5f7ef;
-  border-left: 2px solid #5dd0a5;
-  background: rgb(10 25 19 / 74%);
-  font-size: 9px;
-  font-weight: 650;
+  color: #a8d0ec;
+  border-color: #3d6588;
+  background: #1c3349;
 }
 
 .title-line,
@@ -524,27 +490,27 @@ onMounted(loadDashboard)
 }
 
 .dashboard-actions .ai-insight-command.el-button {
-  color: #bdebd8;
-  border-color: #3c705b;
-  background: #203f32;
+  color: #c6e7fb;
+  border-color: #3f6f95;
+  background: #1b3850;
 }
 
 .dashboard-actions .ai-insight-command.el-button:hover {
-  color: #edfff7;
-  border-color: #59a785;
-  background: #285641;
+  color: #f1f9ff;
+  border-color: #619bd0;
+  background: #255176;
 }
 
 .dashboard-actions :deep(.el-button--primary.is-plain) {
-  color: #17392d;
-  border-color: #71cfaa;
-  background: #8ee0bf;
+  color: #eff7fd;
+  border-color: #5d91bf;
+  background: #2d699f;
 }
 
 .dashboard-actions :deep(.el-button--primary.is-plain:hover) {
   color: #fff;
-  border-color: #13926a;
-  background: #13926a;
+  border-color: #4b86bb;
+  background: #3979b1;
 }
 
 .dashboard-actions :deep(.el-date-editor) {
@@ -563,7 +529,12 @@ onMounted(loadDashboard)
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--mes-border);
+  border-radius: var(--mes-radius);
+  background: #fff;
+  box-shadow: var(--mes-shadow-sm);
 }
 
 .metric-card {
@@ -574,33 +545,33 @@ onMounted(loadDashboard)
   gap: 15px;
   padding: 18px;
   overflow: hidden;
-  border: 1px solid var(--mes-border);
-  border-top: 3px solid var(--tone-color);
-  border-radius: var(--mes-radius);
+  border: 0;
+  border-right: 1px solid var(--mes-border);
+  border-radius: 0;
   background: #fff;
-  box-shadow: var(--mes-shadow-sm);
-  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+  box-shadow: none;
+  transition: background .18s ease;
 }
+
+.metric-card:last-child { border-right: 0; }
 
 .metric-card:hover {
-  border-color: color-mix(in srgb, var(--tone-color) 38%, var(--mes-border));
-  box-shadow: 0 9px 24px rgb(34 55 46 / 9%);
-  transform: translateY(-2px);
+  background: #f8fafc;
 }
 
-.metric-card.tone-green {
+.metric-card.tone-success {
+  --tone-color: var(--mes-success);
+  --tone-soft: var(--mes-success-soft);
+}
+
+.metric-card.tone-primary {
   --tone-color: var(--mes-primary);
   --tone-soft: var(--mes-primary-soft);
 }
 
-.metric-card.tone-blue {
+.metric-card.tone-data {
   --tone-color: var(--mes-data);
   --tone-soft: var(--mes-data-soft);
-}
-
-.metric-card.tone-teal {
-  --tone-color: #2f8d88;
-  --tone-soft: #eaf6f5;
 }
 
 .metric-card.tone-amber {
@@ -688,10 +659,10 @@ onMounted(loadDashboard)
 .live-dot {
   width: 9px;
   height: 9px;
-  border: 2px solid #bce4d4;
+  border: 2px solid #b9d8c9;
   border-radius: 50%;
-  background: var(--mes-primary);
-  box-shadow: 0 0 0 4px var(--mes-primary-soft);
+  background: var(--mes-success);
+  box-shadow: 0 0 0 4px var(--mes-success-soft);
 }
 
 .status-item {
@@ -739,8 +710,8 @@ onMounted(loadDashboard)
 }
 
 .dashboard-grid > .mes-panel:hover {
-  border-color: #bdccc5;
-  box-shadow: 0 8px 22px rgb(34 55 46 / 7%);
+  border-color: #c1cbd5;
+  box-shadow: 0 8px 22px rgb(32 42 54 / 7%);
 }
 
 .mes-panel-header > div {
@@ -774,7 +745,7 @@ onMounted(loadDashboard)
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--mes-primary);
+  color: var(--mes-data);
   font-size: 10px;
 }
 
@@ -782,7 +753,7 @@ onMounted(loadDashboard)
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--mes-primary);
+  background: var(--mes-data);
 }
 
 .process-flow {
@@ -802,6 +773,9 @@ onMounted(loadDashboard)
   align-items: center;
   gap: 10px;
   color: var(--mes-text-secondary);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .process-step > span {
@@ -811,10 +785,18 @@ onMounted(loadDashboard)
   align-items: center;
   justify-content: center;
   color: var(--mes-primary);
-  border: 1px solid #bcdacf;
+  border: 1px solid #bfd2e6;
   border-radius: 50%;
   background: var(--mes-primary-soft);
 }
+
+.process-step:hover > span {
+  color: #fff;
+  border-color: var(--mes-primary);
+  background: var(--mes-primary);
+}
+
+.process-step:hover strong { color:var(--mes-primary); }
 
 .process-step strong {
   font-size: 11px;
@@ -831,13 +813,12 @@ onMounted(loadDashboard)
     grid-template-columns: minmax(240px, 1fr) auto;
   }
 
-  .command-visual {
-    display: none;
-  }
-
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .metric-card:nth-child(2n) { border-right: 0; }
+  .metric-card:nth-child(-n+2) { border-bottom: 1px solid var(--mes-border); }
 
   .status-strip {
     grid-template-columns: repeat(3, 1fr);
@@ -877,7 +858,11 @@ onMounted(loadDashboard)
 
   .metric-card {
     min-height: 92px;
+    border-right: 0;
+    border-bottom: 1px solid var(--mes-border);
   }
+
+  .metric-card:last-child { border-bottom: 0; }
 
   .status-strip {
     grid-template-columns: 1fr;

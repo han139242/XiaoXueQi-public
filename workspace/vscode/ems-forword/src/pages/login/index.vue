@@ -65,7 +65,6 @@ async function enterPreview() {
 <template>
   <main class="login-page">
     <section class="login-visual" aria-label="羽毛球制造执行系统">
-      <div class="visual-overlay" />
       <div class="visual-brand">
         <span class="brand-mark" aria-hidden="true">
           <span class="brand-feather" />
@@ -75,6 +74,14 @@ async function enterPreview() {
           <strong>羽球智造</strong>
           <span>MES</span>
         </div>
+      </div>
+
+      <div class="visual-photo" role="img" aria-label="智能制造产线与羽毛球产品检验">
+        <span class="factory-signal"><i />SMART FACTORY · LIVE EXECUTION</span>
+        <div class="visual-product-shot" role="img" aria-label="羽毛球产品质量检验">
+          <span>羽毛球产品检验</span>
+        </div>
+        <span class="visual-photo-caption">PRODUCTION CONTROL · QUALITY TRACEABILITY</span>
       </div>
 
       <div class="visual-copy">
@@ -159,33 +166,28 @@ async function enterPreview() {
 .login-page {
   display: grid;
   min-height: 100dvh;
-  grid-template-columns: minmax(520px, 58%) minmax(420px, 42%);
+  grid-template-columns: minmax(520px, 56%) minmax(420px, 44%);
   background: var(--mes-surface);
 }
 
 .login-visual {
-  position: relative;
+  display: grid;
   min-height: 100dvh;
+  grid-template-rows:auto minmax(250px,1fr) auto;
+  gap: 28px;
   overflow: hidden;
+  padding: 38px 48px 46px;
   color: #fff;
-  background: url('@/assets/login-badminton.jpg') center / cover no-repeat;
-}
-
-.visual-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgb(13 27 22 / 68%);
+  background: #171d25;
 }
 
 .visual-brand,
 .visual-copy {
-  position: absolute;
-  z-index: 1;
+  position: relative;
+  z-index: 2;
 }
 
 .visual-brand {
-  top: 42px;
-  left: 48px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -203,7 +205,7 @@ async function enterPreview() {
 }
 
 .visual-brand > div > span {
-  color: rgb(255 255 255 / 65%);
+  color: rgb(255 255 255 / 58%);
   font-size: 12px;
   font-weight: 700;
 }
@@ -217,6 +219,103 @@ async function enterPreview() {
   justify-content: center;
   border: 1px solid rgb(255 255 255 / 38%);
   border-radius: 50%;
+}
+
+.visual-photo {
+  position: relative;
+  min-height: 250px;
+  overflow: hidden;
+  border: 1px solid #344353;
+  border-radius: var(--mes-radius);
+  background: url('@/assets/login-factory.jpg') 50% 50% / cover no-repeat;
+  box-shadow: 0 20px 44px rgb(0 0 0 / 20%);
+}
+
+.visual-photo::before {
+  position: absolute;
+  inset: 0;
+  background: rgb(7 14 22 / 13%);
+  content: '';
+}
+
+.visual-photo::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 46px;
+  background: rgb(13 19 26 / 82%);
+  content: '';
+}
+
+.factory-signal {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  left: 16px;
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  color: #dcecf8;
+  border: 1px solid rgb(139 185 219 / 30%);
+  border-radius: 3px;
+  background: rgb(13 24 35 / 82%);
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.factory-signal i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #50a9df;
+  box-shadow: 0 0 0 3px rgb(80 169 223 / 16%);
+}
+
+.visual-product-shot {
+  position: absolute;
+  z-index: 2;
+  right: 18px;
+  bottom: 64px;
+  width: min(31%, 220px);
+  aspect-ratio: 1.45;
+  overflow: hidden;
+  border: 1px solid rgb(218 232 242 / 58%);
+  border-radius: 4px;
+  background: url('@/assets/login-badminton.jpg') 41% 45% / 165% auto no-repeat;
+  box-shadow: 0 12px 30px rgb(4 10 17 / 32%);
+}
+
+.visual-product-shot::after {
+  position: absolute;
+  inset: auto 0 0;
+  height: 32px;
+  background: rgb(9 18 27 / 82%);
+  content: '';
+}
+
+.visual-product-shot span {
+  position: absolute;
+  z-index: 1;
+  right: 9px;
+  bottom: 8px;
+  left: 9px;
+  color: #e7f2fa;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.visual-photo-caption {
+  position: absolute;
+  z-index: 1;
+  right: 16px;
+  bottom: 15px;
+  left: 16px;
+  color: #b9d8ee;
+  font-size: 9px;
+  font-weight: 750;
 }
 
 .brand-feather {
@@ -240,23 +339,20 @@ async function enterPreview() {
 }
 
 .visual-copy {
-  right: 9%;
-  bottom: 10%;
-  left: 8%;
   max-width: 680px;
 }
 
 .visual-kicker {
   display: block;
   margin-bottom: 15px;
-  color: #9ee3c7;
+  color: #78b7e5;
   font-size: 12px;
   font-weight: 750;
 }
 
 .visual-copy h1 {
   max-width: 620px;
-  font-size: 40px;
+  font-size: 34px;
   font-weight: 680;
   line-height: 1.25;
   letter-spacing: 0;
@@ -265,7 +361,7 @@ async function enterPreview() {
 .visual-copy p {
   max-width: 580px;
   margin-top: 18px;
-  color: rgb(255 255 255 / 74%);
+  color: rgb(255 255 255 / 68%);
   font-size: 15px;
   line-height: 1.8;
 }
@@ -274,7 +370,9 @@ async function enterPreview() {
   display: flex;
   flex-wrap: wrap;
   gap: 24px;
-  margin-top: 32px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgb(255 255 255 / 10%);
   color: rgb(255 255 255 / 88%);
   font-size: 13px;
 }
@@ -291,7 +389,7 @@ async function enterPreview() {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #5dd0a5;
+  background: #5d9fe0;
   content: '';
 }
 
@@ -301,6 +399,7 @@ async function enterPreview() {
   align-items: center;
   justify-content: center;
   padding: 48px clamp(38px, 5vw, 82px);
+  background: #fff;
 }
 
 .mobile-brand {
@@ -393,7 +492,15 @@ async function enterPreview() {
   }
 
   .visual-copy h1 {
-    font-size: 32px;
+    font-size: 29px;
+  }
+
+  .login-visual {
+    padding: 32px;
+  }
+
+  .visual-product-shot {
+    width: 34%;
   }
 }
 
@@ -426,7 +533,7 @@ async function enterPreview() {
   .mobile-brand .brand-mark {
     width: 30px;
     height: 30px;
-    border-color: rgb(8 127 91 / 35%);
+    border-color: rgb(47 111 174 / 35%);
   }
 
   .mobile-brand strong {

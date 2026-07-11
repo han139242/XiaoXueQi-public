@@ -3,6 +3,7 @@ import aRoutes from './modules/a'
 import bRoutes from './modules/b'
 import cRoutes from './modules/c'
 import { hasAuthenticatedSession } from '@/utils/auth'
+import { getDomainResources, resourceRoutes } from '@/config/resources'
 
 const routes = [
   {
@@ -25,10 +26,11 @@ const routes = [
       ...aRoutes,
       ...bRoutes,
       ...cRoutes,
+      ...resourceRoutes,
       {
         path: 'module/:moduleKey',
         name: 'ModuleHub',
-        component: () => import('@/pages/module/index.vue'),
+        redirect: (to) => getDomainResources(to.params.moduleKey)[0]?.routePath || '/dashboard',
         meta: { title: '模块总览', icon: 'package' }
       }
     ]

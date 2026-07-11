@@ -56,15 +56,26 @@ function handleSelect(index) {
       >
         <template v-for="group in navigationGroups" :key="group.label">
           <div v-if="!menuCollapsed" class="menu-group-label">{{ group.label }}</div>
-          <el-menu-item
-            v-for="item in group.items"
-            :key="item.path || item.action"
-            :index="itemIndex(item)"
-            :class="{ 'is-featured': item.featured }"
-          >
-            <AppIcon :name="item.icon" :size="18" />
-            <template #title>{{ item.label }}</template>
-          </el-menu-item>
+          <template v-for="item in group.items" :key="item.key || item.path || item.action">
+            <el-sub-menu v-if="item.children?.length" :index="`group:${item.key}`">
+              <template #title>
+                <AppIcon :name="item.icon" :size="18" />
+                <span>{{ item.label }}</span>
+              </template>
+              <el-menu-item v-for="child in item.children" :key="child.path" :index="itemIndex(child)">
+                <span class="submenu-marker" />
+                <template #title>{{ child.label }}</template>
+              </el-menu-item>
+            </el-sub-menu>
+            <el-menu-item
+              v-else
+              :index="itemIndex(item)"
+              :class="{ 'is-featured': item.featured }"
+            >
+              <AppIcon :name="item.icon" :size="18" />
+              <template #title>{{ item.label }}</template>
+            </el-menu-item>
+          </template>
         </template>
       </el-menu>
     </el-scrollbar>
@@ -112,10 +123,10 @@ function handleSelect(index) {
   flex: none;
   align-items: center;
   justify-content: center;
-  color: #dff8ee;
-  border: 1px solid rgb(126 218 182 / 42%);
+  color: #d9ecfb;
+  border: 1px solid rgb(111 174 224 / 42%);
   border-radius: 50%;
-  background: rgb(8 127 91 / 22%);
+  background: rgb(50 111 209 / 22%);
 }
 
 .logo-feather {
@@ -146,7 +157,7 @@ function handleSelect(index) {
 
 .brand-copy strong {
   overflow: hidden;
-  color: #f4f8f6;
+  color: #f4f7fa;
   font-size: 16px;
   font-weight: 680;
   line-height: 1.25;
@@ -179,27 +190,66 @@ function handleSelect(index) {
   font-size: 13px;
 }
 
+:deep(.el-sub-menu__title) {
+  height: 42px;
+  margin: 2px 10px;
+  padding: 0 13px !important;
+  gap: 12px;
+  color: var(--mes-sidebar-text);
+  border-radius: var(--mes-radius-sm);
+  font-size: 13px;
+}
+
+:deep(.el-sub-menu__title:hover) {
+  color: #fff;
+  background: var(--mes-sidebar-raised);
+}
+
+:deep(.el-sub-menu.is-active > .el-sub-menu__title) {
+  color: #e0effb;
+  background: rgb(50 111 209 / 22%);
+}
+
+:deep(.el-sub-menu .el-menu-item) {
+  height: 36px;
+  margin-left: 22px;
+  padding-left: 16px !important;
+  font-size: 12px;
+}
+
+.submenu-marker {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: #647382;
+}
+
+:deep(.el-sub-menu .el-menu-item.is-active) .submenu-marker {
+  background: #7fb0f2;
+}
+
 :deep(.el-menu-item:hover) {
   color: #fff;
   background: var(--mes-sidebar-raised);
 }
 
 :deep(.el-menu-item.is-active) {
-  color: #e7fff5;
-  background: #0b7456;
+  color: #f2f8fd;
+  background: #2b5fae;
 }
 
 :deep(.el-menu-item.is-featured) {
-  color: #d7eee5;
-  border: 1px solid rgb(109 204 166 / 12%);
-  background: rgb(53 93 77 / 22%);
+  color: #dcebf8;
+  border: 1px solid rgb(93 145 222 / 20%);
+  background: rgb(50 111 209 / 18%);
 }
 
 :deep(.el-menu-item.is-featured:hover),
 :deep(.el-menu-item.is-featured.is-active) {
-  color: #effff8;
-  border-color: rgb(109 204 166 / 28%);
-  background: #245b48;
+  color: #f2f8fd;
+  border-color: rgb(111 165 239 / 36%);
+  background: #2b5fae;
 }
 
 :deep(.el-menu--collapse .el-menu-item) {
@@ -209,9 +259,16 @@ function handleSelect(index) {
   padding: 0 !important;
 }
 
+:deep(.el-menu--collapse .el-sub-menu__title) {
+  justify-content: center;
+  margin-right: 9px;
+  margin-left: 9px;
+  padding: 0 !important;
+}
+
 .menu-group-label {
   padding: 17px 22px 6px;
-  color: #718078;
+  color: #74808c;
   font-size: 10px;
   font-weight: 700;
 }
@@ -237,7 +294,7 @@ function handleSelect(index) {
 }
 
 .sidebar-footer strong {
-  color: #d8e0dc;
+  color: #d8e0e8;
   font-size: 11px;
   font-weight: 600;
 }
@@ -251,9 +308,9 @@ function handleSelect(index) {
   width: 8px;
   height: 8px;
   flex: none;
-  border: 2px solid rgb(113 207 169 / 30%);
+  border: 2px solid rgb(88 190 139 / 30%);
   border-radius: 50%;
-  background: #52c896;
-  box-shadow: 0 0 0 3px rgb(82 200 150 / 10%);
+  background: var(--mes-success);
+  box-shadow: 0 0 0 3px rgb(43 138 98 / 12%);
 }
 </style>

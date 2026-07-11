@@ -42,6 +42,18 @@ const paths = {
   activity: 'M3 12h4l3-9 4 18 3-9h4',
   calendar: 'M3 5h18v16H3zM16 3v4M8 3v4M3 10h18',
   more: 'M5 12h.01M12 12h.01M19 12h.01'
+  ,plus: 'M12 5v14M5 12h14'
+  ,edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z'
+  ,trash: 'M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7'
+  ,eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'
+  ,download: 'M12 3v12M7 10l5 5 5-5M5 21h14'
+  ,upload: 'M12 21V9M7 14l5-5 5 5M5 3h14'
+  ,filter: 'M3 4h18l-7 8v6l-4 2v-8Z'
+  ,key: 'M21 2l-2 2m-7.6 7.6a5 5 0 1 1-7.1 7.1 5 5 0 0 1 7.1-7.1ZM14 9l7-7M17 6l2 2'
+  ,play: 'm5 3 14 9-14 9Z'
+  ,save: 'M4 3h14l2 2v16H4zM8 3v6h8V3M8 21v-7h8v7'
+  ,columns: 'M3 4h18v16H3zM9 4v16M15 4v16'
+  ,link: 'M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.1 1.1M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.1-1.1'
 }
 
 const iconPath = computed(() => paths[props.name] || paths.dashboard)

@@ -39,10 +39,10 @@ const equipmentTotal = computed(() => ['running', 'stopped', 'fault', 'maintenan
   .reduce((total, key) => total + Number(equipment.value[key] || 0), 0))
 
 const metrics = computed(() => [
-  ['生产订单', summary.value.productionOrderCount, '单', 'clipboard', 'green'],
+  ['生产订单', summary.value.productionOrderCount, '单', 'clipboard', 'blue'],
   ['生产工单', summary.value.workOrderCount, '单', 'package', 'blue'],
   ['运行任务', summary.value.runningTaskCount, '项', 'activity', 'cyan'],
-  ['今日合格', summary.value.todayQualifiedQuantity, '件', 'check', 'green'],
+  ['今日合格', summary.value.todayQualifiedQuantity, '件', 'check', 'cyan'],
   ['今日不良', summary.value.todayDefectQuantity, '件', 'alert', 'red'],
   ['库存预警', summary.value.inventoryWarningCount, '项', 'warehouse', 'amber'],
   ['故障设备', summary.value.equipmentFaultCount, '台', 'wrench', 'red']
@@ -70,47 +70,47 @@ const riskItems = computed(() => [
 ])
 
 const processSteps = [
-  ['订单', 'clipboard', 'green'],
+  ['订单', 'clipboard', 'blue'],
   ['工单', 'package', 'blue'],
   ['派工', 'users', 'cyan'],
   ['报工', 'activity', 'amber'],
-  ['质检', 'shield-check', 'green'],
+  ['质检', 'shield-check', 'cyan'],
   ['入库', 'warehouse', 'blue'],
   ['追溯', 'scan', 'cyan']
 ]
 
 const trendOption = computed(() => ({
   animationDuration: 700,
-  color: ['#50d3a1', '#f06a63'],
+  color: ['#54c5d8', '#f06a63'],
   tooltip: {
     trigger: 'axis',
-    backgroundColor: '#07110e',
-    borderColor: '#2b5b49',
-    textStyle: { color: '#edf8f3', fontSize: 13 }
+    backgroundColor: '#101923',
+    borderColor: '#30465c',
+    textStyle: { color: '#eef5fb', fontSize: 13 }
   },
   legend: {
     top: 0,
     right: 16,
     itemWidth: 18,
     itemHeight: 4,
-    textStyle: { color: '#86a497', fontSize: 12 }
+    textStyle: { color: '#91a4b8', fontSize: 12 }
   },
   grid: { top: 48, right: 22, bottom: 28, left: 62 },
   xAxis: {
     type: 'category',
     boundaryGap: false,
     data: trend.value.map((item) => dayjs(item.date).format('MM/DD')),
-    axisLine: { lineStyle: { color: '#28443a' } },
+    axisLine: { lineStyle: { color: '#2a3b4d' } },
     axisTick: { show: false },
-    axisLabel: { color: '#789388', fontSize: 11 }
+    axisLabel: { color: '#7f93a7', fontSize: 11 }
   },
   yAxis: {
     type: 'value',
     splitNumber: 4,
     axisLine: { show: false },
     axisTick: { show: false },
-    axisLabel: { color: '#789388', fontSize: 11 },
-    splitLine: { lineStyle: { color: '#1b332a' } }
+    axisLabel: { color: '#7f93a7', fontSize: 11 },
+    splitLine: { lineStyle: { color: '#1c2a38' } }
   },
   series: [
     {
@@ -120,7 +120,7 @@ const trendOption = computed(() => ({
       symbol: 'circle',
       symbolSize: 7,
       lineStyle: { width: 3 },
-      areaStyle: { color: 'rgba(80,211,161,.1)' },
+      areaStyle: { color: 'rgba(84,197,216,.08)' },
       data: trend.value.map((item) => Number(item.qualifiedQuantity || 0))
     },
     {
@@ -141,19 +141,19 @@ const qualityOption = computed(() => {
   const hasData = passed + failed > 0
   return {
     animationDuration: 700,
-    color: hasData ? ['#50d3a1', '#f06a63'] : ['#29453a'],
+    color: hasData ? ['#54c5d8', '#f06a63'] : ['#263747'],
     tooltip: {
       trigger: 'item',
-      backgroundColor: '#07110e',
-      borderColor: '#2b5b49',
-      textStyle: { color: '#edf8f3' }
+      backgroundColor: '#101923',
+      borderColor: '#30465c',
+      textStyle: { color: '#eef5fb' }
     },
     legend: {
       bottom: 2,
       left: 'center',
       itemWidth: 9,
       itemHeight: 9,
-      textStyle: { color: '#86a497', fontSize: 11 }
+      textStyle: { color: '#91a4b8', fontSize: 11 }
     },
     series: [{
       type: 'pie',
@@ -163,7 +163,7 @@ const qualityOption = computed(() => {
         show: true,
         position: 'center',
         formatter: `${Number(quality.value.qualifiedRate || 0).toFixed(1)}%`,
-        color: '#effbf6',
+        color: '#eef5fb',
         fontSize: 34,
         fontWeight: 700
       },
@@ -180,29 +180,29 @@ const equipmentOption = computed(() => ({
   tooltip: {
     trigger: 'axis',
     axisPointer: { type: 'shadow' },
-    backgroundColor: '#07110e',
-    borderColor: '#2b5b49',
-    textStyle: { color: '#edf8f3' }
+    backgroundColor: '#101923',
+    borderColor: '#30465c',
+    textStyle: { color: '#eef5fb' }
   },
   grid: { top: 12, right: 30, bottom: 18, left: 76 },
   xAxis: {
     type: 'value',
-    axisLabel: { color: '#789388', fontSize: 10 },
-    splitLine: { lineStyle: { color: '#1b332a' } }
+    axisLabel: { color: '#7f93a7', fontSize: 10 },
+    splitLine: { lineStyle: { color: '#1c2a38' } }
   },
   yAxis: {
     type: 'category',
     data: ['运行', '停机', '维保', '故障'],
     axisTick: { show: false },
     axisLine: { show: false },
-    axisLabel: { color: '#9bb4aa', fontSize: 11 }
+    axisLabel: { color: '#9badbf', fontSize: 11 }
   },
   series: [{
     type: 'bar',
     barWidth: 13,
     data: [
-      { value: Number(equipment.value.running || 0), itemStyle: { color: '#50d3a1', borderRadius: 2 } },
-      { value: Number(equipment.value.stopped || 0), itemStyle: { color: '#769087', borderRadius: 2 } },
+      { value: Number(equipment.value.running || 0), itemStyle: { color: '#62a9ed', borderRadius: 2 } },
+      { value: Number(equipment.value.stopped || 0), itemStyle: { color: '#788b9e', borderRadius: 2 } },
       { value: Number(equipment.value.maintenance || 0), itemStyle: { color: '#e0a548', borderRadius: 2 } },
       { value: Number(equipment.value.fault || 0), itemStyle: { color: '#f06a63', borderRadius: 2 } }
     ]
@@ -425,8 +425,8 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  color: #eaf5f0;
-  background: #04090a;
+  color: #eaf2f8;
+  background: #04070b;
   font-family: var(--mes-font);
 }
 
@@ -438,7 +438,7 @@ onBeforeUnmount(() => {
   height: 1080px;
   overflow: hidden;
   transform-origin: center;
-  background: #08110f;
+  background: #080e15;
 }
 
 .screen-header {
@@ -447,8 +447,8 @@ onBeforeUnmount(() => {
   grid-template-columns: 360px 1fr 440px;
   align-items: center;
   padding: 0 26px;
-  border-bottom: 1px solid #27433e;
-  background: #0b1614;
+  border-bottom: 1px solid #243547;
+  background: #0c141d;
 }
 
 .screen-brand,
@@ -473,10 +473,10 @@ onBeforeUnmount(() => {
   height: 46px;
   align-items: center;
   justify-content: center;
-  color: #78e0b7;
-  border: 1px solid #2f6b54;
+  color: #71b9ff;
+  border: 1px solid #315f8a;
   border-radius: 50%;
-  background: #10281f;
+  background: #10263a;
 }
 
 .screen-brand > div {
@@ -491,7 +491,7 @@ onBeforeUnmount(() => {
 
 .screen-brand small {
   margin-top: 3px;
-  color: #678278;
+  color: #73879a;
   font-size: 9px;
   font-weight: 700;
 }
@@ -509,7 +509,7 @@ onBeforeUnmount(() => {
 }
 
 .screen-title h1 {
-  color: #f2fbf7;
+  color: #f1f6fb;
   font-size: 28px;
   font-weight: 680;
   line-height: 1.2;
@@ -517,7 +517,7 @@ onBeforeUnmount(() => {
 
 .screen-title p {
   margin-top: 5px;
-  color: #678f91;
+  color: #6f98aa;
   font-size: 9px;
   font-weight: 700;
 }
@@ -536,13 +536,13 @@ onBeforeUnmount(() => {
 }
 
 .screen-time strong {
-  color: #dff9ee;
+  color: #e2f1fb;
   font-size: 19px;
   font-variant-numeric: tabular-nums;
 }
 
 .screen-time span {
-  color: #69867a;
+  color: #71869a;
   font-size: 10px;
 }
 
@@ -552,17 +552,17 @@ onBeforeUnmount(() => {
   height: 36px;
   align-items: center;
   justify-content: center;
-  color: #8ca79b;
-  border: 1px solid #2a4942;
+  color: #8da1b4;
+  border: 1px solid #2b4054;
   border-radius: 4px;
-  background: #0e1d1a;
+  background: #111b26;
   cursor: pointer;
 }
 
 .screen-tools button:hover {
-  color: #dff9ee;
-  border-color: #4a9c79;
-  background: #173429;
+  color: #e8f4fc;
+  border-color: #4f8fca;
+  background: #17334d;
 }
 
 .screen-content {
@@ -622,10 +622,10 @@ onBeforeUnmount(() => {
   gap: 13px;
   padding: 18px;
   overflow: hidden;
-  border: 1px solid #244338;
+  border: 1px solid #24394d;
   border-top: 2px solid var(--tone);
   border-radius: 5px;
-  background: #0d1b16;
+  background: #0e1721;
 }
 
 .screen-kpi::after {
@@ -640,9 +640,9 @@ onBeforeUnmount(() => {
   transform: rotate(-25deg);
 }
 
-.screen-kpi.tone-green { --tone: #50d3a1; --tone-soft: #12382b; }
+.screen-kpi.tone-green { --tone: #69a7f2; --tone-soft: #142d49; }
 .screen-kpi.tone-blue { --tone: #62a9ed; --tone-soft: #112d40; }
-.screen-kpi.tone-cyan { --tone: #54c5c0; --tone-soft: #103532; }
+.screen-kpi.tone-cyan { --tone: #45bddd; --tone-soft: #103140; }
 .screen-kpi.tone-amber { --tone: #e0a548; --tone-soft: #3a2c13; }
 .screen-kpi.tone-red { --tone: #f06a63; --tone-soft: #3b1d1a; }
 
@@ -660,7 +660,7 @@ onBeforeUnmount(() => {
 }
 
 .screen-kpi > div > span {
-  color: #7f9b8f;
+  color: #8398ac;
   font-size: 12px;
 }
 
@@ -672,14 +672,14 @@ onBeforeUnmount(() => {
 }
 
 .screen-kpi p strong {
-  color: #f0faf5;
+  color: #f2f7fb;
   font-size: 27px;
   font-weight: 700;
   line-height: 1;
 }
 
 .screen-kpi p small {
-  color: #6f897e;
+  color: #75899d;
   font-size: 10px;
 }
 
@@ -710,23 +710,23 @@ onBeforeUnmount(() => {
 }
 
 .screen-panel {
-  --panel-accent: #50d3a1;
+  --panel-accent: #62a9ed;
   position: relative;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #29443e;
-  border-top-color: color-mix(in srgb, var(--panel-accent) 62%, #29443e);
+  border: 1px solid #263b4e;
+  border-top-color: color-mix(in srgb, var(--panel-accent) 62%, #263b4e);
   border-radius: 5px;
-  background: #0c1816;
+  background: #0d1620;
 }
 
-.quality-screen-panel { --panel-accent: #50d3a1; }
+.quality-screen-panel { --panel-accent: #45bddd; }
 .equipment-screen-panel { --panel-accent: #62a9ed; }
-.production-flow-panel { --panel-accent: #54c5c0; }
-.trend-screen-panel { --panel-accent: #50d3a1; }
+.production-flow-panel { --panel-accent: #45bddd; }
+.trend-screen-panel { --panel-accent: #62a9ed; }
 .risk-panel { --panel-accent: #e0a548; }
 .ai-insight-panel { --panel-accent: #62a9ed; }
-.system-panel { --panel-accent: #7f9c92; }
+.system-panel { --panel-accent: #8296aa; }
 
 .screen-panel::before,
 .screen-panel::after {
@@ -745,8 +745,8 @@ onBeforeUnmount(() => {
   height: 58px;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid #203a34;
-  background: #0f1d1a;
+  border-bottom: 1px solid #213244;
+  background: #101b26;
 }
 
 .screen-panel header > div {
@@ -755,20 +755,20 @@ onBeforeUnmount(() => {
 }
 
 .screen-panel header strong {
-  color: #dcece5;
+  color: #dce8f2;
   font-size: 15px;
   font-weight: 650;
 }
 
 .screen-panel header span {
   margin-top: 3px;
-  color: #527064;
+  color: #60798e;
   font-size: 8px;
   font-weight: 700;
 }
 
 .screen-panel header > b {
-  color: color-mix(in srgb, var(--panel-accent) 72%, #a6bbb2);
+  color: color-mix(in srgb, var(--panel-accent) 72%, #afc0cf);
   font-size: 10px;
   font-weight: 600;
 }
@@ -780,7 +780,7 @@ onBeforeUnmount(() => {
   height: 6px;
   margin-right: 6px;
   border-radius: 50%;
-  background: #50d3a1;
+  background: #45bddd;
 }
 
 .flow-content {
@@ -797,16 +797,16 @@ onBeforeUnmount(() => {
 }
 
 .flow-step {
-  --flow-tone: #50d3a1;
-  --flow-soft: #102c22;
+  --flow-tone: #62a9ed;
+  --flow-soft: #10283a;
   min-width: 58px;
   flex-direction: column;
   gap: 9px;
 }
 
-.flow-step.tone-green { --flow-tone: #50d3a1; --flow-soft: #102c22; }
+.flow-step.tone-green { --flow-tone: #69a7f2; --flow-soft: #142d49; }
 .flow-step.tone-blue { --flow-tone: #62a9ed; --flow-soft: #10283a; }
-.flow-step.tone-cyan { --flow-tone: #54c5c0; --flow-soft: #10302f; }
+.flow-step.tone-cyan { --flow-tone: #45bddd; --flow-soft: #103140; }
 .flow-step.tone-amber { --flow-tone: #e0a548; --flow-soft: #352812; }
 
 .flow-step > span {
@@ -816,25 +816,25 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   color: var(--flow-tone);
-  border: 1px solid color-mix(in srgb, var(--flow-tone) 45%, #233d36);
+  border: 1px solid color-mix(in srgb, var(--flow-tone) 45%, #26394b);
   border-radius: 50%;
   background: var(--flow-soft);
 }
 
 .flow-step strong {
-  color: #a8c0b6;
+  color: #adc1d5;
   font-size: 11px;
 }
 
 .flow-arrow {
   flex: none;
-  color: #36594b;
+  color: #35536d;
 }
 
 .product-visual {
   position: relative;
   overflow: hidden;
-  border-left: 1px solid #244338;
+  border-left: 1px solid #263b4e;
 }
 
 .product-visual img {
@@ -846,7 +846,7 @@ onBeforeUnmount(() => {
 .product-visual::after {
   position: absolute;
   inset: 0;
-  background: rgb(5 15 11 / 38%);
+  background: rgb(5 11 18 / 38%);
   content: '';
 }
 
@@ -859,12 +859,12 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   padding: 8px 10px;
-  border-left: 2px solid #60d1a5;
-  background: rgb(5 15 11 / 76%);
+  border-left: 2px solid #45bddd;
+  background: rgb(5 11 18 / 78%);
 }
 
 .product-visual span {
-  color: #61a78c;
+  color: #62b6d6;
   font-size: 8px;
   font-weight: 700;
 }
@@ -890,10 +890,10 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  border: 1px solid #28463b;
-  border-left: 2px solid #4f9d7d;
+  border: 1px solid #263d50;
+  border-left: 2px solid #4b8fca;
   border-radius: 4px;
-  background: #101f19;
+  background: #101b25;
 }
 
 .risk-list > div.is-warning { border-left-color: #e0a548; }
@@ -905,9 +905,9 @@ onBeforeUnmount(() => {
   height: 34px;
   align-items: center;
   justify-content: center;
-  color: #7fc4a7;
+  color: #86b9e8;
   border-radius: 4px;
-  background: #173328;
+  background: #17304a;
 }
 
 .risk-list > div.is-warning > span { color: #edbd6f; background: #352812; }
@@ -919,18 +919,18 @@ onBeforeUnmount(() => {
 }
 
 .risk-list strong {
-  color: #c7d9d1;
+  color: #c9d7e4;
   font-size: 12px;
 }
 
 .risk-list small {
   margin-top: 3px;
-  color: #668377;
+  color: #6f8498;
   font-size: 9px;
 }
 
 .risk-list b {
-  color: #f0faf5;
+  color: #f2f7fb;
   font-size: 24px;
 }
 
@@ -964,13 +964,13 @@ onBeforeUnmount(() => {
 }
 
 .ai-insight-body > div strong {
-  color: #dcece5;
+  color: #dce8f2;
   font-size: 13px;
 }
 
 .ai-insight-body p {
   margin-top: 5px;
-  color: #769287;
+  color: #7f94a8;
   font-size: 10px;
   line-height: 1.6;
 }
@@ -1005,21 +1005,21 @@ onBeforeUnmount(() => {
   flex-direction: column;
   justify-content: center;
   padding: 0 14px;
-  border-right: 1px solid #1e382e;
-  border-bottom: 1px solid #1e382e;
+  border-right: 1px solid #203244;
+  border-bottom: 1px solid #203244;
 }
 
 .system-grid > div:nth-child(2n) { border-right: 0; }
 .system-grid > div:nth-child(n+3) { border-bottom: 0; }
 
 .system-grid span {
-  color: #617e72;
+  color: #6a8298;
   font-size: 9px;
 }
 
 .system-grid strong {
   margin-top: 5px;
-  color: #c9ddd4;
+  color: #cbd9e5;
   font-size: 12px;
 }
 </style>

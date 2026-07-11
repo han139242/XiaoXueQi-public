@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import AppIcon from '@/components/common/AppIcon.vue'
-import { chatWithAi, getAiStatus, getDashboardInsight } from '@/api/ai'
+import { chatWithAi, getAiStatus, getDashboardInsight, getModuleSuggestion } from '@/api/ai'
 import { isFrameworkPreview } from '@/utils/auth'
 
 const open = defineModel({ type: Boolean, default: false })
@@ -57,6 +57,7 @@ const inputPlaceholder = computed(() => {
 
 const normalizedModule = computed(() => String(props.module || 'general').trim().toLowerCase())
 const dashboardContext = computed(() => normalizedModule.value === 'dashboard')
+const moduleContext = computed(() => !['dashboard', 'general'].includes(normalizedModule.value))
 
 async function loadStatus() {
   if (previewMode) {
@@ -106,7 +107,9 @@ async function sendQuestion() {
   abortController = new AbortController()
 
   try {
-    const requestAi = dashboardContext.value ? getDashboardInsight : chatWithAi
+    const requestAi = dashboardContext.value
+      ? getDashboardInsight
+      : moduleContext.value ? getModuleSuggestion : chatWithAi
     const result = await requestAi({
       question: content,
       module: normalizedModule.value
@@ -127,6 +130,7 @@ async function sendQuestion() {
         id: Date.now() + 1,
         role: 'system',
         content: '本次分析未完成，请稍后重试。',
+        retryQuestion: content,
         time: dayjs().format('HH:mm')
       })
     }
@@ -138,6 +142,12 @@ async function sendQuestion() {
 
 function cancelRequest() {
   abortController?.abort()
+}
+
+function retryMessage(message) {
+  if (sending.value || !status.value.available || !message.retryQuestion) return
+  question.value = message.retryQuestion
+  sendQuestion()
 }
 
 watch(open, (value) => {
@@ -196,6 +206,9 @@ watch(open, (value) => {
           </div>
           <div class="message-content">
             <p>{{ message.content }}</p>
+            <button v-if="message.retryQuestion" class="message-retry" type="button" @click="retryMessage(message)">
+              <AppIcon name="refresh" :size="13" />重新尝试
+            </button>
             <ul v-if="message.suggestions?.length" class="message-suggestions">
               <li v-for="suggestion in message.suggestions" :key="suggestion">{{ suggestion }}</li>
             </ul>
@@ -219,7 +232,7 @@ watch(open, (value) => {
             v-for="item in quickQuestions"
             :key="item"
             type="button"
-            :disabled="sending"
+            :disabled="sending || !status.available"
             @click="selectQuickQuestion(item)"
           >
             {{ item }}
@@ -274,9 +287,9 @@ watch(open, (value) => {
 }
 
 .ai-assistant-drawer.el-drawer {
-  border-left: 1px solid #cfd9d4;
-  background: #f4f7f5;
-  box-shadow: -14px 0 36px rgb(18 32 26 / 16%);
+  border-left: 1px solid var(--mes-border);
+  background: #f4f6f8;
+  box-shadow: -14px 0 36px rgb(25 34 44 / 16%);
 }
 </style>
 
@@ -286,7 +299,7 @@ watch(open, (value) => {
   height: 100dvh;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   color: var(--mes-text);
-  background: #f4f7f5;
+  background: #f4f6f8;
 }
 
 .ai-header {
@@ -296,8 +309,8 @@ watch(open, (value) => {
   align-items: center;
   gap: 11px;
   padding: 0 16px;
-  color: #eef8f3;
-  background: #17231e;
+  color: #eef5fb;
+  background: #171d25;
 }
 
 .ai-brand-mark {
@@ -306,10 +319,10 @@ watch(open, (value) => {
   height: 40px;
   align-items: center;
   justify-content: center;
-  color: #b8f0d8;
-  border: 1px solid rgb(121 218 179 / 32%);
+  color: #c5e1f5;
+  border: 1px solid rgb(112 174 224 / 34%);
   border-radius: 50%;
-  background: rgb(8 127 91 / 28%);
+  background: rgb(47 111 174 / 28%);
 }
 
 .ai-heading {
@@ -330,7 +343,7 @@ watch(open, (value) => {
 .ai-heading small {
   display: block;
   margin-top: 3px;
-  color: #85968e;
+  color: #8a98a7;
   font-size: 9px;
   font-weight: 650;
 }
@@ -339,7 +352,7 @@ watch(open, (value) => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #9aa9a2;
+  color: #98a5b3;
   font-size: 10px;
 }
 
@@ -347,15 +360,15 @@ watch(open, (value) => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #718078;
+  background: #778696;
 }
 
 .ai-status.is-ready {
-  color: #8ee2bd;
+  color: #8ed4b4;
 }
 
 .ai-status.is-ready i {
-  background: #52c896;
+  background: var(--mes-success);
 }
 
 .ai-status.is-warning {
@@ -370,7 +383,7 @@ watch(open, (value) => {
   width: 34px;
   height: 34px;
   padding: 0;
-  color: #9caaa3;
+  color: #9ba8b6;
 }
 
 .ai-service-notice {
@@ -429,7 +442,7 @@ watch(open, (value) => {
   align-items: center;
   justify-content: center;
   color: var(--mes-primary);
-  border: 1px solid #c4ddd3;
+  border: 1px solid #c8d8e6;
   border-radius: 50%;
   background: #fff;
 }
@@ -440,8 +453,8 @@ watch(open, (value) => {
 
 .message-content p {
   padding: 11px 13px;
-  color: #34423c;
-  border: 1px solid #dce5e1;
+  color: var(--mes-text);
+  border: 1px solid var(--mes-border);
   border-radius: 3px 8px 8px 8px;
   background: #fff;
   font-size: 13px;
@@ -462,11 +475,31 @@ watch(open, (value) => {
   background: #fff3f2;
 }
 
+.message-retry {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 0 9px;
+  color: var(--mes-primary);
+  border: 1px solid #bfd2e6;
+  border-radius: 3px;
+  background: #fff;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.message-retry:hover {
+  border-color: var(--mes-primary);
+  background: var(--mes-primary-soft);
+}
+
 .message-suggestions {
   margin: 7px 0 0;
   padding: 9px 12px 9px 28px;
-  color: #43554d;
-  border: 1px solid #dce5e1;
+  color: var(--mes-text-secondary);
+  border: 1px solid var(--mes-border);
   border-radius: 4px;
   background: #fff;
   font-size: 11px;
@@ -481,7 +514,7 @@ watch(open, (value) => {
   display: flex;
   gap: 8px;
   margin-top: 4px;
-  color: #9aa59f;
+  color: #97a3b0;
   font-size: 9px;
 }
 
@@ -492,7 +525,7 @@ watch(open, (value) => {
 .message-content > small {
   display: block;
   margin-top: 5px;
-  color: #8a9690;
+  color: #8a96a3;
   font-size: 9px;
 }
 
@@ -503,7 +536,7 @@ watch(open, (value) => {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  border: 1px solid #dce5e1;
+  border: 1px solid var(--mes-border);
   border-radius: 3px 8px 8px 8px;
   background: #fff;
 }
@@ -512,7 +545,7 @@ watch(open, (value) => {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #7d9489;
+  background: #8294a6;
   animation: thinking 1.1s ease-in-out infinite;
 }
 
@@ -526,7 +559,7 @@ watch(open, (value) => {
 
 .ai-compose {
   padding: 12px 14px 14px;
-  border-top: 1px solid #d9e2de;
+  border-top: 1px solid var(--mes-border);
   background: #fff;
 }
 
@@ -542,33 +575,40 @@ watch(open, (value) => {
   flex: none;
   height: 28px;
   padding: 0 10px;
-  color: #4e645a;
-  border: 1px solid #d4e1dc;
+  color: var(--mes-text-secondary);
+  border: 1px solid var(--mes-border);
   border-radius: 14px;
-  background: #f8faf9;
+  background: var(--mes-surface-muted);
   font-size: 10px;
   cursor: pointer;
 }
 
 .quick-questions button:hover {
   color: var(--mes-primary);
-  border-color: #8fc5b0;
+  border-color: #9bbbd8;
+}
+
+.quick-questions button:disabled {
+  color: var(--mes-text-muted);
+  border-color: var(--mes-border);
+  opacity: .62;
+  cursor: not-allowed;
 }
 
 .compose-box {
   position: relative;
-  border: 1px solid #bfcfc8;
+  border: 1px solid var(--mes-border-strong);
   border-radius: var(--mes-radius);
   background: #fff;
 }
 
 .compose-box:focus-within {
   border-color: var(--mes-primary);
-  box-shadow: 0 0 0 3px rgb(8 127 91 / 8%);
+  box-shadow: 0 0 0 3px rgb(47 111 174 / 9%);
 }
 
 .compose-box.disabled {
-  background: #f5f7f6;
+  background: #f4f6f8;
 }
 
 .compose-box :deep(.el-textarea__inner) {
@@ -592,7 +632,7 @@ watch(open, (value) => {
 }
 
 .compose-actions > span {
-  color: #a1aba6;
+  color: #9da8b4;
   font-size: 9px;
 }
 
@@ -604,7 +644,7 @@ watch(open, (value) => {
 
 .ai-disclaimer {
   margin-top: 8px;
-  color: #99a39e;
+  color: #98a3af;
   font-size: 9px;
   text-align: center;
 }

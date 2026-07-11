@@ -137,6 +137,12 @@ onBeforeUnmount(() => {
         <div class="notification-empty">暂无待处理通知</div>
       </el-popover>
 
+      <el-tooltip content="AI 智能助手" placement="bottom">
+        <el-button class="header-icon-button" text aria-label="AI 智能助手" @click="openAiAssistant">
+          <AppIcon name="bot" :size="18" />
+        </el-button>
+      </el-tooltip>
+
       <el-dropdown trigger="click" @command="handleCommand">
         <button class="user-entry" type="button">
           <span class="user-avatar">{{ displayInitial }}</span>
@@ -247,7 +253,7 @@ onBeforeUnmount(() => {
 
 .global-search:hover {
   color: var(--mes-primary);
-  border-color: #9fc9b8;
+  border-color: #a7c3dd;
   background: #fff;
 }
 

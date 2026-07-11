@@ -1,8 +1,10 @@
 package com.neuedu.ems.service.impl.mfg;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.service.mfg.MfgTaskService;
@@ -76,6 +78,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         if (task.getDeletedFlag() == null) {
             task.setDeletedFlag(0);
         }
+        task.setStatus(BusinessStatus.Production.WAIT_START);
+        task.setCompletedQuantity(BigDecimal.ZERO);
+        task.setDefectQuantity(BigDecimal.ZERO);
         return baseMapper.insert(task) > 0;
     }
 
@@ -89,8 +94,15 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         if (task.getTaskId() == null) {
             return false;
         }
+        MfgTask existing = getTaskById(task.getTaskId());
+        if (existing == null || !BusinessStatus.Production.WAIT_START.equals(existing.getStatus())) {
+            return false;
+        }
         task.setDeletedFlag(null);
-        return baseMapper.updateById(task) > 0;
+        task.setStatus(null);
+        task.setCompletedQuantity(null);
+        task.setDefectQuantity(null);
+        return baseMapper.update(task, taskInState(task.getTaskId(), existing.getStatus())) > 0;
     }
 
     /**
@@ -100,10 +112,14 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      */
     @Override
     public boolean removeTaskById(Long taskId) {
+        MfgTask existing = getTaskById(taskId);
+        if (existing == null || !BusinessStatus.Production.WAIT_START.equals(existing.getStatus())) {
+            return false;
+        }
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
         task.setDeletedFlag(1);
-        return baseMapper.updateById(task) > 0;
+        return baseMapper.update(task, taskInState(taskId, existing.getStatus())) > 0;
     }
 
     /**
@@ -115,11 +131,17 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     @Override
     @Transactional
     public boolean startTask(Long taskId, Long stationId) {
+        MfgTask existing = getTaskById(taskId);
+        if (existing == null || !BusinessStatus.Production.WAIT_START.equals(existing.getStatus())) {
+            return false;
+        }
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
-        task.setStationId(stationId);
-        task.setStatus("RUNNING");
-        return baseMapper.updateById(task) > 0;
+        if (stationId != null) {
+            task.setStationId(stationId);
+        }
+        task.setStatus(BusinessStatus.Production.RUNNING);
+        return baseMapper.update(task, taskInState(taskId, existing.getStatus())) > 0;
     }
 
     /**
@@ -133,13 +155,32 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     @Override
     @Transactional
     public boolean finishTask(Long taskId, BigDecimal completedQuantity, BigDecimal defectQuantity, String remark) {
+        MfgTask existing = getTaskById(taskId);
+        boolean finishable = existing != null
+                && (BusinessStatus.Production.RUNNING.equals(existing.getStatus())
+                || BusinessStatus.Production.PAUSED.equals(existing.getStatus()));
+        if (!finishable || completedQuantity == null || completedQuantity.signum() < 0
+                || defectQuantity == null || defectQuantity.signum() < 0) {
+            return false;
+        }
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
         task.setCompletedQuantity(completedQuantity);
         task.setDefectQuantity(defectQuantity);
         task.setRemark(remark);
-        task.setStatus("FINISHED");
-        return baseMapper.updateById(task) > 0;
+        task.setStatus(BusinessStatus.Production.FINISHED);
+        return baseMapper.update(task, taskInState(taskId, existing.getStatus())) > 0;
+    }
+
+    /**
+     * 构建带当前状态的更新条件，避免并发请求重复流转同一任务。
+     */
+    private LambdaUpdateWrapper<MfgTask> taskInState(Long taskId, String currentStatus) {
+        LambdaUpdateWrapper<MfgTask> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(MfgTask::getTaskId, taskId)
+                .eq(MfgTask::getDeletedFlag, 0)
+                .eq(MfgTask::getStatus, currentStatus);
+        return updateWrapper;
     }
 
     /**

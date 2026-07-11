@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import AppIcon from '@/components/common/AppIcon.vue'
 import { getModuleDefinition } from '@/config/navigation'
 
@@ -13,7 +12,7 @@ const filteredEntries = computed(() => {
   if (!value) {
     return definition.value.entries
   }
-  return definition.value.entries.filter((entry) => entry.includes(value))
+  return definition.value.entries.filter((entry) => entry.label.includes(value))
 })
 
 watch(definition, (value) => {
@@ -22,7 +21,9 @@ watch(definition, (value) => {
 }, { immediate: true })
 
 function openEntry(entry) {
-  ElMessage.info(`${entry}页面将在业务开发阶段接入`)
+  if (entry.path) {
+    window.location.hash = `#${entry.path}`
+  }
 }
 </script>
 
@@ -51,7 +52,7 @@ function openEntry(entry) {
       <div class="overview-divider" />
       <div class="overview-state">
         <span class="state-dot" />
-        <div><strong>基础框架已就绪</strong><small>业务页面按计划接入</small></div>
+        <div><strong>业务界面已接入</strong><small>连接后端真实接口与状态编码</small></div>
       </div>
     </section>
 
@@ -61,10 +62,10 @@ function openEntry(entry) {
         <span class="entry-count">{{ filteredEntries.length }} 项</span>
       </div>
       <div v-if="filteredEntries.length" class="entry-grid">
-        <button v-for="(entry, index) in filteredEntries" :key="entry" type="button" @click="openEntry(entry)">
+        <button v-for="(entry, index) in filteredEntries" :key="entry.label" type="button" @click="openEntry(entry)">
           <span class="entry-index">{{ String(index + 1).padStart(2, '0') }}</span>
-          <span class="entry-name">{{ entry }}</span>
-          <el-tag size="small" type="info" effect="plain">待接入</el-tag>
+          <span class="entry-name">{{ entry.label }}</span>
+          <el-tag size="small" type="success" effect="plain">已接入</el-tag>
           <AppIcon name="right" :size="15" />
         </button>
       </div>
@@ -101,17 +102,22 @@ function openEntry(entry) {
   background: var(--tone-soft);
 }
 
-.tone-green,
+.tone-green {
+  --tone-color: var(--mes-data);
+  --tone-border: #b9d7e7;
+  --tone-soft: var(--mes-data-soft);
+}
+
 .tone-teal {
-  --tone-color: var(--mes-primary);
-  --tone-border: #b8d9cd;
-  --tone-soft: var(--mes-primary-soft);
+  --tone-color: var(--mes-data);
+  --tone-border: #b9d7e7;
+  --tone-soft: var(--mes-data-soft);
 }
 
 .tone-blue {
-  --tone-color: var(--mes-data);
-  --tone-border: #bfd0e2;
-  --tone-soft: var(--mes-data-soft);
+  --tone-color: var(--mes-primary);
+  --tone-border: #bfd2e6;
+  --tone-soft: var(--mes-primary-soft);
 }
 
 .tone-amber {
@@ -218,7 +224,7 @@ function openEntry(entry) {
 }
 
 .entry-grid button:hover {
-  background: #f5faf7;
+  background: #f3f7fc;
 }
 
 .entry-grid button:hover .entry-name,

@@ -69,6 +69,16 @@ public final class BusinessStatus {
         }
     }
 
+    public static final class Repair {
+        public static final String SUBMITTED = "SUBMITTED";
+        public static final String REPAIRING = "REPAIRING";
+        public static final String WAIT_ACCEPTANCE = "WAIT_ACCEPTANCE";
+        public static final String CLOSED = "CLOSED";
+
+        private Repair() {
+        }
+    }
+
     public static final class Equipment {
         public static final String IDLE = "IDLE";
         public static final String RUNNING = "RUNNING";

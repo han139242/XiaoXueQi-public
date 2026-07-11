@@ -17,7 +17,7 @@ npm run dev
 npm run build
 ```
 
-## 当前基础框架
+## 当前能力
 
 - 正式登录页和 `POST /api/auth/login` 对接。
 - Axios 请求封装、Bearer Token、业务错误码和登录失效处理。
@@ -27,9 +27,24 @@ npm run build
 - 独立的 `1920x1080` 生产运营大屏，支持等比例缩放、全屏、定时刷新和错误重试。
 - 全局 AI 助手抽屉，对接 `/api/ai/status` 与 `/api/ai/chat`；模型未配置时明确展示不可用状态，不伪造回答。
 - 统一设计变量、页面容器、面板、按钮、状态色和图表组件。
-- 所有业务域的模块入口，业务页面后续按开发计划逐项接入。
+- 配置式业务工作区覆盖全部 `78` 个后端资源 Controller，包含系统、组织、主数据、工艺、工厂、生产、仓储、质量、设备和追溯模块。
+- 资源页支持分页筛选、CRUD、导出、字段显示设置、主从明细、只读资源、业务状态动作、附件上传下载和批次追溯。
+- 生产任务、质检、不合格品、入库确认和维修工单按后端英文状态编码控制操作，不允许从普通编辑入口绕过状态流转。
 
-开发环境登录页提供“查看基础框架”入口，只用于视觉评审。该入口依赖 `import.meta.env.DEV`，生产构建中不可用；真实联调必须使用后端账号和 JWT。
+开发环境登录页提供“查看基础框架”入口，只用于视觉和交互评审。该入口依赖 `import.meta.env.DEV`，生产构建中不可用；正式验收仍需启动 MySQL 和后端，使用真实账号、JWT 与业务数据跑通主链路。
+
+## AI 后端配置
+
+前端不会直连第三方模型，也不会保存模型密钥。真实 AI 调用由 Spring Boot 后端代理，默认关闭。启动后端前可在本机设置：
+
+```powershell
+$env:AI_ENABLED='true'
+$env:AI_API_URL='https://api.deepseek.com/chat/completions'
+$env:AI_API_KEY='本机密钥'
+$env:AI_MODEL='deepseek-chat'
+```
+
+未设置密钥或 `AI_ENABLED=false` 时，`GET /api/ai/status` 会返回不可用状态，前端将禁用提问入口并展示实际原因。不要把 `.env`、密钥或本机配置提交到仓库。
 
 ## 主要目录
 
@@ -38,13 +53,16 @@ src/api                 接口封装和 Axios 实例
 src/components/common   通用基础组件
 src/components/layout   后台布局组件
 src/components/chart    ECharts 基础组件
-src/config              导航和模块配置
+src/config/resources    78 个业务资源、字段、关系和状态动作配置
+src/config              导航、预览数据和公共配置
 src/pages               页面
 src/router/modules      分组路由
 src/styles              设计变量和全局样式
 src/utils               登录态等工具
 ```
 
-## 视觉素材
+## 设计参考与素材
 
-登录页羽毛球照片来自 Pixabay：`badminton-6030862`，使用 Pixabay Content License。项目内文件为 `src/assets/login-badminton.jpg`。
+- [iMES-Factory](https://github.com/zmrid/iMES-Factory) 采用 MIT License。本项目仅参考其紧凑导航、列表工作流、信息密度和生产大屏分区，并按本项目接口、羽毛球业务和设计变量重新实现。
+- 登录页羽毛球照片来自 Pixabay：`badminton-6030862`，使用 Pixabay Content License。项目内文件为 `src/assets/login-badminton.jpg`。
+- 登录页工厂照片为 Flickr 的 [Tesla Motors Assembly Line](https://www.flickr.com/photos/44124348109@N01/6858583426)，作者 `jurvetson`，使用 CC BY 许可。项目内文件为 `src/assets/login-factory.jpg`。

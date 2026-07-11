@@ -5,7 +5,6 @@ import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppTabs from '@/components/layout/AppTabs.vue'
 import AiAssistant from '@/components/ai/AiAssistant.vue'
-import AppIcon from '@/components/common/AppIcon.vue'
 import { OPEN_AI_ASSISTANT_EVENT } from '@/utils/app-events'
 
 const route = useRoute()
@@ -17,7 +16,11 @@ const tabs = ref([{ path: '/dashboard', title: '运营工作台', affix: true }]
 const aiOpen = ref(false)
 const aiModule = computed(() => {
   if (route.path === '/dashboard') return 'dashboard'
-  return String(route.params.moduleKey || 'general')
+  if (route.meta.resourceKey) return String(route.meta.resourceKey).split('-')[0]
+  const domain = route.path.split('/').filter(Boolean)[0]
+  return ['sys', 'org', 'mdm', 'process', 'factory', 'mfg', 'wms', 'qms', 'eam', 'trace'].includes(domain)
+    ? domain
+    : String(route.params.moduleKey || 'general')
 })
 
 function updateViewport() {
@@ -82,18 +85,11 @@ onBeforeUnmount(() => {
       <AppTabs v-model="tabs" @refresh="viewVersion += 1" />
       <main class="content-region">
         <RouterView v-slot="{ Component }">
-          <Transition name="page-fade" mode="out-in">
-            <component :is="Component" :key="`${route.fullPath}-${viewVersion}`" />
-          </Transition>
+          <component :is="Component" :key="`${route.fullPath}-${viewVersion}`" />
         </RouterView>
       </main>
     </section>
 
-    <el-tooltip content="AI 智能助手" placement="left">
-      <button class="ai-floating-trigger" type="button" aria-label="打开 AI 智能助手" @click="aiOpen = true">
-        <AppIcon name="bot" :size="21" />
-      </button>
-    </el-tooltip>
     <AiAssistant v-model="aiOpen" :module="aiModule" />
   </div>
 </template>
@@ -136,46 +132,7 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 39;
   inset: 0;
-  background: rgb(13 24 20 / 45%);
-}
-
-.ai-floating-trigger {
-  position: fixed;
-  z-index: 22;
-  right: 24px;
-  bottom: 22px;
-  display: inline-flex;
-  width: 48px;
-  height: 48px;
-  align-items: center;
-  justify-content: center;
-  color: #e7fff5;
-  border: 1px solid #54ad89;
-  border-radius: 50%;
-  background: #146b50;
-  box-shadow: 0 8px 24px rgb(18 70 52 / 24%);
-  cursor: pointer;
-  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
-}
-
-.ai-floating-trigger:hover {
-  background: #0b7d5a;
-  box-shadow: 0 10px 28px rgb(18 70 52 / 32%);
-  transform: translateY(-2px);
-}
-
-.page-fade-enter-active,
-.page-fade-leave-active {
-  transition: opacity 0.14s ease, transform 0.14s ease;
-}
-
-.page-fade-enter-from {
-  opacity: 0;
-  transform: translateY(4px);
-}
-
-.page-fade-leave-to {
-  opacity: 0;
+  background: rgb(14 22 31 / 45%);
 }
 
 .layout-shell.is-mobile {
@@ -197,11 +154,5 @@ onBeforeUnmount(() => {
     padding: 14px;
   }
 
-  .ai-floating-trigger {
-    right: 16px;
-    bottom: 16px;
-    width: 44px;
-    height: 44px;
-  }
 }
 </style>
