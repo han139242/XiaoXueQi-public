@@ -375,13 +375,17 @@ async function enterPreview() {
 :deep(.el-input__wrapper) {
   min-height: 44px;
   border-radius: 5px;
-  background: rgb(255 255 255 / 7%);
+  background: #3f4241;
   box-shadow: 0 0 0 1px rgb(244 252 244 / 70%) inset;
   transition: box-shadow .18s, background-color .18s;
 }
 
+:deep(.el-input__wrapper:hover) {
+  background: #454847;
+}
+
 :deep(.el-input__wrapper.is-focus) {
-  background: rgb(255 255 255 / 13%);
+  background: #494c4b;
   box-shadow: 0 0 0 2px #fff inset !important;
 }
 
@@ -389,18 +393,27 @@ async function enterPreview() {
 
 :deep(.el-input__inner) {
   color: #fff;
+  background: transparent;
   font-size: 14px;
 }
 
-:deep(.el-input__prefix) { color: #e2f0e4; }
+:deep(.el-input__prefix) { color: #e5e7e6; }
 
 :deep(.el-input__inner:-webkit-autofill),
 :deep(.el-input__inner:-webkit-autofill:hover),
 :deep(.el-input__inner:-webkit-autofill:focus) {
   -webkit-text-fill-color: #fff;
-  box-shadow: 0 0 0 1000px #486861 inset;
+  box-shadow: 0 0 0 1000px #3f4241 inset;
   caret-color: #fff;
   transition: background-color 9999s ease-out 0s;
+}
+
+:deep(.el-input__wrapper:hover .el-input__inner:-webkit-autofill) {
+  box-shadow: 0 0 0 1000px #454847 inset;
+}
+
+:deep(.el-input__wrapper.is-focus .el-input__inner:-webkit-autofill) {
+  box-shadow: 0 0 0 1000px #494c4b inset;
 }
 
 :deep(.el-checkbox) {
