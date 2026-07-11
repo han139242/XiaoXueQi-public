@@ -13,7 +13,6 @@ import {
 } from '@/api/dashboard'
 import { createDashboardPreview } from '@/config/dashboard-preview'
 import { isFrameworkPreview } from '@/utils/auth'
-import productImage from '@/assets/login-badminton.jpg'
 
 const router = useRouter()
 const previewMode = isFrameworkPreview()
@@ -81,36 +80,36 @@ const processSteps = [
 
 const trendOption = computed(() => ({
   animationDuration: 700,
-  color: ['#54c5d8', '#f06a63'],
+  color: ['#58d4ff', '#ff746c'],
   tooltip: {
     trigger: 'axis',
-    backgroundColor: '#101923',
-    borderColor: '#30465c',
-    textStyle: { color: '#eef5fb', fontSize: 13 }
+    backgroundColor: '#07111b',
+    borderColor: '#2b5b78',
+    textStyle: { color: '#eef8ff', fontSize: 13 }
   },
   legend: {
-    top: 0,
-    right: 16,
+    top: 2,
+    right: 18,
     itemWidth: 18,
     itemHeight: 4,
-    textStyle: { color: '#91a4b8', fontSize: 12 }
+    textStyle: { color: '#8aa8bf', fontSize: 12 }
   },
-  grid: { top: 48, right: 22, bottom: 28, left: 62 },
+  grid: { top: 50, right: 24, bottom: 30, left: 62 },
   xAxis: {
     type: 'category',
     boundaryGap: false,
     data: trend.value.map((item) => dayjs(item.date).format('MM/DD')),
-    axisLine: { lineStyle: { color: '#2a3b4d' } },
+    axisLine: { lineStyle: { color: '#24435a' } },
     axisTick: { show: false },
-    axisLabel: { color: '#7f93a7', fontSize: 11 }
+    axisLabel: { color: '#7d9ab0', fontSize: 11 }
   },
   yAxis: {
     type: 'value',
     splitNumber: 4,
     axisLine: { show: false },
     axisTick: { show: false },
-    axisLabel: { color: '#7f93a7', fontSize: 11 },
-    splitLine: { lineStyle: { color: '#1c2a38' } }
+    axisLabel: { color: '#7d9ab0', fontSize: 11 },
+    splitLine: { lineStyle: { color: '#13283a' } }
   },
   series: [
     {
@@ -120,7 +119,7 @@ const trendOption = computed(() => ({
       symbol: 'circle',
       symbolSize: 7,
       lineStyle: { width: 3 },
-      areaStyle: { color: 'rgba(84,197,216,.08)' },
+      areaStyle: { color: 'rgba(88,212,255,.12)' },
       data: trend.value.map((item) => Number(item.qualifiedQuantity || 0))
     },
     {
@@ -141,19 +140,19 @@ const qualityOption = computed(() => {
   const hasData = passed + failed > 0
   return {
     animationDuration: 700,
-    color: hasData ? ['#54c5d8', '#f06a63'] : ['#263747'],
+    color: hasData ? ['#58d4ff', '#ff746c'] : ['#203449'],
     tooltip: {
       trigger: 'item',
-      backgroundColor: '#101923',
-      borderColor: '#30465c',
-      textStyle: { color: '#eef5fb' }
+      backgroundColor: '#07111b',
+      borderColor: '#2b5b78',
+      textStyle: { color: '#eef8ff' }
     },
     legend: {
       bottom: 2,
       left: 'center',
       itemWidth: 9,
       itemHeight: 9,
-      textStyle: { color: '#91a4b8', fontSize: 11 }
+      textStyle: { color: '#8aa8bf', fontSize: 11 }
     },
     series: [{
       type: 'pie',
@@ -163,9 +162,9 @@ const qualityOption = computed(() => {
         show: true,
         position: 'center',
         formatter: `${Number(quality.value.qualifiedRate || 0).toFixed(1)}%`,
-        color: '#eef5fb',
+        color: '#eef8ff',
         fontSize: 34,
-        fontWeight: 700
+        fontWeight: 760
       },
       labelLine: { show: false },
       data: hasData
@@ -180,31 +179,31 @@ const equipmentOption = computed(() => ({
   tooltip: {
     trigger: 'axis',
     axisPointer: { type: 'shadow' },
-    backgroundColor: '#101923',
-    borderColor: '#30465c',
-    textStyle: { color: '#eef5fb' }
+    backgroundColor: '#07111b',
+    borderColor: '#2b5b78',
+    textStyle: { color: '#eef8ff' }
   },
   grid: { top: 12, right: 30, bottom: 18, left: 76 },
   xAxis: {
     type: 'value',
-    axisLabel: { color: '#7f93a7', fontSize: 10 },
-    splitLine: { lineStyle: { color: '#1c2a38' } }
+    axisLabel: { color: '#7d9ab0', fontSize: 10 },
+    splitLine: { lineStyle: { color: '#13283a' } }
   },
   yAxis: {
     type: 'category',
     data: ['运行', '停机', '维保', '故障'],
     axisTick: { show: false },
     axisLine: { show: false },
-    axisLabel: { color: '#9badbf', fontSize: 11 }
+    axisLabel: { color: '#a6c1d5', fontSize: 11 }
   },
   series: [{
     type: 'bar',
     barWidth: 13,
     data: [
-      { value: Number(equipment.value.running || 0), itemStyle: { color: '#62a9ed', borderRadius: 2 } },
-      { value: Number(equipment.value.stopped || 0), itemStyle: { color: '#788b9e', borderRadius: 2 } },
-      { value: Number(equipment.value.maintenance || 0), itemStyle: { color: '#e0a548', borderRadius: 2 } },
-      { value: Number(equipment.value.fault || 0), itemStyle: { color: '#f06a63', borderRadius: 2 } }
+      { value: Number(equipment.value.running || 0), itemStyle: { color: '#58d4ff', borderRadius: 3 } },
+      { value: Number(equipment.value.stopped || 0), itemStyle: { color: '#788b9e', borderRadius: 3 } },
+      { value: Number(equipment.value.maintenance || 0), itemStyle: { color: '#e6ad50', borderRadius: 3 } },
+      { value: Number(equipment.value.fault || 0), itemStyle: { color: '#ff746c', borderRadius: 3 } }
     ]
   }]
 }))
@@ -277,40 +276,40 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="big-screen-page">
-    <div class="big-screen-stage" :style="stageStyle">
+    <div class="screen-background" />
+<div class="big-screen-stage" :style="stageStyle">
       <header class="screen-header">
         <div class="screen-brand">
           <span class="screen-logo"><AppIcon name="factory" :size="25" /></span>
-          <div><strong>羽球智造</strong><small>BADMINTON MES</small></div>
-        </div>
-        <div class="screen-title">
-          <span />
           <div>
-            <h1>生产运营驾驶舱</h1>
+            <strong>羽球智造 MES</strong>
+            <small>BADMINTON SMART FACTORY</small>
+          </div>
+        </div>
+
+        <div class="screen-title">
+          <i />
+          <div>
+            <h1>生产运营指挥中心</h1>
             <p>PRODUCTION OPERATION COMMAND CENTER</p>
           </div>
-          <span />
+          <i />
         </div>
-        <div class="screen-tools">
+
+        <div class="screen-actions">
           <div class="screen-time">
             <strong>{{ timeText }}</strong>
             <span>{{ dateText }}</span>
           </div>
-          <el-tooltip content="刷新数据" placement="bottom">
-            <button type="button" aria-label="刷新数据" @click="loadData">
-              <AppIcon name="refresh" :size="19" />
-            </button>
-          </el-tooltip>
-          <el-tooltip content="全屏" placement="bottom">
-            <button type="button" aria-label="全屏" @click="toggleFullscreen">
-              <AppIcon name="fullscreen" :size="19" />
-            </button>
-          </el-tooltip>
-          <el-tooltip content="返回后台" placement="bottom">
-            <button type="button" aria-label="返回后台" @click="router.push('/dashboard')">
-              <AppIcon name="logout" :size="19" />
-            </button>
-          </el-tooltip>
+          <button type="button" :class="{ rotating: loading }" aria-label="刷新数据" @click="loadData">
+            <AppIcon name="refresh" :size="18" />
+          </button>
+          <button type="button" aria-label="全屏" @click="toggleFullscreen">
+            <AppIcon name="fullscreen" :size="18" />
+          </button>
+          <button type="button" aria-label="返回后台" @click="router.push('/dashboard')">
+            <AppIcon name="logout" :size="18" />
+          </button>
         </div>
       </header>
 
@@ -322,75 +321,121 @@ onBeforeUnmount(() => {
           <button type="button" @click="loadData">重新加载</button>
         </div>
 
-        <section class="screen-kpis">
+        <section class="metric-strip">
           <article
             v-for="metric in metrics"
             :key="metric[0]"
-            class="screen-kpi"
+            class="metric-card"
             :class="`tone-${metric[4]}`"
           >
-            <span class="kpi-icon"><AppIcon :name="metric[3]" :size="23" /></span>
+            <span class="metric-icon"><AppIcon :name="metric[3]" :size="22" /></span>
             <div>
-              <span>{{ metric[0] }}</span>
+              <label>{{ metric[0] }}</label>
               <p><strong>{{ formatNumber(metric[1]) }}</strong><small>{{ metric[2] }}</small></p>
             </div>
           </article>
         </section>
 
-        <section class="screen-grid">
-          <div class="screen-column side-column">
-            <article class="screen-panel quality-screen-panel">
-              <header><div><strong>质量检验概况</strong><span>QUALITY OVERVIEW</span></div><b>{{ quality.inspectionCount || 0 }} 单</b></header>
-              <MesChart :option="qualityOption" height="304px" />
+        <section class="command-grid">
+          <aside class="screen-stack left-stack">
+            <article class="screen-panel quality-panel">
+              <header>
+                <div><strong>质量检验</strong><span>QUALITY GATE</span></div>
+                <b>{{ quality.inspectionCount || 0 }} 单</b>
+              </header>
+              <MesChart :option="qualityOption" height="292px" />
             </article>
 
-            <article class="screen-panel equipment-screen-panel">
-              <header><div><strong>设备运行状态</strong><span>EQUIPMENT STATUS</span></div><b>{{ equipmentTotal }} 台</b></header>
-              <MesChart :option="equipmentOption" height="300px" />
+            <article class="screen-panel equipment-panel">
+              <header>
+                <div><strong>设备状态</strong><span>EQUIPMENT STATUS</span></div>
+                <b>{{ equipmentTotal }} 台</b>
+              </header>
+              <MesChart :option="equipmentOption" height="286px" />
             </article>
-          </div>
+          </aside>
 
-          <div class="screen-column center-column">
-            <article class="screen-panel production-flow-panel">
-              <header><div><strong>羽毛球制造链路</strong><span>END-TO-END PRODUCTION FLOW</span></div><b><i />链路在线</b></header>
-              <div class="flow-content">
-                <div class="flow-steps">
-                  <template v-for="(step, index) in processSteps" :key="step[0]">
-                    <div class="flow-step" :class="`tone-${step[2]}`">
-                      <span><AppIcon :name="step[1]" :size="20" /></span>
-                      <strong>{{ step[0] }}</strong>
+          <section class="center-stack">
+            <article class="screen-panel command-panel">
+              <div class="command-core">
+                <div class="flow-board">
+                  <header>
+                    <div>
+                      <strong>端到端制造链路</strong>
+                      <span>ORDER · PLAN · WORK ORDER · QUALITY · WAREHOUSE</span>
                     </div>
-                    <AppIcon v-if="index < processSteps.length - 1" class="flow-arrow" name="right" :size="16" />
-                  </template>
+                    <b><i />链路在线</b>
+                  </header>
+                  <div class="flow-line">
+                    <template v-for="(step, index) in processSteps" :key="step[0]">
+                      <div class="flow-node" :class="`tone-${step[2]}`">
+                        <span><AppIcon :name="step[1]" :size="20" /></span>
+                        <strong>{{ step[0] }}</strong>
+                      </div>
+                      <i v-if="index < processSteps.length - 1" />
+                    </template>
+                  </div>
                 </div>
-                <div class="product-visual">
-                  <img :src="productImage" alt="羽毛球产品" />
-                  <div><span>BADMINTON</span><strong>产品制造现场</strong></div>
+
+                <div class="topology-card">
+                  <div class="topology-map" aria-hidden="true">
+                    <i class="bus bus-a" />
+                    <i class="bus bus-b" />
+                    <i class="bus bus-c" />
+                    <i class="bus bus-d" />
+                    <span class="topology-node node-core"><AppIcon name="factory" :size="32" /></span>
+                    <span class="topology-node node-order"><AppIcon name="clipboard" :size="18" /></span>
+                    <span class="topology-node node-task"><AppIcon name="activity" :size="18" /></span>
+                    <span class="topology-node node-quality"><AppIcon name="shield-check" :size="18" /></span>
+                    <span class="topology-node node-stock"><AppIcon name="warehouse" :size="18" /></span>
+                  </div>
+                  <div class="topology-copy">
+                    <span>LIVE TOPOLOGY</span>
+                    <strong>制造现场数据链路在线</strong>
+                    <small>订单、任务、质检、库存实时汇聚</small>
+                  </div>
+                  <div class="topology-status">
+                    <div><small>采集</small><b>实时</b></div>
+                    <div><small>链路</small><b>7</b></div>
+                    <div><small>追溯</small><b>在线</b></div>
+                  </div>
                 </div>
               </div>
             </article>
 
-            <article class="screen-panel trend-screen-panel">
-              <header><div><strong>近七日生产趋势</strong><span>7-DAY PRODUCTION TREND</span></div><b>按日报工</b></header>
-              <MesChart :option="trendOption" height="444px" />
+            <article class="screen-panel trend-panel">
+              <header>
+                <div><strong>近七日生产趋势</strong><span>7-DAY PRODUCTION TREND</span></div>
+                <b>按日报工</b>
+              </header>
+              <MesChart :option="trendOption" height="432px" />
             </article>
-          </div>
+          </section>
 
-          <div class="screen-column side-column right-column">
+          <aside class="screen-stack right-stack">
             <article class="screen-panel risk-panel">
-              <header><div><strong>运营风险监测</strong><span>OPERATION RISK</span></div><b>实时</b></header>
+              <header>
+                <div><strong>运营风险</strong><span>OPERATION RISK</span></div>
+                <b>实时</b>
+              </header>
               <div class="risk-list">
                 <div v-for="item in riskItems" :key="item.label" :class="`is-${item.level}`">
                   <span><AppIcon :name="item.icon" :size="19" /></span>
-                  <div><strong>{{ item.label }}</strong><small>{{ item.value ? '需要关注' : '运行正常' }}</small></div>
+                  <div>
+                    <strong>{{ item.label }}</strong>
+                    <small>{{ item.value ? '需要关注' : '运行正常' }}</small>
+                  </div>
                   <b>{{ formatNumber(item.value) }}</b>
                 </div>
               </div>
             </article>
 
-            <article class="screen-panel ai-insight-panel">
-              <header><div><strong>AI 运营解读</strong><span>INTELLIGENT INSIGHT</span></div><b>重点能力</b></header>
-              <div class="ai-insight-body">
+            <article class="screen-panel ai-panel">
+              <header>
+                <div><strong>AI 解读</strong><span>INTELLIGENT INSIGHT</span></div>
+                <b>GPT-5.5</b>
+              </header>
+              <div class="ai-card">
                 <span class="ai-orbit"><AppIcon name="bot" :size="30" /></span>
                 <div>
                   <strong>智造 AI 分析助手</strong>
@@ -403,15 +448,18 @@ onBeforeUnmount(() => {
             </article>
 
             <article class="screen-panel system-panel">
-              <header><div><strong>系统运行</strong><span>SYSTEM HEALTH</span></div><b><i />在线</b></header>
+              <header>
+                <div><strong>系统运行</strong><span>SYSTEM HEALTH</span></div>
+                <b><i />在线</b>
+              </header>
               <div class="system-grid">
                 <div><span>数据刷新</span><strong>60s</strong></div>
-                <div><span>接口来源</span><strong>REAL API</strong></div>
+                <div><span>接口来源</span><strong>{{ previewMode ? 'PREVIEW' : 'REAL API' }}</strong></div>
                 <div><span>统计周期</span><strong>近 7 日</strong></div>
                 <div><span>更新时间</span><strong>{{ now.format('HH:mm') }}</strong></div>
               </div>
             </article>
-          </div>
+          </aside>
         </section>
       </main>
     </div>
@@ -425,10 +473,31 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  color: #eaf2f8;
-  background: #04070b;
+  color: #d6eaf8;
+  background: #020c18;
   font-family: var(--mes-font);
 }
+
+.screen-background {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% -8%, #0e2a4a 0%, #020c18 52%),
+    radial-gradient(ellipse at 10% 80%, rgb(0 100 200 / 10%), transparent 40%),
+    radial-gradient(ellipse at 90% 80%, rgb(0 180 200 / 8%), transparent 36%);
+}
+
+.screen-background::after {
+  position: absolute;
+  inset: 0;
+  opacity: .6;
+  background-image:
+    linear-gradient(rgb(24 144 255 / 7%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(24 144 255 / 7%) 1px, transparent 1px);
+  background-size: 48px 48px;
+  content: '';
+}
+
 
 .big-screen-stage {
   position: absolute;
@@ -438,445 +507,553 @@ onBeforeUnmount(() => {
   height: 1080px;
   overflow: hidden;
   transform-origin: center;
-  background: #080e15;
 }
 
 .screen-header {
   display: grid;
-  height: 84px;
-  grid-template-columns: 360px 1fr 440px;
+  height: 88px;
+  grid-template-columns: 420px 1fr 470px;
   align-items: center;
-  padding: 0 26px;
-  border-bottom: 1px solid #243547;
-  background: #0c141d;
+  padding: 0 30px;
+  border-bottom: 1px solid rgb(24 144 255 / 22%);
+  background: linear-gradient(180deg, rgb(4 18 36 / 96%), rgb(2 12 24 / 86%));
+  box-shadow: 0 1px 0 rgb(24 144 255 / 14%), 0 18px 40px rgb(0 0 0 / 40%);
 }
 
 .screen-brand,
-.screen-tools,
+.screen-actions,
 .screen-title,
-.screen-kpi,
+.screen-logo,
+.metric-card,
+.metric-icon,
 .screen-panel header,
-.flow-steps,
-.flow-step,
-.ai-insight-body button {
+.flow-line,
+.flow-node,
+.ai-card button {
   display: flex;
   align-items: center;
 }
 
 .screen-brand {
-  gap: 12px;
+  gap: 14px;
 }
 
 .screen-logo {
-  display: inline-flex;
-  width: 46px;
-  height: 46px;
-  align-items: center;
+  width: 48px;
+  height: 48px;
   justify-content: center;
-  color: #71b9ff;
-  border: 1px solid #315f8a;
-  border-radius: 50%;
-  background: #10263a;
+  color: #cce8ff;
+  border: 1px solid rgb(24 144 255 / 50%);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgb(24 144 255 / 40%), rgb(0 80 160 / 30%));
+  box-shadow: 0 0 20px rgb(24 144 255 / 25%), inset 0 1px 0 rgb(255 255 255 / 12%);
+  animation: logoGlow 3s ease-in-out infinite;
 }
 
-.screen-brand > div {
+.screen-brand > div,
+.screen-panel header > div {
   display: flex;
+  min-width: 0;
   flex-direction: column;
 }
 
 .screen-brand strong {
-  font-size: 20px;
-  font-weight: 700;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 760;
 }
 
-.screen-brand small {
-  margin-top: 3px;
-  color: #73879a;
+.screen-brand small,
+.screen-title p,
+.screen-panel header span {
+  margin-top: 4px;
+  color: #7493aa;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 850;
+  letter-spacing: .14em;
 }
 
 .screen-title {
   justify-content: center;
-  gap: 22px;
+  gap: 24px;
   text-align: center;
 }
 
-.screen-title > span {
-  width: 86px;
+.screen-title i {
+  width: 120px;
   height: 1px;
-  background: #4292a0;
+  background: linear-gradient(90deg, transparent, rgb(24 144 255 / 65%), transparent);
 }
 
 .screen-title h1 {
-  color: #f1f6fb;
-  font-size: 28px;
-  font-weight: 680;
-  line-height: 1.2;
-}
-
-.screen-title p {
-  margin-top: 5px;
-  color: #6f98aa;
-  font-size: 9px;
+  color: #e8f4ff;
+  font-size: 30px;
   font-weight: 700;
+  letter-spacing: .06em;
+  text-shadow:
+    0 0 20px rgb(24 144 255 / 55%),
+    0 0 50px rgb(24 144 255 / 25%);
 }
 
-.screen-tools {
+.screen-actions {
   justify-content: flex-end;
-  gap: 9px;
+  gap: 10px;
 }
 
 .screen-time {
   display: flex;
-  min-width: 132px;
+  min-width: 144px;
   flex-direction: column;
   align-items: flex-end;
   margin-right: 8px;
 }
 
 .screen-time strong {
-  color: #e2f1fb;
-  font-size: 19px;
+  color: #e7f7ff;
+  font-size: 21px;
   font-variant-numeric: tabular-nums;
 }
 
 .screen-time span {
-  color: #71869a;
+  color: #7792a8;
   font-size: 10px;
 }
 
-.screen-tools button {
+.screen-actions button {
   display: inline-flex;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   align-items: center;
   justify-content: center;
-  color: #8da1b4;
-  border: 1px solid #2b4054;
-  border-radius: 4px;
-  background: #111b26;
+  color: #9cb3c5;
+  border: 1px solid rgb(92 152 208 / 26%);
+  border-radius: 10px;
+  background: rgb(12 22 32 / 70%);
   cursor: pointer;
 }
 
-.screen-tools button:hover {
-  color: #e8f4fc;
-  border-color: #4f8fca;
-  background: #17334d;
+.screen-actions button:hover {
+  color: #e8fbff;
+  border-color: rgb(88 212 255 / 54%);
+  background: rgb(21 58 78 / 72%);
+}
+
+.screen-actions button.rotating {
+  animation: rotate 1s linear infinite;
 }
 
 .screen-content {
   position: relative;
-  height: 996px;
-  padding: 18px 22px 22px;
+  height: 988px;
+  padding: 18px 24px 24px;
+}
+
+.preview-flag,
+.screen-error {
+  position: absolute;
+  z-index: 5;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 760;
 }
 
 .preview-flag {
-  position: absolute;
-  z-index: 3;
-  top: 8px;
+  top: 9px;
   left: 50%;
-  padding: 3px 12px;
-  color: #d9b76d;
-  border: 1px solid #66542e;
-  border-radius: 3px;
-  background: #211e12;
-  font-size: 9px;
-  font-weight: 700;
+  padding: 4px 13px;
+  color: #efc776;
+  border: 1px solid rgb(230 173 80 / 34%);
+  background: rgb(46 33 13 / 82%);
   transform: translateX(-50%);
 }
 
 .screen-error {
-  position: absolute;
-  z-index: 5;
-  top: 20px;
-  right: 22px;
+  top: 22px;
+  right: 24px;
   display: flex;
-  height: 42px;
+  min-height: 42px;
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  color: #ffc0bc;
-  border: 1px solid #6f3834;
-  border-radius: 4px;
-  background: #2c1513;
-  font-size: 11px;
+  color: #ffd0cc;
+  border: 1px solid rgb(255 116 108 / 35%);
+  background: rgb(53 19 17 / 88%);
 }
 
 .screen-error button {
-  color: #ffd7d4;
+  color: #ffd8d4;
   border: 0;
   background: transparent;
   cursor: pointer;
 }
 
-.screen-kpis {
+.metric-strip {
   display: grid;
   height: 126px;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 12px;
 }
 
-.screen-kpi {
+.metric-card {
+  --tone: #1890ff;
+  --tone-soft: rgb(24 144 255 / 12%);
   position: relative;
   gap: 13px;
-  padding: 18px;
+  padding: 14px 16px;
   overflow: hidden;
-  border: 1px solid #24394d;
-  border-top: 2px solid var(--tone);
-  border-radius: 5px;
-  background: #0e1721;
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-left: 3px solid var(--tone);
+  border-radius: 4px;
+  background: rgb(4 16 30 / 90%);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 30%);
 }
 
-.screen-kpi::after {
-  position: absolute;
-  right: -16px;
-  bottom: -26px;
-  width: 80px;
-  height: 54px;
-  border: 1px solid var(--tone);
-  opacity: .12;
-  content: '';
-  transform: rotate(-25deg);
+.metric-card::after {
+  content: none;
 }
 
-.screen-kpi.tone-green { --tone: #69a7f2; --tone-soft: #142d49; }
-.screen-kpi.tone-blue { --tone: #62a9ed; --tone-soft: #112d40; }
-.screen-kpi.tone-cyan { --tone: #45bddd; --tone-soft: #103140; }
-.screen-kpi.tone-amber { --tone: #e0a548; --tone-soft: #3a2c13; }
-.screen-kpi.tone-red { --tone: #f06a63; --tone-soft: #3b1d1a; }
+.metric-card.tone-blue  { --tone: #1890ff; --tone-soft: rgb(24 144 255 / 12%); }
+.metric-card.tone-cyan  { --tone: #00c8d4; --tone-soft: rgb(0 200 212 / 12%); }
+.metric-card.tone-amber { --tone: #f5a623; --tone-soft: rgb(245 166 35 / 14%); }
+.metric-card.tone-red   { --tone: #ff4d4f; --tone-soft: rgb(255 77 79 / 13%); }
 
-.kpi-icon {
-  display: inline-flex;
+.metric-icon {
   width: 44px;
   height: 44px;
   flex: none;
-  align-items: center;
   justify-content: center;
   color: var(--tone);
-  border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent);
-  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--tone) 38%, transparent);
+  border-radius: 13px;
   background: var(--tone-soft);
 }
 
-.screen-kpi > div > span {
-  color: #8398ac;
+.metric-card label {
+  color: #83a0b6;
   font-size: 12px;
 }
 
-.screen-kpi p {
+.metric-card p {
   display: flex;
   align-items: baseline;
   gap: 7px;
-  margin-top: 7px;
+  margin-top: 8px;
 }
 
-.screen-kpi p strong {
-  color: #f2f7fb;
-  font-size: 27px;
-  font-weight: 700;
+.metric-card strong {
+  color: #f4fbff;
+  font-size: 28px;
+  font-weight: 780;
   line-height: 1;
 }
 
-.screen-kpi p small {
-  color: #75899d;
+.metric-card small {
+  color: #6f8aa0;
   font-size: 10px;
 }
 
-.screen-grid {
+.command-grid {
   display: grid;
   height: 820px;
-  grid-template-columns: 420px minmax(0, 1fr) 420px;
+  grid-template-columns: 418px minmax(0, 1fr) 418px;
   gap: 14px;
   margin-top: 14px;
 }
 
-.screen-column {
+.screen-stack,
+.center-stack {
   display: grid;
   min-width: 0;
   gap: 14px;
 }
 
-.side-column {
+.left-stack {
   grid-template-rows: 1fr 1fr;
 }
 
-.center-column {
-  grid-template-rows: 270px minmax(0, 1fr);
+.center-stack {
+  grid-template-rows: 304px minmax(0, 1fr);
 }
 
-.right-column {
-  grid-template-rows: 320px 270px minmax(0, 1fr);
+.right-stack {
+  grid-template-rows: 300px 260px minmax(0, 1fr);
 }
 
 .screen-panel {
-  --panel-accent: #62a9ed;
+  --panel-accent: #1890ff;
   position: relative;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #263b4e;
-  border-top-color: color-mix(in srgb, var(--panel-accent) 62%, #263b4e);
-  border-radius: 5px;
-  background: #0d1620;
+  border: 1px solid rgb(24 144 255 / 16%);
+  border-top: 2px solid var(--panel-accent);
+  border-radius: 4px;
+  background: rgb(4 16 30 / 92%);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 36%), inset 0 1px 0 rgb(255 255 255 / 3%);
 }
 
-.quality-screen-panel { --panel-accent: #45bddd; }
-.equipment-screen-panel { --panel-accent: #62a9ed; }
-.production-flow-panel { --panel-accent: #45bddd; }
-.trend-screen-panel { --panel-accent: #62a9ed; }
-.risk-panel { --panel-accent: #e0a548; }
-.ai-insight-panel { --panel-accent: #62a9ed; }
-.system-panel { --panel-accent: #8296aa; }
+.quality-panel   { --panel-accent: #00c8d4; }
+.equipment-panel { --panel-accent: #1890ff; }
+.command-panel   { --panel-accent: #1890ff; }
+.trend-panel     { --panel-accent: #00c8d4; }
+.risk-panel      { --panel-accent: #f5a623; }
+.ai-panel        { --panel-accent: #1890ff; }
+.system-panel    { --panel-accent: #52c41a; }
 
+/* 移除角标装饰，仅保留顶部色线 */
 .screen-panel::before,
 .screen-panel::after {
-  position: absolute;
-  z-index: 2;
-  width: 28px;
-  height: 2px;
-  background: var(--panel-accent);
-  content: '';
+  content: none;
 }
-
-.screen-panel::before { top: -1px; left: 14px; }
-.screen-panel::after { right: 14px; bottom: -1px; }
 
 .screen-panel header {
-  height: 58px;
+  height: 52px;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid #213244;
-  background: #101b26;
-}
-
-.screen-panel header > div {
-  display: flex;
-  flex-direction: column;
+  border-bottom: 1px solid rgb(24 144 255 / 14%);
+  background: rgb(2 10 20 / 60%);
 }
 
 .screen-panel header strong {
-  color: #dce8f2;
-  font-size: 15px;
-  font-weight: 650;
+  color: #cce0f0;
+  font-size: 14px;
+  font-weight: 680;
 }
 
-.screen-panel header span {
-  margin-top: 3px;
-  color: #60798e;
-  font-size: 8px;
-  font-weight: 700;
+.screen-panel header b {
+  color: color-mix(in srgb, var(--panel-accent) 85%, #cce0f0);
+  font-size: 11px;
+  font-weight: 680;
 }
 
-.screen-panel header > b {
-  color: color-mix(in srgb, var(--panel-accent) 72%, #afc0cf);
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.screen-panel header > b i,
+.screen-panel header b i,
 .system-panel header b i {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   margin-right: 6px;
   border-radius: 50%;
-  background: #45bddd;
+  background: #5bd99e;
+  box-shadow: 0 0 12px #5bd99e;
+  animation: statusPulse 2.4s ease-in-out infinite;
 }
 
-.flow-content {
+.command-core {
   display: grid;
-  height: 211px;
-  grid-template-columns: minmax(0, 1fr) 250px;
+  height: 100%;
+  grid-template-columns: minmax(0, 1fr) 260px;
 }
 
-.flow-steps {
+.flow-board {
   min-width: 0;
+}
+
+.flow-board header {
+  height: 66px;
+}
+
+.flow-line {
+  height: 238px;
   justify-content: space-around;
-  gap: 4px;
-  padding: 18px;
+  gap: 6px;
+  padding: 24px 22px;
 }
 
-.flow-step {
-  --flow-tone: #62a9ed;
-  --flow-soft: #10283a;
-  min-width: 58px;
+.flow-line > i {
+  width: 36px;
+  height: 1px;
+  flex: none;
+  background: linear-gradient(90deg, rgb(88 212 255 / 55%), rgb(88 212 255 / 8%));
+}
+
+.flow-node {
+  --flow-tone: #58d4ff;
+  --flow-soft: rgb(88 212 255 / 12%);
+  min-width: 64px;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
 }
 
-.flow-step.tone-green { --flow-tone: #69a7f2; --flow-soft: #142d49; }
-.flow-step.tone-blue { --flow-tone: #62a9ed; --flow-soft: #10283a; }
-.flow-step.tone-cyan { --flow-tone: #45bddd; --flow-soft: #103140; }
-.flow-step.tone-amber { --flow-tone: #e0a548; --flow-soft: #352812; }
+.flow-node.tone-blue { --flow-tone: #67b7ff; --flow-soft: rgb(103 183 255 / 12%); }
+.flow-node.tone-cyan { --flow-tone: #58d4ff; --flow-soft: rgb(88 212 255 / 12%); }
+.flow-node.tone-amber { --flow-tone: #e6ad50; --flow-soft: rgb(230 173 80 / 14%); }
 
-.flow-step > span {
+.flow-node > span {
   display: inline-flex;
-  width: 42px;
-  height: 42px;
+  width: 50px;
+  height: 50px;
   align-items: center;
   justify-content: center;
   color: var(--flow-tone);
-  border: 1px solid color-mix(in srgb, var(--flow-tone) 45%, #26394b);
-  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--flow-tone) 42%, rgb(92 152 208 / 18%));
+  border-radius: 15px;
   background: var(--flow-soft);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--flow-tone) 14%, transparent);
 }
 
-.flow-step strong {
-  color: #adc1d5;
-  font-size: 11px;
+.flow-node strong {
+  color: #b9d1e2;
+  font-size: 12px;
 }
 
-.flow-arrow {
-  flex: none;
-  color: #35536d;
-}
-
-.product-visual {
+.topology-card {
   position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 16px 16px;
   overflow: hidden;
-  border-left: 1px solid #263b4e;
+  border-left: 1px solid rgb(92 152 208 / 18%);
+  background:
+    radial-gradient(circle at 50% 32%, rgb(88 212 255 / 16%), transparent 42%),
+    linear-gradient(180deg, rgb(7 16 25 / 84%), rgb(5 10 17 / 92%));
 }
 
-.product-visual img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.product-visual::after {
+.topology-card::before {
   position: absolute;
-  inset: 0;
-  background: rgb(5 11 18 / 38%);
+  inset: 14px;
+  border: 1px solid rgb(92 152 208 / 14%);
   content: '';
 }
 
-.product-visual > div {
+.topology-map {
+  position: relative;
+  height: 142px;
+  border: 1px solid rgb(92 152 208 / 18%);
+  background:
+    linear-gradient(rgb(88 212 255 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(88 212 255 / 5%) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.topology-node,
+.bus {
   position: absolute;
   z-index: 1;
-  right: 14px;
-  bottom: 13px;
-  left: 14px;
-  display: flex;
-  flex-direction: column;
-  padding: 8px 10px;
-  border-left: 2px solid #45bddd;
-  background: rgb(5 11 18 / 78%);
 }
 
-.product-visual span {
-  color: #62b6d6;
-  font-size: 8px;
-  font-weight: 700;
+.topology-node {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #bcefff;
+  border: 1px solid rgb(88 212 255 / 36%);
+  border-radius: 12px;
+  background: rgb(14 35 50 / 86%);
+  box-shadow: 0 0 22px rgb(88 212 255 / 10%);
 }
 
-.product-visual strong {
-  margin-top: 2px;
-  font-size: 12px;
+.node-core {
+  top: 50%;
+  left: 50%;
+  width: 72px;
+  height: 72px;
+  color: #f2fbff;
+  border-color: rgb(88 212 255 / 56%);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgb(var(--mes-primary-rgb) / 78%), rgb(16 61 84 / 86%));
+  transform: translate(-50%, -50%);
+}
+
+.node-order,
+.node-task,
+.node-quality,
+.node-stock {
+  width: 40px;
+  height: 40px;
+}
+
+.node-order { top: 13px; left: 18px; }
+.node-task { top: 13px; right: 18px; }
+.node-quality { right: 18px; bottom: 13px; }
+.node-stock { bottom: 13px; left: 18px; }
+
+.bus {
+  height: 2px;
+  background: linear-gradient(90deg, rgb(88 212 255 / 8%) 0%, rgb(88 212 255 / 80%) 50%, rgb(88 212 255 / 8%) 100%);
+  background-size: 200% 100%;
+  transform-origin: center;
+  animation: busFlow 2.2s linear infinite;
+}
+
+.bus-b { animation-delay: -.55s; }
+.bus-c { animation-delay: -1.1s; }
+.bus-d { animation-delay: -1.65s; }
+
+.bus-a,
+.bus-b,
+.bus-c,
+.bus-d {
+  width: 80px;
+}
+
+.bus-a { top: 45px; left: 58px; transform: rotate(22deg); }
+.bus-b { top: 45px; right: 58px; transform: rotate(-22deg); }
+.bus-c { right: 58px; bottom: 45px; transform: rotate(22deg); }
+.bus-d { bottom: 45px; left: 58px; transform: rotate(-22deg); }
+
+.topology-copy {
+  position: relative;
+  z-index: 1;
+  padding: 12px 12px 0;
+}
+
+.topology-copy span {
+  color: #58d4ff;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .13em;
+}
+
+.topology-copy strong,
+.topology-copy small {
+  display: block;
+}
+
+.topology-copy strong {
+  margin-top: 6px;
+  color: #f1f8ff;
+  font-size: 14px;
+}
+
+.topology-copy small {
+  margin-top: 5px;
+  color: #7897ae;
+  font-size: 10px;
+}
+
+.topology-status {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.topology-status > div {
+  min-width: 0;
+  padding: 9px 6px;
+  border: 1px solid rgb(92 152 208 / 18%);
+  background: rgb(255 255 255 / 3%);
+  text-align: center;
+}
+
+.topology-status small {
+  display: block;
+  color: #6f8aa0;
+  font-size: 9px;
+}
+
+.topology-status b {
+  display: block;
+  margin-top: 4px;
+  color: #dff7ff;
+  font-size: 13px;
 }
 
 .risk-list {
   display: flex;
-  height: 261px;
+  height: 242px;
   flex-direction: column;
   justify-content: center;
   gap: 10px;
@@ -885,119 +1062,106 @@ onBeforeUnmount(() => {
 
 .risk-list > div {
   display: grid;
-  min-height: 64px;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  min-height: 62px;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid #263d50;
-  border-left: 2px solid #4b8fca;
-  border-radius: 4px;
-  background: #101b25;
+  gap: 11px;
+  padding: 9px 12px;
+  border: 1px solid rgb(92 152 208 / 20%);
+  border-left: 3px solid #58d4ff;
+  border-radius: 14px;
+  background: rgb(8 16 25 / 64%);
 }
 
-.risk-list > div.is-warning { border-left-color: #e0a548; }
-.risk-list > div.is-danger { border-left-color: #f06a63; }
+.risk-list > div.is-warning { border-left-color: #e6ad50; }
+.risk-list > div.is-danger { border-left-color: #ff746c; }
 
 .risk-list > div > span {
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   align-items: center;
   justify-content: center;
-  color: #86b9e8;
-  border-radius: 4px;
-  background: #17304a;
+  color: #83dfff;
+  border-radius: 12px;
+  background: rgb(88 212 255 / 12%);
 }
 
-.risk-list > div.is-warning > span { color: #edbd6f; background: #352812; }
-.risk-list > div.is-danger > span { color: #f18a84; background: #341917; }
-
-.risk-list > div > div {
-  display: flex;
-  flex-direction: column;
-}
+.risk-list > div.is-warning > span { color: #efc473; background: rgb(230 173 80 / 14%); }
+.risk-list > div.is-danger > span { color: #ff9a94; background: rgb(255 116 108 / 13%); }
 
 .risk-list strong {
-  color: #c9d7e4;
+  color: #d5e4ef;
   font-size: 12px;
 }
 
 .risk-list small {
+  display: block;
   margin-top: 3px;
-  color: #6f8498;
+  color: #7c96aa;
   font-size: 9px;
 }
 
 .risk-list b {
-  color: #f2f7fb;
+  color: #f5fbff;
   font-size: 24px;
 }
 
-.ai-insight-body {
+.ai-card {
   display: grid;
-  height: 211px;
-  grid-template-columns: 62px minmax(0, 1fr);
+  height: 202px;
+  grid-template-columns: 64px minmax(0, 1fr);
   align-content: center;
-  gap: 6px 14px;
-  padding: 16px;
+  gap: 8px 14px;
+  padding: 18px;
 }
 
 .ai-orbit {
   display: inline-flex;
-  width: 58px;
-  height: 58px;
+  width: 60px;
+  height: 60px;
   grid-row: span 2;
   align-items: center;
   justify-content: center;
-  color: #c6edff;
-  border: 1px solid #3e7898;
+  color: #d6f7ff;
+  border: 1px solid rgb(88 212 255 / 42%);
   border-radius: 50%;
-  background: #133043;
-  box-shadow: 0 0 0 7px rgb(54 132 171 / 10%);
+  background: rgb(21 70 92 / 40%);
+  box-shadow: 0 0 0 8px rgb(88 212 255 / 8%), 0 0 34px rgb(88 212 255 / 14%);
 }
 
-.ai-insight-body > div {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.ai-card strong {
+  color: #e7f2fa;
+  font-size: 14px;
 }
 
-.ai-insight-body > div strong {
-  color: #dce8f2;
-  font-size: 13px;
+.ai-card p {
+  margin-top: 6px;
+  color: #83a0b6;
+  font-size: 11px;
+  line-height: 1.7;
 }
 
-.ai-insight-body p {
-  margin-top: 5px;
-  color: #7f94a8;
-  font-size: 10px;
-  line-height: 1.6;
-}
-
-.ai-insight-body button {
-  height: 36px;
+.ai-card button {
+  height: 38px;
   grid-column: 1 / -1;
   justify-content: center;
   gap: 8px;
-  margin-top: 12px;
-  color: #ddf4ff;
-  border: 1px solid #397b9d;
-  border-radius: 4px;
-  background: #18516f;
-  font-size: 11px;
+  margin-top: 10px;
+  color: #e8fbff;
+  border: 1px solid rgb(88 212 255 / 42%);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgb(var(--mes-primary-rgb) / 76%), rgb(27 100 134 / 82%));
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
-}
-
-.ai-insight-body button:hover {
-  background: #1d678c;
 }
 
 .system-grid {
   display: grid;
-  height: 170px;
+  height: 202px;
   grid-template-columns: 1fr 1fr;
-  padding: 12px;
+  padding: 14px;
 }
 
 .system-grid > div {
@@ -1005,21 +1169,39 @@ onBeforeUnmount(() => {
   flex-direction: column;
   justify-content: center;
   padding: 0 14px;
-  border-right: 1px solid #203244;
-  border-bottom: 1px solid #203244;
+  border-right: 1px solid rgb(92 152 208 / 18%);
+  border-bottom: 1px solid rgb(92 152 208 / 18%);
 }
 
 .system-grid > div:nth-child(2n) { border-right: 0; }
 .system-grid > div:nth-child(n+3) { border-bottom: 0; }
 
 .system-grid span {
-  color: #6a8298;
-  font-size: 9px;
+  color: #7c96aa;
+  font-size: 10px;
 }
 
 .system-grid strong {
-  margin-top: 5px;
-  color: #cbd9e5;
-  font-size: 12px;
+  margin-top: 6px;
+  color: #dbe8f2;
+  font-size: 13px;
+}
+
+@keyframes rotate {
+  to { transform: rotate(360deg); }
+}
+@keyframes busFlow {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@keyframes statusPulse {
+  0%, 100% { box-shadow: 0 0 7px #52c41a; opacity: 1; }
+  50% { box-shadow: 0 0 16px #52c41a, 0 0 30px rgb(82 196 26 / 32%); opacity: .82; }
+}
+
+@keyframes logoGlow {
+  0%, 100% { box-shadow: 0 0 18px rgb(24 144 255 / 26%), inset 0 1px 0 rgb(255 255 255 / 10%); }
+  50% { box-shadow: 0 0 30px rgb(24 144 255 / 48%), inset 0 1px 0 rgb(255 255 255 / 16%); }
 }
 </style>

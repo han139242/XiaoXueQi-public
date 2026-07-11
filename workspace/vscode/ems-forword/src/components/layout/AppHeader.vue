@@ -3,9 +3,11 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import AppIcon from '@/components/common/AppIcon.vue'
+import ThemeDrawer from '@/components/layout/ThemeDrawer.vue'
 import { clearAuth, getCurrentUser, isFrameworkPreview } from '@/utils/auth'
 import { getModuleDefinition, getNavigationItems } from '@/config/navigation'
 import { openAiAssistant } from '@/utils/app-events'
+import { activeTheme } from '@/utils/theme'
 
 defineProps({
   mobile: { type: Boolean, default: false }
@@ -16,6 +18,7 @@ const route = useRoute()
 const router = useRouter()
 const searchOpen = ref(false)
 const searchKeyword = ref('')
+const themeOpen = ref(false)
 const now = ref(dayjs())
 const currentUser = getCurrentUser()
 let timer
@@ -30,7 +33,7 @@ const breadcrumbTitle = computed(() => {
   if (route.name === 'ModuleHub') {
     return getModuleDefinition(route.params.moduleKey).title
   }
-  return route.meta.title || '运营工作台'
+  return route.meta.title || '首页'
 })
 
 const searchResults = computed(() => {
@@ -124,6 +127,12 @@ onBeforeUnmount(() => {
         </el-button>
       </el-tooltip>
 
+      <el-tooltip :content="`界面主题：${activeTheme.name}`" placement="bottom">
+        <el-button class="header-icon-button" text aria-label="界面主题" @click="themeOpen = true">
+          <AppIcon name="palette" :size="18" />
+        </el-button>
+      </el-tooltip>
+
       <el-popover placement="bottom" :width="280" trigger="click" popper-class="notification-popover">
         <template #reference>
           <el-button class="header-icon-button hide-mobile" text aria-label="通知">
@@ -181,11 +190,16 @@ onBeforeUnmount(() => {
         <div v-if="!searchResults.length" class="search-empty">没有匹配的模块</div>
       </div>
     </el-dialog>
+
+    <ThemeDrawer v-model="themeOpen" />
   </header>
 </template>
 
 <style scoped>
 .app-header {
+  position: sticky;
+  z-index: 20;
+  top: 0;
   display: flex;
   width: 100%;
   height: var(--mes-header-height);
@@ -193,8 +207,10 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 20px;
   padding: 0 18px 0 12px;
-  border-bottom: 1px solid var(--mes-border);
-  background: rgb(255 255 255 / 96%);
+  color: var(--mes-header-text);
+  border-bottom: 1px solid var(--mes-header-border);
+  background: var(--mes-header-bg);
+  box-shadow: none;
 }
 
 .header-left,
@@ -220,19 +236,24 @@ onBeforeUnmount(() => {
   width: 36px;
   height: 36px;
   padding: 0;
-  color: var(--mes-text-secondary);
+  color: var(--mes-header-text);
+}
+
+.header-icon-button.el-button:hover {
+  color: #fff;
+  background: var(--mes-header-hover);
 }
 
 .breadcrumb {
   min-width: 0;
   gap: 7px;
-  color: var(--mes-text-muted);
+  color: var(--mes-header-muted);
   font-size: 12px;
 }
 
 .breadcrumb strong {
   overflow: hidden;
-  color: var(--mes-text);
+  color: var(--mes-header-text);
   font-size: 13px;
   font-weight: 620;
   text-overflow: ellipsis;
@@ -244,17 +265,17 @@ onBeforeUnmount(() => {
   height: 34px;
   gap: 8px;
   padding: 0 11px;
-  color: var(--mes-text-muted);
-  border: 1px solid var(--mes-border);
+  color: var(--mes-header-control-text);
+  border: 1px solid rgb(255 255 255 / 34%);
   border-radius: var(--mes-radius-sm);
-  background: var(--mes-surface-muted);
+  background: var(--mes-header-control-bg);
   cursor: pointer;
 }
 
 .global-search:hover {
   color: var(--mes-primary);
-  border-color: #a7c3dd;
-  background: #fff;
+  border-color: rgb(255 255 255 / 72%);
+  background: var(--mes-surface);
 }
 
 .global-search span {
@@ -273,14 +294,14 @@ onBeforeUnmount(() => {
 }
 
 .header-clock strong {
-  color: var(--mes-text);
+  color: var(--mes-header-text);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 
 .header-clock span {
   margin-top: 3px;
-  color: var(--mes-text-muted);
+  color: var(--mes-header-muted);
   font-size: 9px;
 }
 
@@ -289,9 +310,9 @@ onBeforeUnmount(() => {
   height: 42px;
   gap: 9px;
   padding: 3px 5px 3px 8px;
-  color: var(--mes-text);
+  color: var(--mes-header-text);
   border: 0;
-  border-left: 1px solid var(--mes-border);
+  border-left: 1px solid var(--mes-header-divider);
   background: transparent;
   cursor: pointer;
 }
@@ -304,8 +325,9 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   color: #fff;
+  border: 1px solid rgb(255 255 255 / 66%);
   border-radius: 50%;
-  background: var(--mes-primary);
+  background: rgb(255 255 255 / 15%);
   font-size: 12px;
   font-weight: 700;
 }
@@ -330,7 +352,7 @@ onBeforeUnmount(() => {
 
 .user-copy small {
   margin-top: 3px;
-  color: var(--mes-text-muted);
+  color: var(--mes-header-muted);
   font-size: 9px;
 }
 
@@ -402,10 +424,9 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-@media (max-width: 880px) {
+@media (max-width: 1180px) {
   .global-search,
   .header-clock,
-  .hide-mobile,
   .user-copy,
   .user-entry > .app-icon {
     display: none;
@@ -418,6 +439,12 @@ onBeforeUnmount(() => {
 
   .app-header {
     padding-right: 10px;
+  }
+}
+
+@media (max-width: 720px) {
+  .hide-mobile {
+    display: none;
   }
 }
 

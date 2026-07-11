@@ -69,7 +69,6 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
         :class="{ active: tab.path === activePath }"
         @click="router.push(tab.path)"
       >
-        <span class="tab-dot" />
         <span class="tab-title">{{ tab.title }}</span>
         <span
           v-if="!tab.affix"
@@ -110,7 +109,7 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
   height: var(--mes-tabs-height);
   align-items: stretch;
   border-bottom: 1px solid var(--mes-border);
-  background: #fff;
+  background: var(--mes-tabs-bg);
 }
 
 .tabs-scroll {
@@ -118,9 +117,9 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
   min-width: 0;
   flex: 1;
   align-items: flex-end;
-  gap: 2px;
+  gap: 3px;
   overflow-x: auto;
-  padding: 0 10px;
+  padding: 0 8px;
   scrollbar-width: none;
 }
 
@@ -132,42 +131,35 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
   position: relative;
   display: inline-flex;
   height: 34px;
-  min-width: 104px;
-  max-width: 180px;
+  min-width: 82px;
+  max-width: 174px;
   flex: none;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
+  margin-bottom: -1px;
   padding: 0 11px;
   color: var(--mes-text-secondary);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
+  border: 1px solid var(--mes-border);
+  border-bottom-color: var(--mes-border);
+  border-radius: 3px 3px 0 0;
+  background: #f7f8fa;
   font-size: 12px;
   cursor: pointer;
 }
 
 .tab-item:hover {
   color: var(--mes-text);
-  background: var(--mes-surface-muted);
+  background: var(--mes-tab-surface);
 }
 
 .tab-item.active {
+  z-index: 1;
   color: var(--mes-primary);
-  border-bottom-color: var(--mes-primary);
+  border-color: var(--mes-border);
+  border-bottom-color: var(--mes-tab-surface);
+  background: var(--mes-tab-surface);
   font-weight: 620;
-}
-
-.tab-dot {
-  width: 5px;
-  height: 5px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--mes-border-strong);
-}
-
-.active .tab-dot {
-  background: var(--mes-primary);
 }
 
 .tab-title {
@@ -184,6 +176,7 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  color: var(--mes-text-muted);
 }
 
 .tab-close:hover {
@@ -197,6 +190,7 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
   align-items: center;
   padding: 0 7px;
   border-left: 1px solid var(--mes-border);
+  background: var(--mes-surface);
 }
 
 .tab-actions :deep(.el-button) {

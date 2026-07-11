@@ -12,7 +12,7 @@ const router = useRouter()
     <p>访问地址无效或页面已经调整。</p>
     <el-button type="primary" @click="router.replace('/dashboard')">
       <AppIcon name="home" :size="16" />
-      返回工作台
+      返回首页
     </el-button>
   </main>
 </template>

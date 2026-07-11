@@ -23,7 +23,8 @@ npm run build
 - Axios 请求封装、Bearer Token、业务错误码和登录失效处理。
 - 路由守卫、懒加载路由分片、404 页面。
 - 可折叠侧边栏、顶部栏、模块搜索、通知空状态、标签页和响应式抽屉。
-- 运营工作台接入四个 `/api/dashboard` 接口。
+- 提供经典蓝、曜石黑、制造绿、工业橙、企业红 5 套完整界面皮肤，主题联动顶栏、侧栏、标签页、内容背景和 Dashboard 图表，并通过右侧主题抽屉切换和本地持久化。
+- 首页接入四个 `/api/dashboard` 接口；开发环境“查看基础框架”预览使用 `src/config/dashboard-preview.js` 的内置演示数据，不代表真实数据库数据。
 - 独立的 `1920x1080` 生产运营大屏，支持等比例缩放、全屏、定时刷新和错误重试。
 - 全局 AI 助手抽屉，对接 `/api/ai/status` 与 `/api/ai/chat`；模型未配置时明确展示不可用状态，不伪造回答。
 - 统一设计变量、页面容器、面板、按钮、状态色和图表组件。
@@ -63,6 +64,6 @@ src/utils               登录态等工具
 
 ## 设计参考与素材
 
-- [iMES-Factory](https://github.com/zmrid/iMES-Factory) 采用 MIT License。本项目仅参考其紧凑导航、列表工作流、信息密度和生产大屏分区，并按本项目接口、羽毛球业务和设计变量重新实现。
-- 登录页羽毛球照片来自 Pixabay：`badminton-6030862`，使用 Pixabay Content License。项目内文件为 `src/assets/login-badminton.jpg`。
-- 登录页工厂照片为 Flickr 的 [Tesla Motors Assembly Line](https://www.flickr.com/photos/44124348109@N01/6858583426)，作者 `jurvetson`，使用 CC BY 许可。项目内文件为 `src/assets/login-factory.jpg`。
+- [iMES-Factory](https://github.com/zmrid/iMES-Factory) 采用 MIT License。本项目参考其蓝色顶栏、白/黑侧栏主题、border-card 标签页、紧凑列表工作流、彩色快捷菜单和信息密度，并按本项目接口、羽毛球业务和设计变量重新实现。
+- 登录页羽毛球成品照片为 Wikimedia Commons 的 [Badminton-Ball](https://commons.wikimedia.org/wiki/File:Badminton-Ball_(13550266595).jpg)，作者 Tim Reckmann，使用 CC BY 2.0 许可。项目内文件为 `src/assets/login-shuttlecock.jpg`。
+- 生产运营大屏使用 Pixabay 羽毛球照片 `badminton-6030862`，遵循 Pixabay Content License。项目内文件为 `src/assets/login-badminton.jpg`。

@@ -11,9 +11,10 @@ import org.springframework.stereotype.Component;
 public class AiProperties {
 
     private boolean enabled;
-    private String apiUrl = "https://api.deepseek.com/chat/completions";
+    private String apiUrl = "https://blackaicoding.com/";
     private String apiKey;
-    private String model = "deepseek-chat";
+    private String model = "gpt-5.5";
+    private String reasoningEffort = "high";
     private int maxTokens = 1200;
     private int maxContextChars = 5000;
     private int maxAnswerChars = 8000;
@@ -48,6 +49,14 @@ public class AiProperties {
 
     public void setModel(String model) {
         this.model = model;
+    }
+
+    public String getReasoningEffort() {
+        return reasoningEffort;
+    }
+
+    public void setReasoningEffort(String reasoningEffort) {
+        this.reasoningEffort = reasoningEffort;
     }
 
     public int getMaxTokens() {

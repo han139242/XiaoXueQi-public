@@ -116,7 +116,7 @@ function openEntry(entry) {
 
 .tone-blue {
   --tone-color: var(--mes-primary);
-  --tone-border: #bfd2e6;
+  --tone-border: var(--mes-primary-border);
   --tone-soft: var(--mes-primary-soft);
 }
 

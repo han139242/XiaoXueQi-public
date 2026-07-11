@@ -54,6 +54,7 @@ const paths = {
   ,save: 'M4 3h14l2 2v16H4zM8 3v6h8V3M8 21v-7h8v7'
   ,columns: 'M3 4h18v16H3zM9 4v16M15 4v16'
   ,link: 'M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.1 1.1M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.1-1.1'
+  ,palette: 'M12 22a10 10 0 1 1 10-10c0 2.21-1.79 4-4 4h-1.8a1.2 1.2 0 0 0-.85 2.05c.42.44.65 1.03.65 1.65 0 1.1-.9 2-2 2h-3ZM7.5 10.5h.01M12 7.5h.01M16.5 10.5h.01M9 15h.01'
 }
 
 const iconPath = computed(() => paths[props.name] || paths.dashboard)

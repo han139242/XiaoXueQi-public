@@ -44,7 +44,7 @@ export const navigationGroups = [
   {
     label: '运营中心',
     items: [
-      { label: '运营工作台', icon: 'dashboard', path: '/dashboard' },
+      { label: '首页', icon: 'dashboard', path: '/dashboard' },
       moduleEntry('mfg'),
       moduleEntry('wms'),
       moduleEntry('qms')

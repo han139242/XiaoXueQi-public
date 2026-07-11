@@ -95,6 +95,7 @@ public class AiServiceImpl implements AiService {
         status.put("state", !properties.isEnabled() ? "DISABLED" : configured ? "READY" : "MISCONFIGURED");
         status.put("provider", "OPENAI_COMPATIBLE");
         status.put("model", StringUtils.hasText(properties.getModel()) ? properties.getModel() : null);
+        status.put("reasoningEffort", normalizeReasoningEffort(properties.getReasoningEffort()));
         return status;
     }
 
@@ -300,13 +301,17 @@ public class AiServiceImpl implements AiService {
         requestJson.put("model", properties.getModel().trim());
         requestJson.put("temperature", 0.2);
         requestJson.put("max_tokens", Math.max(1, Math.min(properties.getMaxTokens(), 4000)));
+        String reasoningEffort = normalizeReasoningEffort(properties.getReasoningEffort());
+        if (StringUtils.hasText(reasoningEffort)) {
+            requestJson.put("reasoning_effort", reasoningEffort);
+        }
         ArrayNode messages = requestJson.putArray("messages");
         messages.addObject().put("role", "system").put("content", SYSTEM_PROMPT);
         messages.addObject().put("role", "user").put("content", userPrompt);
 
         try {
             Request request = new Request.Builder()
-                    .url(properties.getApiUrl().trim())
+                    .url(resolveChatCompletionsUrl(properties.getApiUrl()))
                     .header("Authorization", "Bearer " + properties.getApiKey().trim())
                     .header("Accept", "application/json")
                     .post(RequestBody.create(objectMapper.writeValueAsString(requestJson), JSON_MEDIA_TYPE))
@@ -354,6 +359,26 @@ public class AiServiceImpl implements AiService {
         return StringUtils.hasText(properties.getApiUrl())
                 && StringUtils.hasText(properties.getApiKey())
                 && StringUtils.hasText(properties.getModel());
+    }
+
+    private String resolveChatCompletionsUrl(String configuredUrl) {
+        String trimmedUrl = configuredUrl.trim();
+        String normalized = trimmedUrl.endsWith("/") ? trimmedUrl.substring(0, trimmedUrl.length() - 1) : trimmedUrl;
+        if (normalized.endsWith("/chat/completions")) {
+            return normalized;
+        }
+        if (normalized.endsWith("/v1")) {
+            return normalized + "/chat/completions";
+        }
+        return normalized + "/v1/chat/completions";
+    }
+
+    private String normalizeReasoningEffort(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return Set.of("minimal", "low", "medium", "high").contains(normalized) ? normalized : "high";
     }
 
     private String upstreamErrorMessage(int code) {

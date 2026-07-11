@@ -12,7 +12,7 @@ const collapsed = ref(localStorage.getItem('mes_sidebar_collapsed') === 'true')
 const mobile = ref(false)
 const mobileMenuOpen = ref(false)
 const viewVersion = ref(0)
-const tabs = ref([{ path: '/dashboard', title: '运营工作台', affix: true }])
+const tabs = ref([{ path: '/dashboard', title: '首页', affix: true }])
 const aiOpen = ref(false)
 const aiModule = computed(() => {
   if (route.path === '/dashboard') return 'dashboard'
@@ -24,7 +24,7 @@ const aiModule = computed(() => {
 })
 
 function updateViewport() {
-  mobile.value = window.innerWidth < 1024
+  mobile.value = window.innerWidth < 1120
   if (!mobile.value) {
     mobileMenuOpen.value = false
   }
@@ -125,7 +125,7 @@ onBeforeUnmount(() => {
 
 .content-region {
   min-height: calc(100dvh - var(--mes-header-height) - var(--mes-tabs-height));
-  padding: 20px;
+  padding: 10px 12px 16px;
 }
 
 .mobile-mask {
@@ -151,7 +151,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
   .content-region {
-    padding: 14px;
+    padding: 10px;
   }
 
 }
