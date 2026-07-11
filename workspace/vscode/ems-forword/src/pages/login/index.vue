@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AppIcon from '@/components/common/AppIcon.vue'
 import { login } from '@/api/auth'
-import shuttlecockImage from '@/assets/login-background.jpg'
+import shuttlecockImage from '@/assets/login-background-blue.png'
 import {
   setCurrentUser,
   setToken,
@@ -145,9 +145,9 @@ async function enterPreview() {
   position: relative;
   display: grid;
   min-height: 100dvh;
-  grid-template-columns: minmax(0, 1.08fr) minmax(460px, .92fr);
+  grid-template-columns: minmax(0, 1.18fr) minmax(430px, .82fr);
   overflow: hidden;
-  background: var(--shuttlecock-image) center / cover no-repeat;
+  background: #eaf1f8;
   font-family: var(--mes-font);
 }
 
@@ -155,7 +155,7 @@ async function enterPreview() {
   position: absolute;
   inset: 0;
   background: var(--shuttlecock-image) center / cover no-repeat;
-  filter: brightness(.98) saturate(.94) contrast(.97);
+  filter: brightness(.98) saturate(.9) contrast(1.02);
   content: '';
   opacity: 1;
   animation: background-breathe 18s ease-in-out infinite alternate;
@@ -165,7 +165,7 @@ async function enterPreview() {
 .login-page::after {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgb(17 24 21 / 18%) 0%, transparent 52%, rgb(17 24 21 / 8%) 100%);
+  background: linear-gradient(90deg, rgb(255 255 255 / 8%) 0%, transparent 56%, rgb(14 50 88 / 14%) 100%);
   content: '';
   pointer-events: none;
 }
@@ -178,20 +178,20 @@ async function enterPreview() {
   align-items: stretch;
   padding: clamp(26px, 3.2vw, 52px) clamp(40px, 6vw, 92px) clamp(40px, 6vw, 92px);
   overflow: hidden;
-  background: linear-gradient(90deg, rgb(18 25 22 / 19%) 0%, transparent 65%);
+  background: transparent;
 }
 
 .brand-shell {
   position: relative;
   z-index: 1;
   display: flex;
-  width: min(740px, 100%);
+  width: 100%;
   flex-direction: column;
   animation: brand-enter .9s cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .brand-header strong {
-  color: #f4fbf7;
+  color: #173d66;
   font-size: 19px;
   font-weight: 560;
   letter-spacing: 0;
@@ -209,21 +209,22 @@ async function enterPreview() {
   height: 34px;
   align-items: center;
   justify-content: center;
-  color: #eff9f2;
-  border: 1px solid rgb(226 246 232 / 38%);
+  color: var(--mes-primary);
+  border: 1px solid rgb(var(--mes-primary-rgb) / 34%);
   border-radius: 6px;
-  background: rgb(29 80 72 / 32%);
-  backdrop-filter: blur(6px);
+  background: rgb(255 255 255 / 72%);
+  backdrop-filter: blur(8px);
 }
 
 .brand-copy {
-  margin: auto 0;
+  width: min(430px, 56%);
+  margin: clamp(125px, 21vh, 215px) 0 0 auto;
 }
 
 .brand-copy h1 {
-  color: #f5fcf8;
-  font-size: clamp(34px, 3.4vw, 46px);
-  font-weight: 500;
+  color: #153b63;
+  font-size: clamp(34px, 3.1vw, 44px);
+  font-weight: 680;
   line-height: 1.2;
   letter-spacing: 0;
 }
@@ -231,7 +232,7 @@ async function enterPreview() {
 .brand-copy p {
   max-width: 480px;
   margin-top: 22px;
-  color: #d5e6dd;
+  color: #4c6986;
   font-size: 14px;
   line-height: 1.8;
 }
@@ -244,15 +245,16 @@ async function enterPreview() {
   align-items: center;
   justify-content: center;
   padding: 40px clamp(58px, 8vw, 154px) 40px clamp(42px, 6vw, 100px);
-  background: rgb(24 28 32 / 12%);
-  backdrop-filter: blur(10px) saturate(92%);
-  border-left: 1px solid rgb(255 250 232 / 20%);
+  background: rgb(247 249 252 / 92%);
+  backdrop-filter: blur(14px) saturate(88%);
+  border-left: 1px solid rgb(199 211 224 / 82%);
+  box-shadow: -18px 0 42px rgb(25 56 86 / 10%);
 }
 
 .login-card {
   width: 100%;
-  max-width: 400px;
-  padding: 10px 0;
+  max-width: 390px;
+  padding: 22px 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -268,23 +270,23 @@ async function enterPreview() {
 .login-eyebrow {
   display: block;
   margin-bottom: 10px;
-  color: #e4f1e6;
+  color: var(--mes-primary);
   font-size: 10px;
   font-weight: 760;
   letter-spacing: 0;
 }
 
 .login-heading h2 {
-  color: #fff;
-  font-family: Georgia, 'Times New Roman', 'Microsoft YaHei', serif;
-  font-size: 34px;
-  font-weight: 500;
+  color: var(--mes-text);
+  font-family: var(--mes-font);
+  font-size: 30px;
+  font-weight: 680;
   line-height: 1.2;
 }
 
 .login-heading p {
   margin-top: 7px;
-  color: #edf4ed;
+  color: var(--mes-text-secondary);
   font-size: 13px;
 }
 
@@ -298,7 +300,7 @@ async function enterPreview() {
 
 .login-status {
   overflow: hidden;
-  color: #ebf5ed;
+  color: var(--mes-text-muted);
   font-size: 11px;
   text-align: right;
   text-overflow: ellipsis;
@@ -320,14 +322,14 @@ async function enterPreview() {
   display: inline-flex;
   gap: 8px;
   border: 0;
-  color: #314643;
-  background: #f7faf5;
+  color: #fff;
+  background: var(--mes-primary);
   letter-spacing: 0;
 }
 
 .login-submit.el-button:hover:not(:disabled) {
-  background: #e7f0e8;
-  box-shadow: 0 10px 22px rgb(18 31 25 / 24%);
+  background: var(--mes-primary-hover);
+  box-shadow: 0 10px 22px rgb(var(--mes-primary-rgb) / 24%);
   transform: translateY(-2px);
 }
 
@@ -338,15 +340,16 @@ async function enterPreview() {
 
 .preview-button.el-button {
   margin-top: 10px;
-  color: #f5faf6;
-  border-color: rgb(245 252 246 / 58%);
-  background: rgb(255 255 255 / 7%);
+  color: var(--mes-text-secondary);
+  border-color: var(--mes-border-strong);
+  background: #fff;
 }
 
 .preview-button.el-button:hover:not(:disabled) {
-  border-color: rgb(255 255 255 / 85%);
-  background: rgb(255 255 255 / 15%);
-  box-shadow: 0 8px 18px rgb(17 27 21 / 18%);
+  color: var(--mes-primary);
+  border-color: var(--mes-primary-border);
+  background: var(--mes-primary-soft);
+  box-shadow: 0 8px 18px rgb(var(--mes-primary-rgb) / 12%);
   transform: translateY(-2px);
 }
 
@@ -358,8 +361,8 @@ async function enterPreview() {
   gap: 10px;
   margin-top: 26px;
   padding-top: 16px;
-  border-top: 1px solid rgb(243 251 244 / 28%);
-  color: #e1eee3;
+  border-top: 1px solid var(--mes-border);
+  color: var(--mes-text-muted);
   font-size: 10px;
 }
 
@@ -367,7 +370,7 @@ async function enterPreview() {
 
 :deep(.el-form-item__label) {
   padding-bottom: 7px;
-  color: #f3faf4;
+  color: #3e4d5d;
   font-size: 12px;
   font-weight: 660;
 }
@@ -375,73 +378,79 @@ async function enterPreview() {
 :deep(.el-input__wrapper) {
   min-height: 44px;
   border-radius: 5px;
-  background: #3f4241;
-  box-shadow: 0 0 0 1px rgb(244 252 244 / 70%) inset;
+  background: #fff;
+  box-shadow: 0 0 0 1px #c9d3de inset;
   transition: box-shadow .18s, background-color .18s;
 }
 
 :deep(.el-input__wrapper:hover) {
-  background: #454847;
+  background: #fbfdff;
+  box-shadow: 0 0 0 1px var(--mes-primary-border) inset;
 }
 
 :deep(.el-input__wrapper.is-focus) {
-  background: #494c4b;
-  box-shadow: 0 0 0 2px #fff inset !important;
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--mes-primary) inset !important;
 }
 
 :deep(.el-form-item__content) { overflow: visible; }
 
 :deep(.el-input__inner) {
-  color: #fff;
+  color: var(--mes-text);
   background: transparent;
   font-size: 14px;
 }
 
-:deep(.el-input__prefix) { color: #e5e7e6; }
+:deep(.el-input__prefix) { color: #6f7f90; }
 
 :deep(.el-input__inner:-webkit-autofill),
 :deep(.el-input__inner:-webkit-autofill:hover),
 :deep(.el-input__inner:-webkit-autofill:focus) {
-  -webkit-text-fill-color: #fff;
-  box-shadow: 0 0 0 1000px #3f4241 inset;
-  caret-color: #fff;
+  -webkit-text-fill-color: var(--mes-text);
+  box-shadow: 0 0 0 1000px #fff inset;
+  caret-color: var(--mes-text);
   transition: background-color 9999s ease-out 0s;
 }
 
 :deep(.el-input__wrapper:hover .el-input__inner:-webkit-autofill) {
-  box-shadow: 0 0 0 1000px #454847 inset;
+  box-shadow: 0 0 0 1000px #fbfdff inset;
 }
 
 :deep(.el-input__wrapper.is-focus .el-input__inner:-webkit-autofill) {
-  box-shadow: 0 0 0 1000px #494c4b inset;
+  box-shadow: 0 0 0 1000px #fff inset;
 }
 
 :deep(.el-checkbox) {
-  --el-checkbox-text-color: #f0f7f1;
-  --el-checkbox-checked-text-color: #fff;
-  --el-checkbox-input-border-color: rgb(244 252 244 / 72%);
-  --el-checkbox-checked-bg-color: #f7faf5;
-  --el-checkbox-checked-input-border-color: #f7faf5;
-  --el-checkbox-checked-icon-color: #31554c;
+  --el-checkbox-text-color: var(--mes-text-secondary);
+  --el-checkbox-checked-text-color: var(--mes-text);
+  --el-checkbox-input-border-color: #aebbc8;
+  --el-checkbox-checked-bg-color: var(--mes-primary);
+  --el-checkbox-checked-input-border-color: var(--mes-primary);
+  --el-checkbox-checked-icon-color: #fff;
 }
 
 @media (max-width: 1080px) {
   .login-page { grid-template-columns: minmax(420px, 1fr) 400px; }
   .login-panel { padding-inline: 42px; }
+  .brand-copy { width: min(390px, 62%); }
 }
 
 @media (max-width: 880px) {
   .login-page { grid-template-columns: 1fr; }
 
-  .brand-panel { min-height: auto; padding: 38px 28px 36px; }
-  .brand-copy { margin: 42px 0 0; }
-  .brand-copy h1 { font-size: 36px; }
+  .login-page::before { background-position: 28% center; }
+
+  .brand-panel { min-height: 280px; padding: 30px 28px 34px; }
+  .brand-copy { width: min(430px, 100%); margin: 54px 0 0; }
+  .brand-copy h1 { font-size: 32px; }
 
   .login-panel {
     min-height: auto;
     padding: 32px 22px 48px;
+    background: #f7f9fc;
     border-left: 0;
-    border-top: 1px solid rgb(255 230 207 / 12%);
+    border-top: 1px solid var(--mes-border);
+    box-shadow: 0 -12px 32px rgb(25 56 86 / 9%);
   }
 }
 
@@ -454,8 +463,8 @@ async function enterPreview() {
 }
 
 @keyframes background-breathe {
-  from { filter: brightness(.92) saturate(.88) contrast(.97); transform: scale(1.08); }
-  to { filter: brightness(.99) saturate(.96) contrast(.98); transform: scale(1.02); }
+  from { filter: brightness(.94) saturate(.86) contrast(1.03); transform: scale(1.035); }
+  to { filter: brightness(1.01) saturate(.94) contrast(1.01); transform: scale(1.005); }
 }
 
 @keyframes login-enter {

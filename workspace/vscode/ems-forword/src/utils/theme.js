@@ -2,8 +2,8 @@ import { computed, ref } from 'vue'
 
 const STORAGE_KEY = 'mes_ui_theme'
 const DEFAULT_VERSION_KEY = 'mes_ui_theme_default_version'
-const CURRENT_DEFAULT_VERSION = 'dark-default-20260711'
-const DEFAULT_THEME = 'dark'
+const CURRENT_DEFAULT_VERSION = 'blue-default-20260711'
+const DEFAULT_THEME = 'blue'
 
 export const themeOptions = [
   {
@@ -65,7 +65,7 @@ export function initTheme() {
     const defaultVersion = localStorage.getItem(DEFAULT_VERSION_KEY)
     const persistedTheme = localStorage.getItem(STORAGE_KEY)
     if (defaultVersion !== CURRENT_DEFAULT_VERSION) {
-      storedTheme = !persistedTheme || persistedTheme === 'blue' ? DEFAULT_THEME : persistedTheme
+      storedTheme = !persistedTheme || persistedTheme === 'dark' ? DEFAULT_THEME : persistedTheme
       localStorage.setItem(STORAGE_KEY, storedTheme)
       localStorage.setItem(DEFAULT_VERSION_KEY, CURRENT_DEFAULT_VERSION)
     } else {
