@@ -16,6 +16,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -129,11 +130,7 @@ public class SysFileServiceImpl extends ServiceImpl<SysFileMapper, SysFile> impl
         if (!StringUtils.hasText(fileUrl)) {
             throw new RuntimeException("文件地址不能为空");
         }
-        File directFile = new File(fileUrl);
-        if (directFile.isAbsolute()) {
-            return directFile.getPath();
-        }
-        String relativePath = fileUrl;
+        String relativePath = fileUrl.replace('\\', '/');
         if (relativePath.startsWith(FILE_URL_PREFIX)) {
             relativePath = relativePath.substring(FILE_URL_PREFIX.length());
         } else if (relativePath.startsWith("upload/")) {
@@ -142,6 +139,11 @@ public class SysFileServiceImpl extends ServiceImpl<SysFileMapper, SysFile> impl
         if (relativePath.startsWith("file/")) {
             relativePath = relativePath.substring("file/".length());
         }
-        return rootPath + relativePath;
+        Path storageRoot = Path.of(rootPath).toAbsolutePath().normalize();
+        Path resolvedPath = storageRoot.resolve(relativePath).normalize();
+        if (!resolvedPath.startsWith(storageRoot)) {
+            throw new RuntimeException("文件地址超出允许的存储目录");
+        }
+        return resolvedPath.toString();
     }
 }

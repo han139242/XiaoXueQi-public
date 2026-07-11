@@ -2,6 +2,7 @@ package com.neuedu.ems.util;
 
 import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -16,6 +17,7 @@ import java.util.concurrent.TimeUnit;
  * @Component：标识为Spring组件，自动扫描注入
  */
 @Component
+@Slf4j
 public class RedisUtil {
     @Autowired
     private ObjectMapper objectMapper;
@@ -94,21 +96,30 @@ public class RedisUtil {
         }
         try {
             ValueOperations<String, Object> operations = redisTemplate.opsForValue();
-            String json = (String) operations.get(key);
+            Object cachedValue = operations.get(key);
 
-            if (StrUtil.isBlank(json)) {
+            if (cachedValue == null) {
                 return null;
             }
 
-            // 【核心替换】使用 Jackson 反序列化
-            // 如果抛出异常，说明格式不对或类型不匹配
-            return objectMapper.readValue(json, clazz);
+            if (clazz.isInstance(cachedValue)) {
+                return clazz.cast(cachedValue);
+            }
+
+            if (cachedValue instanceof String json) {
+                if (StrUtil.isBlank(json)) {
+                    return null;
+                }
+                return objectMapper.readValue(json, clazz);
+            }
+
+            return objectMapper.convertValue(cachedValue, clazz);
 
         } catch (IOException e) {
-            e.printStackTrace(); // 建议换成日志框架记录，如 log.error(...)
+            log.warn("Redis cache JSON conversion failed for key {}: {}", key, e.getMessage());
             return null;
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (RuntimeException e) {
+            log.warn("Redis cache conversion failed for key {}: {}", key, e.getMessage());
             return null;
         }
     }

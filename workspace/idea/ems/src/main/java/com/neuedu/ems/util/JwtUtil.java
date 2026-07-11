@@ -3,6 +3,7 @@ package com.neuedu.ems.util;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -15,16 +16,8 @@ import java.util.Map;
  * @Component：标识为Spring组件，可注入使用
  */
 @Component
+@Slf4j
 public class JwtUtil {
-
-    public static void main(String[] args) {
-        JwtUtil jwtUtil = new JwtUtil();
-//        String token = generateToken(1L, "admin");
-//        System.out.println(token);
-        boolean b = jwtUtil.validateToken("eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJqdGkiOiIxIiwiaWF0IjoxNzczMDE1ODc3LCJleHAiOjE3NzMwMjMwNzd9.JqpzQL1RvI1DurXJywefMdpVKuEgQJONo4f3vK30QwQqa1h9dOAZTRshxhcSDWYL");
-        System.out.println(b);
-
-    }
 
     /**
      * 生成JWT token
@@ -88,7 +81,7 @@ public class JwtUtil {
             return !claims.getExpiration().before(new Date());
         } catch (Exception e) {
             // 捕获所有解析异常，返回false
-            System.out.println("JWT token验证失败：" + e.getMessage());
+            log.debug("JWT validation failed: {}", e.getClass().getSimpleName());
             return false;
         }
     }

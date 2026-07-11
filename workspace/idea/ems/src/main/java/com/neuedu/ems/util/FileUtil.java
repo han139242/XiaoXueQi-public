@@ -5,6 +5,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.UUID;
 
 /**
@@ -63,7 +65,6 @@ public class FileUtil {
             String tempFileName = generateUniqueFileName(file.getOriginalFilename());
             // D://upload/temp/Sc/W7V/asdfjkasdfjalkdfj.pdf
             String tempFullPath = tempRootPath + twoLevalPath + tempFileName;
-            System.out.println(tempFileName);
             //D://upload/temp/Sc/W7V/
             File pathFile = new File(tempRootPath + twoLevalPath);
             if (!pathFile.exists()) {
@@ -80,8 +81,7 @@ public class FileUtil {
             // Sc/W7V/asdfjkasdfjalkdfj.pdf
             return twoLevalPath + tempFileName;
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("临时上传失败：" + e.getMessage());
+            throw new RuntimeException("临时上传失败：" + e.getMessage(), e);
         }
     }
 
@@ -96,7 +96,7 @@ public class FileUtil {
             // 3. 仅返回正式路径（用户关联逻辑移到Controller）
             return formalFullPath;
         } catch (Exception e) {
-            throw new RuntimeException("临时转正式失败：" + e.getMessage());
+            throw new RuntimeException("临时转正式失败：" + e.getMessage(), e);
         }
     }
 
@@ -108,7 +108,7 @@ public class FileUtil {
     public String generateUniqueFileName(String originalFileName) {
         // 获取文件后缀
         String suffix = "";
-        if (originalFileName.lastIndexOf(".") > 0) {
+        if (originalFileName != null && originalFileName.lastIndexOf(".") > 0) {
             suffix = originalFileName.substring(originalFileName.lastIndexOf("."));
         }
         // 生成UUID（去掉横线）
@@ -122,14 +122,21 @@ public class FileUtil {
      */
     public void checkAvatarFileType(MultipartFile file) {
         String originalFileName = file.getOriginalFilename();
+        if (originalFileName == null || originalFileName.lastIndexOf(".") <= 0) {
+            throw new RuntimeException("文件必须包含有效扩展名！");
+        }
         String suffix = "";
         if (originalFileName.lastIndexOf(".") > 0) {
             // 转小写，避免JPG/jpg区分
             suffix = originalFileName.substring(originalFileName.lastIndexOf(".") + 1).toLowerCase();
         }
         // 校验是否在允许列表
-        if (!allowTypes.contains(suffix)) {
-            throw new RuntimeException("仅允许上传：" + allowTypes + "类型的图片！");
+        boolean allowed = java.util.Arrays.stream(allowTypes.split(","))
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .anyMatch(suffix::equals);
+        if (!allowed) {
+            throw new RuntimeException("仅允许上传：" + allowTypes + "类型的文件！");
         }
     }
 
@@ -160,7 +167,7 @@ public class FileUtil {
             // 6. 返回正式路径
             return formalFullPath;
         } catch (Exception e) {
-            throw new RuntimeException("头像上传失败：" + e.getMessage());
+            throw new RuntimeException("头像上传失败：" + e.getMessage(), e);
         }
     }
 
@@ -183,7 +190,7 @@ public class FileUtil {
             file.transferTo(new File(rootPath + formalFullPath));
             return formalFullPath;
         } catch (Exception e) {
-            throw new RuntimeException("文件上传失败：" + e.getMessage());
+            throw new RuntimeException("文件上传失败：" + e.getMessage(), e);
         }
     }
 
@@ -194,37 +201,36 @@ public class FileUtil {
      */
     public String moveTempToFormal(String tempPath) {
         try {
-            System.out.println("临时路径：" + tempRootPath + tempPath);
+            Path tempRoot = Path.of(tempRootPath).toAbsolutePath().normalize();
+            Path tempFilePath = resolveWithinRoot(tempRoot, tempPath);
             // 校验临时文件是否存在
-            File tempFile = new File(tempRootPath + tempPath);
-            if (!tempFile.exists()) {
+            if (!Files.isRegularFile(tempFilePath)) {
                 throw new RuntimeException("临时文件不存在：" + tempPath);
             }
             // 生成正式路径（avatar前缀+双层随机）- 该方法已包含文件夹创建逻辑
             String formalPath = generateTwoLevelRandomPath();
             // 生成正式文件名（带用户ID）
-            String formalFileName = generateUniqueFileName(tempFile.getName());
+            String formalFileName = generateUniqueFileName(tempFilePath.getFileName().toString());
             String formalFullPath = formalPath + formalFileName;
-            System.out.println("正式文件路径：" + rootPath + formalFullPath);
-            File pathFile = new File(rootPath + formalPath);
-            if (!pathFile.exists()) {
-                // mkdirs() 会创建所有不存在的父目录，返回boolean确认是否创建成功
-                boolean isCreated = pathFile.mkdirs();
-                if (!isCreated) {
-                    throw new RuntimeException("文件夹创建失败：" + rootPath + formalPath);
-                }
-            }
-            // 核心：移动文件（剪切粘贴，高效无冗余）
-            boolean isMoveSuccess = tempFile.renameTo(new File(rootPath + formalFullPath));
-            if (!isMoveSuccess) {
-                throw new RuntimeException("临时文件转正式路径失败！");
-            }
+            Path formalRoot = Path.of(rootPath).toAbsolutePath().normalize();
+            Path formalFilePath = resolveWithinRoot(formalRoot, formalFullPath);
+            Files.createDirectories(formalFilePath.getParent());
+            Files.move(tempFilePath, formalFilePath);
             return formalFullPath;
         } catch (Exception e) {
-            // 失败时删除临时文件，避免垃圾
-            new File(tempRootPath + tempPath).delete();
-            throw new RuntimeException("临时转正式失败：" + e.getMessage());
+            throw new RuntimeException("临时转正式失败：" + e.getMessage(), e);
         }
+    }
+
+    private Path resolveWithinRoot(Path root, String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            throw new RuntimeException("文件路径不能为空");
+        }
+        Path resolvedPath = root.resolve(relativePath.replace('\\', '/')).normalize();
+        if (!resolvedPath.startsWith(root)) {
+            throw new RuntimeException("文件路径超出允许的存储目录");
+        }
+        return resolvedPath;
     }
 
     /**

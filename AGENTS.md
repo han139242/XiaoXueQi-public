@@ -33,8 +33,8 @@ AI 的目标是减少错误，而不是生成更多代码。所有改动都应�
 优先读取实际存在的路径。文档路径变化时，用 `rg --files -g "*.md"` 查找。
 
 - `COLLABORATION.md`
-- `相关文档/md/后端接口文档.md` 或 `md/后端接口文档.md`
-- `相关文档/md/database_table_analysis（数据库）.md` 或 `md/database_table_analysis（数据库）.md`
+- `相关文档，图片/md/后端接口文档.md` 或 `md/后端接口文档.md`
+- `相关文档，图片/md/database_table_analysis（数据库）.md` 或 `md/database_table_analysis（数据库）.md`
 - `workspace/idea/ems/docs/羽毛球MES开发约束框架.md`
 - `workspace/idea/ems/src/main/resources/db/schema.sql`
 

@@ -11,6 +11,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.stereotype.Component;
@@ -23,6 +24,7 @@ import java.io.IOException;
  * JWT过滤器：拦截请求，验证token有效性
  */
 @Component
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Autowired
     private JwtUtil jwtUtil;
@@ -65,18 +67,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
-            String hearder = request.getHeader(JwtConstants.JWT_HEADER);
-            System.out.println(hearder + "==============");
             // 获取没有前缀的token
             String token = jwtUtil.extractTokenFromHeader(request.getHeader(JwtConstants.JWT_HEADER));
-            System.out.println("token：" + token );
             // 当token为空时，执行
             if(!StringUtils.hasText(token)) {
                 throw new JwtException("没有登录，请先登录");
             }
 
             // 判断token是否有效
-            System.out.println("token校验：" + jwtUtil.validateToken(token));
             if(!jwtUtil.validateToken(token)) {
                 throw new JwtException("token无效或者过期");
             }
@@ -89,8 +87,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             filterChain.doFilter(request, response);
         }catch (JwtException e) {
-            e.printStackTrace();
+            log.debug("JWT request rejected: method={}, uri={}, reason={}",
+                    request.getMethod(), request.getRequestURI(), e.getMessage());
             // 当捕获到异常信息之后，说明，token是无效的，应该给前端返回错误信息
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
 
@@ -99,9 +99,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String resutString = objectMapper.writeValueAsString(resultData);
 
             response.getWriter().write(resutString);
-
         }catch (Exception e) {
-            throw new RuntimeException();
+            log.error("JWT filter failed: method={}, uri={}", request.getMethod(), request.getRequestURI(), e);
+            throw new ServletException("JWT filter processing failed", e);
         }
 
 
