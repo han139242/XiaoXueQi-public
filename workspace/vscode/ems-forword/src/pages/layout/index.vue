@@ -125,7 +125,7 @@ onBeforeUnmount(() => {
 
 .content-region {
   min-height: calc(100dvh - var(--mes-header-height) - var(--mes-tabs-height));
-  padding: 10px 12px 16px;
+  padding: 14px 16px 22px;
 }
 
 .mobile-mask {

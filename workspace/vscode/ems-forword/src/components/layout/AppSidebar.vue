@@ -99,6 +99,7 @@ function handleSelect(index) {
   color: var(--mes-sidebar-text);
   border-right: 1px solid var(--mes-sidebar-border);
   background: var(--mes-sidebar);
+  box-shadow: 2px 0 10px rgb(32 42 54 / 5%);
 }
 
 .sidebar-brand {

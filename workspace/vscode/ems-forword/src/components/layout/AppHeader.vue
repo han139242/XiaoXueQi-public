@@ -153,7 +153,7 @@ onBeforeUnmount(() => {
       <el-popover placement="bottom" :width="280" trigger="click" popper-class="notification-popover">
         <template #reference>
           <el-button class="header-icon-button hide-mobile" text aria-label="通知">
-            <el-badge is-dot><AppIcon name="bell" :size="18" /></el-badge>
+            <AppIcon name="bell" :size="18" />
           </el-button>
         </template>
         <div class="notification-head">
@@ -227,7 +227,7 @@ onBeforeUnmount(() => {
   color: var(--mes-header-text);
   border-bottom: 1px solid var(--mes-header-border);
   background: var(--mes-header-bg);
-  box-shadow: none;
+  box-shadow: 0 2px 8px rgb(32 42 54 / 12%);
 }
 
 .header-left,

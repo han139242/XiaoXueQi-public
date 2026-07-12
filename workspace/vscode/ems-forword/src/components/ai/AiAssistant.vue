@@ -90,6 +90,17 @@ function selectQuickQuestion(value) {
   }
 }
 
+function resolveAiErrorMessage(error) {
+  const detail = error?.data?.message
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail.trim()
+  }
+  if (typeof error?.displayMessage === 'string' && error.displayMessage.trim()) {
+    return error.displayMessage.trim()
+  }
+  return '本次分析未完成，请稍后重试。'
+}
+
 async function sendQuestion() {
   const content = question.value.trim()
   if (!content || sending.value || !status.value.available) {
@@ -129,7 +140,7 @@ async function sendQuestion() {
       messages.value.push({
         id: Date.now() + 1,
         role: 'system',
-        content: '本次分析未完成，请稍后重试。',
+        content: resolveAiErrorMessage(error),
         retryQuestion: content,
         time: dayjs().format('HH:mm')
       })

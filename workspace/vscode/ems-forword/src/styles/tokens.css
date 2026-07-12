@@ -40,18 +40,18 @@
   --mes-danger-soft: #fff0ef;
   --mes-info: #64707d;
 
-  --mes-bg: #eeeeee;
+  --mes-bg: #f1f3f6;
   --mes-surface: #ffffff;
   --mes-surface-muted: #f7f9fb;
-  --mes-tabs-bg: #f5f7fa;
+  --mes-tabs-bg: #f2f5f8;
   --mes-tab-surface: #ffffff;
-  --mes-border: #dfe4e9;
-  --mes-border-strong: #c7cfd8;
+  --mes-border: #dbe2e9;
+  --mes-border-strong: #c3ced8;
   --mes-text: #202a36;
   --mes-text-secondary: #617080;
   --mes-text-muted: #8a96a3;
-  --mes-shadow-sm: 0 1px 3px rgb(32 42 54 / 6%);
-  --mes-shadow-md: 0 8px 22px rgb(32 42 54 / 10%);
+  --mes-shadow-sm: 0 2px 8px rgb(32 42 54 / 6%);
+  --mes-shadow-md: 0 10px 28px rgb(32 42 54 / 11%);
   --mes-radius-sm: 4px;
   --mes-radius: 6px;
   --mes-sidebar-width: 200px;

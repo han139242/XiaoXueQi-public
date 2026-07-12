@@ -45,7 +45,7 @@ const chartPalette = computed(() => activeTheme.value.chart)
 
 const numberStats = computed(() => [
   {
-    label: '生产订单',
+    label: '区间生产订单',
     value: formatNumber(summary.value.productionOrderCount),
     unit: '单',
     icon: 'clipboard',
@@ -67,13 +67,13 @@ const numberStats = computed(() => [
   },
   {
     label: '检验合格率',
-    value: Number(quality.value.qualifiedRate || 0).toFixed(2),
-    unit: '%',
+    value: Number(quality.value.inspectionCount || 0) ? Number(quality.value.qualifiedRate || 0).toFixed(2) : '--',
+    unit: Number(quality.value.inspectionCount || 0) ? '%' : '',
     icon: 'shield-check',
     color: '#546e7a'
   },
   {
-    label: '生产工单',
+    label: '区间生产工单',
     value: formatNumber(summary.value.workOrderCount),
     unit: '单',
     icon: 'package',
@@ -85,27 +85,6 @@ const numberStats = computed(() => [
     unit: '件',
     icon: 'alert',
     color: '#ed4014'
-  }
-])
-
-const operationalStatus = computed(() => [
-  {
-    label: '生产工单',
-    value: formatNumber(summary.value.workOrderCount),
-    icon: 'package',
-    tone: 'normal'
-  },
-  {
-    label: '库存预警',
-    value: formatNumber(summary.value.inventoryWarningCount),
-    icon: 'alert',
-    tone: Number(summary.value.inventoryWarningCount || 0) > 0 ? 'warning' : 'normal'
-  },
-  {
-    label: '故障设备',
-    value: formatNumber(summary.value.equipmentFaultCount),
-    icon: 'wrench',
-    tone: Number(summary.value.equipmentFaultCount || 0) > 0 ? 'danger' : 'normal'
   }
 ])
 
@@ -382,9 +361,13 @@ onMounted(loadDashboard)
       </template>
     </el-alert>
 
-    <section class="dashboard-section" aria-label="快捷菜单">
+    <section class="dashboard-section quick-section" aria-label="快捷作业">
       <div class="section-title">
-        <h2>快捷菜单</h2>
+        <div>
+          <h2>快捷作业</h2>
+          <p>进入现场高频业务</p>
+        </div>
+        <span>6 个常用入口</span>
       </div>
       <div class="quick-menu-grid">
         <button
@@ -405,9 +388,13 @@ onMounted(loadDashboard)
       </div>
     </section>
 
-    <section class="dashboard-section" aria-label="数量统计">
+    <section class="dashboard-section metrics-section" aria-label="运营指标">
       <div class="section-title">
-        <h2>数量统计</h2>
+        <div>
+          <h2>运营指标</h2>
+          <p>所选时间范围与当前台账</p>
+        </div>
+        <span>实时接口</span>
       </div>
       <div class="number-card-grid">
         <article
@@ -426,46 +413,50 @@ onMounted(loadDashboard)
       </div>
     </section>
 
-    <section class="status-strip mes-panel">
-      <div class="status-heading">
-        <span class="live-dot" />
-        <div>
-          <strong>现场运行状态</strong>
-          <small>当前业务数据</small>
+    <section class="operations-grid">
+      <article class="mes-panel process-panel">
+        <div class="mes-panel-header">
+          <div>
+            <h2 class="mes-panel-title">生产业务链路</h2>
+            <span class="panel-caption">从订单下达到批次追溯</span>
+          </div>
+          <span class="chain-state"><span />流程在线</span>
         </div>
-      </div>
-      <div
-        v-for="item in operationalStatus"
-        :key="item.label"
-        class="status-item"
-        :class="`is-${item.tone}`"
-      >
-        <span class="status-icon"><AppIcon :name="item.icon" :size="17" /></span>
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </div>
-    </section>
+        <div class="process-flow">
+          <template v-for="(step, index) in processSteps" :key="step.label">
+            <button class="process-step" type="button" @click="router.push(step.path)">
+              <span><AppIcon :name="step.icon" :size="19" /></span>
+              <strong>{{ step.label }}</strong>
+            </button>
+            <div v-if="index < processSteps.length - 1" class="process-link">
+              <AppIcon name="right" :size="15" />
+            </div>
+          </template>
+        </div>
+      </article>
 
-    <section class="attention-band mes-panel" aria-label="运营关注">
-      <div class="band-heading">
-        <div>
-          <strong>运营关注</strong>
-          <span>当前待关注业务</span>
+      <article class="mes-panel attention-panel" aria-label="运营关注">
+        <div class="mes-panel-header">
+          <div>
+            <h2 class="mes-panel-title">运营关注</h2>
+            <span class="panel-caption">当前需要处理的业务</span>
+          </div>
+          <span class="live-label"><i />当前数据</span>
         </div>
-        <span class="live-label"><i />当前数据</span>
-      </div>
-      <div class="attention-list">
-        <button
-          v-for="item in attentionItems"
-          :key="item.label"
-          type="button"
-          :class="`tone-${item.tone}`"
-          @click="router.push(item.path)"
-        >
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}<small>{{ item.unit }}</small></strong>
-        </button>
-      </div>
+        <div class="attention-list">
+          <button
+            v-for="item in attentionItems"
+            :key="item.label"
+            type="button"
+            :class="`tone-${item.tone}`"
+            @click="router.push(item.path)"
+          >
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}<small>{{ item.unit }}</small></strong>
+            <AppIcon name="right" :size="15" />
+          </button>
+        </div>
+      </article>
     </section>
 
     <section class="dashboard-grid">
@@ -491,27 +482,6 @@ onMounted(loadDashboard)
         <div class="chart-body"><MesChart :option="qualityOption" height="286px" /></div>
       </article>
 
-      <article class="mes-panel process-panel">
-        <div class="mes-panel-header">
-          <div>
-            <h2 class="mes-panel-title">生产业务链路</h2>
-            <span class="panel-caption">从订单到批次追溯</span>
-          </div>
-          <span class="chain-state"><span />流程在线</span>
-        </div>
-        <div class="process-flow">
-          <template v-for="(step, index) in processSteps" :key="step.label">
-            <button class="process-step" type="button" @click="router.push(step.path)">
-              <span><AppIcon :name="step.icon" :size="19" /></span>
-              <strong>{{ step.label }}</strong>
-            </button>
-            <div v-if="index < processSteps.length - 1" class="process-link">
-              <AppIcon name="right" :size="15" />
-            </div>
-          </template>
-        </div>
-      </article>
-
       <article class="mes-panel equipment-panel">
         <div class="mes-panel-header">
           <div>
@@ -522,7 +492,7 @@ onMounted(loadDashboard)
             {{ Number(equipment.running || 0) + Number(equipment.stopped || 0) + Number(equipment.fault || 0) + Number(equipment.maintenance || 0) }} 台
           </span>
         </div>
-        <div class="chart-body"><MesChart :option="equipmentOption" height="226px" /></div>
+        <div class="chart-body"><MesChart :option="equipmentOption" height="286px" /></div>
       </article>
     </section>
   </div>
@@ -531,24 +501,26 @@ onMounted(loadDashboard)
 <style scoped>
 .dashboard-page {
   min-height: 100%;
+  padding-bottom: 18px;
 }
 
 .dashboard-toolbar {
   display: grid;
-  min-height: 66px;
+  min-height: 72px;
   grid-template-columns: minmax(260px, 1fr) auto;
   align-items: center;
   gap: 18px;
-  margin-bottom: 10px;
-  padding: 10px 14px;
+  margin-bottom: 14px;
+  padding: 12px 18px;
   border: 1px solid var(--mes-border);
-  border-radius: 0;
+  border-left: 4px solid var(--mes-primary);
+  border-radius: var(--mes-radius);
   background: #fff;
-  box-shadow: var(--mes-shadow-sm);
+  box-shadow: 0 4px 16px rgb(32 42 54 / 6%);
 }
 
 .dashboard-toolbar .mes-page-title {
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .dashboard-toolbar :deep(.el-tag) {
@@ -610,33 +582,42 @@ onMounted(loadDashboard)
 
 .dashboard-section {
   border: 1px solid var(--mes-border);
+  border-radius: var(--mes-radius);
   background: #fff;
+  box-shadow: var(--mes-shadow-sm);
 }
 
 .dashboard-section + .dashboard-section {
-  margin-top: 10px;
+  margin-top: 14px;
 }
 
 .section-title {
-  min-height: 50px;
-  padding: 10px 18px 8px;
-  border-bottom: 1px dotted #d4d4d4;
-  background: #fff;
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--mes-border);
+  background: var(--mes-surface-muted);
 }
 
 .section-title h2 {
-  color: #000;
-  font-size: 20px;
+  color: var(--mes-text);
+  font-size: 16px;
   font-weight: 650;
-  line-height: 1.4;
+  line-height: 1.3;
 }
+
+.section-title p { margin-top: 3px; color: var(--mes-text-muted); font-size: 11px; }
+.section-title > span { color: var(--mes-text-muted); font-size: 11px; white-space: nowrap; }
 
 .quick-menu-grid,
 .number-card-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(160px, 1fr));
-  gap: 14px;
-  padding: 18px 20px 22px;
+  gap: 12px;
+  padding: 16px 18px 18px;
   background: #fff;
 }
 
@@ -644,17 +625,18 @@ onMounted(loadDashboard)
 .number-card {
   display: grid;
   min-width: 0;
-  min-height: 96px;
-  grid-template-columns: 80px 1px minmax(0, 1fr);
+  min-height: 88px;
+  grid-template-columns: 58px 1px minmax(0, 1fr);
   align-items: center;
   overflow: hidden;
-  color: #fff;
-  border: 0;
+  color: var(--mes-text);
+  border: 1px solid var(--mes-border);
+  border-left: 4px solid var(--tile-color);
   border-radius: 6px;
-  background: var(--tile-color);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 18%), 0 6px 20px rgb(0 0 0 / 12%);
+  background: #fff;
+  box-shadow: 0 3px 10px rgb(32 42 54 / 6%);
   cursor: pointer;
-  transition: transform .14s ease, box-shadow .14s ease;
+  transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
 }
 
 .number-card {
@@ -662,8 +644,9 @@ onMounted(loadDashboard)
 }
 
 .quick-menu-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 26%), 0 2px 8px rgb(0 0 0 / 14%);
+  border-color: color-mix(in srgb, var(--tile-color) 62%, var(--mes-border));
+  transform: translateY(-2px);
+  box-shadow: 0 9px 22px rgb(32 42 54 / 11%);
 }
 
 .tile-icon {
@@ -672,50 +655,45 @@ onMounted(loadDashboard)
   height: 100%;
   align-items: center;
   justify-content: center;
-  color: rgb(255 255 255 / 92%);
-  background: rgb(0 0 0 / 10%);
+  color: var(--tile-color);
+  background: color-mix(in srgb, var(--tile-color) 10%, white);
 }
 
 .tile-divider {
   width: 1px;
-  height: 64%;
-  background: rgb(255 255 255 / 56%);
+  height: 58%;
+  background: var(--mes-border);
 }
 
 .tile-copy {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  text-align: center;
-}
-
-.quick-menu-card .tile-copy {
   align-items: flex-start;
+  justify-content: center;
+  padding: 0 13px;
   text-align: left;
 }
 
 .tile-copy strong {
   max-width: 100%;
   overflow: hidden;
-  color: #fff;
-  font-size: 16px;
+  color: var(--mes-text);
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.3;
   text-overflow: ellipsis;
 }
 
 .quick-menu-card .tile-copy strong {
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .tile-copy small {
   max-width: 100%;
   margin-top: 5px;
   overflow: hidden;
-  color: rgb(255 255 255 / 88%);
+  color: var(--mes-text-muted);
   font-size: 11px;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -727,129 +705,36 @@ onMounted(loadDashboard)
   max-width: 100%;
   align-items: baseline;
   gap: 4px;
-  font-size: 22px;
+  color: var(--mes-text);
+  font-size: 23px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .number-card em {
+  color: var(--mes-text-secondary);
   font-size: 11px;
   font-style: normal;
   font-weight: 600;
   opacity: .9;
 }
 
-.status-strip {
+.operations-grid {
   display: grid;
-  min-height: 68px;
-  grid-template-columns: 1.4fr repeat(3, 1fr);
-  align-items: center;
-  margin-top: 10px;
-  padding: 0 18px;
-  border-radius: 0;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1.7fr) minmax(340px, .72fr);
+  gap: 14px;
+  margin-top: 14px;
 }
 
-.status-heading,
-.status-item {
-  display: flex;
-  align-items: center;
-}
+.operations-grid > .mes-panel { min-width: 0; }
 
-.status-heading {
-  gap: 11px;
-}
-
-.status-heading > div {
-  display: flex;
-  flex-direction: column;
-}
-
-.status-heading strong {
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.status-heading small {
-  color: var(--mes-text-muted);
-  font-size: 10px;
-}
-
-.live-dot {
-  width: 9px;
-  height: 9px;
-  border: 2px solid #b9d8c9;
-  border-radius: 50%;
-  background: var(--mes-success);
-  box-shadow: 0 0 0 4px var(--mes-success-soft);
-}
-
-.status-item {
-  height: 36px;
-  gap: 9px;
-  padding: 0 18px;
-  border-left: 1px solid var(--mes-border);
-  color: var(--mes-text-secondary);
-  font-size: 12px;
-}
-
-.status-item strong {
-  margin-left: auto;
-  color: var(--mes-text);
-  font-size: 17px;
-  font-weight: 680;
-}
-
-.status-icon {
+.live-label {
   display: inline-flex;
-  color: var(--mes-data);
-}
-
-.status-item.is-warning .status-icon,
-.status-item.is-warning strong {
-  color: var(--mes-warning);
-}
-
-.status-item.is-danger .status-icon,
-.status-item.is-danger strong {
-  color: var(--mes-danger);
-}
-
-.attention-band {
-  margin-top: 10px;
-  padding: 14px 16px 16px;
-  border-radius: 0;
-}
-
-.band-heading,
-.band-heading > div,
-.live-label {
-  display: flex;
   align-items: center;
-}
-
-.band-heading {
-  min-height: 30px;
-  justify-content: space-between;
-  color: var(--mes-text-muted);
-}
-
-.band-heading > div {
-  gap: 9px;
-}
-
-.band-heading strong {
-  color: var(--mes-text);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.band-heading span {
-  font-size: 10px;
-}
-
-.live-label {
   gap: 6px;
   color: var(--mes-success);
+  font-size: 10px;
 }
 
 .live-label i {
@@ -857,72 +742,45 @@ onMounted(loadDashboard)
   height: 6px;
   border-radius: 50%;
   background: var(--mes-success);
+  box-shadow: 0 0 0 3px var(--mes-success-soft);
 }
 
 .attention-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 9px;
+  padding: 8px 14px 10px;
 }
 
 .attention-list button {
-  display: flex;
+  display: grid;
   min-width: 0;
-  min-height: 58px;
-  flex-direction: column;
-  justify-content: center;
-  padding: 7px 10px;
+  min-height: 42px;
+  grid-template-columns: minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
   color: var(--mes-text-secondary);
   border: 0;
-  border-left: 3px solid var(--mes-border-strong);
-  border-radius: 0 var(--mes-radius-sm) var(--mes-radius-sm) 0;
-  background: var(--mes-surface-muted);
+  border-left: 3px solid var(--mes-primary-border);
+  background: transparent;
   text-align: left;
   cursor: pointer;
 }
 
-.attention-list button:hover {
-  background: var(--mes-primary-soft);
-}
-
-.attention-list button.tone-warning {
-  border-left-color: var(--mes-warning);
-}
-
-.attention-list button.tone-danger {
-  border-left-color: var(--mes-danger);
-}
-
-.attention-list button > span {
-  font-size: 9px;
-}
-
-.attention-list strong {
-  margin-top: 3px;
-  color: var(--mes-text);
-  font-size: 18px;
-  line-height: 1;
-}
-
-.attention-list .tone-warning strong {
-  color: var(--mes-warning);
-}
-
-.attention-list .tone-danger strong {
-  color: var(--mes-danger);
-}
-
-.attention-list small {
-  margin-left: 3px;
-  color: var(--mes-text-muted);
-  font-size: 9px;
-}
+.attention-list button + button { border-top: 1px solid var(--mes-border); }
+.attention-list button:hover { background: var(--mes-primary-soft); }
+.attention-list button.tone-warning { border-left-color: var(--mes-warning); }
+.attention-list button.tone-danger { border-left-color: var(--mes-danger); }
+.attention-list button > span { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.attention-list strong { color: var(--mes-text); font-size: 18px; line-height: 1; white-space: nowrap; }
+.attention-list .tone-warning strong { color: var(--mes-warning); }
+.attention-list .tone-danger strong { color: var(--mes-danger); }
+.attention-list small { margin-left: 3px; color: var(--mes-text-muted); font-size: 9px; }
+.attention-list .app-icon { color: var(--mes-text-muted); }
 
 .dashboard-grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1.9fr) minmax(300px, 1fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(300px, .78fr) minmax(300px, .78fr);
   gap: 14px;
   margin-top: 14px;
 }
@@ -981,11 +839,11 @@ onMounted(loadDashboard)
 
 .process-flow {
   display: flex;
-  min-height: 226px;
+  min-height: 126px;
   align-items: center;
-  justify-content: space-around;
-  gap: 6px;
-  padding: 22px 18px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 18px 22px;
   overflow-x: auto;
 }
 
@@ -1003,13 +861,13 @@ onMounted(loadDashboard)
 
 .process-step > span {
   display: inline-flex;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   align-items: center;
   justify-content: center;
   color: var(--mes-primary);
   border: 1px solid var(--mes-primary-border);
-  border-radius: 50%;
+  border-radius: 6px;
   background: var(--mes-primary-soft);
 }
 
@@ -1022,13 +880,24 @@ onMounted(loadDashboard)
 .process-step:hover strong { color:var(--mes-primary); }
 
 .process-step strong {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 620;
   white-space: nowrap;
 }
 
 .process-link {
+  display: flex;
+  min-width: 24px;
+  flex: 1;
+  align-items: center;
   color: var(--mes-border-strong);
+}
+
+.process-link::before {
+  height: 1px;
+  flex: 1;
+  background: var(--mes-border);
+  content: '';
 }
 
 @media (max-width: 1280px) {
@@ -1039,22 +908,11 @@ onMounted(loadDashboard)
   .quick-menu-grid,
   .number-card-grid {
     grid-template-columns: repeat(3, minmax(180px, 1fr));
-    gap: 14px;
+    gap: 12px;
   }
 
-  .status-strip {
-    grid-template-columns: repeat(3, 1fr);
-    padding: 10px 14px;
-  }
-
-  .status-heading {
-    display: none;
-  }
-
-  .status-item:first-of-type {
-    border-left: 0;
-  }
-
+  .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-grid > .trend-panel { grid-column: 1 / -1; }
 }
 
 @media (max-width: 900px) {
@@ -1067,6 +925,10 @@ onMounted(loadDashboard)
   .dashboard-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .dashboard-grid > .trend-panel { grid-column: auto; }
+
+  .operations-grid { grid-template-columns: minmax(0, 1fr); }
 
   .dashboard-actions {
     width: 100%;
@@ -1086,19 +948,6 @@ onMounted(loadDashboard)
     min-height: 82px;
   }
 
-  .status-strip {
-    grid-template-columns: 1fr;
-  }
-
-  .status-item {
-    border-top: 1px solid var(--mes-border);
-    border-left: 0;
-  }
-
-  .status-item:first-of-type {
-    border-top: 0;
-  }
-
   .dashboard-actions :deep(.el-date-editor) {
     width: 100%;
   }
@@ -1108,8 +957,5 @@ onMounted(loadDashboard)
     justify-content: flex-start;
   }
 
-  .attention-list {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
