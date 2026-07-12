@@ -12,6 +12,7 @@ build/
 .vscode/
 .claude/
 .github/modernize/
+**/project.private.config.json
 
 # Logs and local environment
 *.log
