@@ -76,7 +76,7 @@ ServiceImpl：SysUserServiceImpl
 Controller：SysUserController
 ```
 
-当前已有 `UserController`、`UserService` 这类早期命名，后续系统管理模块建议逐步收敛到接口文档中的 `SysUserController`、`SysUserService` 命名，避免和业务用户概念混淆。
+系统管理模块已经统一使用 `SysUserController`、`SysUserService`、`SysUserServiceImpl`，旧 `UserController` 命名已移除。
 
 ## 5. 接口统一规范
 
@@ -350,7 +350,7 @@ URGENT
 每次代码修改后至少运行：
 
 ```powershell
-C:\Users\USER\.m2\wrapper\dists\apache-maven-3.9.16\0daed3be3ebd1c706f0e69e8b07c6b73f5cc4ea3dfce72a8d0ec2e849ca2ddb0\bin\mvn.cmd test
+java "-Dmaven.multiModuleProjectDirectory=$PWD" -cp .mvn\wrapper\maven-wrapper.jar org.apache.maven.wrapper.MavenWrapperMain test
 ```
 
 如果本机 Maven 路径不同，使用项目 Maven Wrapper 或本机 Maven，但必须说明实际执行的命令和结果。

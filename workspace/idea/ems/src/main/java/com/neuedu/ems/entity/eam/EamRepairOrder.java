@@ -3,6 +3,7 @@ package com.neuedu.ems.entity.eam;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -32,6 +33,7 @@ public class EamRepairOrder {
     private BigDecimal repairCost;
     private String status;
     private String remark;
+    @Version
     private Integer version;
     private Long createdBy;
     private LocalDateTime createdTime;

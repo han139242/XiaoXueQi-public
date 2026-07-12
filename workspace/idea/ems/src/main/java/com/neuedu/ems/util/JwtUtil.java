@@ -108,6 +108,10 @@ public class JwtUtil {
         return claims.get("userId", Long.class);
     }
 
+    public Date getExpirationFromToken(String token) throws Exception {
+        return parseToken(token).getExpiration();
+    }
+
     public String extractTokenFromHeader(String headerValue) {
 
         //         "Bear  "

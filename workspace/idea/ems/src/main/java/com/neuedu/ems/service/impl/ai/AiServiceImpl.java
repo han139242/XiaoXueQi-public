@@ -93,9 +93,8 @@ public class AiServiceImpl implements AiService {
         status.put("configured", configured);
         status.put("available", available);
         status.put("state", !properties.isEnabled() ? "DISABLED" : configured ? "READY" : "MISCONFIGURED");
-        status.put("provider", "OPENAI_COMPATIBLE");
+        status.put("provider", "DEEPSEEK");
         status.put("model", StringUtils.hasText(properties.getModel()) ? properties.getModel() : null);
-        status.put("reasoningEffort", normalizeReasoningEffort(properties.getReasoningEffort()));
         return status;
     }
 
@@ -299,12 +298,6 @@ public class AiServiceImpl implements AiService {
         ensureAvailable();
         ObjectNode requestJson = objectMapper.createObjectNode();
         requestJson.put("model", properties.getModel().trim());
-        requestJson.put("temperature", 0.2);
-        requestJson.put("max_tokens", Math.max(1, Math.min(properties.getMaxTokens(), 4000)));
-        String reasoningEffort = normalizeReasoningEffort(properties.getReasoningEffort());
-        if (StringUtils.hasText(reasoningEffort)) {
-            requestJson.put("reasoning_effort", reasoningEffort);
-        }
         ArrayNode messages = requestJson.putArray("messages");
         messages.addObject().put("role", "system").put("content", SYSTEM_PROMPT);
         messages.addObject().put("role", "user").put("content", userPrompt);
@@ -371,14 +364,6 @@ public class AiServiceImpl implements AiService {
             return normalized + "/chat/completions";
         }
         return normalized + "/v1/chat/completions";
-    }
-
-    private String normalizeReasoningEffort(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return Set.of("minimal", "low", "medium", "high").contains(normalized) ? normalized : "high";
     }
 
     private String upstreamErrorMessage(int code) {

@@ -7,3 +7,17 @@ export function login(data) {
     data
   })
 }
+
+export function getCurrentUserInfo() {
+  return request({
+    url: '/api/auth/info',
+    method: 'get'
+  })
+}
+
+export function logout() {
+  return request({
+    url: '/api/auth/logout',
+    method: 'post'
+  })
+}

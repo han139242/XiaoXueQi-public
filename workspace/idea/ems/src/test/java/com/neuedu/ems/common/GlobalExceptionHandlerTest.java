@@ -1,6 +1,8 @@
 package com.neuedu.ems.common;
 
 import com.neuedu.ems.exception.AccountStatusException;
+import com.neuedu.ems.exception.OptimisticLockConflictException;
+import org.mybatis.spring.MyBatisSystemException;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -14,6 +16,23 @@ class GlobalExceptionHandlerTest {
         assertAccountStatusResult(ResultCode.USER_DISABLED);
         assertAccountStatusResult(ResultCode.USER_LOCKED);
         assertAccountStatusResult(ResultCode.USER_STATUS_ERROR);
+    }
+
+    @Test
+    void returnsSpecificOptimisticLockError() {
+        ResultData result = handler.handleOptimisticLockConflict(new OptimisticLockConflictException());
+
+        assertEquals(ResultCode.DATA_CONFLICT.getCode(), result.get("code"));
+        assertEquals(ResultCode.DATA_CONFLICT.getMessage(), result.get("msg"));
+    }
+
+    @Test
+    void unwrapsMyBatisOptimisticLockError() {
+        ResultData result = handler.handleMyBatisSystemException(
+                new MyBatisSystemException("optimistic lock", new OptimisticLockConflictException()));
+
+        assertEquals(ResultCode.DATA_CONFLICT.getCode(), result.get("code"));
+        assertEquals(ResultCode.DATA_CONFLICT.getMessage(), result.get("msg"));
     }
 
     private void assertAccountStatusResult(ResultCode resultCode) {

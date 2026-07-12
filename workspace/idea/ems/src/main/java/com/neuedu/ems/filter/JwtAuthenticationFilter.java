@@ -6,6 +6,7 @@ import com.neuedu.ems.exception.JwtException;
 import com.neuedu.ems.common.ResultData;
 import com.neuedu.ems.util.JwtConstants;
 import com.neuedu.ems.util.JwtUtil;
+import com.neuedu.ems.service.impl.sys.TokenRevocationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -30,6 +31,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private JwtUtil jwtUtil;
     @Autowired
     private ObjectMapper objectMapper; // Spring默认注入的JSON工具
+    @Autowired
+    private TokenRevocationService tokenRevocationService;
 
 
     // 放行的路径（无需鉴权的接口，如登录、注册、静态资源）
@@ -77,6 +80,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 判断token是否有效
             if(!jwtUtil.validateToken(token)) {
                 throw new JwtException("token无效或者过期");
+            }
+            if (tokenRevocationService.isRevoked(token)) {
+                throw new JwtException("token已注销");
             }
 
             // 先把UserId存储到request中

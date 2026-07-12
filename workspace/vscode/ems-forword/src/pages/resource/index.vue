@@ -334,6 +334,9 @@ function validateChildren() {
 
 function submitPayload() {
   const allowed = new Set([...formFields.value.map((item) => item.prop), config.value.idField])
+  if (formMode.value === 'edit' && formModel.value.version !== null && formModel.value.version !== undefined) {
+    allowed.add('version')
+  }
   if (formMode.value === 'create') {
     Object.keys(config.value.defaults || {}).forEach((key) => allowed.add(key))
   }

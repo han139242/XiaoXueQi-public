@@ -15,7 +15,8 @@ public enum ResultCode {
     BUSINESS_ERROR(1003, "业务处理异常"),
     USER_DISABLED(1004, "账号已停用，请联系管理员"),
     USER_LOCKED(1005, "账号已锁定，请联系管理员"),
-    USER_STATUS_ERROR(1006, "账号状态异常，请联系管理员");
+    USER_STATUS_ERROR(1006, "账号状态异常，请联系管理员"),
+    DATA_CONFLICT(1007, "数据已被其他用户修改，请刷新后重试");
 
     private final int code;
     private final String message;

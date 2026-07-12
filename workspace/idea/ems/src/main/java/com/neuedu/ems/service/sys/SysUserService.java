@@ -29,5 +29,4 @@ public interface SysUserService extends IService<SysUser> {
 
     SysUser getByUserName(String username);
 
-    SysUser getByUserNameAndPassword(String username, String password);
 }

@@ -1,6 +1,7 @@
 package com.neuedu.ems.service.impl.sys;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.sys.SysUser;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import com.neuedu.ems.util.PasswordHasher;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
@@ -27,6 +29,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Autowired
     private SysUserRoleMapper sysUserRoleMapper;
+
+    @Autowired
+    private PasswordHasher passwordHasher;
 
     @Override
     public Page<SysUser> pageUsers(Integer current, Integer size, String keyword, String status) {
@@ -44,6 +49,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public boolean saveUser(SysUser user) {
+        if (!StringUtils.hasText(user.getPasswordHash())) {
+            return false;
+        }
+        if (!passwordHasher.isEncoded(user.getPasswordHash())) {
+            user.setPasswordHash(passwordHasher.hash(user.getPasswordHash()));
+        }
         if (user.getDeletedFlag() == null) {
             user.setDeletedFlag(0);
         }
@@ -56,14 +67,27 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             return false;
         }
         user.setDeletedFlag(null);
+        user.setPasswordHash(null);
+        if ("ENABLE".equals(user.getStatus())) {
+            LambdaUpdateWrapper<SysUser> wrapper = new LambdaUpdateWrapper<>();
+            wrapper.eq(SysUser::getUserId, user.getUserId())
+                    .set(SysUser::getLoginFailCount, 0)
+                    .set(SysUser::getLockedTime, null);
+            return baseMapper.update(user, wrapper) > 0;
+        }
         return baseMapper.updateById(user) > 0;
     }
 
     @Override
     public boolean removeUserById(Long userId) {
+        SysUser existing = getUserById(userId);
+        if (existing == null) {
+            return false;
+        }
         SysUser user = new SysUser();
         user.setUserId(userId);
         user.setDeletedFlag(1);
+        user.setVersion(existing.getVersion());
         return baseMapper.updateById(user) > 0;
     }
 
@@ -77,9 +101,16 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (userId == null || !StringUtils.hasText(password)) {
             return false;
         }
+        SysUser existing = getUserById(userId);
+        if (existing == null) {
+            return false;
+        }
         SysUser user = new SysUser();
         user.setUserId(userId);
-        user.setPasswordHash(password);
+        user.setPasswordHash(passwordHasher.hash(password));
+        user.setLoginFailCount(0);
+        user.setLockedTime(null);
+        user.setVersion(existing.getVersion());
         return baseMapper.updateById(user) > 0;
     }
 
@@ -132,11 +163,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Override
     public SysUser getByUserName(String username) {
         return baseMapper.getByUserName(username);
-    }
-
-    @Override
-    public SysUser getByUserNameAndPassword(String username, String password) {
-        return baseMapper.getByUserNameAndPassword(username, password);
     }
 
     private QueryWrapper<SysUser> buildUserQuery(String keyword, String status) {

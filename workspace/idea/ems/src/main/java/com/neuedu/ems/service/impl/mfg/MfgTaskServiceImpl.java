@@ -102,6 +102,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         task.setStatus(null);
         task.setCompletedQuantity(null);
         task.setDefectQuantity(null);
+        if (task.getVersion() == null) {
+            task.setVersion(existing.getVersion());
+        }
         return baseMapper.update(task, taskInState(task.getTaskId(), existing.getStatus())) > 0;
     }
 
@@ -119,6 +122,7 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
         task.setDeletedFlag(1);
+        task.setVersion(existing.getVersion());
         return baseMapper.update(task, taskInState(taskId, existing.getStatus())) > 0;
     }
 
@@ -137,6 +141,7 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         }
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
+        task.setVersion(existing.getVersion());
         if (stationId != null) {
             task.setStationId(stationId);
         }
@@ -165,6 +170,7 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         }
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
+        task.setVersion(existing.getVersion());
         task.setCompletedQuantity(completedQuantity);
         task.setDefectQuantity(defectQuantity);
         task.setRemark(remark);

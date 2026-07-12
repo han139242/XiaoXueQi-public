@@ -36,16 +36,16 @@ npm run build
 
 ## AI 后端配置
 
-前端不会直连第三方模型，也不会保存模型密钥。真实 AI 调用由 Spring Boot 后端代理，默认关闭。启动后端前可在本机设置：
+前端不会直连第三方模型。真实 AI 调用由 Spring Boot 后端代理，项目默认使用 DeepSeek 官方 `deepseek-chat`，默认配置已可直接启动；以下环境变量仅用于覆盖：
 
 ```powershell
 $env:AI_ENABLED='true'
-$env:AI_API_URL='https://api.deepseek.com/chat/completions'
-$env:AI_API_KEY='本机密钥'
+$env:AI_API_URL='https://api.deepseek.com'
+$env:AI_API_KEY='替换默认密钥'
 $env:AI_MODEL='deepseek-chat'
 ```
 
-未设置密钥或 `AI_ENABLED=false` 时，`GET /api/ai/status` 会返回不可用状态，前端将禁用提问入口并展示实际原因。不要把 `.env`、密钥或本机配置提交到仓库。
+设置 `AI_ENABLED=false` 时，`GET /api/ai/status` 会返回不可用状态，前端将禁用提问入口并展示实际原因。后端请求不设置思考深度、温度或输出长度参数。
 
 ## 主要目录
 
@@ -65,5 +65,5 @@ src/utils               登录态等工具
 ## 设计参考与素材
 
 - [iMES-Factory](https://github.com/zmrid/iMES-Factory) 采用 MIT License。本项目参考其蓝色顶栏、白/黑侧栏主题、border-card 标签页、紧凑列表工作流、彩色快捷菜单和信息密度，并按本项目接口、羽毛球业务和设计变量重新实现。
-- 登录页羽毛球成品照片为 Wikimedia Commons 的 [Badminton-Ball](https://commons.wikimedia.org/wiki/File:Badminton-Ball_(13550266595).jpg)，作者 Tim Reckmann，使用 CC BY 2.0 许可。项目内文件为 `src/assets/login-shuttlecock.jpg`。
+- 当前登录页使用用户提供并确认的蓝色羽毛球背景，项目内文件为 `src/assets/login-background-blue.png`；旧 Wikimedia 素材仅作为未使用的历史资源保留。
 - 生产运营大屏使用 Pixabay 羽毛球照片 `badminton-6030862`，遵循 Pixabay Content License。项目内文件为 `src/assets/login-badminton.jpg`。

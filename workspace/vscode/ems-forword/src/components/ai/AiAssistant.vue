@@ -19,9 +19,8 @@ const status = ref({
   configured: false,
   available: false,
   state: 'DISABLED',
-  provider: 'OPENAI_COMPATIBLE',
-  model: null,
-  reasoningEffort: null
+  provider: 'DEEPSEEK',
+  model: null
 })
 const messages = ref([
   {
@@ -67,9 +66,8 @@ async function loadStatus() {
       configured: false,
       available: false,
       state: 'DISABLED',
-      provider: 'OPENAI_COMPATIBLE',
-      model: null,
-      reasoningEffort: null
+      provider: 'DEEPSEEK',
+      model: null
     }
     return
   }
@@ -180,7 +178,7 @@ watch(open, (value) => {
               <i />{{ loadingStatus ? '检查中' : statusLabel }}
             </span>
           </div>
-          <small>{{ status.model || 'MES INTELLIGENCE' }}<template v-if="status.reasoningEffort"> · {{ status.reasoningEffort }} reasoning</template></small>
+          <small>{{ status.model || 'DEEPSEEK' }}</small>
         </div>
         <el-button class="ai-close" text aria-label="关闭 AI 助手" @click="open = false">
           <AppIcon name="close" :size="18" />

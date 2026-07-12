@@ -140,6 +140,9 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         inspectionOrder.setStatus(null);
         inspectionOrder.setInspectionResult(null);
         inspectionOrder.setDeletedFlag(null);
+        if (inspectionOrder.getVersion() == null) {
+            inspectionOrder.setVersion(existing.getVersion());
+        }
         return baseMapper.updateById(inspectionOrder) > 0;
     }
 
@@ -177,6 +180,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         QmsInspectionOrder inspectionOrder = new QmsInspectionOrder();
         inspectionOrder.setInspectionId(inspectionId);
         inspectionOrder.setDeletedFlag(1);
+        inspectionOrder.setVersion(existing.getVersion());
         boolean removed = baseMapper.updateById(inspectionOrder) > 0;
         softDeleteResults(inspectionId);
         return removed;
@@ -203,6 +207,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         }
         QmsInspectionOrder update = new QmsInspectionOrder();
         update.setInspectionId(inspectionId);
+        update.setVersion(existing.getVersion());
         update.setInspectionResult(normalizedInspectionResult);
         update.setStatus(BusinessStatus.Production.FINISHED);
         update.setRemark(StringUtils.hasText(remark) ? remark : existing.getRemark());

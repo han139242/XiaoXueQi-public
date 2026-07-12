@@ -8,6 +8,8 @@ import { clearAuth, getCurrentUser, isFrameworkPreview } from '@/utils/auth'
 import { getModuleDefinition, getNavigationItems } from '@/config/navigation'
 import { openAiAssistant } from '@/utils/app-events'
 import { activeTheme } from '@/utils/theme'
+import { getCurrentUserInfo, logout } from '@/api/auth'
+import { setCurrentUser } from '@/utils/auth'
 
 defineProps({
   mobile: { type: Boolean, default: false }
@@ -20,10 +22,10 @@ const searchOpen = ref(false)
 const searchKeyword = ref('')
 const themeOpen = ref(false)
 const now = ref(dayjs())
-const currentUser = getCurrentUser()
+const currentUser = ref(getCurrentUser())
 let timer
 
-const displayName = computed(() => currentUser.realName || currentUser.nickname || currentUser.username || 'MES 用户')
+const displayName = computed(() => currentUser.value.realName || currentUser.value.nickname || currentUser.value.username || 'MES 用户')
 const displayInitial = computed(() => displayName.value.slice(0, 1).toUpperCase())
 const dateText = computed(() => now.value.format('YYYY.MM.DD'))
 const timeText = computed(() => now.value.format('HH:mm'))
@@ -69,8 +71,14 @@ async function toggleFullscreen() {
 
 async function handleCommand(command) {
   if (command === 'logout') {
-    clearAuth()
-    await router.replace('/login')
+    try {
+      if (!previewMode) await logout()
+    } catch {
+      // 本地登录态仍需清理，请求层已经展示服务端错误。
+    } finally {
+      clearAuth()
+      await router.replace('/login')
+    }
   }
 }
 
@@ -81,7 +89,16 @@ function handleShortcut(event) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  if (!previewMode) {
+    try {
+      const result = await getCurrentUserInfo()
+      currentUser.value = result.data || {}
+      setCurrentUser(currentUser.value)
+    } catch {
+      // 请求层负责处理失效登录；其他错误下继续使用本地用户信息。
+    }
+  }
   timer = window.setInterval(() => {
     now.value = dayjs()
   }, 30000)

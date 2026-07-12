@@ -4,18 +4,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * OpenAI 兼容模型接口配置。密钥只能通过后端环境变量注入。
+ * DeepSeek 官方兼容接口配置。
  */
 @Component
 @ConfigurationProperties(prefix = "mes.ai")
 public class AiProperties {
 
     private boolean enabled;
-    private String apiUrl = "https://blackaicoding.com/";
-    private String apiKey;
-    private String model = "gpt-5.5";
-    private String reasoningEffort = "high";
-    private int maxTokens = 1200;
+    private String apiUrl = "https://api.deepseek.com";
+    private String apiKey = "REDACTED_CONFIGURE_ENVIRONMENT";
+    private String model = "deepseek-chat";
     private int maxContextChars = 5000;
     private int maxAnswerChars = 8000;
 
@@ -49,22 +47,6 @@ public class AiProperties {
 
     public void setModel(String model) {
         this.model = model;
-    }
-
-    public String getReasoningEffort() {
-        return reasoningEffort;
-    }
-
-    public void setReasoningEffort(String reasoningEffort) {
-        this.reasoningEffort = reasoningEffort;
-    }
-
-    public int getMaxTokens() {
-        return maxTokens;
-    }
-
-    public void setMaxTokens(int maxTokens) {
-        this.maxTokens = maxTokens;
     }
 
     public int getMaxContextChars() {

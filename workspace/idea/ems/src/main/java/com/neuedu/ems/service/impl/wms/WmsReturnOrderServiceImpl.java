@@ -143,6 +143,9 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
             return false;
         }
         returnOrder.setDeletedFlag(null);
+        if (returnOrder.getVersion() == null) {
+            returnOrder.setVersion(existing.getVersion());
+        }
         return baseMapper.updateById(returnOrder) > 0;
     }
 
@@ -187,6 +190,7 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
         WmsReturnOrder returnOrder = new WmsReturnOrder();
         returnOrder.setReturnId(returnId);
         returnOrder.setDeletedFlag(1);
+        returnOrder.setVersion(existing.getVersion());
         boolean orderRemoved = baseMapper.updateById(returnOrder) > 0;
         softDeleteDetails(returnId);
         return orderRemoved;
@@ -217,6 +221,7 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
         }
         WmsReturnOrder update = new WmsReturnOrder();
         update.setReturnId(returnId);
+        update.setVersion(returnOrder.getVersion());
         update.setAuditStatus(APPROVED_STATUS);
         update.setReturnTime(now);
         update.setRemark(StringUtils.hasText(remark) ? remark : returnOrder.getRemark());
@@ -314,6 +319,7 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
         BigDecimal availableQuantity = inventory.getAvailableQuantity() == null ? BigDecimal.ZERO : inventory.getAvailableQuantity();
         WmsInventory update = new WmsInventory();
         update.setInventoryId(inventory.getInventoryId());
+        update.setVersion(inventory.getVersion());
         update.setAvailableQuantity(availableQuantity.add(detail.getReturnQuantity()));
         wmsInventoryMapper.updateById(update);
     }

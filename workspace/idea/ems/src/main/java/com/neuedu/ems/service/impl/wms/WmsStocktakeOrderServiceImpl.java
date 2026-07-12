@@ -142,6 +142,9 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
             return false;
         }
         stocktakeOrder.setDeletedFlag(null);
+        if (stocktakeOrder.getVersion() == null) {
+            stocktakeOrder.setVersion(existing.getVersion());
+        }
         return baseMapper.updateById(stocktakeOrder) > 0;
     }
 
@@ -187,6 +190,7 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
         WmsStocktakeOrder stocktakeOrder = new WmsStocktakeOrder();
         stocktakeOrder.setStocktakeId(stocktakeId);
         stocktakeOrder.setDeletedFlag(1);
+        stocktakeOrder.setVersion(existing.getVersion());
         boolean orderRemoved = baseMapper.updateById(stocktakeOrder) > 0;
         softDeleteDetails(stocktakeId);
         return orderRemoved;
@@ -221,6 +225,7 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
         }
         WmsStocktakeOrder update = new WmsStocktakeOrder();
         update.setStocktakeId(stocktakeId);
+        update.setVersion(stocktakeOrder.getVersion());
         update.setStocktakeStatus(FINISHED_STATUS);
         update.setFinishedTime(now);
         update.setRemark(StringUtils.hasText(remark) ? remark : stocktakeOrder.getRemark());
@@ -376,6 +381,7 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
         BigDecimal availableQuantity = inventory.getAvailableQuantity() == null ? BigDecimal.ZERO : inventory.getAvailableQuantity();
         WmsInventory update = new WmsInventory();
         update.setInventoryId(inventory.getInventoryId());
+        update.setVersion(inventory.getVersion());
         update.setAvailableQuantity(availableQuantity.add(differenceQuantity));
         wmsInventoryMapper.updateById(update);
     }

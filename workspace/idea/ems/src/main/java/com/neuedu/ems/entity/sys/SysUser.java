@@ -3,6 +3,7 @@ package com.neuedu.ems.entity.sys;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,8 +27,11 @@ public class SysUser {
     private String passwordHash;
     private Long employeeId;
     private String status;
+    private Integer loginFailCount;
+    private LocalDateTime lockedTime;
     private LocalDateTime lastLoginTime;
     private String remark;
+    @Version
     private Integer version;
     private Long createdBy;
     private LocalDateTime createdTime;

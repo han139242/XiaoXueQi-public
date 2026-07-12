@@ -45,7 +45,8 @@ class AiServiceImplTest {
 
         assertEquals(true, status.get("available"));
         assertEquals("READY", status.get("state"));
-        assertEquals("high", status.get("reasoningEffort"));
+        assertEquals("DEEPSEEK", status.get("provider"));
+        assertFalse(status.containsKey("reasoningEffort"));
         assertFalse(status.containsKey("apiKey"));
         assertFalse(status.containsValue(properties.getApiKey()));
     }
@@ -87,7 +88,10 @@ class AiServiceImplTest {
         assertNotNull(result.getGeneratedAt());
         assertTrue(requestBody.get().contains("workOrderId"));
         assertTrue(requestBody.get().contains("batchId"));
-        assertTrue(requestBody.get().contains("\"reasoning_effort\":\"high\""));
+        assertTrue(requestBody.get().contains("\"model\":\"test-model\""));
+        assertFalse(requestBody.get().contains("reasoning_effort"));
+        assertFalse(requestBody.get().contains("temperature"));
+        assertFalse(requestBody.get().contains("max_tokens"));
         assertFalse(requestBody.get().contains("never-send-token-123"));
         assertFalse(requestBody.get().contains("never-send-password-456"));
         assertEquals("Bearer test-api-key", authorization.get());
@@ -99,12 +103,12 @@ class AiServiceImplTest {
         OkHttpClient client = responseClient(200, upstreamResponse("测试"), request ->
                 requestUrl.set(request.url().toString()));
         AiProperties properties = enabledProperties();
-        properties.setApiUrl("https://blackaicoding.com/");
+        properties.setApiUrl("https://api.deepseek.com");
         AiServiceImpl service = createService(properties, client, mock(DashboardService.class));
 
         service.chat(question("系统怎么使用？", "general", null));
 
-        assertEquals("https://blackaicoding.com/v1/chat/completions", requestUrl.get());
+        assertEquals("https://api.deepseek.com/v1/chat/completions", requestUrl.get());
     }
 
     @Test
@@ -164,7 +168,6 @@ class AiServiceImplTest {
         properties.setApiUrl("https://example.test/chat/completions");
         properties.setApiKey("test-api-key");
         properties.setModel("test-model");
-        properties.setReasoningEffort("high");
         return properties;
     }
 

@@ -3,10 +3,12 @@ package com.neuedu.ems.common;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.exception.AiServiceException;
 import com.neuedu.ems.exception.AccountStatusException;
+import com.neuedu.ems.exception.OptimisticLockConflictException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.mybatis.spring.MyBatisSystemException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -34,6 +36,23 @@ public class GlobalExceptionHandler {
     public ResultData handleAccountStatusException(AccountStatusException e) {
         log.info("账号登录受限：{}", e.getMessage());
         return ResultData.fail(e.getResultCode());
+    }
+
+    @ExceptionHandler(OptimisticLockConflictException.class)
+    public ResultData handleOptimisticLockConflict(OptimisticLockConflictException e) {
+        log.info("乐观锁冲突：{}", e.getMessage());
+        return ResultData.fail(ResultCode.DATA_CONFLICT);
+    }
+
+    @ExceptionHandler(MyBatisSystemException.class)
+    public ResultData handleMyBatisSystemException(MyBatisSystemException e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof OptimisticLockConflictException conflict) {
+                return handleOptimisticLockConflict(conflict);
+            }
+        }
+        log.error("数据库访问异常", e);
+        return ResultData.fail(ResultCode.FAILED);
     }
 
     /**

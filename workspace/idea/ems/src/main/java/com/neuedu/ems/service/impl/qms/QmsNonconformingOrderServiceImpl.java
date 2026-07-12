@@ -136,6 +136,9 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
         nonconformingOrder.setStatus(null);
         normalizeDisposition(nonconformingOrder);
         nonconformingOrder.setDeletedFlag(null);
+        if (nonconformingOrder.getVersion() == null) {
+            nonconformingOrder.setVersion(existing.getVersion());
+        }
         return baseMapper.updateById(nonconformingOrder) > 0;
     }
 
@@ -174,6 +177,7 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
         QmsNonconformingOrder order = new QmsNonconformingOrder();
         order.setNcrId(ncrId);
         order.setDeletedFlag(1);
+        order.setVersion(existing.getVersion());
         boolean removed = baseMapper.updateById(order) > 0;
         softDeleteDetails(ncrId);
         return removed;
@@ -204,6 +208,7 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
                 : BusinessStatus.Document.CLOSED;
         QmsNonconformingOrder update = new QmsNonconformingOrder();
         update.setNcrId(ncrId);
+        update.setVersion(existing.getVersion());
         update.setApprovalStatus(normalizedApprovalResult);
         update.setStatus(targetStatus);
         update.setRemark(StringUtils.hasText(approvalComment) ? approvalComment : existing.getRemark());

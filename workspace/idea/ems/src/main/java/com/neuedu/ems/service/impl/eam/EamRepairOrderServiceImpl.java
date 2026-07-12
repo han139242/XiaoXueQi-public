@@ -133,6 +133,9 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         repairOrder.setRepairResult(null);
         repairOrder.setRepairCost(null);
         repairOrder.setStatus(null);
+        if (repairOrder.getVersion() == null) {
+            repairOrder.setVersion(existing.getVersion());
+        }
         return baseMapper.update(repairOrder,
                 repairOrderInState(repairOrder.getRepairId(), existing.getStatus())) > 0;
     }
@@ -151,6 +154,7 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         EamRepairOrder repairOrder = new EamRepairOrder();
         repairOrder.setRepairId(repairId);
         repairOrder.setDeletedFlag(1);
+        repairOrder.setVersion(existing.getVersion());
         return baseMapper.update(repairOrder, repairOrderInState(repairId, existing.getStatus())) > 0;
     }
 
@@ -172,6 +176,7 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         LocalDateTime now = LocalDateTime.now();
         EamRepairOrder update = new EamRepairOrder();
         update.setRepairId(repairId);
+        update.setVersion(existing.getVersion());
         update.setRepairerId(repairerId);
         update.setStatus(STATUS_REPAIRING);
         update.setRemark(StringUtils.hasText(remark) ? remark : existing.getRemark());
@@ -206,6 +211,7 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         LocalDateTime now = LocalDateTime.now();
         EamRepairOrder update = new EamRepairOrder();
         update.setRepairId(repairId);
+        update.setVersion(existing.getVersion());
         update.setRepairResult(repairResult);
         update.setRepairCost(repairCost);
         update.setStatus(STATUS_CLOSED);

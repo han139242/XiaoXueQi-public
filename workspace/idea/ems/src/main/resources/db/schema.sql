@@ -95,6 +95,8 @@ CREATE TABLE `sys_user` (
   `password_hash` VARCHAR(128) NULL COMMENT '加密后的密码。',
   `employee_id` BIGINT UNSIGNED NULL COMMENT '关联员工档案。',
   `status` VARCHAR(32) NULL COMMENT 'ENABLE:正常，DISABLE:停用，LOCKED:锁定。',
+  `login_fail_count` INT NOT NULL DEFAULT 0 COMMENT '连续登录失败次数。',
+  `locked_time` DATETIME NULL COMMENT '自动或人工锁定时间。',
   `last_login_time` DATETIME NULL COMMENT '最后登录时间。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',

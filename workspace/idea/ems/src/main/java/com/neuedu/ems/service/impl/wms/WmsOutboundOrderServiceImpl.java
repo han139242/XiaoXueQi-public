@@ -146,6 +146,9 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
             return false;
         }
         outboundOrder.setDeletedFlag(null);
+        if (outboundOrder.getVersion() == null) {
+            outboundOrder.setVersion(existing.getVersion());
+        }
         return baseMapper.updateById(outboundOrder) > 0;
     }
 
@@ -190,6 +193,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         WmsOutboundOrder outboundOrder = new WmsOutboundOrder();
         outboundOrder.setOutboundId(outboundId);
         outboundOrder.setDeletedFlag(1);
+        outboundOrder.setVersion(existing.getVersion());
         boolean orderRemoved = baseMapper.updateById(outboundOrder) > 0;
         softDeleteDetails(outboundId);
         return orderRemoved;
@@ -220,6 +224,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         }
         WmsOutboundOrder update = new WmsOutboundOrder();
         update.setOutboundId(outboundId);
+        update.setVersion(outboundOrder.getVersion());
         update.setAuditStatus(APPROVED_STATUS);
         update.setOutboundTime(now);
         update.setRemark(StringUtils.hasText(remark) ? remark : outboundOrder.getRemark());
@@ -329,6 +334,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         BigDecimal availableQuantity = inventory.getAvailableQuantity() == null ? BigDecimal.ZERO : inventory.getAvailableQuantity();
         WmsInventory update = new WmsInventory();
         update.setInventoryId(inventory.getInventoryId());
+        update.setVersion(inventory.getVersion());
         update.setAvailableQuantity(availableQuantity.subtract(detail.getOutboundQuantity()));
         wmsInventoryMapper.updateById(update);
     }
