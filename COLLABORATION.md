@@ -55,20 +55,20 @@
 | 模块 | 当前状态 | 负责人 | 说明 |
 |---|---|---|---|
 | 项目基线 | 已完成 | 全员 | 后端、前端、数据库脚本、设计文档已入库 |
-| 登录认证 | 已完成 | 统一开发 + AI 协助 | 已完成正式登录页、Token 存储、Bearer 请求头、路由守卫和登录失效处理；共享库 `admin` 账号真实登录、JWT 鉴权、401 失效响应和前端代理均已通过 |
-| 用户管理 | 待联调 | 统一开发 + AI 协助 | 后端 CRUD/重置密码/角色分配和前端资源页均已落地，待真实账号与权限联调 |
-| 角色管理 | 待联调 | A + AI 协助 | 已补齐后端通用 CRUD 和导出接口，待前端页面联调 |
-| 主数据/工艺/工厂 | 已完成 | B + AI 协助 | 已完成 B 分工全部后端接口，包含主数据、工艺、车间、产线、工位和工位工序 |
-| 工艺管理 | 待联调 | B + AI 协助 | 已完成工序、工艺路线、路线明细、工艺参数和作业指导书后端接口 |
-| 工厂建模 | 待联调 | B + AI 协助 | 已完成车间、产线、工位和工位工序后端接口 |
-| 生产制造 | 待联调 | 统一开发 + AI 协助 | 后端资源与关键状态流、前端资源页和业务动作均已落地；待真实数据库跑通订单到报工主链路 |
-| 仓储库存 | 待联调 | 统一开发 + AI 协助 | 后端资源、库存事务和前端主从/只读/确认页面已落地；待真实数据库验证出入库、退料、盘点和库存流水 |
-| 质量管理 | 待联调 | 统一开发 + AI 协助 | 后端检验与不合格品流程、前端主从页面和状态动作已落地；待与报工、入库真实联调 |
-| 设备管理 | 已完成 | C + AI 协助 | 已完成设备分类、设备台账、设备状态日志、保养、点检、维修后端接口 |
-| 条码追溯 | 已完成 | C + AI 协助 | 已完成 `trace_barcode`、`trace_product_lot`、`trace_material_usage` 后端接口，支持条码生成/扫码、批次追溯、按原料批次查询物料追溯和通用 CRUD/导出 |
-| 首页看板 | 已完成 | C + AI 协助 | 已完成 `/api/dashboard` 汇总、生产趋势、质量统计和设备状态统计接口 |
-| AI 智能助手 | 待联调 | C + AI 协助 | 已完成 `/api/ai/status`、`chat`、`dashboard-insight`、`module-suggestion`；API Key 仅由本机环境变量注入，真实 `gpt-5.5` 问答已通过，尚需人工复核 AI 抽屉的完整交互和输出质量 |
-| PC 端前端 | 待联调 | 统一开发 + AI 协助 | 已完成登录鉴权、后台 Layout、响应式导航、工作台、生产大屏、AI 助手及全部 78 个后端资源的配置式业务页面；生产构建、真实登录和看板代理烟测通过，核心业务写操作与自动视觉复核仍待完成 |
+| 登录认证 | 已完成 | han139242 / zengjingye / AnHC-00 | 已完成正式登录页、Token 存储、Bearer 请求头、路由守卫和登录失效处理；共享库 `admin` 账号真实登录、JWT 鉴权、401 失效响应和前端代理均已通过 |
+| 用户管理 | 待联调 | han139242 / zengjingye / AnHC-00 | 后端 CRUD/重置密码/角色分配和前端资源页均已落地，待真实账号与权限联调 |
+| 角色管理 | 待联调 | zengjingye | 已补齐后端通用 CRUD 和导出接口，待前端页面联调 |
+| 主数据/工艺/工厂 | 已完成 | han139242 | 已完成 B 分工全部后端接口，包含主数据、工艺、车间、产线、工位和工位工序 |
+| 工艺管理 | 待联调 | han139242 | 已完成工序、工艺路线、路线明细、工艺参数和作业指导书后端接口 |
+| 工厂建模 | 待联调 | han139242 | 已完成车间、产线、工位和工位工序后端接口 |
+| 生产制造 | 待联调 | han139242 / zengjingye / AnHC-00 | 后端资源与关键状态流、前端资源页和业务动作均已落地；待真实数据库跑通订单到报工主链路 |
+| 仓储库存 | 待联调 | han139242 / zengjingye / AnHC-00 | 后端资源、库存事务和前端主从/只读/确认页面已落地；待真实数据库验证出入库、退料、盘点和库存流水 |
+| 质量管理 | 待联调 | han139242 / zengjingye / AnHC-00 | 后端检验与不合格品流程、前端主从页面和状态动作已落地；待与报工、入库真实联调 |
+| 设备管理 | 已完成 | AnHC-00 | 已完成设备分类、设备台账、设备状态日志、保养、点检、维修后端接口 |
+| 条码追溯 | 已完成 | AnHC-00 | 已完成 `trace_barcode`、`trace_product_lot`、`trace_material_usage` 后端接口，支持条码生成/扫码、批次追溯、按原料批次查询物料追溯和通用 CRUD/导出 |
+| 首页看板 | 已完成 | AnHC-00 | 已完成 `/api/dashboard` 汇总、生产趋势、质量统计和设备状态统计接口 |
+| AI 智能助手 | 待联调 | AnHC-00 | 已完成 `/api/ai/status`、`chat`、`dashboard-insight`、`module-suggestion`；API Key 仅由本机环境变量注入，真实 `gpt-5.5` 问答已通过，尚需人工复核 AI 抽屉的完整交互和输出质量 |
+| PC 端前端 | 待联调 | han139242 / zengjingye / AnHC-00 | 已完成登录鉴权、后台 Layout、响应式导航、工作台、生产大屏、AI 助手及全部 78 个后端资源的配置式业务页面；生产构建、真实登录和看板代理烟测通过，核心业务写操作与自动视觉复核仍待完成 |
 | 微信小程序 | 未开始 | 待认领 | 后续根据演示需求补移动端功能 |
 
 完成一个明确功能、模块状态变化、接口或数据库发生变化、出现需要交接的风险时，更新上表状态和下面的进度记录。普通小修、样式微调、同一功能内的连续提交，不强制每次更新。
@@ -77,91 +77,94 @@
 
 新增记录时放在最上面，格式保持简单。
 
+“成员”列统一填写 GitHub 实际推送账号。历史记录依据 GitHub PushEvent 与对应提交校正；该字段表示执行推送的账号，不用于判断电脑前的实际操作人。
+
 | 日期 | 成员 | 模块 | 完成内容 | 验证结果 | 下一步 |
 |---|---|---|---|---|---|
-| 2026-07-12 | AI 协助 | 审计字段与乐观锁规范 | 在数据库分析文档中明确审计字段、业务操作日志和 MySQL binlog 的职责差异，记录当前自动填充与乐观锁尚未启用，并约定后续按表并发风险实施，禁止页面手工填写审计字段 | `schema.sql`、实体和主键均为 78；`@Version`、乐观锁插件、`MetaObjectHandler` 当前均为 0；Markdown 章节结构检查通过 | 后续单独实施 JWT 操作人自动填充、登录时间更新和高并发表乐观锁，并补并发测试 |
-| 2026-07-12 | AI 协助 | 登录账号状态校验 | 登录密码匹配后校验 `sys_user.status`：仅 `ENABLE` 可登录，`DISABLE`、`LOCKED` 和未知状态返回不同提示；受限账号不会写入 Redis 或生成 JWT；同步登录错误码接口文档 | 认证定向测试 6 项通过；后端完整 Maven 测试 43 项通过、0 失败；Markdown 结构检查通过 | 如需自动锁定，再补登录失败次数和解锁策略 |
-| 2026-07-11 | AI 协助 | PC 登录页与默认主题 | 使用用户确认的蓝色羽毛球背景，仅调整登录页为左侧品牌图与右侧浅色登录工作区；将主题默认值从深色改为蓝色，保留主题切换与其他主题选择 | 前端 `npm run build` 通过；主题迁移模拟覆盖首次访问、旧默认深色和用户选择其他主题；Vite `5173` 返回 HTTP 200；`git diff --check` 通过 | 继续核心业务页面联调 |
-| 2026-07-11 | AI 协助 | 登录页输入框视觉修复 | 根据实际页面截图，将 Chrome/Edge 自动填充覆盖的绿色输入背景改为中性炭灰，并统一普通、悬停、聚焦和自动填充状态，避免输入区域与右侧图标区域颜色断层 | 前端 `npm run build` 通过；Vite 首页与登录模块均返回 HTTP 200；旧绿色 `#486861` 已清零；刷新后的实际截图确认用户名、密码、图标区和外框颜色连续；保留第三方 PURE 注释和现有大包体积警告 | 继续登录后的核心业务页面联调 |
-| 2026-07-11 | AI 协助 | 项目整体检查与安全收口 | 修复登录缓存不可用时失败、JWT 错误响应、密码字段外泄、Redis 反序列化、文件下载/临时文件路径越界和上传扩展名误判；静态文件目录改为读取配置；数据库和 AI 凭据改为本机环境变量；同步私人仓库凭据规则、共享库状态和全部文档路径 | 后端 `clean test` 39 项全过；前端生产构建通过、`npm audit` 0 漏洞；共享 MySQL 身份、78 张表、两位队友各 3 个连接核验通过；schema/entity/主键/实际库均为 78 且无差异；真实登录、JWT、看板和 AI 问答通过；25 份 Markdown 无坏链；Git hooks 正反场景通过；无可用浏览器实例，未完成自动截图复核；构建仍有第三方 PURE 注释和 1.08 MB 主包警告 | 三人拉取后重新运行 hooks 安装脚本并重启 IDE 读取环境变量；人工复核登录、首页、大屏和 AI 抽屉；继续核心生产/库存/质量写操作联调，公开仓库前轮换历史密钥并完成密码哈希改造 |
-| 2026-07-11 | AI 协助 | PC 登录页视觉优化 | 使用用户提供的羽毛球背景图；精简左侧品牌与标语，右侧加入轻度毛玻璃、完整焦点描边、按钮悬停反馈及页面入场动画；恢复看板预览配置文件，保留原有登录接口、校验、记住登录和开发预览逻辑 | 分支内 `npm.cmd run build` 通过且登录页开发服务返回 HTTP 200；合入 `main` 后再次生产构建通过；仅有第三方 PURE 注释和现有大包体积警告 | 人工复核登录页视觉与背景图构图，后续继续核心业务页面联调 |
-| 2026-07-11 | AI 协助 | 共享数据库环境 | 队友安装并登录 Tailscale，接受 `mes-db-host` 设备共享；将数据库连接信息写入当前用户环境变量，不改项目配置文件 | Tailscale 私网 ping 正常；`100.102.94.37:3306` 连通；共享账号只读验证 MySQL 8.0.44、`mes` 数据库和 78 张表 | 完全重启 IntelliJ 后启动后端，使用环境变量完成登录与业务接口联调 |
-| 2026-07-11 | AI 协助 | Git 协作钩子强化 | 移除 `SKIP_COLLAB_DOC` 普通跳过入口，提交成功时显示明确检查结果，并新增 `pre-push` 校验所有待推送非合并提交是否更新 `COLLABORATION.md` | 已覆盖无协作文档时拒绝提交、协作文档暂存时允许提交、待推送提交缺少协作文档时拒绝推送三类场景 | 三名成员拉取后重新执行 `scripts/setup-git-hooks.ps1`，以后每次提交和推送都同步记录协作进展 |
-| 2026-07-11 | AI 协助 | 三人共享数据库 | 将主机 MySQL `mes` 确认为项目唯一共享操作库，配置 Tailscale 私网、防火墙、共享账号、完整库级开发权限、Navicat/JDBC 连接和服务器 UUID 核验，并新增共享操作文档 | 两位队友分别从 `100.127.29.52`、`100.126.194.17` 接入，共建立 6 个正常连接池连接；主机、端口、库名和服务器 UUID 核验通过 | 三人统一使用共享库；结构变更先备份并提交迁移 SQL，仓库转为公开或成员变化时立即轮换共享凭据 |
-| 2026-07-11 | AI 协助 | 登录页/生产大屏视觉收敛 | 根据用户反馈，将登录页从花哨中控风格收敛为左侧深色品牌区加右侧浅色登录卡，减少圆环、强发光、抽象信号等装饰；生产大屏移除中间羽毛球图片，改为制造现场数据拓扑卡片，展示订单、任务、质检、库存节点和采集状态 | 前端 `npm run build` 通过；`git diff --check` 仅提示相关文件 LF/CRLF 换行；浏览器工具当前无可用实例，未完成自动截图复核 | 人工打开 `/login` 和 `/big-screen/production` 复核视觉，如仍不满意再按具体截图继续微调配色、密度和视觉重心 |
-| 2026-07-11 | AI 协助 | 登录页/生产大屏重做 | 登录页去掉旧大图方案，重做为黑色工业中控登录页，包含制造链路、羽毛球抽象信号、演示账号提示和统一深色登录卡；生产大屏重做为指挥中心布局，统一顶部状态条、KPI 条、中央制造链路、趋势图、质量/设备/风险/AI/系统面板，整体贴合当前黑色主题和工业蓝质感 | `npm run build` 通过；静态检查确认两页仅保留单一 template/style 且无旧登录样式残留；`git diff --check` 仅有 Windows 换行提示；内置浏览器不可用，未完成自动截图复核 | 人工打开 `/login` 和 `/big-screen/production` 检查视觉；如还不满意，按截图标注继续针对间距、配色、密度和视觉重心微调 |
-| 2026-07-11 | AI 协助 | AI 登录态联调 | 在本机真实 MySQL `mes.sys_user` 补充 `admin/123456` 演示账号；启动后端 8088，完成 JWT 登录、AI 状态、普通问答、首页看板解读和模块建议真实调用；发现首页解读耗时超过前端通用 15s 超时后，将 AI 生成接口前端超时调整为 60s | 后端真实接口联调通过：登录、`/api/ai/status`、`chat`、`dashboard-insight`、`module-suggestion` 均返回成功；Vite 前端代理 `/api` 登录、AI 状态和 AI 问答通过；前端 `npm run build` 通过；内置浏览器不可用，未完成自动点击 AI 抽屉截图 | 人工在浏览器用 `admin/123456` 登录，点击顶部 AI 助手验证抽屉交互；真实业务数据补齐后再验看板解读质量 |
-| 2026-07-11 | AI 协助 | AI 中转站配置 | 将后端 AI 默认配置切到 `https://blackaicoding.com/`、演示 API key、`gpt-5.5` 和 `reasoning_effort=high`；基础域名自动拼接 `/v1/chat/completions`；状态接口返回思考深度，前端 AI 抽屉展示模型与 high reasoning | 后端 Maven 全量测试通过：32 tests、0 failures/errors；前端 `npm run build` 通过；中转站最小真实调用成功，模型返回内容 | 启动后端并用真实账号在 AI 抽屉完成问答、看板解读和模块建议验收；如额度或模型不可用，用环境变量覆盖 key 或模型 |
-| 2026-07-11 | AI 协助 | PC 前端 iMES 质感复刻 | 参考 iMES 截图和源码继续收口后台壳层：默认主题切为黑色并加一次性默认主题迁移；主题切换联动顶栏、侧栏、标签页、内容背景和图表；Dashboard 显示名统一为“首页”；首页改为白色工具区、彩色快捷菜单、彩色数量统计和紧凑运营关注；主题抽屉改为大矩形主题预览 | `npm run build` 通过；`git diff --check` 通过，仅有 Windows 换行提示；本地 Vite `http://127.0.0.1:5175/` 返回 200；内置浏览器不可用且 Chrome 远程调试端口未连通，未完成自动截图复核 | 人工在桌面端和移动端查看黑色默认主题、主题抽屉、首页彩色入口和业务页标签；真实账号联调时确认首页接口展示真实数据库数据 |
-| 2026-07-11 | AI 协助 | PC 前端视觉与主题升级 | 参考 iMES 紧凑后台结构重做登录页单图主视觉，引入有明确 CC BY 2.0 许可的羽毛球成品素材；新增 5 套可持久化品牌主题，联动 Header、侧栏、标签页、工作台图表和资源页；工作台补充真实路由快捷作业与基于 Dashboard 字段的运营关注区，并优化中等宽度导航与工具栏 | `npm run build` 通过；最新开发服务 `http://127.0.0.1:5174` 的 `/login`、`/dashboard` 均返回 200；`git diff --check` 通过；内置浏览器无可用实例，本轮未完成自动截图复核 | 人工查看桌面端与移动端主题切换效果；真实环境联调时继续验证主题持久化、工作台入口和 Dashboard 数据 |
-| 2026-07-11 | AI 协助 | PC 前端完整业务面与视觉精修 | 配置式资源工作区覆盖全部 78 个后端资源，补齐分页筛选、CRUD、导出、主从明细、只读、状态动作、追溯及上传下载；按 iMES 信息组织重做登录、工作台和大屏，主色改为钴蓝/冷青蓝，绿色仅保留业务语义；顶部统一 AI 入口 | `npm run build` 通过；1366x768 登录/工作台/资源页、1920x1080 大屏及 390x844 资源页截图通过；无页面横向溢出、可见错误或控制台异常，3 个大屏 ECharts 画布均有实际像素 | 启动 MySQL 和后端，以真实账号跑通生产、质检、入库、追溯链路；配置 AI 模型做成功与失败降级验收 |
-| 2026-07-11 | AI 协助 | 生产任务/设备维修状态流 | 新任务强制待开工，限制开始/完成迁移并锁定运行后普通修改删除；维修单强制提交，限制派工/关闭迁移并校验结果、费用和数量；状态更新增加原状态条件，避免并发重复流转和重复写日志，并同步接口文档 | Maven 全量测试通过：31 tests、0 failures/errors；生产任务 5 项、维修工单 6 项状态流测试，覆盖设备维修状态同步 | 真实数据库联调任务开工/完工和维修派工/关闭，确认状态日志与设备状态同步 |
-| 2026-07-10 | AI 协助 | PC 前端重点能力与视觉基线 | 在公共底座上新增独立生产运营大屏、全局 AI 助手抽屉和专用 Dashboard 解读接口；工作台增加制造指挥区、真实接口状态、重点入口和移动端重排；以 iMES-Factory 为首要参考补充场景化 UI 基线，不新增依赖 | `npm run build` 通过；浏览器检查 1920x1080、1440x900、1366x768 大屏及 390x844 工作台/AI 抽屉，图表非空、无横向溢出；`git diff --check` 通过；仅有第三方 PURE 注释和主包体积警告 | 推送稳定底座；按统一开发路线实现全部系统、主数据、生产、仓储、质量、设备和追溯界面 |
-| 2026-07-10 | AI 协助 | PC 前端公共底座 | 在 VS Code 前端目录完成正式登录、Axios/Token、路由守卫和分片、后台 Layout、侧栏、顶部搜索/通知、标签页、模块入口、404、响应式抽屉及 Dashboard 工作台；开发预览与生产鉴权隔离，未新增依赖 | `npm run build` 通过；浏览器实测 1440x900 工作台、390x844 登录/工作台/导航抽屉，3 个 ECharts 画布非空且无横向溢出；生产预览无开发入口且控制台无错误；仅保留 Element Plus 第三方 PURE 注释和主包体积警告 | 人工查看 `http://localhost:5173` 效果；确认后合并公共底座，再从同一提交启动业务页面分工和真实登录/Dashboard 联调 |
-| 2026-07-10 | AI 协助 | PC 前端启动复核 | 复核前端 ABC 分工、文件所有权、四轮并行顺序和实际 AI/Dashboard Controller；补充当前启动状态，并清理 AI Controller 尚未实现时期的旧表述 | 前端 `npm run build` 通过；Markdown 表格、关键路径、过时 AI 表述和 `git diff --check` 检查通过；构建仅有第三方 PURE 注释和大包体积警告 | 三人从独立分支同时执行第 0 轮；先合并 A 的公共底座，再接入 B/C 独立目录并进入第 1 轮 |
-| 2026-07-10 | AI 协助 | AI 后端/状态统一 | 新增 OpenAI 兼容 AI Controller/Service、状态查询、普通问答、真实看板解读和模块建议；过滤敏感上下文且禁止 AI 自动写业务；统一看板/质检/追溯状态为英文编码，修复不合格品审批状态混写并补齐审批/状态审计记录，新增幂等状态迁移脚本并移除 `schema.sql` 硬编码 `USE mes` | Maven 全量测试通过：20 tests、0 failures/errors；MySQL 8.0 临时库建表 78 张，迁移脚本连续执行两次后编码和审批状态正确；schema/entity/@TableId/Mapper 均为 78；`git diff --check` 通过 | 前端 C 先联调 `/api/ai/status` 和失败状态；后端配置真实 `AI_API_KEY` 后完成一次成功问答与超时/失败验收；旧业务库先备份再执行状态迁移 |
-| 2026-07-10 | AI 协助 | PC 前端 ABC 分工复核 | 重写前端 ABC 分工、文件所有权、并行轮次、UI/大屏/AI 验收和三份 AI 执行提示词；调整为 A 略少、B/C 略多且接近，AI 全部归 C；核对实际 Controller/ResultData/package.json，记录认证、主从接口和状态值差异 | Markdown 代码块、表格、尾随空格和关键路径检查通过；官网链接可访问，14 个 GitHub 仓库均可解析 HEAD；只改文档，未运行前端构建 | 三人分别对 AI 说“我负责前端 A/B/C”启动第 0 轮；同时优先补 AI Controller 契约并统一后端状态值 |
-| 2026-07-10 | AI 协助 | PC 前端开发规划 | 新增 `相关文档，图片/md/前端ABC分工开发计划.md`，整理前端资源参考、视觉规范、目录约定、A/B/C 分工、并行轮次、可视化大屏、AI 接入、页面验收标准和联调规则 | 文档检查通过；未改业务代码，未运行构建 | 按第 0 轮先完成 Layout、请求封装、CRUD 模板、可视化大屏草案和 AI 助手入口 |
-| 2026-07-10 | AI 协助 | 项目提交前整理 | 完成后端分业务域目录整理；修正 Swagger 扫描旧 `com.neuedu.health` 包、移除未使用的 DeepSeek 明文密钥配置、规范 `HelloController` 为 `/api/hello` + `ResultData`；保留并验证 PC 前端基础框架改动 | 后端 Maven `test` 通过；MySQL 8.0 临时库执行 `schema.sql` 生成 78 张表；schema/entity/主键/Mapper namespace 检查通过；前端 `npm run build` 通过；`git diff --check` 通过 | 推送后进入 PC 前端页面开发和前后端联调 |
-| 2026-07-10 | AI 协助 | 后端包结构整理 | 将后端 Controller、Service、ServiceImpl、Mapper、Entity 按业务域整理到 sys/org/mdm/process/factory/mfg/wms/qms/eam/trace/dashboard/common 等子包；同步更新 Java package/import 与 Mapper XML namespace/type 引用，并移除批量改写产生的 UTF-8 BOM | 后端 Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0；静态检查未发现旧根包引用或 BOM | 后续前后端联调时按新包路径查找后端文件，接口路径保持不变 |
-| 2026-07-10 | C + AI 协助 | 条码追溯/首页看板 | 新增 `trace_barcode`、`trace_product_lot`、`trace_material_usage` 后端接口和 `/api/dashboard` 看板接口；条码支持生成、扫码、通用 CRUD 和导出；产品批次支持按批次号追溯物料使用与检验摘要；物料使用支持按原料批次查询；看板提供汇总、生产趋势、质量统计和设备状态统计 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续前后端联调或补充追溯看板细节 |
-| 2026-07-10 | C + AI 协助 | 设备管理 | 新增 `eam_equipment_status_log`、`eam_maintenance_plan`、`eam_maintenance_record`、`eam_spot_check_plan`、`eam_spot_check_record`、`eam_repair_order` 后端接口；设备状态日志仅开放分页、详情和导出；保养计划/记录与点检计划/记录提供通用 CRUD 和导出；维修单补充派工 `/assign` 和关闭 `/close`，并同步设备状态、设备状态日志、状态变更日志和操作日志 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续追溯、看板或前后端联调 |
-| 2026-07-10 | C + AI 协助 | 补货/报工/质检/不合格品 | 新增 `wms_replenishment_suggestion`、`mfg_work_report`、`mfg_report_material`、`qms_inspection_order`、`qms_inspection_result`、`qms_nonconforming_order`、`qms_nonconforming_detail` 后端接口；补货建议支持按物料/仓库生成；报工支持提交、审核和用料明细 `/full`；检验单支持主从表 `/full`、提交检验结果和检验结果批量保存；不合格品处理单支持主从表 `/full` 和审批；已审核/已完成单据禁止通过主表或明细接口绕过修改 | schema/entity 数量检查通过：78/78/78；Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0；`git diff --check` 仅提示 `COLLABORATION.md` LF/CRLF | C 继续追溯、看板或前后端联调 |
-| 2026-07-10 | C + AI 协助 | 仓储出库/退料/盘点 | 新增 `wms_outbound_order`、`wms_outbound_detail`、`wms_return_order`、`wms_return_detail`、`wms_stocktake_order`、`wms_stocktake_detail` 后端接口；主单支持分页、详情、新增、修改、软删除、导出、`/full` 主从表保存和业务确认；出库确认扣减库存并写出库流水，退料确认回加库存并写退料流水，盘点完成按差异调整库存并写盘点流水；已确认/已完成单据禁止重复确认、修改、删除及通过明细接口绕过修改 | schema/entity 数量检查通过：78/78/78；Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0；`git diff --check` 仅提示 `COLLABORATION.md` LF/CRLF | C 继续仓储补货建议、报工/质检联动或前后端联调 |
-| 2026-07-10 | C + AI 协助 | 仓储批次/库存/入库 | 新增 `wms_material_batch`、`wms_inventory`、`wms_stock_movement`、`wms_inbound_order`、`wms_inbound_detail` 后端接口；库存余额和库存流水仅开放查询/详情/导出；入库单支持主从表 `/full` 和确认入库，确认时事务内更新库存余额、写入库存流水、状态日志和操作日志，已确认入库单禁止重复确认、修改和删除 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续出库单/明细、退料或盘点模块 |
-| 2026-07-10 | C + AI 协助 | 生产任务/人员/异常/安灯 | 新增 `mfg_task`、`mfg_task_operator`、`mfg_exception`、`mfg_andon_alert` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；补充任务开始/完成、按任务查人员、异常处理、安灯触发/关闭接口；安灯触发字段以 `schema.sql` 实体为准，文档示例中不存在的字段不落库 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续报工、报工用料或仓储库存模块 |
-| 2026-07-10 | C + AI 协助 | C 后端注释和接口修复 | 补齐 `mfg_work_order_material`、`qms_inspection_standard`、`qms_inspection_scheme`、`qms_inspection_scheme_item` Controller/Service/ServiceImpl 方法注释；移除质检标准旧 `getPage/export` Service 方法；补充按工单查用料和按检验方案查明细接口；统一导出标题和 Mapper 中文说明 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续后续生产、仓储、质量模块联调 |
-| 2026-07-09 | C + AI 协助 | C 后端代码检查修复 | 检查并修复 `mfg_work_order_material`、`qms_inspection_standard`、`qms_inspection_scheme`、`qms_inspection_scheme_item` 后端代码；统一 QMS 接口 `/api/qms/...` 路径、`current/size` 分页和 `/excel` 导出，修复质检标准物理删除风险，查询过滤 `deleted_flag = 0`，删除改为软删除 | Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续后续生产/仓储/质量模块联调 |
-| 2026-07-09 | A + AI 协助 | 审批记录管理 | 新增 `sys_approval_record` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持业务、审批节点、审批人、审批结果和时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步复查 A 模块完整性 |
-| 2026-07-09 | A + AI 协助 | 状态变更日志管理 | 新增 `sys_status_change_log` 只读后端接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持分页、详情、导出，以及业务类型、业务 ID、状态、变更人、时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续审批记录 |
-| 2026-07-09 | A + AI 协助 | 操作日志管理 | 新增 `sys_operation_log` 只读后端接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持分页、详情、导出，以及用户、操作类型、模块、业务 ID、时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续状态变更日志 |
-| 2026-07-09 | A + AI 协助 | 附件文件管理 | 新增 `sys_file` 上传、下载、通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；复用现有文件工具并补充通用上传方法 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续操作日志 |
-| 2026-07-09 | A + AI 协助 | 系统参数管理 | 新增 `sys_system_param` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持参数键/名称关键字和模块编码筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续附件文件 |
-| 2026-07-09 | A + AI 协助 | 字典数据管理 | 新增 `sys_dict_data` 后端通用 CRUD、按字典类型查询和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续系统参数 |
-| 2026-07-09 | A + AI 协助 | 字典类型管理 | 新增 `sys_dict_type` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持字典类型编码/名称关键字和状态筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典数据 |
-| 2026-07-09 | A + AI 协助 | 用户和菜单管理 | 将早期 `UserController` / `UserService` / `UserServiceImpl` 收敛为接口文档要求的 `SysUserController` / `SysUserService` / `SysUserServiceImpl`；保留 `/api/sys/user` 路径，补充分页、软删除、重置密码、分配角色接口；新增 `sys_menu` 后端 CRUD、菜单树和导出接口 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典类型 |
-| 2026-07-09 | A + AI 协助 | 班次管理 | 新增 `org_shift` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典类型 |
-| 2026-07-09 | A + AI 协助 | 班组成员管理 | 新增 `org_team_member` 后端通用 CRUD、按班组查询成员接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；查询默认过滤 `deleted_flag = 0`，删除为软删除 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班次管理 |
-| 2026-07-09 | C + AI 协助 | 库位管理 | 新增 `wms_location` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持库位编码/名称搜索、仓库筛选、库位类型筛选、状态筛选 | Maven 测试通过 | C 继续仓储其他模块（库存、出入库等） |
-| 2026-07-09 | C + AI 协助 | 仓库管理 | 新增 `wms_warehouse` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持仓库编码/名称搜索、仓库类型筛选、状态筛选 | Maven 测试通过 | C 继续库位管理模块 |
-| 2026-07-09 | C + AI 协助 | 生产工单 | 新增 `mfg_work_order` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持工单编号搜索、状态筛选、生产计划筛选、产品筛选 | Maven 测试通过 | C 继续仓储模块或其他生产模块 |
-| 2026-07-09 | A + AI 协助 | 班组管理 | 新增 `org_team` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持班组编码/名称、部门、班组长筛选；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班组成员管理 |
-| 2026-07-09 | A + AI 协助 | 员工管理 | 新增 `org_employee` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持工号/姓名/电话关键字、部门、状态筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班组管理 |
-| 2026-07-09 | A + AI 协助 | 部门管理 | 新增 `org_department` 后端通用 CRUD、部门树和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续员工管理 |
-| 2026-07-09 | C + AI 协助 | 生产计划 | 新增 `mfg_production_plan` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持计划编号搜索、状态筛选、生产订单筛选、产线筛选 | Maven 测试通过 | C 继续生产工单或仓储模块 |
-| 2026-07-09 | A + AI 协助 | 角色菜单关联 | 新增 `sys_role_menu` 后端通用 CRUD、按角色查询菜单关联接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；ServiceImpl 显式调用 `baseMapper`，查询默认过滤 `deleted_flag = 0`，删除为软删除 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续组织基础模块 |
-| 2026-07-09 | A + AI 协助 | 用户角色关联 | 新增 `sys_user_role` 后端通用 CRUD、按用户查询角色关联接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；ServiceImpl 显式调用 `baseMapper`，查询默认过滤 `deleted_flag = 0`，删除为软删除 | 已使用 JDK 21 和本机 MySQL 环境变量运行 Maven test，通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续 `sys_role_menu` |
-| 2026-07-09 | C + AI 协助 | 生产订单 | 新增 `mfg_production_order` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持订单编号搜索、状态筛选、客户筛选、产品筛选 | Maven 测试通过 | C 继续生产计划或生产工单模块 |
-| 2026-07-09 | C + AI 协助 | 设备台账 | 新增 `eam_equipment` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持设备编码/名称搜索、状态筛选、分类筛选 | Maven 测试通过 | C 继续生产订单模块 |
-| 2026-07-09 | C + AI 协助 | 设备分类 | 新增 `eam_equipment_category` 后端通用管理接口，包含分页、详情、新增、修改、软删除、树形结构查询、导出；支持分类编码/名称搜索、状态筛选 | Maven 测试通过 | C 继续设备台账模块 |
-| 2026-07-09 | C + AI 协助 | 质检项目 | 新增 `qms_inspection_item` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持项目编码/名称搜索、检验类型筛选 | Maven 测试通过 | C 继续设备分类或质检标准模块 |
-| 2026-07-09 | B + AI 协助 | 工位工序 | 新增 `factory_station_operation` 后端通用管理接口，包含分页、详情、新增、修改、软删除、按工位查询可执行工序、导出和 Mapper XML | Maven 测试通过 | B 分工后端模块已完成，等待联调或补接口细节 |
-| 2026-07-09 | B + AI 协助 | 工位 | 新增 `factory_station` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工位工序模块 |
-| 2026-07-09 | B + AI 协助 | 产线 | 新增 `factory_line` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工位模块 |
-| 2026-07-09 | B + AI 协助 | 车间 | 新增 `factory_workshop` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续产线模块 |
-| 2026-07-09 | B + AI 协助 | 作业指导书 | 新增 `process_work_instruction` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续车间模块 |
-| 2026-07-09 | B + AI 协助 | 工艺参数 | 新增 `process_parameter` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续作业指导书模块 |
-| 2026-07-09 | B + AI 协助 | 工艺路线明细 | 新增 `process_route_item` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工艺参数模块 |
-| 2026-07-09 | B + AI 协助 | 工艺路线 | 新增 `process_route` 主表后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML；路线明细按文档拆到下一个模块单独实现 | Maven 测试通过 | B 继续工艺路线明细模块 |
-| 2026-07-09 | B + AI 协助 | 工序 | 新增 `process_operation` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工艺路线模块 |
-| 2026-07-09 | B + AI 协助 | BOM 明细 | 新增 `mdm_bom_item` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工序模块 |
-| 2026-07-09 | B + AI 协助 | BOM | 新增 `mdm_bom` 主表后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML；BOM 明细按文档拆到下一个模块单独实现 | Maven 测试通过 | B 继续 BOM 明细模块 |
-| 2026-07-09 | B + AI 协助 | 产品 | 新增 `mdm_product` 后端管理接口，按文档支持产品编码、名称、状态分页过滤，并包含详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续 BOM 或 BOM 明细模块 |
-| 2026-07-09 | B + AI 协助 | 物料 | 新增 `mdm_material` 后端管理接口，按文档支持物料编码、名称、分类、状态分页过滤，并包含详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续产品或 BOM 模块 |
-| 2026-07-09 | B + AI 协助 | 物料分类 | 新增 `mdm_material_category` 后端管理接口，包含分页、树形查询、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续物料或产品模块 |
-| 2026-07-09 | B + AI 协助 | 客户 | 新增 `mdm_customer` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续物料分类或物料模块 |
-| 2026-07-09 | B + AI 协助 | 供应商 | 新增 `mdm_supplier` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续客户或物料分类模块 |
-| 2026-07-09 | B + AI 协助 | 计量单位 | 新增 `mdm_unit` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续供应商或客户模块 |
-| 2026-07-09 | A + AI 协助 | 后端协作分工 | 新增 Markdown 版 A/B/C 后端分工 AI 提示词，补充分层风格、并行冲突处理、单模块流程和群内交接格式 | 文档入口和 Markdown 标题已检查 | 群内按 A/B/C 认领后每次只让 AI 做一个模块 |
-| 2026-07-09 | A + AI 协助 | 角色管理 | 将 `SysRoleServiceImpl` 的通用 CRUD 调整为显式 `baseMapper` 调用，并同步分层手册说明 | Maven 测试通过 | 后续普通模块优先使用更直观的 `baseMapper` 风格 |
-| 2026-07-09 | A + AI 协助 | 后端分层理解 | 新增后端分层理解手册，说明 `SysRole` 模块写法、Mapper 为空原因、Service 业务边界和答辩说明 | Maven 测试通过，文档入口已检查 | 后续成员按手册理解普通 CRUD 和复杂业务分层 |
-| 2026-07-09 | A + AI 协助 | 角色管理 | 调整 `sys_role` 分层：Controller 只处理请求返回，查询、默认值、软删除等规则下沉到 Service | Maven 测试通过 | 后续模块按此分层模板继续实现 |
-| 2026-07-09 | A + AI 协助 | 角色管理 | 新增 `sys_role` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | 继续补角色菜单分配或前端角色管理页面 |
-| 2026-07-09 | 人工整理 + AI 协助 | 文档目录 | 将设计、数据库、接口和 PDF 统一整理到 `相关文档/`，并同步 README、协作文档和后端约束里的文档路径 | 已检查新目录文件和链接引用 | 后续统一从 `相关文档/` 查设计资料 |
-| 2026-07-09 | AI 协助 | AI 开发规范 | 新增 `AGENTS.md`、Copilot 指令和 12 个 MES 专用 skills，覆盖项目进入、后端、数据库、前端、联调、调试、验证、审查和进度更新 | 12 个 skill 已通过结构校验 | 后续开发按任务读取对应 skill |
-| 2026-07-09 | AI 协助 | 协作规范 | 新增 Git 提交提醒钩子，提交时检查是否同步更新 `COLLABORATION.md` | 已加入 `.githooks/pre-commit` 和安装脚本 | 成员拉取后执行一次 hooks 配置 |
-| 2026-07-09 | AI 协助 | 协作规范 | 新增三人通用协同开发说明，补充 README 文档入口 | 已检查 Markdown 内容和链接路径 | 后续每次开发同步更新进度 |
-| 2026-07-09 | AI 协助 | 项目基线 | 同步后端基线、数据库脚本、接口文档，修复前端构建入口 | 后端测试通过，前端构建通过 | 开始登录和用户管理联调 |
+| 2026-07-12 | han139242 | 协作记录推送归属校正 | 对照 GitHub 三位协作者、仓库 PushEvent 和进度行对应提交，将历史成员列统一改为实际推送账号并清理旧成员标记 | 83 条历史进度全部匹配：`han139242` 52 条、`zengjingye` 16 条、`AnHC-00` 15 条；无未匹配记录 | 后续每次进度记录直接填写实际 GitHub 推送账号 |
+| 2026-07-12 | han139242 | 审计字段与乐观锁规范 | 在数据库分析文档中明确审计字段、业务操作日志和 MySQL binlog 的职责差异，记录当前自动填充与乐观锁尚未启用，并约定后续按表并发风险实施，禁止页面手工填写审计字段 | `schema.sql`、实体和主键均为 78；`@Version`、乐观锁插件、`MetaObjectHandler` 当前均为 0；Markdown 章节结构检查通过 | 后续单独实施 JWT 操作人自动填充、登录时间更新和高并发表乐观锁，并补并发测试 |
+| 2026-07-12 | han139242 | 登录账号状态校验 | 登录密码匹配后校验 `sys_user.status`：仅 `ENABLE` 可登录，`DISABLE`、`LOCKED` 和未知状态返回不同提示；受限账号不会写入 Redis 或生成 JWT；同步登录错误码接口文档 | 认证定向测试 6 项通过；后端完整 Maven 测试 43 项通过、0 失败；Markdown 结构检查通过 | 如需自动锁定，再补登录失败次数和解锁策略 |
+| 2026-07-11 | han139242 | PC 登录页与默认主题 | 使用用户确认的蓝色羽毛球背景，仅调整登录页为左侧品牌图与右侧浅色登录工作区；将主题默认值从深色改为蓝色，保留主题切换与其他主题选择 | 前端 `npm run build` 通过；主题迁移模拟覆盖首次访问、旧默认深色和用户选择其他主题；Vite `5173` 返回 HTTP 200；`git diff --check` 通过 | 继续核心业务页面联调 |
+| 2026-07-11 | han139242 | 登录页输入框视觉修复 | 根据实际页面截图，将 Chrome/Edge 自动填充覆盖的绿色输入背景改为中性炭灰，并统一普通、悬停、聚焦和自动填充状态，避免输入区域与右侧图标区域颜色断层 | 前端 `npm run build` 通过；Vite 首页与登录模块均返回 HTTP 200；旧绿色 `#486861` 已清零；刷新后的实际截图确认用户名、密码、图标区和外框颜色连续；保留第三方 PURE 注释和现有大包体积警告 | 继续登录后的核心业务页面联调 |
+| 2026-07-11 | han139242 | 项目整体检查与安全收口 | 修复登录缓存不可用时失败、JWT 错误响应、密码字段外泄、Redis 反序列化、文件下载/临时文件路径越界和上传扩展名误判；静态文件目录改为读取配置；数据库和 AI 凭据改为本机环境变量；同步私人仓库凭据规则、共享库状态和全部文档路径 | 后端 `clean test` 39 项全过；前端生产构建通过、`npm audit` 0 漏洞；共享 MySQL 身份、78 张表、两位队友各 3 个连接核验通过；schema/entity/主键/实际库均为 78 且无差异；真实登录、JWT、看板和 AI 问答通过；25 份 Markdown 无坏链；Git hooks 正反场景通过；无可用浏览器实例，未完成自动截图复核；构建仍有第三方 PURE 注释和 1.08 MB 主包警告 | 三人拉取后重新运行 hooks 安装脚本并重启 IDE 读取环境变量；人工复核登录、首页、大屏和 AI 抽屉；继续核心生产/库存/质量写操作联调，公开仓库前轮换历史密钥并完成密码哈希改造 |
+| 2026-07-11 | han139242 | PC 登录页视觉优化 | 使用用户提供的羽毛球背景图；精简左侧品牌与标语，右侧加入轻度毛玻璃、完整焦点描边、按钮悬停反馈及页面入场动画；恢复看板预览配置文件，保留原有登录接口、校验、记住登录和开发预览逻辑 | 分支内 `npm.cmd run build` 通过且登录页开发服务返回 HTTP 200；合入 `main` 后再次生产构建通过；仅有第三方 PURE 注释和现有大包体积警告 | 人工复核登录页视觉与背景图构图，后续继续核心业务页面联调 |
+| 2026-07-11 | han139242 | 共享数据库环境 | 队友安装并登录 Tailscale，接受 `mes-db-host` 设备共享；将数据库连接信息写入当前用户环境变量，不改项目配置文件 | Tailscale 私网 ping 正常；`100.102.94.37:3306` 连通；共享账号只读验证 MySQL 8.0.44、`mes` 数据库和 78 张表 | 完全重启 IntelliJ 后启动后端，使用环境变量完成登录与业务接口联调 |
+| 2026-07-11 | han139242 | Git 协作钩子强化 | 移除 `SKIP_COLLAB_DOC` 普通跳过入口，提交成功时显示明确检查结果，并新增 `pre-push` 校验所有待推送非合并提交是否更新 `COLLABORATION.md` | 已覆盖无协作文档时拒绝提交、协作文档暂存时允许提交、待推送提交缺少协作文档时拒绝推送三类场景 | 三名成员拉取后重新执行 `scripts/setup-git-hooks.ps1`，以后每次提交和推送都同步记录协作进展 |
+| 2026-07-11 | han139242 | 三人共享数据库 | 将主机 MySQL `mes` 确认为项目唯一共享操作库，配置 Tailscale 私网、防火墙、共享账号、完整库级开发权限、Navicat/JDBC 连接和服务器 UUID 核验，并新增共享操作文档 | 两位队友分别从 `100.127.29.52`、`100.126.194.17` 接入，共建立 6 个正常连接池连接；主机、端口、库名和服务器 UUID 核验通过 | 三人统一使用共享库；结构变更先备份并提交迁移 SQL，仓库转为公开或成员变化时立即轮换共享凭据 |
+| 2026-07-11 | han139242 | 登录页/生产大屏视觉收敛 | 根据用户反馈，将登录页从花哨中控风格收敛为左侧深色品牌区加右侧浅色登录卡，减少圆环、强发光、抽象信号等装饰；生产大屏移除中间羽毛球图片，改为制造现场数据拓扑卡片，展示订单、任务、质检、库存节点和采集状态 | 前端 `npm run build` 通过；`git diff --check` 仅提示相关文件 LF/CRLF 换行；浏览器工具当前无可用实例，未完成自动截图复核 | 人工打开 `/login` 和 `/big-screen/production` 复核视觉，如仍不满意再按具体截图继续微调配色、密度和视觉重心 |
+| 2026-07-11 | han139242 | 登录页/生产大屏重做 | 登录页去掉旧大图方案，重做为黑色工业中控登录页，包含制造链路、羽毛球抽象信号、演示账号提示和统一深色登录卡；生产大屏重做为指挥中心布局，统一顶部状态条、KPI 条、中央制造链路、趋势图、质量/设备/风险/AI/系统面板，整体贴合当前黑色主题和工业蓝质感 | `npm run build` 通过；静态检查确认两页仅保留单一 template/style 且无旧登录样式残留；`git diff --check` 仅有 Windows 换行提示；内置浏览器不可用，未完成自动截图复核 | 人工打开 `/login` 和 `/big-screen/production` 检查视觉；如还不满意，按截图标注继续针对间距、配色、密度和视觉重心微调 |
+| 2026-07-11 | han139242 | AI 登录态联调 | 在本机真实 MySQL `mes.sys_user` 补充 `admin/123456` 演示账号；启动后端 8088，完成 JWT 登录、AI 状态、普通问答、首页看板解读和模块建议真实调用；发现首页解读耗时超过前端通用 15s 超时后，将 AI 生成接口前端超时调整为 60s | 后端真实接口联调通过：登录、`/api/ai/status`、`chat`、`dashboard-insight`、`module-suggestion` 均返回成功；Vite 前端代理 `/api` 登录、AI 状态和 AI 问答通过；前端 `npm run build` 通过；内置浏览器不可用，未完成自动点击 AI 抽屉截图 | 人工在浏览器用 `admin/123456` 登录，点击顶部 AI 助手验证抽屉交互；真实业务数据补齐后再验看板解读质量 |
+| 2026-07-11 | han139242 | AI 中转站配置 | 将后端 AI 默认配置切到 `https://blackaicoding.com/`、演示 API key、`gpt-5.5` 和 `reasoning_effort=high`；基础域名自动拼接 `/v1/chat/completions`；状态接口返回思考深度，前端 AI 抽屉展示模型与 high reasoning | 后端 Maven 全量测试通过：32 tests、0 failures/errors；前端 `npm run build` 通过；中转站最小真实调用成功，模型返回内容 | 启动后端并用真实账号在 AI 抽屉完成问答、看板解读和模块建议验收；如额度或模型不可用，用环境变量覆盖 key 或模型 |
+| 2026-07-11 | han139242 | PC 前端 iMES 质感复刻 | 参考 iMES 截图和源码继续收口后台壳层：默认主题切为黑色并加一次性默认主题迁移；主题切换联动顶栏、侧栏、标签页、内容背景和图表；Dashboard 显示名统一为“首页”；首页改为白色工具区、彩色快捷菜单、彩色数量统计和紧凑运营关注；主题抽屉改为大矩形主题预览 | `npm run build` 通过；`git diff --check` 通过，仅有 Windows 换行提示；本地 Vite `http://127.0.0.1:5175/` 返回 200；内置浏览器不可用且 Chrome 远程调试端口未连通，未完成自动截图复核 | 人工在桌面端和移动端查看黑色默认主题、主题抽屉、首页彩色入口和业务页标签；真实账号联调时确认首页接口展示真实数据库数据 |
+| 2026-07-11 | han139242 | PC 前端视觉与主题升级 | 参考 iMES 紧凑后台结构重做登录页单图主视觉，引入有明确 CC BY 2.0 许可的羽毛球成品素材；新增 5 套可持久化品牌主题，联动 Header、侧栏、标签页、工作台图表和资源页；工作台补充真实路由快捷作业与基于 Dashboard 字段的运营关注区，并优化中等宽度导航与工具栏 | `npm run build` 通过；最新开发服务 `http://127.0.0.1:5174` 的 `/login`、`/dashboard` 均返回 200；`git diff --check` 通过；内置浏览器无可用实例，本轮未完成自动截图复核 | 人工查看桌面端与移动端主题切换效果；真实环境联调时继续验证主题持久化、工作台入口和 Dashboard 数据 |
+| 2026-07-11 | han139242 | PC 前端完整业务面与视觉精修 | 配置式资源工作区覆盖全部 78 个后端资源，补齐分页筛选、CRUD、导出、主从明细、只读、状态动作、追溯及上传下载；按 iMES 信息组织重做登录、工作台和大屏，主色改为钴蓝/冷青蓝，绿色仅保留业务语义；顶部统一 AI 入口 | `npm run build` 通过；1366x768 登录/工作台/资源页、1920x1080 大屏及 390x844 资源页截图通过；无页面横向溢出、可见错误或控制台异常，3 个大屏 ECharts 画布均有实际像素 | 启动 MySQL 和后端，以真实账号跑通生产、质检、入库、追溯链路；配置 AI 模型做成功与失败降级验收 |
+| 2026-07-11 | han139242 | 生产任务/设备维修状态流 | 新任务强制待开工，限制开始/完成迁移并锁定运行后普通修改删除；维修单强制提交，限制派工/关闭迁移并校验结果、费用和数量；状态更新增加原状态条件，避免并发重复流转和重复写日志，并同步接口文档 | Maven 全量测试通过：31 tests、0 failures/errors；生产任务 5 项、维修工单 6 项状态流测试，覆盖设备维修状态同步 | 真实数据库联调任务开工/完工和维修派工/关闭，确认状态日志与设备状态同步 |
+| 2026-07-10 | han139242 | PC 前端重点能力与视觉基线 | 在公共底座上新增独立生产运营大屏、全局 AI 助手抽屉和专用 Dashboard 解读接口；工作台增加制造指挥区、真实接口状态、重点入口和移动端重排；以 iMES-Factory 为首要参考补充场景化 UI 基线，不新增依赖 | `npm run build` 通过；浏览器检查 1920x1080、1440x900、1366x768 大屏及 390x844 工作台/AI 抽屉，图表非空、无横向溢出；`git diff --check` 通过；仅有第三方 PURE 注释和主包体积警告 | 推送稳定底座；按统一开发路线实现全部系统、主数据、生产、仓储、质量、设备和追溯界面 |
+| 2026-07-10 | han139242 | PC 前端公共底座 | 在 VS Code 前端目录完成正式登录、Axios/Token、路由守卫和分片、后台 Layout、侧栏、顶部搜索/通知、标签页、模块入口、404、响应式抽屉及 Dashboard 工作台；开发预览与生产鉴权隔离，未新增依赖 | `npm run build` 通过；浏览器实测 1440x900 工作台、390x844 登录/工作台/导航抽屉，3 个 ECharts 画布非空且无横向溢出；生产预览无开发入口且控制台无错误；仅保留 Element Plus 第三方 PURE 注释和主包体积警告 | 人工查看 `http://localhost:5173` 效果；确认后合并公共底座，再从同一提交启动业务页面分工和真实登录/Dashboard 联调 |
+| 2026-07-10 | han139242 | PC 前端启动复核 | 复核前端 ABC 分工、文件所有权、四轮并行顺序和实际 AI/Dashboard Controller；补充当前启动状态，并清理 AI Controller 尚未实现时期的旧表述 | 前端 `npm run build` 通过；Markdown 表格、关键路径、过时 AI 表述和 `git diff --check` 检查通过；构建仅有第三方 PURE 注释和大包体积警告 | 三人从独立分支同时执行第 0 轮；先合并 A 的公共底座，再接入 B/C 独立目录并进入第 1 轮 |
+| 2026-07-10 | han139242 | AI 后端/状态统一 | 新增 OpenAI 兼容 AI Controller/Service、状态查询、普通问答、真实看板解读和模块建议；过滤敏感上下文且禁止 AI 自动写业务；统一看板/质检/追溯状态为英文编码，修复不合格品审批状态混写并补齐审批/状态审计记录，新增幂等状态迁移脚本并移除 `schema.sql` 硬编码 `USE mes` | Maven 全量测试通过：20 tests、0 failures/errors；MySQL 8.0 临时库建表 78 张，迁移脚本连续执行两次后编码和审批状态正确；schema/entity/@TableId/Mapper 均为 78；`git diff --check` 通过 | 前端 C 先联调 `/api/ai/status` 和失败状态；后端配置真实 `AI_API_KEY` 后完成一次成功问答与超时/失败验收；旧业务库先备份再执行状态迁移 |
+| 2026-07-10 | han139242 | PC 前端 ABC 分工复核 | 重写前端 ABC 分工、文件所有权、并行轮次、UI/大屏/AI 验收和三份 AI 执行提示词；调整为 A 略少、B/C 略多且接近，AI 全部归 C；核对实际 Controller/ResultData/package.json，记录认证、主从接口和状态值差异 | Markdown 代码块、表格、尾随空格和关键路径检查通过；官网链接可访问，14 个 GitHub 仓库均可解析 HEAD；只改文档，未运行前端构建 | 三人分别对 AI 说“我负责前端 A/B/C”启动第 0 轮；同时优先补 AI Controller 契约并统一后端状态值 |
+| 2026-07-10 | han139242 | PC 前端开发规划 | 新增 `相关文档，图片/md/前端ABC分工开发计划.md`，整理前端资源参考、视觉规范、目录约定、A/B/C 分工、并行轮次、可视化大屏、AI 接入、页面验收标准和联调规则 | 文档检查通过；未改业务代码，未运行构建 | 按第 0 轮先完成 Layout、请求封装、CRUD 模板、可视化大屏草案和 AI 助手入口 |
+| 2026-07-10 | han139242 | 项目提交前整理 | 完成后端分业务域目录整理；修正 Swagger 扫描旧 `com.neuedu.health` 包、移除未使用的 DeepSeek 明文密钥配置、规范 `HelloController` 为 `/api/hello` + `ResultData`；保留并验证 PC 前端基础框架改动 | 后端 Maven `test` 通过；MySQL 8.0 临时库执行 `schema.sql` 生成 78 张表；schema/entity/主键/Mapper namespace 检查通过；前端 `npm run build` 通过；`git diff --check` 通过 | 推送后进入 PC 前端页面开发和前后端联调 |
+| 2026-07-10 | han139242 | 后端包结构整理 | 将后端 Controller、Service、ServiceImpl、Mapper、Entity 按业务域整理到 sys/org/mdm/process/factory/mfg/wms/qms/eam/trace/dashboard/common 等子包；同步更新 Java package/import 与 Mapper XML namespace/type 引用，并移除批量改写产生的 UTF-8 BOM | 后端 Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0；静态检查未发现旧根包引用或 BOM | 后续前后端联调时按新包路径查找后端文件，接口路径保持不变 |
+| 2026-07-10 | AnHC-00 | 条码追溯/首页看板 | 新增 `trace_barcode`、`trace_product_lot`、`trace_material_usage` 后端接口和 `/api/dashboard` 看板接口；条码支持生成、扫码、通用 CRUD 和导出；产品批次支持按批次号追溯物料使用与检验摘要；物料使用支持按原料批次查询；看板提供汇总、生产趋势、质量统计和设备状态统计 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续前后端联调或补充追溯看板细节 |
+| 2026-07-10 | AnHC-00 | 设备管理 | 新增 `eam_equipment_status_log`、`eam_maintenance_plan`、`eam_maintenance_record`、`eam_spot_check_plan`、`eam_spot_check_record`、`eam_repair_order` 后端接口；设备状态日志仅开放分页、详情和导出；保养计划/记录与点检计划/记录提供通用 CRUD 和导出；维修单补充派工 `/assign` 和关闭 `/close`，并同步设备状态、设备状态日志、状态变更日志和操作日志 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续追溯、看板或前后端联调 |
+| 2026-07-10 | AnHC-00 | 补货/报工/质检/不合格品 | 新增 `wms_replenishment_suggestion`、`mfg_work_report`、`mfg_report_material`、`qms_inspection_order`、`qms_inspection_result`、`qms_nonconforming_order`、`qms_nonconforming_detail` 后端接口；补货建议支持按物料/仓库生成；报工支持提交、审核和用料明细 `/full`；检验单支持主从表 `/full`、提交检验结果和检验结果批量保存；不合格品处理单支持主从表 `/full` 和审批；已审核/已完成单据禁止通过主表或明细接口绕过修改 | schema/entity 数量检查通过：78/78/78；Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0；`git diff --check` 仅提示 `COLLABORATION.md` LF/CRLF | C 继续追溯、看板或前后端联调 |
+| 2026-07-10 | AnHC-00 | 仓储出库/退料/盘点 | 新增 `wms_outbound_order`、`wms_outbound_detail`、`wms_return_order`、`wms_return_detail`、`wms_stocktake_order`、`wms_stocktake_detail` 后端接口；主单支持分页、详情、新增、修改、软删除、导出、`/full` 主从表保存和业务确认；出库确认扣减库存并写出库流水，退料确认回加库存并写退料流水，盘点完成按差异调整库存并写盘点流水；已确认/已完成单据禁止重复确认、修改、删除及通过明细接口绕过修改 | schema/entity 数量检查通过：78/78/78；Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0；`git diff --check` 仅提示 `COLLABORATION.md` LF/CRLF | C 继续仓储补货建议、报工/质检联动或前后端联调 |
+| 2026-07-10 | AnHC-00 | 仓储批次/库存/入库 | 新增 `wms_material_batch`、`wms_inventory`、`wms_stock_movement`、`wms_inbound_order`、`wms_inbound_detail` 后端接口；库存余额和库存流水仅开放查询/详情/导出；入库单支持主从表 `/full` 和确认入库，确认时事务内更新库存余额、写入库存流水、状态日志和操作日志，已确认入库单禁止重复确认、修改和删除 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续出库单/明细、退料或盘点模块 |
+| 2026-07-10 | AnHC-00 | 生产任务/人员/异常/安灯 | 新增 `mfg_task`、`mfg_task_operator`、`mfg_exception`、`mfg_andon_alert` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；补充任务开始/完成、按任务查人员、异常处理、安灯触发/关闭接口；安灯触发字段以 `schema.sql` 实体为准，文档示例中不存在的字段不落库 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续报工、报工用料或仓储库存模块 |
+| 2026-07-10 | AnHC-00 | C 后端注释和接口修复 | 补齐 `mfg_work_order_material`、`qms_inspection_standard`、`qms_inspection_scheme`、`qms_inspection_scheme_item` Controller/Service/ServiceImpl 方法注释；移除质检标准旧 `getPage/export` Service 方法；补充按工单查用料和按检验方案查明细接口；统一导出标题和 Mapper 中文说明 | schema/entity 数量检查通过：78/78/78；Maven `test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续后续生产、仓储、质量模块联调 |
+| 2026-07-09 | AnHC-00 | C 后端代码检查修复 | 检查并修复 `mfg_work_order_material`、`qms_inspection_standard`、`qms_inspection_scheme`、`qms_inspection_scheme_item` 后端代码；统一 QMS 接口 `/api/qms/...` 路径、`current/size` 分页和 `/excel` 导出，修复质检标准物理删除风险，查询过滤 `deleted_flag = 0`，删除改为软删除 | Maven `clean test` 通过：Tests run: 1, Failures: 0, Errors: 0 | C 继续后续生产/仓储/质量模块联调 |
+| 2026-07-09 | zengjingye | 审批记录管理 | 新增 `sys_approval_record` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持业务、审批节点、审批人、审批结果和时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步复查 A 模块完整性 |
+| 2026-07-09 | zengjingye | 状态变更日志管理 | 新增 `sys_status_change_log` 只读后端接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持分页、详情、导出，以及业务类型、业务 ID、状态、变更人、时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续审批记录 |
+| 2026-07-09 | zengjingye | 操作日志管理 | 新增 `sys_operation_log` 只读后端接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持分页、详情、导出，以及用户、操作类型、模块、业务 ID、时间范围筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续状态变更日志 |
+| 2026-07-09 | zengjingye | 附件文件管理 | 新增 `sys_file` 上传、下载、通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；复用现有文件工具并补充通用上传方法 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续操作日志 |
+| 2026-07-09 | zengjingye | 系统参数管理 | 新增 `sys_system_param` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持参数键/名称关键字和模块编码筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续附件文件 |
+| 2026-07-09 | zengjingye | 字典数据管理 | 新增 `sys_dict_data` 后端通用 CRUD、按字典类型查询和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续系统参数 |
+| 2026-07-09 | zengjingye | 字典类型管理 | 新增 `sys_dict_type` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持字典类型编码/名称关键字和状态筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典数据 |
+| 2026-07-09 | zengjingye | 用户和菜单管理 | 将早期 `UserController` / `UserService` / `UserServiceImpl` 收敛为接口文档要求的 `SysUserController` / `SysUserService` / `SysUserServiceImpl`；保留 `/api/sys/user` 路径，补充分页、软删除、重置密码、分配角色接口；新增 `sys_menu` 后端 CRUD、菜单树和导出接口 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典类型 |
+| 2026-07-09 | zengjingye | 班次管理 | 新增 `org_shift` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续字典类型 |
+| 2026-07-09 | zengjingye | 班组成员管理 | 新增 `org_team_member` 后端通用 CRUD、按班组查询成员接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；查询默认过滤 `deleted_flag = 0`，删除为软删除 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班次管理 |
+| 2026-07-09 | AnHC-00 | 库位管理 | 新增 `wms_location` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持库位编码/名称搜索、仓库筛选、库位类型筛选、状态筛选 | Maven 测试通过 | C 继续仓储其他模块（库存、出入库等） |
+| 2026-07-09 | AnHC-00 | 仓库管理 | 新增 `wms_warehouse` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持仓库编码/名称搜索、仓库类型筛选、状态筛选 | Maven 测试通过 | C 继续库位管理模块 |
+| 2026-07-09 | AnHC-00 | 生产工单 | 新增 `mfg_work_order` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持工单编号搜索、状态筛选、生产计划筛选、产品筛选 | Maven 测试通过 | C 继续仓储模块或其他生产模块 |
+| 2026-07-09 | zengjingye | 班组管理 | 新增 `org_team` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持班组编码/名称、部门、班组长筛选；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班组成员管理 |
+| 2026-07-09 | zengjingye | 员工管理 | 新增 `org_employee` 后端通用 CRUD 和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；支持工号/姓名/电话关键字、部门、状态筛选 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续班组管理 |
+| 2026-07-09 | zengjingye | 部门管理 | 新增 `org_department` 后端通用 CRUD、部门树和导出接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；因表结构无 `status` 字段，接口不按 status 过滤 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续员工管理 |
+| 2026-07-09 | zengjingye | 生产计划 | 新增 `mfg_production_plan` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持计划编号搜索、状态筛选、生产订单筛选、产线筛选 | Maven 测试通过 | C 继续生产工单或仓储模块 |
+| 2026-07-09 | zengjingye | 角色菜单关联 | 新增 `sys_role_menu` 后端通用 CRUD、按角色查询菜单关联接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；ServiceImpl 显式调用 `baseMapper`，查询默认过滤 `deleted_flag = 0`，删除为软删除 | Maven test 通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续组织基础模块 |
+| 2026-07-09 | zengjingye | 用户角色关联 | 新增 `sys_user_role` 后端通用 CRUD、按用户查询角色关联接口，补齐 Controller / Service / ServiceImpl / Mapper / XML；ServiceImpl 显式调用 `baseMapper`，查询默认过滤 `deleted_flag = 0`，删除为软删除 | 已使用 JDK 21 和本机 MySQL 环境变量运行 Maven test，通过：Tests run: 1, Failures: 0, Errors: 0 | 下一步继续 `sys_role_menu` |
+| 2026-07-09 | AnHC-00 | 生产订单 | 新增 `mfg_production_order` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持订单编号搜索、状态筛选、客户筛选、产品筛选 | Maven 测试通过 | C 继续生产计划或生产工单模块 |
+| 2026-07-09 | AnHC-00 | 设备台账 | 新增 `eam_equipment` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持设备编码/名称搜索、状态筛选、分类筛选 | Maven 测试通过 | C 继续生产订单模块 |
+| 2026-07-09 | AnHC-00 | 设备分类 | 新增 `eam_equipment_category` 后端通用管理接口，包含分页、详情、新增、修改、软删除、树形结构查询、导出；支持分类编码/名称搜索、状态筛选 | Maven 测试通过 | C 继续设备台账模块 |
+| 2026-07-09 | AnHC-00 | 质检项目 | 新增 `qms_inspection_item` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出；支持项目编码/名称搜索、检验类型筛选 | Maven 测试通过 | C 继续设备分类或质检标准模块 |
+| 2026-07-09 | han139242 | 工位工序 | 新增 `factory_station_operation` 后端通用管理接口，包含分页、详情、新增、修改、软删除、按工位查询可执行工序、导出和 Mapper XML | Maven 测试通过 | B 分工后端模块已完成，等待联调或补接口细节 |
+| 2026-07-09 | han139242 | 工位 | 新增 `factory_station` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工位工序模块 |
+| 2026-07-09 | han139242 | 产线 | 新增 `factory_line` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工位模块 |
+| 2026-07-09 | han139242 | 车间 | 新增 `factory_workshop` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续产线模块 |
+| 2026-07-09 | han139242 | 作业指导书 | 新增 `process_work_instruction` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续车间模块 |
+| 2026-07-09 | han139242 | 工艺参数 | 新增 `process_parameter` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续作业指导书模块 |
+| 2026-07-09 | han139242 | 工艺路线明细 | 新增 `process_route_item` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工艺参数模块 |
+| 2026-07-09 | han139242 | 工艺路线 | 新增 `process_route` 主表后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML；路线明细按文档拆到下一个模块单独实现 | Maven 测试通过 | B 继续工艺路线明细模块 |
+| 2026-07-09 | han139242 | 工序 | 新增 `process_operation` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工艺路线模块 |
+| 2026-07-09 | han139242 | BOM 明细 | 新增 `mdm_bom_item` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续工序模块 |
+| 2026-07-09 | han139242 | BOM | 新增 `mdm_bom` 主表后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML；BOM 明细按文档拆到下一个模块单独实现 | Maven 测试通过 | B 继续 BOM 明细模块 |
+| 2026-07-09 | han139242 | 产品 | 新增 `mdm_product` 后端管理接口，按文档支持产品编码、名称、状态分页过滤，并包含详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续 BOM 或 BOM 明细模块 |
+| 2026-07-09 | han139242 | 物料 | 新增 `mdm_material` 后端管理接口，按文档支持物料编码、名称、分类、状态分页过滤，并包含详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续产品或 BOM 模块 |
+| 2026-07-09 | han139242 | 物料分类 | 新增 `mdm_material_category` 后端管理接口，包含分页、树形查询、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续物料或产品模块 |
+| 2026-07-09 | han139242 | 客户 | 新增 `mdm_customer` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续物料分类或物料模块 |
+| 2026-07-09 | han139242 | 供应商 | 新增 `mdm_supplier` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续客户或物料分类模块 |
+| 2026-07-09 | han139242 | 计量单位 | 新增 `mdm_unit` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | B 继续供应商或客户模块 |
+| 2026-07-09 | han139242 | 后端协作分工 | 新增 Markdown 版 A/B/C 后端分工 AI 提示词，补充分层风格、并行冲突处理、单模块流程和群内交接格式 | 文档入口和 Markdown 标题已检查 | 群内按 A/B/C 认领后每次只让 AI 做一个模块 |
+| 2026-07-09 | han139242 | 角色管理 | 将 `SysRoleServiceImpl` 的通用 CRUD 调整为显式 `baseMapper` 调用，并同步分层手册说明 | Maven 测试通过 | 后续普通模块优先使用更直观的 `baseMapper` 风格 |
+| 2026-07-09 | han139242 | 后端分层理解 | 新增后端分层理解手册，说明 `SysRole` 模块写法、Mapper 为空原因、Service 业务边界和答辩说明 | Maven 测试通过，文档入口已检查 | 后续成员按手册理解普通 CRUD 和复杂业务分层 |
+| 2026-07-09 | han139242 | 角色管理 | 调整 `sys_role` 分层：Controller 只处理请求返回，查询、默认值、软删除等规则下沉到 Service | Maven 测试通过 | 后续模块按此分层模板继续实现 |
+| 2026-07-09 | han139242 | 角色管理 | 新增 `sys_role` 后端通用管理接口，包含分页、详情、新增、修改、软删除、导出和 Mapper XML | Maven 测试通过 | 继续补角色菜单分配或前端角色管理页面 |
+| 2026-07-09 | han139242 | 文档目录 | 将设计、数据库、接口和 PDF 统一整理到 `相关文档/`，并同步 README、协作文档和后端约束里的文档路径 | 已检查新目录文件和链接引用 | 后续统一从 `相关文档/` 查设计资料 |
+| 2026-07-09 | han139242 | AI 开发规范 | 新增 `AGENTS.md`、Copilot 指令和 12 个 MES 专用 skills，覆盖项目进入、后端、数据库、前端、联调、调试、验证、审查和进度更新 | 12 个 skill 已通过结构校验 | 后续开发按任务读取对应 skill |
+| 2026-07-09 | han139242 | 协作规范 | 新增 Git 提交提醒钩子，提交时检查是否同步更新 `COLLABORATION.md` | 已加入 `.githooks/pre-commit` 和安装脚本 | 成员拉取后执行一次 hooks 配置 |
+| 2026-07-09 | han139242 | 协作规范 | 新增三人通用协同开发说明，补充 README 文档入口 | 已检查 Markdown 内容和链接路径 | 后续每次开发同步更新进度 |
+| 2026-07-09 | han139242 | 项目基线 | 同步后端基线、数据库脚本、接口文档，修复前端构建入口 | 后端测试通过，前端构建通过 | 开始登录和用户管理联调 |
 
 ## 5. 每次开发的最小流程
 
