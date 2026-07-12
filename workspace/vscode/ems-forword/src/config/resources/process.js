@@ -7,7 +7,7 @@ export default [
     overrides: {
       operationCode: { required: true }, operationName: { required: true },
       operationType: { type: 'select', options: values([['PRODUCTION', '生产', 'primary'], ['INSPECTION', '检验', 'success'], ['PACKAGING', '包装', 'warning']]) },
-      standardTime: { type: 'datetime' }, status: { type: 'select', options: optionSets.enable }, createdTime: { form: false, width: 170 }
+      standardTime: { label: '标准工时（分钟/单位）', type: 'number', min: 0, precision: 2, step: 0.1 }, status: { type: 'select', options: optionSets.enable }, createdTime: { form: false, width: 170 }
     },
     relations: [{ key: 'parameters', title: '工艺参数', resource: 'process-parameter', parentField: 'operationId' }]
   }),
@@ -25,7 +25,7 @@ export default [
   defineResource({
     key: 'process-route-item', domain: 'process', route: 'process/route-items', title: '路线工序明细', baseUrl: '/api/process/route-item', idField: 'routeItemId', menu: false,
     fields: ['routeId', 'operationId', 'sequenceNo', 'standardTime', 'qcRequired', 'remark'], filters: ['routeId', 'operationId'],
-    overrides: { routeId: { required: true }, operationId: { required: true }, sequenceNo: { required: true, type: 'number', min: 1 }, standardTime: { type: 'datetime' }, qcRequired: { type: 'select', options: optionSets.yesNo, defaultValue: 0 } }
+    overrides: { routeId: { required: true }, operationId: { required: true }, sequenceNo: { required: true, type: 'number', min: 1 }, standardTime: { label: '路线工时（分钟/单位）', type: 'number', min: 0, precision: 2, step: 0.1 }, qcRequired: { type: 'select', options: optionSets.yesNo, defaultValue: 0 } }
   }),
   defineResource({
     key: 'process-work-instruction', domain: 'process', route: 'process/instructions', title: '作业指导书', icon: 'clipboard', baseUrl: '/api/process/work-instruction', idField: 'instructionId',
