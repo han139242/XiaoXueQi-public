@@ -10,9 +10,12 @@ public enum ResultCode {
     NOT_FOUND(404, "资源不存在"),
     USER_AND_PASSWORD_ERROR(1001, "用户名或密码错误"),
     
-    // 新增JWT相关状态码
+    // 认证相关状态码
     TOKEN_ERROR(1002, "令牌已过期或者失效"),
-    BUSINESS_ERROR(1003, "业务处理异常");
+    BUSINESS_ERROR(1003, "业务处理异常"),
+    USER_DISABLED(1004, "账号已停用，请联系管理员"),
+    USER_LOCKED(1005, "账号已锁定，请联系管理员"),
+    USER_STATUS_ERROR(1006, "账号状态异常，请联系管理员");
 
     private final int code;
     private final String message;

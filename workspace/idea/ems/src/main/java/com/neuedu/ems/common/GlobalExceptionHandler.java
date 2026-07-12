@@ -2,6 +2,7 @@ package com.neuedu.ems.common;
 
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.exception.AiServiceException;
+import com.neuedu.ems.exception.AccountStatusException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,15 @@ import java.util.Map;
 @RestControllerAdvice  // 等同于 @ControllerAdvice + @ResponseBody
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /**
+     * 返回明确的账号停用、锁定或状态异常提示。
+     */
+    @ExceptionHandler(AccountStatusException.class)
+    public ResultData handleAccountStatusException(AccountStatusException e) {
+        log.info("账号登录受限：{}", e.getMessage());
+        return ResultData.fail(e.getResultCode());
+    }
 
     /**
      * 处理自定义业务异常（优先级最高）
