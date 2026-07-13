@@ -22,19 +22,30 @@ function previewOptions(config) {
   })
 }
 
+export function canUseResourceMockFallback() {
+  return import.meta.env.DEV && import.meta.env.VITE_RESOURCE_MOCK_FALLBACK !== 'false'
+}
+
 export async function loadReferenceOptions(resourceKey, previewMode = false) {
-  const cacheKey = `${previewMode ? 'preview' : 'live'}:${resourceKey}`
+  const mockFallback = canUseResourceMockFallback()
+  const cacheKey = `${previewMode ? 'preview' : mockFallback ? 'mock-fallback' : 'live'}:${resourceKey}`
   if (cache.has(cacheKey)) return cache.get(cacheKey)
   const config = getResourceConfig(resourceKey)
   if (!config) return []
   const promise = (async () => {
     if (previewMode) return previewOptions(config)
-    const result = config.treeEndpoint
-      ? await getResourceList(config.treeEndpoint)
-      : await getResourcePage(config.baseUrl, { current: 1, size: 200 })
-    const data = result?.data
-    const records = Array.isArray(data) ? flatten(data) : (data?.records || [])
-    return records.map((row) => ({ value: row[config.idField], label: labelFor(config, row), row }))
+    try {
+      const result = config.treeEndpoint
+        ? await getResourceList(config.treeEndpoint)
+        : await getResourcePage(config.baseUrl, { current: 1, size: 200 })
+      const data = result?.data
+      const records = Array.isArray(data) ? flatten(data) : (data?.records || [])
+      const options = records.map((row) => ({ value: row[config.idField], label: labelFor(config, row), row }))
+      return options.length || !mockFallback ? options : previewOptions(config)
+    } catch (error) {
+      if (mockFallback) return previewOptions(config)
+      throw error
+    }
   })()
   cache.set(cacheKey, promise)
   try {
@@ -48,6 +59,7 @@ export async function loadReferenceOptions(resourceKey, previewMode = false) {
 export function clearReferenceOptions(resourceKey) {
   cache.delete(`live:${resourceKey}`)
   cache.delete(`preview:${resourceKey}`)
+  cache.delete(`mock-fallback:${resourceKey}`)
 }
 
 function previewValue(field, index, config) {

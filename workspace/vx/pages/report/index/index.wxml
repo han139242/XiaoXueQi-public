@@ -1,8 +1,14 @@
 <view class="filter-shell">
-  <view class="filter-search"><view class="filter-search__input"><app-icon name="search" size="32" muted></app-icon><input value="{{keyword}}" placeholder="搜索报工编号" confirm-type="search" bindinput="handleKeyword" bindconfirm="search" /></view><button class="icon-button" bindtap="search" aria-label="搜索"><app-icon name="search" size="34"></app-icon></button></view>
-  <view class="report-filter-row">
-    <picker range="{{auditOptions}}" range-key="label" value="{{auditIndex}}" bindchange="handleAudit"><view class="filter-chip {{auditStatus ? 'filter-chip--active' : ''}}"><app-icon name="shield-check" size="28"></app-icon><text class="filter-chip__label">{{auditOptions[auditIndex].label}}</text><app-icon name="chevron-down" size="24" muted></app-icon></view></picker>
-    <label wx:if="{{employeeId}}" class="mine-filter"><switch checked="{{myOnly}}" color="#2d8cf0" bindchange="toggleMyOnly" /><text>仅看我的报工</text></label>
+  <view class="reference-filter-bar">
+    <view class="reference-filter {{auditStatus ? 'reference-filter--active' : ''}}" data-field="audit" bindtap="toggleDropdown"><text>状态</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="reference-filter {{sortIndex ? 'reference-filter--active' : ''}}" data-field="sort" bindtap="toggleDropdown"><text>排序</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="reference-filter {{employeeId && myOnly ? 'reference-filter--active' : ''}}" data-field="scope" bindtap="toggleDropdown"><text>报工范围</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+  </view>
+  <view wx:if="{{activeDropdown}}" class="reference-dropdown">
+    <view wx:for="{{dropdownOptions}}" wx:key="index" class="dropdown-option {{item.selected ? 'dropdown-option--active' : ''}}" data-field="{{activeDropdown}}" data-index="{{item.index}}" bindtap="selectDropdown">
+      <text>{{item.label}}</text>
+      <app-icon wx:if="{{item.selected}}" name="circle-check-big" size="30"></app-icon>
+    </view>
   </view>
 </view>
 <view class="page list-page">
@@ -11,10 +17,9 @@
   <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无报工记录"></empty-state>
   <view wx:else class="record-list">
     <view wx:for="{{list}}" wx:key="reportId" class="record-card" data-id="{{item.reportId}}" bindtap="openDetail">
-      <view class="record-header"><view class="record-identity"><view class="record-icon"><app-icon name="file-text" size="36"></app-icon></view><view><text class="record-number" selectable>{{item.reportNo || ('报工 ID ' + item.reportId)}}</text><text class="record-subline">任务 ID {{item.taskId}}</text></view></view><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
-      <view class="report-meta"><view><app-icon name="user-round" size="27" muted></app-icon><text>{{item.operatorLabel}}</text></view><view><app-icon name="map-pin" size="27" muted></app-icon><text>{{item.stationLabel}}</text></view></view>
-      <view class="stat-grid"><view class="stat-cell"><text class="stat-value">{{item.qualifiedQuantity == null ? '-' : item.qualifiedQuantity}}</text><text class="stat-label">合格数量</text></view><view class="stat-cell"><text class="stat-value stat-value--danger">{{item.defectQuantity == null ? '-' : item.defectQuantity}}</text><text class="stat-label">不良数量</text></view></view>
-      <view class="record-footer"><view class="record-time"><app-icon name="clock-3" size="25" muted></app-icon><text>{{item.reportTimeText}}</text></view><view class="card-link"><text>查看详情</text><app-icon name="chevron-right" size="25"></app-icon></view></view>
+      <view class="record-header"><text class="record-number" selectable>{{item.reportNo || item.reportTimeText || ('报工 ID ' + item.reportId)}}</text><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
+      <view class="report-fields"><view><text>任务编号</text><text>{{item.taskId}}</text></view><view><text>工位名称</text><text>{{item.stationLabel}}</text></view><view><text>操作人员</text><text>{{item.operatorLabel}}</text></view><view><text>报工数量</text><text>合格 {{item.qualifiedQuantity == null ? '-' : item.qualifiedQuantity}} / 不良 {{item.defectQuantity == null ? '-' : item.defectQuantity}}</text></view></view>
+      <view class="record-footer"><text>查看详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view>
     </view>
     <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view><view wx:elif="{{loading}}" class="list-footer">加载中</view><view wx:elif="{{finished}}" class="list-footer">已加载全部</view>
   </view>

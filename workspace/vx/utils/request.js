@@ -1,5 +1,6 @@
 const env = require('../config/env')
 const auth = require('./auth')
+const mockData = require('../mock/data')
 
 let redirectingToLogin = false
 
@@ -34,6 +35,13 @@ function request(options) {
   }, config.header || {})
 
   if (token) header.Authorization = 'Bearer ' + token
+
+  if (env.useMockData()) {
+    return mockData.handleRequest(config).catch((error) => {
+      if (!config.silent) wx.showToast({ title: error.message || '本地测试数据请求失败', icon: 'none' })
+      return Promise.reject(error)
+    })
+  }
 
   let baseUrl
   try {

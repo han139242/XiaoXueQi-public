@@ -13,6 +13,12 @@ const statusOptions = [
   { value: 'CLOSED', label: '已关闭' }
 ]
 
+const sortOptions = [
+  { value: 'default', label: '排序' },
+  { value: 'newest', label: '最新创建' },
+  { value: 'oldest', label: '最早创建' }
+]
+
 Page({
   data: {
     list: [],
@@ -23,16 +29,16 @@ Page({
     loading: false,
     finished: false,
     error: '',
-    filters: { keyword: '', status: '', workOrderId: '', operationId: '', stationId: '' },
+    filters: { keyword: '', status: '', operationId: '' },
     statusOptions,
     statusIndex: 0,
-    workOrderOptions: [{ id: '', label: '全部工单' }],
+    sortOptions,
+    sortIndex: 0,
     operationOptions: [{ id: '', label: '全部工序' }],
-    stationOptions: [{ id: '', label: '全部工位' }],
-    workOrderIndex: 0,
     operationIndex: 0,
-    stationIndex: 0,
-    lookups: null
+    lookups: null,
+    activeDropdown: '',
+    dropdownOptions: []
   },
 
   onLoad() {
@@ -70,13 +76,74 @@ Page({
     this.loadPage(true)
   },
 
+  handleSort(event) {
+    const sortIndex = Number(event.detail.value)
+    this.setData({ sortIndex, list: this.sortRecords(this.data.list, sortOptions[sortIndex].value) })
+  },
+
+  toggleDropdown(event) {
+    const field = event.currentTarget.dataset.field
+    if (this.data.activeDropdown === field) {
+      this.closeDropdown()
+      return
+    }
+    this.setData({
+      activeDropdown: field,
+      dropdownOptions: this.buildDropdownOptions(field)
+    })
+  },
+
+  closeDropdown() {
+    this.setData({ activeDropdown: '', dropdownOptions: [] })
+  },
+
+  buildDropdownOptions(field) {
+    const indexMap = {
+      status: 'statusIndex',
+      sort: 'sortIndex',
+      operation: 'operationIndex'
+    }
+    const optionsMap = {
+      status: this.data.statusOptions,
+      sort: this.data.sortOptions,
+      operation: this.data.operationOptions
+    }
+    const selectedIndex = this.data[indexMap[field]]
+    return (optionsMap[field] || []).map((item, index) => ({
+      ...item,
+      index,
+      selected: index === selectedIndex
+    }))
+  },
+
+  selectDropdown(event) {
+    const field = event.currentTarget.dataset.field
+    const index = Number(event.currentTarget.dataset.index)
+    this.closeDropdown()
+    if (field === 'status') {
+      this.setData({ statusIndex: index, 'filters.status': statusOptions[index].value })
+      this.loadPage(true)
+      return
+    }
+    if (field === 'sort') {
+      this.setData({ sortIndex: index, list: this.sortRecords(this.data.list, sortOptions[index].value) })
+      return
+    }
+    if (field === 'operation') {
+      const option = this.data.operationOptions[index]
+      this.setData({ operationIndex: index, 'filters.operationId': option.id })
+      this.loadPage(true)
+    }
+  },
+
   clearFilters() {
     this.setData({
-      filters: { keyword: '', status: '', workOrderId: '', operationId: '', stationId: '' },
+      filters: { keyword: '', status: '', operationId: '' },
       statusIndex: 0,
-      workOrderIndex: 0,
       operationIndex: 0,
-      stationIndex: 0
+      sortIndex: 0,
+      activeDropdown: '',
+      dropdownOptions: []
     })
     this.loadPage(true)
   },
@@ -85,13 +152,20 @@ Page({
     wx.navigateTo({ url: '/pages/task/detail/index?id=' + encodeURIComponent(event.currentTarget.dataset.id) })
   },
 
+  sortRecords(records, direction) {
+    if (direction === 'default') return records
+    return records.slice().sort((left, right) => {
+      const a = new Date(left.createdTime || 0).getTime()
+      const b = new Date(right.createdTime || 0).getTime()
+      return direction === 'oldest' ? a - b : b - a
+    })
+  },
+
   async ensureLookups() {
     const lookups = await lookupApi.load(['workOrder', 'operation', 'station'])
     this.setData({
       lookups,
-      workOrderOptions: [{ id: '', label: '全部工单' }].concat(lookups.workOrder.items),
-      operationOptions: [{ id: '', label: '全部工序' }].concat(lookups.operation.items),
-      stationOptions: [{ id: '', label: '全部工位' }].concat(lookups.station.items)
+      operationOptions: [{ id: '', label: '全部工序' }].concat(lookups.operation.items)
     })
     return lookups
   },
@@ -115,7 +189,7 @@ Page({
       }))
       const pages = Number(page && page.pages) || 0
       this.setData({
-        list: reset ? decorated : this.data.list.concat(decorated),
+        list: this.sortRecords(reset ? decorated : this.data.list.concat(decorated), sortOptions[this.data.sortIndex].value),
         current: current + 1,
         total: Number(page && page.total) || 0,
         pages,

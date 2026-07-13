@@ -12,6 +12,17 @@ const auditOptions = [
   { value: 'REJECTED', label: '已驳回' }
 ]
 
+const sortOptions = [
+  { value: 'default', label: '排序' },
+  { value: 'newest', label: '最新报工' },
+  { value: 'oldest', label: '最早报工' }
+]
+
+const scopeOptions = [
+  { value: 'all', label: '全部报工' },
+  { value: 'mine', label: '我的报工' }
+]
+
 Page({
   data: {
     list: [],
@@ -25,15 +36,21 @@ Page({
     auditStatus: '',
     auditOptions,
     auditIndex: 0,
+    sortOptions,
+    sortIndex: 0,
+    scopeOptions,
+    scopeIndex: 0,
     employeeId: null,
     myOnly: false,
-    lookups: null
+    lookups: null,
+    activeDropdown: '',
+    dropdownOptions: []
   },
 
   onLoad() {
     const user = auth.getUser()
     const employeeId = user && user.employeeId
-    this.setData({ employeeId: employeeId || null, myOnly: Boolean(employeeId) })
+    this.setData({ employeeId: employeeId || null, myOnly: Boolean(employeeId), scopeIndex: employeeId ? 1 : 0 })
     this.loadPage(true)
   },
 
@@ -59,9 +76,73 @@ Page({
     this.loadPage(true)
   },
 
-  toggleMyOnly(event) {
-    this.setData({ myOnly: event.detail.value })
+  toggleMyOnly() {
+    if (!this.data.employeeId) return
+    this.setData({ myOnly: !this.data.myOnly })
     this.loadPage(true)
+  },
+
+  handleSort(event) {
+    const sortIndex = Number(event.detail.value)
+    this.setData({ sortIndex, list: this.sortRecords(this.data.list, sortOptions[sortIndex].value) })
+  },
+
+  toggleDropdown(event) {
+    const field = event.currentTarget.dataset.field
+    if (this.data.activeDropdown === field) {
+      this.closeDropdown()
+      return
+    }
+    this.setData({
+      activeDropdown: field,
+      dropdownOptions: this.buildDropdownOptions(field)
+    })
+  },
+
+  closeDropdown() {
+    this.setData({ activeDropdown: '', dropdownOptions: [] })
+  },
+
+  buildDropdownOptions(field) {
+    const indexMap = {
+      audit: 'auditIndex',
+      sort: 'sortIndex',
+      scope: 'scopeIndex'
+    }
+    const optionsMap = {
+      audit: this.data.auditOptions,
+      sort: this.data.sortOptions,
+      scope: this.data.scopeOptions
+    }
+    const selectedIndex = this.data[indexMap[field]]
+    return (optionsMap[field] || []).map((item, index) => ({
+      ...item,
+      index,
+      selected: index === selectedIndex
+    }))
+  },
+
+  selectDropdown(event) {
+    const field = event.currentTarget.dataset.field
+    const index = Number(event.currentTarget.dataset.index)
+    this.closeDropdown()
+    if (field === 'audit') {
+      this.setData({ auditIndex: index, auditStatus: auditOptions[index].value })
+      this.loadPage(true)
+      return
+    }
+    if (field === 'sort') {
+      this.setData({ sortIndex: index, list: this.sortRecords(this.data.list, sortOptions[index].value) })
+      return
+    }
+    if (field === 'scope') {
+      if (scopeOptions[index].value === 'mine' && !this.data.employeeId) {
+        wx.showToast({ title: '当前账号未关联员工', icon: 'none' })
+        return
+      }
+      this.setData({ scopeIndex: index, myOnly: scopeOptions[index].value === 'mine' })
+      this.loadPage(true)
+    }
   },
 
   search() {
@@ -70,6 +151,15 @@ Page({
 
   openDetail(event) {
     wx.navigateTo({ url: '/pages/report/detail/index?id=' + encodeURIComponent(event.currentTarget.dataset.id) })
+  },
+
+  sortRecords(records, direction) {
+    if (direction === 'default') return records
+    return records.slice().sort((left, right) => {
+      const a = new Date(left.reportTime || 0).getTime()
+      const b = new Date(right.reportTime || 0).getTime()
+      return direction === 'oldest' ? a - b : b - a
+    })
   },
 
   async loadPage(reset) {
@@ -98,7 +188,7 @@ Page({
       }))
       const pages = Number(page && page.pages) || 0
       this.setData({
-        list: reset ? decorated : this.data.list.concat(decorated),
+        list: this.sortRecords(reset ? decorated : this.data.list.concat(decorated), sortOptions[this.data.sortIndex].value),
         current: current + 1,
         pages,
         finished: pages === 0 || current >= pages,

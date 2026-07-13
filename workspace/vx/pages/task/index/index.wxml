@@ -1,17 +1,15 @@
 <view class="filter-shell">
-  <view class="filter-search">
-    <view class="filter-search__input"><app-icon name="search" size="32" muted></app-icon><input value="{{filters.keyword}}" placeholder="搜索任务编号" confirm-type="search" bindinput="handleKeyword" bindconfirm="handleSearch" /></view>
-    <button class="icon-button" bindtap="handleSearch" aria-label="搜索"><app-icon name="search" size="34"></app-icon></button>
+  <view class="reference-filter-bar">
+    <view class="reference-filter {{filters.status ? 'reference-filter--active' : ''}}" data-field="status" bindtap="toggleDropdown"><text>状态</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="reference-filter {{sortIndex ? 'reference-filter--active' : ''}}" data-field="sort" bindtap="toggleDropdown"><text>排序</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="reference-filter {{filters.operationId ? 'reference-filter--active' : ''}}" data-field="operation" bindtap="toggleDropdown"><text>选择工序</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
   </view>
-  <scroll-view class="filter-options-scroll" scroll-x enhanced show-scrollbar="false">
-    <view class="filter-options">
-      <picker range="{{statusOptions}}" range-key="label" value="{{statusIndex}}" data-field="status" bindchange="handlePicker"><view class="filter-chip {{filters.status ? 'filter-chip--active' : ''}}"><app-icon name="sliders-horizontal" size="28"></app-icon><text class="filter-chip__label">{{statusOptions[statusIndex].label}}</text><app-icon name="chevron-down" size="24" muted></app-icon></view></picker>
-      <picker range="{{workOrderOptions}}" range-key="label" value="{{workOrderIndex}}" data-field="workOrder" bindchange="handlePicker"><view class="filter-chip {{filters.workOrderId ? 'filter-chip--active' : ''}}"><app-icon name="clipboard-list" size="28"></app-icon><text class="filter-chip__label">{{workOrderOptions[workOrderIndex].label}}</text><app-icon name="chevron-down" size="24" muted></app-icon></view></picker>
-      <picker range="{{operationOptions}}" range-key="label" value="{{operationIndex}}" data-field="operation" bindchange="handlePicker"><view class="filter-chip {{filters.operationId ? 'filter-chip--active' : ''}}"><app-icon name="list-checks" size="28"></app-icon><text class="filter-chip__label">{{operationOptions[operationIndex].label}}</text><app-icon name="chevron-down" size="24" muted></app-icon></view></picker>
-      <picker range="{{stationOptions}}" range-key="label" value="{{stationIndex}}" data-field="station" bindchange="handlePicker"><view class="filter-chip {{filters.stationId ? 'filter-chip--active' : ''}}"><app-icon name="map-pin" size="28"></app-icon><text class="filter-chip__label">{{stationOptions[stationIndex].label}}</text><app-icon name="chevron-down" size="24" muted></app-icon></view></picker>
-      <button class="filter-reset" bindtap="clearFilters" aria-label="清除筛选"><app-icon name="trash-2" size="28" muted></app-icon></button>
+  <view wx:if="{{activeDropdown}}" class="reference-dropdown">
+    <view wx:for="{{dropdownOptions}}" wx:key="index" class="dropdown-option {{item.selected ? 'dropdown-option--active' : ''}}" data-field="{{activeDropdown}}" data-index="{{item.index}}" bindtap="selectDropdown">
+      <text>{{item.label}}</text>
+      <app-icon wx:if="{{item.selected}}" name="circle-check-big" size="30"></app-icon>
     </view>
-  </scroll-view>
+  </view>
 </view>
 
 <view class="page list-page">
@@ -20,10 +18,9 @@
   <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无任务" description="当前筛选条件下没有记录"></empty-state>
   <view wx:else class="record-list">
     <view wx:for="{{list}}" wx:key="taskId" class="record-card" data-id="{{item.taskId}}" bindtap="openDetail">
-      <view class="record-header"><view class="record-identity"><view class="record-icon"><app-icon name="list-checks" size="36"></app-icon></view><view><text class="record-number" selectable>{{item.taskNo || ('任务 ID ' + item.taskId)}}</text><text class="record-subline">{{item.operationLabel}}</text></view></view><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
-      <view class="compact-fields"><view class="compact-field"><app-icon name="clipboard-list" size="27" muted></app-icon><text>{{item.workOrderLabel}}</text></view><view class="compact-field"><app-icon name="map-pin" size="27" muted></app-icon><text>{{item.stationLabel}}</text></view></view>
-      <view class="stat-grid"><view class="stat-cell"><text class="stat-value">{{item.plannedQuantity == null ? '-' : item.plannedQuantity}}</text><text class="stat-label">计划数量</text></view><view class="stat-cell"><text class="stat-value">{{item.completedQuantity == null ? '-' : item.completedQuantity}}</text><text class="stat-label">完成数量</text></view></view>
-      <view class="record-footer"><view class="record-time"><app-icon name="clock-3" size="25" muted></app-icon><text>{{item.createdTimeText}}</text></view><view class="card-link"><text>执行详情</text><app-icon name="chevron-right" size="25"></app-icon></view></view>
+      <view class="record-header"><text class="record-number" selectable>{{item.taskNo || ('任务 ID ' + item.taskId)}}｜{{item.operationLabel}}</text><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
+      <view class="task-fields"><view><text>工单编号</text><text>{{item.workOrderLabel}}</text></view><view><text>计划数量</text><text>{{item.plannedQuantity == null ? '-' : item.plannedQuantity}}</text></view><view><text>完成数量</text><text>{{item.completedQuantity == null ? '-' : item.completedQuantity}}</text></view><view><text>工位</text><text>{{item.stationLabel}}</text></view></view>
+      <view class="record-footer"><text>执行详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view>
     </view>
     <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>
     <view wx:elif="{{loading}}" class="list-footer">加载中</view>

@@ -43,6 +43,9 @@
 }
 
 .scan-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 80rpx;
   height: 80rpx;
   margin: 0;
@@ -51,6 +54,7 @@
   background: #2d8cf0;
   border-radius: 8rpx;
   box-shadow: 0 8rpx 18rpx rgba(45, 140, 240, 0.2);
+  line-height: 1;
 }
 
 .metric-grid {
@@ -62,11 +66,11 @@
 .metric-item {
   min-height: 170rpx;
   padding: 22rpx;
-  background: #ffffff;
-  border: 1rpx solid #e2e8ee;
-  border-top: 5rpx solid #2d8cf0;
+  color: #ffffff;
+  background: #2db7f5;
+  border: 0;
   border-radius: 8rpx;
-  box-shadow: 0 6rpx 18rpx rgba(32, 42, 54, 0.045);
+  box-shadow: none;
 }
 
 .metric-item--wide {
@@ -74,10 +78,10 @@
   min-height: 150rpx;
 }
 
-.metric-item--data { border-top-color: #2db7f5; }
-.metric-item--success { border-top-color: #2f8b70; }
-.metric-item--warning { border-top-color: #b77912; }
-.metric-item--danger { border-top-color: #bf433e; }
+.metric-item--data { background: #2db7f5; }
+.metric-item--success { background: #42ae82; }
+.metric-item--warning { background: #f7bc25; }
+.metric-item--danger { background: #f0647f; }
 
 .metric-top {
   display: flex;
@@ -91,7 +95,7 @@
   justify-content: center;
   width: 54rpx;
   height: 54rpx;
-  background: #eaf4fe;
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 8rpx;
 }
 
@@ -104,11 +108,11 @@
   margin-top: 14rpx;
   font-size: 46rpx;
   font-weight: 650;
-  color: #202a36;
+  color: #ffffff;
 }
 
 .metric-label {
-  color: #617080;
+  color: rgba(255, 255, 255, 0.88);
   font-size: 24rpx;
 }
 
@@ -126,7 +130,7 @@
   border-radius: 8rpx;
 }
 
-.action-grid button {
+.action-item {
   display: flex;
   flex-direction: column;
   align-items: center;

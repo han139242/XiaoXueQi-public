@@ -1,7 +1,6 @@
 const guard = require('../../../utils/guard')
 const authApi = require('../../../api/auth')
 const auth = require('../../../utils/auth')
-const env = require('../../../config/env')
 const format = require('../../../utils/format')
 
 Page({
@@ -9,25 +8,12 @@ Page({
     user: null,
     loading: true,
     error: '',
-    envVersion: 'develop',
-    baseUrl: ''
+    showAccount: false
   },
 
   onShow() {
     if (!guard.requireAuth()) return
-    this.refreshEnvironment()
     this.loadUser()
-  },
-
-  refreshEnvironment() {
-    const envVersion = env.getEnvVersion()
-    let baseUrl = ''
-    try {
-      baseUrl = env.getBaseUrl()
-    } catch (error) {
-      baseUrl = '未配置'
-    }
-    this.setData({ envVersion, baseUrl })
   },
 
   async loadUser() {
@@ -48,31 +34,36 @@ Page({
     }
   },
 
-  setBaseUrl() {
-    if (this.data.envVersion === 'release') return
-    wx.showModal({
-      title: '设置后端地址',
-      editable: true,
-      placeholderText: 'http://局域网地址:8088',
-      content: this.data.baseUrl === '未配置' ? '' : this.data.baseUrl,
-      success: (result) => {
-        if (!result.confirm) return
-        const value = String(result.content || '').trim()
-        if (value && !/^https?:\/\/[^\s]+$/i.test(value)) {
-          wx.showToast({ title: '请输入有效的 HTTP(S) 地址', icon: 'none' })
-          return
-        }
-        env.setDebugBaseUrl(value)
-        this.refreshEnvironment()
-        wx.showToast({ title: value ? '地址已更新' : '已恢复默认地址', icon: 'success' })
-      }
-    })
+  toggleAccount() {
+    this.setData({ showAccount: !this.data.showAccount })
   },
 
-  clearBusinessCache() {
-    const app = getApp()
-    app.globalData.lookups = {}
-    wx.showToast({ title: '业务缓存已清理', icon: 'success' })
+  showAbout() {
+    wx.showModal({ title: '关于 MES', content: '羽球智造 MES 为生产现场提供工单、任务与报工协同。', showCancel: false })
+  },
+
+  showHelp() {
+    wx.showModal({ title: '帮助中心', content: '可在工单、任务和报工页面查看生产执行信息；下拉页面可刷新数据。', showCancel: false })
+  },
+
+  showCompany() {
+    wx.showModal({ title: '关于我们', content: '羽球智造 MES，面向羽毛球制造现场的生产管理系统。', showCancel: false })
+  },
+
+  showPasswordHint() {
+    wx.showModal({ title: '修改密码', content: '请联系系统管理员通过 PC 管理端完成密码重置。', showCancel: false })
+  },
+
+  switchAccount() {
+    wx.showModal({
+      title: '切换登录',
+      content: '切换账号将退出当前会话，是否继续？',
+      success: (result) => {
+        if (!result.confirm) return
+        auth.clearAuth()
+        wx.reLaunch({ url: '/pages/login/index' })
+      }
+    })
   },
 
   logout() {

@@ -18,7 +18,7 @@ import {
   uploadResource
 } from '@/api/resource'
 import { getResourceConfig } from '@/config/resources'
-import { clearReferenceOptions, createPreviewRows, loadReferenceOptions } from '@/utils/resource-options'
+import { canUseResourceMockFallback, clearReferenceOptions, createPreviewRows, loadReferenceOptions } from '@/utils/resource-options'
 import { isFrameworkPreview } from '@/utils/auth'
 
 const props = defineProps({
@@ -29,12 +29,14 @@ const route = useRoute()
 const router = useRouter()
 const config = computed(() => getResourceConfig(props.resourceKey))
 const previewMode = isFrameworkPreview()
+const mockFallbackEnabled = canUseResourceMockFallback()
 const loading = ref(false)
 const loadError = ref('')
 const submitting = ref(false)
 const exporting = ref(false)
 const rows = ref([])
 const total = ref(0)
+const dataMode = ref(previewMode ? 'preview' : 'live')
 const filters = reactive({})
 const columnVisibility = reactive({})
 const pagination = reactive({ current: 1, size: 20 })
@@ -84,6 +86,12 @@ const traceEntries = computed(() => {
 const stateField = computed(() => {
   const priorities = ['auditStatus', 'stocktakeStatus', 'approvalStatus', 'qualityStatus', 'runningStatus', 'inspectionResult', 'status']
   return priorities.map((prop) => tableFields.value.find((item) => item.prop === prop && item.options?.length)).find(Boolean)
+})
+const localDataMode = computed(() => dataMode.value !== 'live')
+const dataSourceLabel = computed(() => {
+  if (dataMode.value === 'preview') return '开发预览'
+  if (dataMode.value === 'mock') return '本地测试数据'
+  return '实时接口'
 })
 const pagePulse = computed(() => {
   const metrics = [{ key: 'records', label: '当前结果', value: total.value, type: 'primary' }]
@@ -141,6 +149,20 @@ function formatMetric(value) {
 
 function cleanParams(source) {
   return Object.fromEntries(Object.entries(source).filter(([, value]) => value !== '' && value !== null && value !== undefined))
+}
+
+function applyLocalRows(mode = 'mock') {
+  dataMode.value = mode
+  const all = createPreviewRows(config.value, 12)
+  const filtered = all.filter((row) => config.value.filters.every((item) => {
+    const value = filters[item.prop]
+    if (value === '' || value === null || value === undefined) return true
+    if (item.prop === 'keyword') return Object.values(row).some((cell) => String(cell || '').toLowerCase().includes(String(value).toLowerCase()))
+    return String(row[item.prop] ?? '') === String(value) || String(row[item.prop] ?? '').includes(String(value))
+  }))
+  rows.value = filtered
+  total.value = filtered.length
+  loadError.value = ''
 }
 
 function flattenTree(items) {
@@ -205,17 +227,10 @@ async function loadReferences() {
 async function loadData() {
   loading.value = true
   loadError.value = ''
+  dataMode.value = previewMode ? 'preview' : 'live'
   try {
     if (previewMode) {
-      const all = createPreviewRows(config.value, 12)
-      const filtered = all.filter((row) => config.value.filters.every((item) => {
-        const value = filters[item.prop]
-        if (value === '' || value === null || value === undefined) return true
-        if (item.prop === 'keyword') return Object.values(row).some((cell) => String(cell || '').toLowerCase().includes(String(value).toLowerCase()))
-        return String(row[item.prop] ?? '') === String(value) || String(row[item.prop] ?? '').includes(String(value))
-      }))
-      rows.value = filtered
-      total.value = filtered.length
+      applyLocalRows('preview')
       return
     }
     const params = cleanParams({ current: pagination.current, size: pagination.size, ...filters })
@@ -232,7 +247,14 @@ async function loadData() {
       pagination.current = Number(data?.current || pagination.current)
       pagination.size = Number(data?.size || pagination.size)
     }
+    if (total.value === 0 && mockFallbackEnabled) {
+      applyLocalRows('mock')
+    }
   } catch (error) {
+    if (mockFallbackEnabled) {
+      applyLocalRows('mock')
+      return
+    }
     rows.value = []
     total.value = 0
     loadError.value = error?.displayMessage || error?.message || '数据加载失败'
@@ -262,14 +284,14 @@ async function openCreate() {
 }
 
 async function fetchRow(row) {
-  if (previewMode) return { ...row }
+  if (localDataMode.value) return { ...row }
   const result = await getResourceDetail(config.value.baseUrl, row[config.value.idField])
   return result?.data || { ...row }
 }
 
 async function loadChildren(row) {
   if (!config.value.fullChild) return
-  if (previewMode) {
+  if (localDataMode.value) {
     childRows.value = createPreviewRows(childConfig.value, 3).map((item) => ({ ...item, _clientId: crypto.randomUUID() }))
     return
   }
@@ -362,7 +384,7 @@ async function submitForm() {
   submitting.value = true
   try {
     const payload = submitPayload()
-    if (previewMode) {
+    if (localDataMode.value) {
       if (formMode.value === 'create') {
         rows.value.unshift({ ...payload, [config.value.idField]: Date.now() })
         total.value += 1
@@ -378,7 +400,7 @@ async function submitForm() {
     clearReferenceOptions(config.value.key)
     ElMessage.success(`${formMode.value === 'create' ? '新增' : '保存'}成功`)
     formOpen.value = false
-    if (!previewMode) await loadData()
+    if (!localDataMode.value) await loadData()
   } catch {
     // 请求层已经给出具体错误提示。
   } finally {
@@ -393,7 +415,7 @@ async function handleDelete(row) {
     return
   }
   try {
-    if (previewMode) {
+    if (localDataMode.value) {
       rows.value = rows.value.filter((item) => item[config.value.idField] !== row[config.value.idField])
       total.value = rows.value.length
     } else {
@@ -401,15 +423,15 @@ async function handleDelete(row) {
     }
     clearReferenceOptions(config.value.key)
     ElMessage.success('删除成功')
-    if (!previewMode) await loadData()
+    if (!localDataMode.value) await loadData()
   } catch {
     // 请求层已经给出具体错误提示。
   }
 }
 
 async function handleExport() {
-  if (previewMode) {
-    ElMessage.info('框架预览不生成真实导出文件')
+  if (localDataMode.value) {
+    ElMessage.info('本地测试数据不生成真实导出文件')
     return
   }
   exporting.value = true
@@ -456,7 +478,7 @@ function rowLockReason(row, action) {
 
 async function openAction(action, row = null) {
   if (action.kind === 'download') {
-    if (previewMode) return ElMessage.info('框架预览不下载真实文件')
+    if (localDataMode.value) return ElMessage.info('本地测试数据不下载真实文件')
     try {
       const response = await downloadResource(action.path(row))
       saveBlob(response, row.fileName || '附件下载')
@@ -468,7 +490,7 @@ async function openAction(action, row = null) {
   if (action.kind === 'trace') {
     try {
       traceTitle.value = action.label
-      traceData.value = previewMode ? { 当前记录: row, 追溯结论: '开发预览链路完整，正式环境将显示真实后端结果' } : (await getResourceList(action.path(row))).data
+      traceData.value = localDataMode.value ? { 当前记录: row, 追溯结论: '本地测试数据不调用真实追溯接口' } : (await getResourceList(action.path(row))).data
       traceOpen.value = true
     } catch {
       traceOpen.value = false
@@ -514,7 +536,7 @@ async function submitAction() {
   submitting.value = true
   try {
     const action = currentAction.value
-    if (previewMode) {
+    if (localDataMode.value) {
       if (actionRow.value && action.previewPatch) Object.assign(actionRow.value, action.previewPatch(actionModel.value, actionRow.value))
     } else {
       const rawData = action.payload ? action.payload(actionModel.value, actionRow.value) : actionModel.value
@@ -523,7 +545,7 @@ async function submitAction() {
     }
     ElMessage.success(`${currentAction.value.label}成功`)
     actionOpen.value = false
-    if (!previewMode) await loadData()
+    if (!localDataMode.value) await loadData()
   } catch {
     // 请求层已经给出具体错误提示。
   } finally {
@@ -642,7 +664,7 @@ onMounted(initialize)
           </el-button>
         </div>
         <div class="toolbar-secondary">
-          <span class="data-source"><i />{{ previewMode ? '开发预览' : '实时接口' }}</span>
+          <span class="data-source" :class="{ 'is-local': localDataMode }"><i />{{ dataSourceLabel }}</span>
           <el-tooltip content="导出 Excel" placement="top">
             <el-button v-if="permissions.export" class="mes-icon-button" :loading="exporting" aria-label="导出 Excel" @click="handleExport"><AppIcon name="download" :size="16" /></el-button>
           </el-tooltip>

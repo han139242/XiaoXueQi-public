@@ -28,7 +28,14 @@ Page({
   },
 
   openTab(event) {
-    wx.switchTab({ url: event.currentTarget.dataset.url })
+    const url = event.currentTarget.dataset.url
+    if (!url) return
+    wx.switchTab({
+      url,
+      fail: () => {
+        wx.showToast({ title: '页面跳转失败', icon: 'none' })
+      }
+    })
   },
 
   startScan() {

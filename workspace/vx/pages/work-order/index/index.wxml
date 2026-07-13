@@ -1,13 +1,14 @@
 <view class="filter-shell">
-  <view class="filter-search">
-    <view class="filter-search__input"><app-icon name="search" size="32" muted></app-icon><input value="{{filters.keyword}}" placeholder="搜索工单编号" confirm-type="search" bindinput="handleKeyword" bindconfirm="handleSearch" /></view>
-    <button class="icon-button" bindtap="handleSearch" aria-label="搜索"><app-icon name="search" size="34"></app-icon></button>
-    <button class="icon-button scan-button" bindtap="startScan" aria-label="扫码追溯"><app-icon name="scan-line" size="36" inverse></app-icon></button>
+  <view class="reference-filter-bar">
+    <view class="reference-filter {{filters.status ? 'reference-filter--active' : ''}}" data-field="status" bindtap="toggleDropdown"><text>状态</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="reference-filter {{sortIndex ? 'reference-filter--active' : ''}}" data-field="sort" bindtap="toggleDropdown"><text>排序</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="reference-filter {{filters.productId ? 'reference-filter--active' : ''}}" data-field="product" bindtap="toggleDropdown"><text>选择产品</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
   </view>
-  <view class="work-order-filters">
-      <picker range="{{statusOptions}}" range-key="label" value="{{statusIndex}}" bindchange="handleStatus"><view class="filter-chip {{filters.status ? 'filter-chip--active' : ''}}"><app-icon name="sliders-horizontal" size="28"></app-icon><text class="filter-chip__label">{{statusOptions[statusIndex].label}}</text><app-icon name="chevron-down" size="24" muted></app-icon></view></picker>
-      <picker range="{{productOptions}}" range-key="label" value="{{productIndex}}" bindchange="handleProduct"><view class="filter-chip {{filters.productId ? 'filter-chip--active' : ''}}"><app-icon name="package" size="28"></app-icon><text class="filter-chip__label">{{productOptions[productIndex].label}}</text><app-icon name="chevron-down" size="24" muted></app-icon></view></picker>
-      <button class="filter-reset" bindtap="clearFilters" aria-label="清除筛选"><app-icon name="trash-2" size="28" muted></app-icon></button>
+  <view wx:if="{{activeDropdown}}" class="reference-dropdown">
+    <view wx:for="{{dropdownOptions}}" wx:key="index" class="dropdown-option {{item.selected ? 'dropdown-option--active' : ''}}" data-field="{{activeDropdown}}" data-index="{{item.index}}" bindtap="selectDropdown">
+      <text>{{item.label}}</text>
+      <app-icon wx:if="{{item.selected}}" name="circle-check-big" size="30"></app-icon>
+    </view>
   </view>
 </view>
 
@@ -19,18 +20,20 @@
   <view wx:else class="record-list">
     <view wx:for="{{list}}" wx:key="workOrderId" class="record-card" data-id="{{item.workOrderId}}" bindtap="openDetail">
       <view class="record-header">
-        <view class="record-identity"><view class="record-icon"><app-icon name="clipboard-list" size="36"></app-icon></view><view><text class="record-number" selectable>{{item.workOrderNo || ('工单 ID ' + item.workOrderId)}}</text><text class="record-subline">生产工单</text></view></view>
+        <text class="record-number" selectable>{{item.workOrderNo || ('工单 ID ' + item.workOrderId)}}</text>
         <status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag>
       </view>
       <view class="record-fields">
-        <view class="aligned-field"><text class="aligned-label">产品</text><text class="aligned-value">{{item.productLabel}}</text></view>
+        <view class="aligned-field"><text class="aligned-label">产品信息</text><text class="aligned-value">{{item.productLabel}}</text></view>
         <view class="aligned-field"><text class="aligned-label">计划数量</text><text class="aligned-value aligned-value--number">{{item.plannedQuantity == null ? '-' : item.plannedQuantity}}</text></view>
-        <view class="aligned-field"><text class="aligned-label">完成数量</text><text class="aligned-value aligned-value--number">{{item.completedQuantity == null ? '-' : item.completedQuantity}}</text></view>
+        <view class="aligned-field"><text class="aligned-label">实际数量</text><text class="aligned-value aligned-value--number">{{item.completedQuantity == null ? '-' : item.completedQuantity}}</text></view>
+        <view class="aligned-field"><text class="aligned-label">创建时间</text><text class="aligned-value">{{item.createdTimeText}}</text></view>
       </view>
-      <view class="record-footer"><view class="record-time"><app-icon name="clock-3" size="25" muted></app-icon><text>{{item.createdTimeText}}</text></view><view class="card-link"><text>查看详情</text><app-icon name="chevron-right" size="25"></app-icon></view></view>
+      <view class="record-footer"><text>查看详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view>
     </view>
     <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>
     <view wx:elif="{{loading}}" class="list-footer">加载中</view>
     <view wx:elif="{{finished}}" class="list-footer">已加载全部</view>
   </view>
+  <view class="work-order-scan-fab" style="left: {{scanFabLeft}}px; top: {{scanFabTop}}px; width: {{scanFabSize}}px; height: {{scanFabSize}}px;" bindtap="startScan" bindtouchstart="handleScanFabTouchStart" bindtouchmove="handleScanFabTouchMove" bindtouchend="handleScanFabTouchEnd" aria-label="扫码录入工单"><app-icon name="scan-line" size="30" inverse></app-icon></view>
 </view>
