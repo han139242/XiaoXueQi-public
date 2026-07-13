@@ -1,5 +1,5 @@
 -- Badminton MES database schema
--- Generated from md/database_table_analysis.md, target database: mes
+-- Generated from 相关文档，图片/md/数据库表结构设计文档.md, target database: mes
 -- MySQL 8.0 / InnoDB / utf8mb4 / logical foreign keys
 -- WARNING: This script drops and recreates all MES tables. Select the target database explicitly.
 -- Example: mysql -u root -p mes < schema.sql
