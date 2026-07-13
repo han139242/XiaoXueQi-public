@@ -24,7 +24,7 @@ export default [
   defineResource({
     key: 'org-shift', domain: 'org', route: 'org/shifts', title: '班次管理', icon: 'calendar', baseUrl: '/api/org/shift', idField: 'shiftId',
     fields: ['shiftCode', 'shiftName', 'startTime', 'endTime', 'remark', 'createdTime'], filters: ['keyword'],
-    overrides: { shiftCode: { required: true }, shiftName: { required: true }, startTime: { required: true, type: 'datetime' }, endTime: { required: true, type: 'datetime' }, createdTime: { form: false, width: 170 } }
+    overrides: { shiftCode: { required: true }, shiftName: { required: true }, startTime: { required: true, type: 'time' }, endTime: { required: true, type: 'time' }, createdTime: { form: false, width: 170 } }
   }),
   defineResource({
     key: 'org-team-member', domain: 'org', route: 'org/team-members', title: '班组成员', baseUrl: '/api/org/team-member', idField: 'id', permissions: { export: false }, menu: false,

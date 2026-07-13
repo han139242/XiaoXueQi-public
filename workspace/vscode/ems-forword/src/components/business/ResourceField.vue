@@ -61,6 +61,15 @@ defineProps({
     :disabled="field.disabled"
   />
 
+  <el-time-picker
+    v-else-if="field.type === 'time'"
+    v-model="model"
+    value-format="HH:mm:ss"
+    format="HH:mm"
+    :placeholder="field.placeholder || `请选择${field.label}`"
+    :disabled="field.disabled"
+  />
+
   <el-input
     v-else-if="field.type === 'textarea'"
     v-model="model"

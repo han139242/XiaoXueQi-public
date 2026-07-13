@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -23,7 +24,7 @@ public class ProcessOperation {
     private String operationCode;
     private String operationName;
     private String operationType;
-    private LocalDateTime standardTime;
+    private BigDecimal standardTime;
     private String status;
     private String remark;
     private Integer version;

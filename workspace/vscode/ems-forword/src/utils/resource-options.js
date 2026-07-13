@@ -55,6 +55,7 @@ function previewValue(field, index, config) {
   if (field.type === 'reference') return (index % 6) + 1
   if (field.type === 'date') return dayjs().subtract(index, 'day').format('YYYY-MM-DD')
   if (field.type === 'datetime') return dayjs().subtract(index * 2, 'hour').format('YYYY-MM-DDTHH:mm:ss')
+  if (field.type === 'time') return ['08:00:00', '16:00:00', '00:00:00'][index % 3]
   if (field.type === 'number') {
     if (/Rate/.test(field.prop)) return Number((1.5 + index * 0.2).toFixed(2))
     if (field.prop === 'differenceQuantity') return index % 3 === 0 ? -8 - index : 5 + index

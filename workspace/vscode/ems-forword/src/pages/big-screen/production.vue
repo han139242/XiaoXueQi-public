@@ -60,6 +60,9 @@ const inspectionPassRate = computed(() => inspectionCount.value
   ? Number(quality.value.qualifiedRate || 0)
   : null)
 const qualityProgressWidth = computed(() => Math.min(100, Math.max(0, inspectionPassRate.value || 0)))
+const qualityDialStyle = computed(() => ({
+  '--quality-angle': `${qualityProgressWidth.value * 3.6}deg`
+}))
 const equipmentTotal = computed(() => ['running', 'stopped', 'fault', 'maintenance']
   .reduce((total, key) => total + Number(equipment.value[key] || 0), 0))
 const warningCount = computed(() => Number(summary.value.inventoryWarningCount || 0))
@@ -71,9 +74,12 @@ const trendRows = computed(() => trend.value.map((item) => {
   const qualifiedQuantity = Number(item.qualifiedQuantity || 0)
   const defectQuantity = Number(item.defectQuantity || 0)
   const output = qualifiedQuantity + defectQuantity
+  const date = dayjs(item.date)
   return {
     ...item,
     output,
+    dateLabel: date.isValid() ? date.format('MM-DD') : '--',
+    weekdayLabel: date.isValid() ? `周${['日', '一', '二', '三', '四', '五', '六'][date.day()]}` : '--',
     passRate: output ? Number(((qualifiedQuantity / output) * 100).toFixed(2)) : null
   }
 }))
@@ -281,9 +287,6 @@ async function exitBigScreen() {
 }
 
 async function openModule(path) {
-  if (document.fullscreenElement) {
-    await document.exitFullscreen?.()
-  }
   await router.push(path)
 }
 
@@ -383,8 +386,8 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="header-title">
-          <strong>生产运营看板</strong>
-          <span>产量、质量、设备与预警</span>
+          <strong>智能车间生产管控大屏</strong>
+          <span>PRODUCTION CONTROL CENTER</span>
         </div>
 
         <div class="header-actions">
@@ -462,6 +465,48 @@ onBeforeUnmount(() => {
             </div>
           </article>
 
+          <article class="screen-panel report-table-panel">
+            <header class="panel-header">
+              <div>
+                <strong>近 7 日报工明细</strong>
+                <span>按报工日期汇总实际产出</span>
+              </div>
+              <aside class="panel-tools">
+                <span class="table-status" :class="{ 'is-empty': !hasTrendData }"><i />{{ hasTrendData ? '已产生报工' : '暂无报工' }}</span>
+                <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
+                  <AppIcon name="arrow" :size="20" />
+                </button>
+              </aside>
+            </header>
+            <div class="report-table-wrap">
+              <table class="report-table">
+                <caption>近 7 日报工产量、合格数量、不良数量和合格率</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">日期</th>
+                    <th scope="col">报工产量</th>
+                    <th scope="col">合格</th>
+                    <th scope="col">不良</th>
+                    <th scope="col">合格率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in trendRows" :key="row.date" :class="{ 'is-zero': row.output === 0 }">
+                    <td><b>{{ row.dateLabel }}</b><small>{{ row.weekdayLabel }}</small></td>
+                    <td>{{ formatNumber(row.output) }}</td>
+                    <td class="is-qualified">{{ formatNumber(row.qualifiedQuantity) }}</td>
+                    <td class="is-defect">{{ formatNumber(row.defectQuantity) }}</td>
+                    <td><span class="rate-chip" :class="{ 'is-empty': row.passRate === null }">{{ formatPercent(row.passRate) }}<small v-if="row.passRate !== null">%</small></span></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-if="trendRows.length === 0" class="table-empty">
+                <AppIcon name="clipboard" :size="28" />
+                <span>报工明细暂未返回</span>
+              </div>
+            </div>
+          </article>
+
           <article class="screen-panel execution-panel">
             <header class="panel-header">
               <div>
@@ -516,12 +561,11 @@ onBeforeUnmount(() => {
               </button>
             </header>
             <div class="quality-main">
-              <div class="quality-rate">
-                <span>质检单合格率</span>
-                <strong>{{ formatPercent(inspectionPassRate) }}<small v-if="inspectionPassRate !== null">%</small></strong>
-              </div>
-              <div class="quality-progress" :class="{ 'is-empty': inspectionPassRate === null }">
-                <i :style="{ width: `${qualityProgressWidth}%` }" />
+              <div class="quality-dial" :class="{ 'is-empty': inspectionPassRate === null }" :style="qualityDialStyle">
+                <div>
+                  <span>质检单合格率</span>
+                  <strong>{{ formatPercent(inspectionPassRate) }}<small v-if="inspectionPassRate !== null">%</small></strong>
+                </div>
               </div>
               <div class="quality-counts">
                 <div><span>质检单</span><b>{{ formatNumber(inspectionCount) }}</b></div>
@@ -656,8 +700,24 @@ onBeforeUnmount(() => {
 .header-branding span { color: #9aafbf; font-size: 17px; line-height: 1.25; }
 
 .header-title { display: grid; justify-items: center; gap: 5px; }
-.header-title strong { color: #fff; font-size: 30px; font-weight: 760; line-height: 1.2; }
-.header-title span { color: #9cb0bf; font-size: 17px; line-height: 1.25; }
+.header-title {
+  position: relative;
+  min-width: 500px;
+  padding: 0 76px 9px;
+}
+.header-title::before,
+.header-title::after {
+  position: absolute;
+  bottom: 0;
+  width: 128px;
+  height: 18px;
+  border-bottom: 2px solid #4eaccf;
+  content: '';
+}
+.header-title::before { left: 0; border-left: 2px solid #4eaccf; transform: skewX(38deg); }
+.header-title::after { right: 0; border-right: 2px solid #4eaccf; transform: skewX(-38deg); }
+.header-title strong { color: #fff; font-size: 30px; font-weight: 760; line-height: 1.2; text-shadow: 0 0 18px rgb(78 172 207 / 26%); }
+.header-title span { color: #6ea8c1; font-size: 13px; font-weight: 650; line-height: 1.25; }
 
 .header-actions { justify-content: flex-end; gap: 10px; }
 .header-clock { gap: 9px; margin-left: 6px; color: #b4c3ce; font-size: 16px; white-space: nowrap; }
@@ -776,7 +836,7 @@ onBeforeUnmount(() => {
 .primary-grid {
   display: grid;
   min-height: 0;
-  grid-template-columns: minmax(0, 1.72fr) minmax(520px, .78fr);
+  grid-template-columns: minmax(700px, 1.25fr) minmax(520px, .92fr) minmax(410px, .72fr);
   gap: 18px;
 }
 
@@ -788,12 +848,23 @@ onBeforeUnmount(() => {
 }
 
 .screen-panel {
+  position: relative;
   min-width: 0;
   overflow: hidden;
   border: 1px solid #2b465b;
   border-radius: 5px;
   background: rgb(10 27 42 / 94%);
   box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+}
+.screen-panel::before {
+  position: absolute;
+  z-index: 2;
+  top: -1px;
+  left: 20px;
+  width: 92px;
+  height: 2px;
+  background: #4eaccf;
+  content: '';
 }
 
 .panel-header {
@@ -846,6 +917,39 @@ onBeforeUnmount(() => {
 .empty-overlay strong { color: #b2c3cf; font-size: 19px; }
 .empty-overlay span { font-size: 16px; }
 
+.table-status { display: inline-flex; align-items: center; gap: 7px; color: #78cfa0; font-size: 15px; white-space: nowrap; }
+.table-status i { width: 7px; height: 7px; border-radius: 50%; background: #4bc58a; box-shadow: 0 0 7px rgb(75 197 138 / 48%); }
+.table-status.is-empty { color: #8da0ae; }
+.table-status.is-empty i { background: #718493; box-shadow: none; }
+.report-table-wrap { position: relative; height: calc(100% - 72px); padding: 0 16px 12px; box-sizing: border-box; }
+.report-table { width: 100%; border-collapse: collapse; table-layout: fixed; color: #dce8f0; font-size: 16px; }
+.report-table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.report-table th {
+  height: 42px;
+  padding: 0 8px;
+  color: #9eb4c5;
+  border-bottom: 1px solid #315169;
+  background: rgb(15 39 58 / 72%);
+  font-size: 15px;
+  font-weight: 650;
+  text-align: right;
+}
+.report-table th:first-child,
+.report-table td:first-child { width: 25%; text-align: left; }
+.report-table th:last-child,
+.report-table td:last-child { width: 21%; }
+.report-table td { height: 45px; padding: 0 8px; border-bottom: 1px solid rgb(49 81 105 / 62%); text-align: right; }
+.report-table tbody tr:nth-child(even) { background: rgb(27 67 85 / 18%); }
+.report-table tbody tr.is-zero { color: #8094a3; }
+.report-table td b { display: block; color: #e3edf3; font-size: 16px; }
+.report-table td small { color: #7f96a7; font-size: 13px; }
+.report-table td.is-qualified { color: #6ed09b; }
+.report-table td.is-defect { color: #e99275; }
+.rate-chip { display: inline-flex; min-width: 63px; align-items: baseline; justify-content: center; padding: 4px 7px; color: #75d2a0; border: 1px solid rgb(75 197 138 / 24%); border-radius: 3px; background: rgb(75 197 138 / 9%); }
+.rate-chip small { margin-left: 2px; color: inherit !important; font-size: 12px !important; }
+.rate-chip.is-empty { color: #8296a5; border-color: rgb(113 132 147 / 22%); background: rgb(113 132 147 / 8%); }
+.table-empty { position: absolute; inset: 42px 16px 12px; display: grid; align-content: center; justify-items: center; gap: 8px; color: #879cab; background: #0b1d2c; font-size: 16px; }
+
 .execution-panel { display: grid; grid-template-rows: auto 1fr auto auto; }
 .live-badge { display: inline-flex; align-items: center; gap: 7px; color: #79cfa0; font-size: 16px; }
 .live-badge i { width: 8px; height: 8px; border-radius: 50%; background: #4bc58a; box-shadow: 0 0 8px rgb(75 197 138 / 58%); }
@@ -874,19 +978,27 @@ onBeforeUnmount(() => {
 .production-stat-row small { overflow: hidden; color: #91a6b5; font-size: 16px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .production-stat-row strong { color: #fff; font-size: 28px; }
 
-.quality-main { display: grid; gap: 14px; padding: 18px 22px; }
-.quality-rate { display: flex; align-items: end; justify-content: space-between; }
-.quality-rate span { color: #a2b5c2; font-size: 18px; }
-.quality-rate strong { color: #fff; font-size: 45px; line-height: 1; }
-.quality-rate strong small { margin-left: 3px; color: #94a8b6; font-size: 17px; }
-.quality-progress { height: 13px; overflow: hidden; border-radius: 3px; background: #1c3548; }
-.quality-progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3aaa78, #62d498); }
-.quality-progress.is-empty i { width: 0 !important; }
+.quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 154px minmax(0, 1fr); align-items: center; gap: 18px; padding: 14px 22px 16px; box-sizing: border-box; }
+.quality-dial {
+  position: relative;
+  display: grid;
+  width: 138px;
+  height: 138px;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(#4bc58a var(--quality-angle), #1b3548 0);
+}
+.quality-dial::after { position: absolute; inset: 13px; border: 1px solid #33566f; border-radius: 50%; background: #0b1e2e; content: ''; }
+.quality-dial::before { position: absolute; inset: -4px; border: 1px solid rgb(78 172 207 / 24%); border-radius: 50%; content: ''; }
+.quality-dial.is-empty { background: #1b3548; }
+.quality-dial > div { position: relative; z-index: 1; display: grid; justify-items: center; gap: 4px; }
+.quality-dial span { color: #93a9b8; font-size: 14px; }
+.quality-dial strong { color: #fff; font-size: 35px; line-height: 1; }
+.quality-dial strong small { margin-left: 2px; color: #94a8b6; font-size: 15px; }
 .quality-counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.quality-counts > div { display: grid; gap: 5px; padding: 8px 14px; }
-.quality-counts > div + div { border-left: 1px solid #365066; }
+.quality-counts > div { display: grid; gap: 8px; padding: 14px 10px; border-left: 1px solid #365066; }
 .quality-counts span { color: #9aafbd; font-size: 16px; }
-.quality-counts b { color: #eaf3f8; font-size: 25px; }
+.quality-counts b { color: #eaf3f8; font-size: 28px; }
 
 .equipment-total,
 .attention-total { color: #f0f6fa; font-size: 30px; font-weight: 750; }
@@ -894,7 +1006,7 @@ onBeforeUnmount(() => {
 .attention-total small { margin-left: 6px; color: #9aacb9; font-size: 16px; font-weight: 550; }
 .attention-total.has-warning { color: #ed9d5a; }
 
-.equipment-body { position: relative; display: grid; gap: 18px; padding: 24px 22px 18px; }
+.equipment-body { position: relative; display: grid; height: calc(100% - 68px); align-content: center; gap: 18px; padding: 18px 22px; box-sizing: border-box; }
 .equipment-bar { display: flex; height: 18px; overflow: hidden; border-radius: 3px; background: #1b3346; }
 .equipment-bar i { display: block; height: 100%; min-width: 0; }
 .equipment-bar i.is-green { background: #4bc58a; }
@@ -913,7 +1025,7 @@ onBeforeUnmount(() => {
 .equipment-grid b { color: #eef5f9; font-size: 26px; }
 .inline-empty { position: absolute; top: 52px; right: 22px; margin: 0; color: #91a5b3; font-size: 16px; }
 
-.attention-list { display: grid; padding: 4px 18px 8px; }
+.attention-list { display: grid; height: calc(100% - 68px); align-content: center; padding: 4px 18px 8px; box-sizing: border-box; }
 .attention-row {
   display: grid;
   width: 100%;

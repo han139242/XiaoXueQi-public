@@ -10,35 +10,35 @@ export const themeOptions = [
     key: 'blue',
     name: '经典蓝',
     mode: '明亮导航',
-    preview: { header: '#2d8cf0', sidebar: '#ffffff', content: '#eeeeee' },
+    preview: { header: '#2d8cf0', sidebar: '#ffffff', content: '#f1f3f6' },
     chart: { primary: '#2d8cf0', data: '#2db7f5' }
   },
   {
     key: 'dark',
     name: '曜石黑',
     mode: '深色导航',
-    preview: { header: '#272929', sidebar: '#090a0a', content: '#eeeeee' },
+    preview: { header: '#272929', sidebar: '#090a0a', content: '#f1f3f6' },
     chart: { primary: '#277bc0', data: '#2db7f5' }
   },
   {
     key: 'green',
     name: '制造绿',
     mode: '明亮导航',
-    preview: { header: '#147a5c', sidebar: '#ffffff', content: '#eeeeee' },
+    preview: { header: '#147a5c', sidebar: '#ffffff', content: '#f1f3f6' },
     chart: { primary: '#147a5c', data: '#3979bd' }
   },
   {
     key: 'orange',
     name: '工业橙',
     mode: '明亮导航',
-    preview: { header: '#b85a12', sidebar: '#ffffff', content: '#eeeeee' },
+    preview: { header: '#b85a12', sidebar: '#ffffff', content: '#f1f3f6' },
     chart: { primary: '#b85a12', data: '#347cab' }
   },
   {
     key: 'red',
     name: '企业红',
     mode: '明亮导航',
-    preview: { header: '#b5393e', sidebar: '#ffffff', content: '#eeeeee' },
+    preview: { header: '#b5393e', sidebar: '#ffffff', content: '#f1f3f6' },
     chart: { primary: '#b5393e', data: '#287c9f' }
   }
 ]

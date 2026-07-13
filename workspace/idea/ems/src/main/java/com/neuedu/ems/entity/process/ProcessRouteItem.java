@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -23,7 +24,7 @@ public class ProcessRouteItem {
     private Long routeId;
     private Long operationId;
     private Integer sequenceNo;
-    private LocalDateTime standardTime;
+    private BigDecimal standardTime;
     private Integer qcRequired;
     private String remark;
     private Integer version;

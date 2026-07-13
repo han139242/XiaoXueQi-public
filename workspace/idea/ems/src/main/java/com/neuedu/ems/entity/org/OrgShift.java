@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 /**
  * org_shift
@@ -22,8 +23,8 @@ public class OrgShift {
     private Long shiftId;
     private String shiftCode;
     private String shiftName;
-    private LocalDateTime startTime;
-    private LocalDateTime endTime;
+    private LocalTime startTime;
+    private LocalTime endTime;
     private String remark;
     private Integer version;
     private Long createdBy;

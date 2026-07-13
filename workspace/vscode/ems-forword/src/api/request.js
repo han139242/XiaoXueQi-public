@@ -15,6 +15,14 @@ function showError(message) {
   ElMessage.error(message)
 }
 
+function resolveResultMessage(result) {
+  const detail = result?.data?.message
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail.trim()
+  }
+  return result?.msg || '请求处理失败'
+}
+
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
   timeout: 15000
@@ -49,10 +57,12 @@ request.interceptors.response.use(
       window.location.hash = `#/login?redirect=${redirect}`
     }
 
-    const error = new Error(result.msg || '请求处理失败')
+    const message = resolveResultMessage(result)
+    const error = new Error(message)
     error.code = result.code
     error.data = result.data
-    showError(error.message)
+    error.displayMessage = message
+    showError(message)
     return Promise.reject(error)
   },
   (error) => {
