@@ -72,7 +72,7 @@
 | 设备管理 | 已完成 | AnHC-00 | 已完成设备分类、设备台账、设备状态日志、保养、点检、维修后端接口 |
 | 条码追溯 | 已完成 | AnHC-00 | 已完成 `trace_barcode`、`trace_product_lot`、`trace_material_usage` 后端接口，支持条码生成/扫码、批次追溯、按原料批次查询物料追溯和通用 CRUD/导出 |
 | 首页看板 | 已完成 | AnHC-00 | 已完成 `/api/dashboard` 汇总、生产趋势、质量统计和设备状态统计接口 |
-| AI 智能助手 | 待联调 | AnHC-00 | 已切换 DeepSeek 官方接口和 `deepseek-chat`，完成 `/api/ai/status`、`chat`、`dashboard-insight`、`module-suggestion`；项目默认配置与主机用户环境变量均使用团队确认的 DeepSeek Key，真实问答已通过，尚需人工复核 AI 抽屉交互和输出质量 |
+| AI 智能助手 | 待联调 | han139242 | 已切换 DeepSeek 官方接口和 `deepseek-chat`，完成 `/api/ai/status`、`chat`、`dashboard-insight`、`module-suggestion`；项目默认配置与主机用户环境变量均使用团队确认的 DeepSeek Key，真实问答已通过，尚需人工复核 AI 抽屉交互和输出质量 |
 | 智能排产 | 进行中 | han139242 | 已完成产线产品能力、产线周历、排程方案/明细 4 表数据基础及交接契约；Service、规则引擎、确认事务、AI 建议和 PC 工作台待队友继续开发 |
 | PC 端前端 | 待联调 | han139242 / zengjingye / AnHC-00 | 已完成登录鉴权、后台 Layout、响应式导航、工作台、真实数据生产大屏、AI 助手及全部 78 个后端资源的配置式业务页面；生产构建、真实登录和看板代理烟测通过，核心业务写操作与自动视觉复核仍待完成 |
 | 微信小程序 | 进行中 | han139242 | 已建立 `workspace/vx` 微信开发者工具原生模板，补充界面参考图和实施文档；尚未接入登录、后端 `/api` 和 MES 业务页面 |
