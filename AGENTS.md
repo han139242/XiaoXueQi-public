@@ -37,6 +37,7 @@ AI 的目标是减少错误，而不是生成更多代码。所有改动都应�
 - `相关文档，图片/md/数据库表结构设计文档.md`
 - `相关文档，图片/md/数据库数据设计文档.md`
 - `相关文档，图片/md/企业级MES最终基础数据说明.md`
+- `相关文档，图片/md/智能排产数据基础交接文档.md`
 - `workspace/idea/ems/docs/羽毛球MES开发约束框架.md`
 - `workspace/idea/ems/src/main/resources/db/schema.sql`
 

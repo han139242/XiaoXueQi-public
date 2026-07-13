@@ -51,6 +51,10 @@ DROP TABLE IF EXISTS `mfg_dispatch_order`;
 DROP TABLE IF EXISTS `mfg_work_order_material`;
 DROP TABLE IF EXISTS `mfg_work_order`;
 DROP TABLE IF EXISTS `mfg_production_plan`;
+DROP TABLE IF EXISTS `mfg_schedule_item`;
+DROP TABLE IF EXISTS `mfg_schedule_scenario`;
+DROP TABLE IF EXISTS `mfg_line_calendar_rule`;
+DROP TABLE IF EXISTS `mfg_line_product_capability`;
 DROP TABLE IF EXISTS `mfg_production_order`;
 DROP TABLE IF EXISTS `factory_station_operation`;
 DROP TABLE IF EXISTS `factory_station`;
@@ -711,6 +715,49 @@ CREATE TABLE `factory_station_operation` (
   KEY `idx_factory_station_operation_operation_id` (`operation_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='工位工序关联表';
 
+CREATE TABLE `mfg_line_product_capability` (
+  `capability_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '产线产品能力主键。',
+  `line_id` BIGINT UNSIGNED NOT NULL COMMENT '产线 ID。',
+  `product_id` BIGINT UNSIGNED NOT NULL COMMENT '可生产产品 ID。',
+  `route_id` BIGINT UNSIGNED NOT NULL COMMENT '该产线采用的已发布工艺路线 ID。',
+  `priority_level` INT NOT NULL DEFAULT 100 COMMENT '适配优先级，值越小越优先。',
+  `capacity_factor` DECIMAL(5,4) NOT NULL DEFAULT 1.0000 COMMENT '产品在该产线的产能系数，大于 0 且不超过 2。',
+  `status` VARCHAR(32) NOT NULL COMMENT 'ENABLE:启用，DISABLE:停用。',
+  `remark` VARCHAR(500) NULL COMMENT '备注',
+  `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+  `created_by` BIGINT UNSIGNED NULL COMMENT '创建人',
+  `created_time` DATETIME NULL COMMENT '创建时间',
+  `updated_by` BIGINT UNSIGNED NULL COMMENT '更新人',
+  `updated_time` DATETIME NULL COMMENT '更新时间',
+  `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
+  PRIMARY KEY (`capability_id`),
+  UNIQUE KEY `uk_mfg_line_product_capability` (`line_id`, `product_id`, `route_id`),
+  KEY `idx_mfg_line_product_capability_product_id` (`product_id`),
+  KEY `idx_mfg_line_product_capability_route_id` (`route_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='产线产品能力表';
+
+CREATE TABLE `mfg_line_calendar_rule` (
+  `calendar_rule_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '产线日历规则主键。',
+  `line_id` BIGINT UNSIGNED NOT NULL COMMENT '产线 ID。',
+  `day_of_week` TINYINT NOT NULL COMMENT '星期，1 周一至 7 周日。',
+  `shift_id` BIGINT UNSIGNED NOT NULL COMMENT '班次 ID。',
+  `effective_from` DATE NOT NULL COMMENT '生效日期。',
+  `effective_to` DATE NULL COMMENT '失效日期，为空表示长期有效。',
+  `capacity_factor` DECIMAL(5,4) NOT NULL DEFAULT 1.0000 COMMENT '有效产能系数，大于 0 且不超过 2。',
+  `status` VARCHAR(32) NOT NULL COMMENT 'ENABLE:启用，DISABLE:停用。',
+  `remark` VARCHAR(500) NULL COMMENT '备注',
+  `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+  `created_by` BIGINT UNSIGNED NULL COMMENT '创建人',
+  `created_time` DATETIME NULL COMMENT '创建时间',
+  `updated_by` BIGINT UNSIGNED NULL COMMENT '更新人',
+  `updated_time` DATETIME NULL COMMENT '更新时间',
+  `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
+  PRIMARY KEY (`calendar_rule_id`),
+  UNIQUE KEY `uk_mfg_line_calendar_rule` (`line_id`, `day_of_week`, `shift_id`, `effective_from`),
+  KEY `idx_mfg_line_calendar_rule_line_id` (`line_id`),
+  KEY `idx_mfg_line_calendar_rule_shift_id` (`shift_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='产线周历规则表';
+
 CREATE TABLE `mfg_production_order` (
   `production_order_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '生产订单主键。',
   `production_order_no` VARCHAR(64) NULL COMMENT '生产订单编号。',
@@ -754,6 +801,73 @@ CREATE TABLE `mfg_production_plan` (
   KEY `idx_mfg_production_plan_production_order_id` (`production_order_id`),
   KEY `idx_mfg_production_plan_line_id` (`line_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='生产计划表';
+
+CREATE TABLE `mfg_schedule_scenario` (
+  `scenario_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '排程方案主键。',
+  `scenario_no` VARCHAR(64) NOT NULL COMMENT '排程方案编号。',
+  `scenario_name` VARCHAR(128) NOT NULL COMMENT '排程方案名称。',
+  `horizon_start` DATETIME NOT NULL COMMENT '排程窗口开始时间。',
+  `horizon_end` DATETIME NOT NULL COMMENT '排程窗口结束时间。',
+  `algorithm_code` VARCHAR(32) NOT NULL COMMENT '排程算法编码。',
+  `status` VARCHAR(32) NOT NULL COMMENT 'DRAFT:草稿，CALCULATED:已计算，CONFIRMED:已确认，CANCELLED:已取消。',
+  `order_count` INT NOT NULL DEFAULT 0 COMMENT '参与订单数量。',
+  `scheduled_order_count` INT NOT NULL DEFAULT 0 COMMENT '成功排程订单数量。',
+  `conflict_order_count` INT NOT NULL DEFAULT 0 COMMENT '冲突订单数量。',
+  `late_order_count` INT NOT NULL DEFAULT 0 COMMENT '预计延期订单数量。',
+  `total_load_minutes` DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT '总有效负荷分钟数。',
+  `ai_advice` TEXT NULL COMMENT 'AI 排程风险建议，仅供人工决策。',
+  `ai_model` VARCHAR(64) NULL COMMENT '生成建议的模型。',
+  `ai_generated_time` DATETIME NULL COMMENT 'AI 建议生成时间。',
+  `confirmed_by` BIGINT UNSIGNED NULL COMMENT '确认系统用户 ID。',
+  `confirmed_time` DATETIME NULL COMMENT '确认时间。',
+  `remark` VARCHAR(500) NULL COMMENT '备注',
+  `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+  `created_by` BIGINT UNSIGNED NULL COMMENT '创建人',
+  `created_time` DATETIME NULL COMMENT '创建时间',
+  `updated_by` BIGINT UNSIGNED NULL COMMENT '更新人',
+  `updated_time` DATETIME NULL COMMENT '更新时间',
+  `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
+  PRIMARY KEY (`scenario_id`),
+  UNIQUE KEY `uk_mfg_schedule_scenario_scenario_no` (`scenario_no`),
+  KEY `idx_mfg_schedule_scenario_status` (`status`),
+  KEY `idx_mfg_schedule_scenario_horizon` (`horizon_start`, `horizon_end`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='智能排程方案表';
+
+CREATE TABLE `mfg_schedule_item` (
+  `schedule_item_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '排程明细主键。',
+  `scenario_id` BIGINT UNSIGNED NOT NULL COMMENT '排程方案 ID。',
+  `production_order_id` BIGINT UNSIGNED NOT NULL COMMENT '生产订单 ID。',
+  `product_id` BIGINT UNSIGNED NOT NULL COMMENT '产品 ID。',
+  `route_id` BIGINT UNSIGNED NULL COMMENT '已发布工艺路线 ID。',
+  `line_id` BIGINT UNSIGNED NULL COMMENT '分配产线 ID，冲突时为空。',
+  `plan_id` BIGINT UNSIGNED NULL COMMENT '确认后生成的生产计划 ID。',
+  `sequence_no` INT NOT NULL COMMENT '方案内执行顺序。',
+  `planned_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '计划数量。',
+  `planned_start_time` DATETIME NULL COMMENT '计划开始时间。',
+  `planned_end_time` DATETIME NULL COMMENT '计划结束时间。',
+  `estimated_minutes` DECIMAL(18,2) NULL COMMENT '预计有效加工分钟数。',
+  `priority_score` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '规则引擎优先级分值。',
+  `tardiness_minutes` BIGINT NOT NULL DEFAULT 0 COMMENT '预计延期分钟数。',
+  `decision_source` VARCHAR(32) NOT NULL COMMENT 'RULE_ENGINE:规则引擎，MANUAL:人工调整。',
+  `status` VARCHAR(32) NOT NULL COMMENT 'SCHEDULED:已排程，CONFLICT:存在冲突，CONFIRMED:已确认。',
+  `conflict_reason` VARCHAR(500) NULL COMMENT '冲突原因。',
+  `explanation` VARCHAR(500) NULL COMMENT '排程决策说明。',
+  `remark` VARCHAR(500) NULL COMMENT '备注',
+  `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+  `created_by` BIGINT UNSIGNED NULL COMMENT '创建人',
+  `created_time` DATETIME NULL COMMENT '创建时间',
+  `updated_by` BIGINT UNSIGNED NULL COMMENT '更新人',
+  `updated_time` DATETIME NULL COMMENT '更新时间',
+  `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
+  PRIMARY KEY (`schedule_item_id`),
+  UNIQUE KEY `uk_mfg_schedule_item_order` (`scenario_id`, `production_order_id`),
+  KEY `idx_mfg_schedule_item_production_order_id` (`production_order_id`),
+  KEY `idx_mfg_schedule_item_product_id` (`product_id`),
+  KEY `idx_mfg_schedule_item_route_id` (`route_id`),
+  KEY `idx_mfg_schedule_item_line_id` (`line_id`),
+  KEY `idx_mfg_schedule_item_plan_id` (`plan_id`),
+  KEY `idx_mfg_schedule_item_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='智能排程明细表';
 
 CREATE TABLE `mfg_work_order` (
   `work_order_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '工单主键。',
