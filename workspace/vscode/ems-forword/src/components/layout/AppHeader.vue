@@ -223,11 +223,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 0 18px 0 12px;
+  padding: 0 20px 0 12px;
   color: var(--mes-header-text);
   border-bottom: 1px solid var(--mes-header-border);
   background: var(--mes-header-bg);
-  box-shadow: 0 2px 8px rgb(32 42 54 / 12%);
+  box-shadow: 0 2px 10px rgb(32 42 54 / 10%);
 }
 
 .header-left,
@@ -246,12 +246,12 @@ onBeforeUnmount(() => {
 
 .header-actions {
   flex: none;
-  gap: 6px;
+  gap: 7px;
 }
 
 .header-icon-button.el-button {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   color: var(--mes-header-text);
 }
@@ -265,23 +265,23 @@ onBeforeUnmount(() => {
   min-width: 0;
   gap: 7px;
   color: var(--mes-header-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .breadcrumb strong {
   overflow: hidden;
   color: var(--mes-header-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 620;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .global-search {
-  width: 154px;
-  height: 34px;
+  width: 172px;
+  height: 36px;
   gap: 8px;
-  padding: 0 11px;
+  padding: 0 12px;
   color: var(--mes-header-control-text);
   border: 1px solid rgb(255 255 255 / 34%);
   border-radius: var(--mes-radius-sm);
@@ -296,7 +296,7 @@ onBeforeUnmount(() => {
 }
 
 .global-search span {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .header-clock {
@@ -306,25 +306,25 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
-  margin: 0 7px;
+  margin: 0 8px;
   line-height: 1.15;
 }
 
 .header-clock strong {
   color: var(--mes-header-text);
-  font-size: 14px;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 
 .header-clock span {
   margin-top: 3px;
   color: var(--mes-header-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .user-entry {
   min-width: 132px;
-  height: 42px;
+  height: 44px;
   gap: 9px;
   padding: 3px 5px 3px 8px;
   color: var(--mes-header-text);
@@ -336,8 +336,8 @@ onBeforeUnmount(() => {
 
 .user-avatar {
   display: inline-flex;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -361,7 +361,7 @@ onBeforeUnmount(() => {
 .user-copy strong {
   max-width: 78px;
   overflow: hidden;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -370,7 +370,7 @@ onBeforeUnmount(() => {
 .user-copy small {
   margin-top: 3px;
   color: var(--mes-header-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .notification-head {

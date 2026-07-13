@@ -128,14 +128,14 @@ const trendOption = computed(() => ({
     trigger: 'axis',
     backgroundColor: '#171d25',
     borderWidth: 0,
-    textStyle: { color: '#fff', fontSize: 12 }
+    textStyle: { color: '#fff', fontSize: 13 }
   },
   legend: {
     top: 2,
     right: 2,
     itemWidth: 14,
     itemHeight: 3,
-    textStyle: { color: '#647384', fontSize: 11 }
+    textStyle: { color: '#647384', fontSize: 12 }
   },
   grid: { top: 44, right: 12, bottom: 24, left: 52 },
   xAxis: {
@@ -144,14 +144,14 @@ const trendOption = computed(() => ({
     data: trend.value.map((item) => dayjs(item.date).format('MM/DD')),
     axisLine: { lineStyle: { color: '#dfe4ea' } },
     axisTick: { show: false },
-    axisLabel: { color: '#8a96a3', fontSize: 10 }
+    axisLabel: { color: '#788695', fontSize: 11 }
   },
   yAxis: {
     type: 'value',
     splitNumber: 4,
     axisLine: { show: false },
     axisTick: { show: false },
-    axisLabel: { color: '#8a96a3', fontSize: 10 },
+    axisLabel: { color: '#788695', fontSize: 11 },
     splitLine: { lineStyle: { color: '#edf1f4' } }
   },
   series: [
@@ -188,14 +188,14 @@ const qualityOption = computed(() => {
       trigger: 'item',
       backgroundColor: '#171d25',
       borderWidth: 0,
-      textStyle: { color: '#fff', fontSize: 12 }
+      textStyle: { color: '#fff', fontSize: 13 }
     },
     legend: {
       bottom: 2,
       left: 'center',
       itemWidth: 8,
       itemHeight: 8,
-      textStyle: { color: '#647384', fontSize: 11 }
+      textStyle: { color: '#647384', fontSize: 12 }
     },
     series: [{
       type: 'pie',
@@ -207,7 +207,7 @@ const qualityOption = computed(() => {
         position: 'center',
         formatter: `${Number(quality.value.qualifiedRate || 0).toFixed(1)}%`,
         color: '#202a36',
-        fontSize: 23,
+        fontSize: 26,
         fontWeight: 650
       },
       labelLine: { show: false },
@@ -229,12 +229,12 @@ const equipmentOption = computed(() => ({
     axisPointer: { type: 'shadow' },
     backgroundColor: '#171d25',
     borderWidth: 0,
-    textStyle: { color: '#fff', fontSize: 12 }
+    textStyle: { color: '#fff', fontSize: 13 }
   },
   grid: { top: 12, right: 20, bottom: 18, left: 58 },
   xAxis: {
     type: 'value',
-    axisLabel: { color: '#8794a2', fontSize: 10 },
+    axisLabel: { color: '#788695', fontSize: 11 },
     splitLine: { lineStyle: { color: '#edf1f5' } }
   },
   yAxis: {
@@ -242,7 +242,7 @@ const equipmentOption = computed(() => ({
     data: ['运行', '停机', '保养', '故障'],
     axisTick: { show: false },
     axisLine: { show: false },
-    axisLabel: { color: '#647384', fontSize: 11 }
+    axisLabel: { color: '#647384', fontSize: 12 }
   },
   series: [{
     type: 'bar',
@@ -468,7 +468,7 @@ onMounted(loadDashboard)
           </div>
           <el-tag size="small" effect="plain">按日</el-tag>
         </div>
-        <div class="chart-body"><MesChart :option="trendOption" height="286px" /></div>
+        <div class="chart-body"><MesChart :option="trendOption" height="300px" /></div>
       </article>
 
       <article class="mes-panel quality-panel">
@@ -479,7 +479,7 @@ onMounted(loadDashboard)
           </div>
           <span class="inspection-count">{{ quality.inspectionCount || 0 }} 单</span>
         </div>
-        <div class="chart-body"><MesChart :option="qualityOption" height="286px" /></div>
+        <div class="chart-body"><MesChart :option="qualityOption" height="300px" /></div>
       </article>
 
       <article class="mes-panel equipment-panel">
@@ -492,7 +492,7 @@ onMounted(loadDashboard)
             {{ Number(equipment.running || 0) + Number(equipment.stopped || 0) + Number(equipment.fault || 0) + Number(equipment.maintenance || 0) }} 台
           </span>
         </div>
-        <div class="chart-body"><MesChart :option="equipmentOption" height="286px" /></div>
+        <div class="chart-body"><MesChart :option="equipmentOption" height="300px" /></div>
       </article>
     </section>
   </div>
@@ -501,26 +501,23 @@ onMounted(loadDashboard)
 <style scoped>
 .dashboard-page {
   min-height: 100%;
-  padding-bottom: 18px;
+  padding-bottom: 12px;
 }
 
 .dashboard-toolbar {
   display: grid;
-  min-height: 72px;
+  min-height: 74px;
   grid-template-columns: minmax(260px, 1fr) auto;
   align-items: center;
   gap: 18px;
-  margin-bottom: 14px;
-  padding: 12px 18px;
-  border: 1px solid var(--mes-border);
-  border-left: 4px solid var(--mes-primary);
-  border-radius: var(--mes-radius);
-  background: #fff;
-  box-shadow: 0 4px 16px rgb(32 42 54 / 6%);
+  margin-bottom: 20px;
+  padding: 4px 2px 15px;
+  border-bottom: 1px solid var(--mes-border);
+  background: transparent;
 }
 
 .dashboard-toolbar .mes-page-title {
-  font-size: 22px;
+  font-size: 24px;
 }
 
 .dashboard-toolbar :deep(.el-tag) {
@@ -581,88 +578,98 @@ onMounted(loadDashboard)
 }
 
 .dashboard-section {
-  border: 1px solid var(--mes-border);
-  border-radius: var(--mes-radius);
-  background: #fff;
-  box-shadow: var(--mes-shadow-sm);
+  background: transparent;
 }
 
 .dashboard-section + .dashboard-section {
-  margin-top: 14px;
+  margin-top: 22px;
 }
 
 .section-title {
   display: flex;
-  min-height: 56px;
+  min-height: 48px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 18px;
-  border-bottom: 1px solid var(--mes-border);
-  background: var(--mes-surface-muted);
+  padding: 0 2px 10px;
+  border-bottom: 0;
+  background: transparent;
 }
 
 .section-title h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--mes-text);
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 650;
   line-height: 1.3;
 }
 
-.section-title p { margin-top: 3px; color: var(--mes-text-muted); font-size: 11px; }
-.section-title > span { color: var(--mes-text-muted); font-size: 11px; white-space: nowrap; }
+.section-title h2::before {
+  width: 3px;
+  height: 17px;
+  border-radius: 1px;
+  background: var(--mes-primary);
+  content: '';
+}
+
+.section-title p { margin-top: 4px; color: var(--mes-text-muted); font-size: 12px; }
+.section-title > span { color: var(--mes-text-muted); font-size: 12px; white-space: nowrap; }
 
 .quick-menu-grid,
 .number-card-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(160px, 1fr));
-  gap: 12px;
-  padding: 16px 18px 18px;
-  background: #fff;
+  gap: 14px;
+  padding: 0;
+  background: transparent;
 }
 
 .quick-menu-card,
 .number-card {
   display: grid;
   min-width: 0;
-  min-height: 88px;
-  grid-template-columns: 58px 1px minmax(0, 1fr);
+  min-height: 94px;
+  grid-template-columns: 64px minmax(0, 1fr);
   align-items: center;
   overflow: hidden;
   color: var(--mes-text);
   border: 1px solid var(--mes-border);
-  border-left: 4px solid var(--tile-color);
+  border-top: 3px solid var(--tile-color);
   border-radius: 6px;
   background: #fff;
-  box-shadow: 0 3px 10px rgb(32 42 54 / 6%);
+  box-shadow: var(--mes-shadow-sm);
   cursor: pointer;
   transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
 }
 
 .number-card {
+  min-height: 100px;
   cursor: default;
 }
 
 .quick-menu-card:hover {
   border-color: color-mix(in srgb, var(--tile-color) 62%, var(--mes-border));
-  transform: translateY(-2px);
-  box-shadow: 0 9px 22px rgb(32 42 54 / 11%);
+  transform: translateY(-1px);
+  box-shadow: var(--mes-shadow-md);
 }
 
 .tile-icon {
   display: inline-flex;
-  min-width: 0;
-  height: 100%;
+  width: 44px;
+  height: 44px;
   align-items: center;
   justify-content: center;
+  margin-left: 14px;
   color: var(--tile-color);
+  border: 1px solid color-mix(in srgb, var(--tile-color) 24%, white);
+  border-radius: 6px;
   background: color-mix(in srgb, var(--tile-color) 10%, white);
 }
 
 .tile-divider {
-  width: 1px;
-  height: 58%;
-  background: var(--mes-border);
+  display: none;
 }
 
 .tile-copy {
@@ -671,7 +678,7 @@ onMounted(loadDashboard)
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  padding: 0 13px;
+  padding: 0 14px 0 8px;
   text-align: left;
 }
 
@@ -694,7 +701,7 @@ onMounted(loadDashboard)
   margin-top: 5px;
   overflow: hidden;
   color: var(--mes-text-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -706,7 +713,7 @@ onMounted(loadDashboard)
   align-items: baseline;
   gap: 4px;
   color: var(--mes-text);
-  font-size: 23px;
+  font-size: 25px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -723,8 +730,8 @@ onMounted(loadDashboard)
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1.7fr) minmax(340px, .72fr);
-  gap: 14px;
-  margin-top: 14px;
+  gap: 16px;
+  margin-top: 22px;
 }
 
 .operations-grid > .mes-panel { min-width: 0; }
@@ -781,8 +788,8 @@ onMounted(loadDashboard)
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1.65fr) minmax(300px, .78fr) minmax(300px, .78fr);
-  gap: 14px;
-  margin-top: 14px;
+  gap: 16px;
+  margin-top: 16px;
 }
 
 .dashboard-grid > .mes-panel {
@@ -791,8 +798,13 @@ onMounted(loadDashboard)
 }
 
 .dashboard-grid > .mes-panel:hover {
-  border-color: #c1cbd5;
-  box-shadow: 0 8px 22px rgb(32 42 54 / 7%);
+  border-color: var(--mes-border-strong);
+  box-shadow: var(--mes-shadow-md);
+}
+
+.dashboard-page .mes-panel-header {
+  min-height: 54px;
+  padding: 0 16px;
 }
 
 .mes-panel-header > div {
@@ -803,19 +815,19 @@ onMounted(loadDashboard)
   display: block;
   margin-top: 2px;
   color: var(--mes-text-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .chart-body {
   min-width: 0;
   overflow: hidden;
-  padding: 8px 12px 4px;
+  padding: 10px 14px 6px;
 }
 
 .inspection-count,
 .equipment-total {
   color: var(--mes-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .process-panel {
@@ -839,7 +851,7 @@ onMounted(loadDashboard)
 
 .process-flow {
   display: flex;
-  min-height: 126px;
+  min-height: 136px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -880,7 +892,7 @@ onMounted(loadDashboard)
 .process-step:hover strong { color:var(--mes-primary); }
 
 .process-step strong {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 620;
   white-space: nowrap;
 }
@@ -900,7 +912,7 @@ onMounted(loadDashboard)
   content: '';
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1440px) {
   .dashboard-toolbar {
     grid-template-columns: minmax(240px, 1fr) auto;
   }
@@ -908,7 +920,7 @@ onMounted(loadDashboard)
   .quick-menu-grid,
   .number-card-grid {
     grid-template-columns: repeat(3, minmax(180px, 1fr));
-    gap: 12px;
+    gap: 14px;
   }
 
   .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -940,7 +952,7 @@ onMounted(loadDashboard)
   .quick-menu-grid,
   .number-card-grid {
     grid-template-columns: 1fr;
-    padding: 14px;
+    padding: 0;
   }
 
   .quick-menu-card,

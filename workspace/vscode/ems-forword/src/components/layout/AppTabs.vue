@@ -107,7 +107,7 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
   display: flex;
   width: 100%;
   height: var(--mes-tabs-height);
-  align-items: stretch;
+  align-items: center;
   border-bottom: 1px solid var(--mes-border);
   background: var(--mes-tabs-bg);
 }
@@ -116,10 +116,10 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
   display: flex;
   min-width: 0;
   flex: 1;
-  align-items: flex-end;
-  gap: 3px;
+  align-items: center;
+  gap: 2px;
   overflow-x: auto;
-  padding: 0 8px;
+  padding: 0 10px;
   scrollbar-width: none;
 }
 
@@ -130,35 +130,34 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
 .tab-item {
   position: relative;
   display: inline-flex;
-  height: 34px;
+  height: 36px;
   min-width: 82px;
   max-width: 174px;
   flex: none;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin-bottom: -1px;
-  padding: 0 11px;
+  margin: 0;
+  padding: 0 12px;
   color: var(--mes-text-secondary);
-  border: 1px solid var(--mes-border);
-  border-bottom-color: var(--mes-border);
-  border-radius: 3px 3px 0 0;
-  background: #f7f8fa;
+  border: 0;
+  border-right: 1px solid var(--mes-border);
+  border-radius: 0;
+  background: transparent;
   font-size: 12px;
   cursor: pointer;
 }
 
 .tab-item:hover {
   color: var(--mes-text);
-  background: var(--mes-tab-surface);
+  background: rgb(255 255 255 / 62%);
 }
 
 .tab-item.active {
   z-index: 1;
   color: var(--mes-primary);
-  border-color: var(--mes-border);
-  border-bottom-color: var(--mes-tab-surface);
   background: var(--mes-tab-surface);
+  box-shadow: inset 0 -2px 0 var(--mes-primary);
   font-weight: 620;
 }
 
@@ -190,7 +189,7 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
   align-items: center;
   padding: 0 7px;
   border-left: 1px solid var(--mes-border);
-  background: var(--mes-surface);
+  background: transparent;
 }
 
 .tab-actions :deep(.el-button) {

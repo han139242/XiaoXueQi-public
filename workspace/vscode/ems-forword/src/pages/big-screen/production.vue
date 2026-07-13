@@ -10,6 +10,7 @@ import {
   getProductionTrend,
   getQualityStatistics
 } from '@/api/dashboard'
+import { getResourcePage } from '@/api/resource'
 import { createDashboardPreview } from '@/config/dashboard-preview'
 import { isFrameworkPreview } from '@/utils/auth'
 
@@ -29,9 +30,19 @@ const summary = ref({})
 const trend = ref([])
 const quality = ref({})
 const equipment = ref({})
+const schedulePlans = ref([])
+const scheduleError = ref('')
+const scheduleExpanded = ref(false)
 
 let clockTimer
 let refreshTimer
+
+const scheduleStatusMeta = {
+  DRAFT: { label: '待生效', tone: 'draft' },
+  RELEASED: { label: '已生效', tone: 'released' },
+  FINISHED: { label: '已完成', tone: 'finished' },
+  CLOSED: { label: '已取消', tone: 'closed' }
+}
 
 const stageStyle = computed(() => ({
   transform: `translate3d(${offsetX.value}px, ${offsetY.value}px, 0) scale(${scale.value})`
@@ -46,6 +57,7 @@ const syncText = computed(() => {
   if (loading.value && !lastUpdated.value) return '正在连接数据'
   if (failedDataCount.value === 4) return '数据连接失败'
   if (failedDataCount.value > 0) return '部分数据未更新'
+  if (scheduleError.value) return '排期数据未更新'
   return '数据已同步'
 })
 
@@ -67,7 +79,6 @@ const equipmentTotal = computed(() => ['running', 'stopped', 'fault', 'maintenan
   .reduce((total, key) => total + Number(equipment.value[key] || 0), 0))
 const warningCount = computed(() => Number(summary.value.inventoryWarningCount || 0))
 const faultCount = computed(() => Number(summary.value.equipmentFaultCount || 0))
-const attentionCount = computed(() => warningCount.value + faultCount.value)
 const riskCategoryCount = computed(() => [faultCount.value, warningCount.value, todayDefect.value]
   .filter((value) => value > 0).length)
 const trendRows = computed(() => trend.value.map((item) => {
@@ -86,14 +97,71 @@ const trendRows = computed(() => trend.value.map((item) => {
 const hasTrendData = computed(() => trendRows.value.some((item) => item.output > 0))
 const sevenDayOutput = computed(() => trendRows.value.reduce((total, item) => total + item.output, 0))
 
+const scheduleRows = computed(() => schedulePlans.value
+  .filter((item) => {
+    const start = dayjs(item.plannedStartTime)
+    const end = dayjs(item.plannedEndTime)
+    return start.isValid() && end.isValid() && end.isAfter(start)
+  })
+  .sort((a, b) => dayjs(a.plannedStartTime).valueOf() - dayjs(b.plannedStartTime).valueOf()))
+const visibleScheduleRows = computed(() => scheduleRows.value.slice(0, 5))
+const expandedScheduleRows = computed(() => scheduleRows.value.slice(0, 10))
+const scheduleWindow = computed(() => {
+  if (!scheduleRows.value.length) {
+    return { start: null, end: null, duration: 0, ticks: [] }
+  }
+
+  const earliest = Math.min(...scheduleRows.value.map((item) => dayjs(item.plannedStartTime).valueOf()))
+  const latest = Math.max(...scheduleRows.value.map((item) => dayjs(item.plannedEndTime).valueOf()))
+  const start = dayjs(earliest).startOf('hour')
+  let end = dayjs(latest).add(1, 'hour').startOf('hour')
+  if (end.diff(start, 'hour', true) < 8) {
+    end = start.add(8, 'hour')
+  }
+  const duration = end.valueOf() - start.valueOf()
+  const tickFormat = duration <= 36 * 60 * 60 * 1000 ? 'HH:mm' : 'MM-DD'
+  const ticks = Array.from({ length: 7 }, (_, index) => {
+    const ratio = index / 6
+    return {
+      label: start.add(duration * ratio, 'millisecond').format(tickFormat),
+      left: `${ratio * 100}%`
+    }
+  })
+  return { start, end, duration, ticks }
+})
+const scheduleRangeLabel = computed(() => {
+  const { start, end } = scheduleWindow.value
+  if (!start || !end) return '暂无有效排期'
+  if (start.isSame(end, 'day')) {
+    return `${start.format('MM月DD日 HH:mm')} - ${end.format('HH:mm')}`
+  }
+  return `${start.format('MM-DD HH:mm')} - ${end.format('MM-DD HH:mm')}`
+})
+
 const kpis = computed(() => [
+  {
+    label: '生产订单',
+    value: formatNumber(summary.value.productionOrderCount),
+    unit: '单',
+    description: '当前生产订单台账',
+    icon: 'clipboard',
+    tone: 'blue'
+  },
+  {
+    label: '生产工单',
+    value: formatNumber(summary.value.workOrderCount),
+    unit: '单',
+    description: '当前生产工单台账',
+    icon: 'package',
+    tone: 'amber'
+  },
   {
     label: '今日报工产量',
     value: formatNumber(todayOutput.value),
     unit: '件',
     description: `合格 ${formatNumber(todayQualified.value)} / 不良 ${formatNumber(todayDefect.value)}`,
     icon: 'factory',
-    tone: 'blue'
+    tone: 'cyan'
   },
   {
     label: '今日报工合格率',
@@ -104,20 +172,20 @@ const kpis = computed(() => [
     tone: 'green'
   },
   {
-    label: '运行中生产任务',
-    value: formatNumber(summary.value.runningTaskCount),
-    unit: '项',
-    description: '当前正在执行的生产任务',
-    icon: 'activity',
-    tone: 'cyan'
+    label: '运行设备',
+    value: formatNumber(equipment.value.running),
+    unit: '台',
+    description: `设备总计 ${formatNumber(equipmentTotal.value)} 台`,
+    icon: 'wrench',
+    tone: 'steel'
   },
   {
-    label: '待处理生产预警',
-    value: formatNumber(attentionCount.value),
-    unit: '项',
-    description: `设备故障 ${faultCount.value} / 补货预警 ${warningCount.value}`,
+    label: '今日不良报工',
+    value: formatNumber(todayDefect.value),
+    unit: '件',
+    description: todayDefect.value > 0 ? '进入报工明细复核原因' : '今日暂无不良报工',
     icon: 'alert',
-    tone: attentionCount.value > 0 ? 'red' : 'muted'
+    tone: todayDefect.value > 0 ? 'red' : 'muted'
   }
 ])
 
@@ -258,6 +326,85 @@ function formatPercent(value) {
   return value === null || value === undefined ? '--' : Number(value).toFixed(1)
 }
 
+function pageRecords(result) {
+  const data = result?.data
+  return Array.isArray(data) ? data : (data?.records || [])
+}
+
+function scheduleBarStyle(item) {
+  const { start, duration } = scheduleWindow.value
+  if (!start || !duration) return { left: '0%', width: '0%' }
+  const itemStart = dayjs(item.plannedStartTime).valueOf()
+  const itemEnd = dayjs(item.plannedEndTime).valueOf()
+  const left = Math.max(0, Math.min(96, ((itemStart - start.valueOf()) / duration) * 100))
+  const naturalWidth = Math.max(0, ((itemEnd - itemStart) / duration) * 100)
+  const width = Math.max(4, Math.min(100 - left, naturalWidth))
+  return { left: `${left}%`, width: `${width}%` }
+}
+
+function scheduleBarTitle(item) {
+  return [
+    item.orderNo,
+    item.productName,
+    item.lineName,
+    `${dayjs(item.plannedStartTime).format('MM-DD HH:mm')} - ${dayjs(item.plannedEndTime).format('MM-DD HH:mm')}`,
+    `${formatNumber(item.plannedQuantity)} 件`,
+    item.statusLabel
+  ].join(' · ')
+}
+
+async function loadProductionSchedule() {
+  const [planResult, orderResult, lineResult, productResult] = await Promise.allSettled([
+    getResourcePage('/api/mfg/production-plan', { current: 1, size: 50 }),
+    getResourcePage('/api/mfg/production-order', { current: 1, size: 200 }),
+    getResourcePage('/api/factory/line', { current: 1, size: 200 }),
+    getResourcePage('/api/mdm/product', { current: 1, size: 200 })
+  ])
+  if (planResult.status === 'rejected') {
+    throw planResult.reason
+  }
+
+  const optionalRecords = (result) => result.status === 'fulfilled' ? pageRecords(result.value) : []
+  const plans = pageRecords(planResult.value)
+  const orders = new Map(optionalRecords(orderResult).map((item) => [String(item.productionOrderId), item]))
+  const lines = new Map(optionalRecords(lineResult).map((item) => [String(item.lineId), item]))
+  const products = new Map(optionalRecords(productResult).map((item) => [String(item.productId), item]))
+
+  return plans.map((plan) => {
+    const order = orders.get(String(plan.productionOrderId)) || {}
+    const line = lines.get(String(plan.lineId)) || {}
+    const product = products.get(String(order.productId)) || {}
+    const status = scheduleStatusMeta[plan.status] || { label: plan.status || '未知状态', tone: 'closed' }
+    return {
+      ...plan,
+      orderNo: order.productionOrderNo || `订单 #${plan.productionOrderId || '--'}`,
+      productName: product.productName || `产品 #${order.productId || '--'}`,
+      lineName: line.lineName || `产线 #${plan.lineId || '--'}`,
+      statusLabel: status.label,
+      statusTone: status.tone
+    }
+  })
+}
+
+function openSchedule() {
+  scheduleExpanded.value = true
+}
+
+function closeSchedule() {
+  scheduleExpanded.value = false
+}
+
+async function openProductionPlans() {
+  closeSchedule()
+  await openModule('/mfg/production-plans')
+}
+
+function handleScreenKeydown(event) {
+  if (event.key === 'Escape' && scheduleExpanded.value) {
+    closeSchedule()
+  }
+}
+
 function updateScale() {
   const viewport = window.visualViewport
   const viewportWidth = viewport?.width || window.innerWidth
@@ -299,14 +446,17 @@ async function loadData() {
     trend.value = data.trend
     quality.value = data.quality
     equipment.value = data.equipment
+    schedulePlans.value = data.schedule || []
     lastUpdated.value = dayjs()
     loadError.value = ''
+    scheduleError.value = ''
     failedDataCount.value = 0
     return
   }
 
   loading.value = true
   loadError.value = ''
+  scheduleError.value = ''
   const params = {
     beginDate: dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
     endDate: dayjs().format('YYYY-MM-DD')
@@ -317,14 +467,17 @@ async function loadData() {
       getDashboardSummary(),
       getProductionTrend(params),
       getQualityStatistics(params),
-      getEquipmentStatus()
+      getEquipmentStatus(),
+      loadProductionSchedule()
     ])
+    const dashboardResults = results.slice(0, 4)
+    const scheduleResult = results[4]
     const targets = [summary, trend, quality, equipment]
     const labels = ['生产汇总', '生产趋势', '质量统计', '设备状态']
     const failedLabels = []
     let successCount = 0
 
-    results.forEach((result, index) => {
+    dashboardResults.forEach((result, index) => {
       if (result.status === 'fulfilled') {
         targets[index].value = result.value.data ?? (index === 1 ? [] : {})
         successCount += 1
@@ -332,6 +485,12 @@ async function loadData() {
         failedLabels.push(labels[index])
       }
     })
+
+    if (scheduleResult.status === 'fulfilled') {
+      schedulePlans.value = scheduleResult.value
+    } else {
+      scheduleError.value = scheduleResult.reason?.displayMessage || scheduleResult.reason?.message || '生产排期暂未更新'
+    }
 
     failedDataCount.value = failedLabels.length
     if (successCount > 0) {
@@ -358,6 +517,7 @@ onMounted(() => {
   clockTimer = window.setInterval(() => { now.value = dayjs() }, 1000)
   refreshTimer = window.setInterval(loadData, 60000)
   window.addEventListener('resize', updateScale)
+  window.addEventListener('keydown', handleScreenKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
   window.visualViewport?.addEventListener('resize', updateScale)
 })
@@ -366,6 +526,7 @@ onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
   window.clearInterval(refreshTimer)
   window.removeEventListener('resize', updateScale)
+  window.removeEventListener('keydown', handleScreenKeydown)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
   window.visualViewport?.removeEventListener('resize', updateScale)
 })
@@ -439,29 +600,71 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="primary-grid">
-          <article class="screen-panel trend-panel">
+          <article class="screen-panel schedule-panel">
             <header class="panel-header">
               <div>
-                <strong>近 7 日生产趋势</strong>
-                <span>柱状为报工总量，折线为报工合格率</span>
+                <strong>生产订单排期</strong>
+                <span>基于生产计划起止时间与产线形成</span>
               </div>
               <aside class="panel-tools">
-                <div class="panel-total">
-                  <span>7 日累计</span>
-                  <b>{{ formatNumber(sevenDayOutput) }} 件</b>
-                </div>
-                <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
+                <span class="schedule-range">{{ scheduleRangeLabel }}</span>
+                <button class="panel-link" type="button" title="放大生产订单排期" aria-label="放大生产订单排期" @click="openSchedule">
+                  <AppIcon name="fullscreen" :size="19" />
+                </button>
+                <button class="panel-link" type="button" title="打开生产计划管理" aria-label="打开生产计划管理" @click="openProductionPlans">
                   <AppIcon name="arrow" :size="20" />
                 </button>
               </aside>
             </header>
-            <div class="trend-chart-wrap">
-              <MesChart :option="trendOption" height="372px" />
-              <div v-if="!hasTrendData" class="empty-overlay">
-                <AppIcon name="activity" :size="28" />
-                <strong>近 7 日暂无报工数据</strong>
-                <span>产生生产报工后，趋势会自动显示在这里</span>
+            <div
+              class="schedule-board"
+              role="button"
+              tabindex="0"
+              aria-label="点击放大生产订单排期"
+              @click="openSchedule"
+              @keydown.enter="openSchedule"
+              @keydown.space.prevent="openSchedule"
+            >
+              <div class="schedule-axis">
+                <span>产线 / 计划</span>
+                <div class="schedule-axis-track">
+                  <i v-for="tick in scheduleWindow.ticks" :key="`${tick.left}-${tick.label}`" :style="{ left: tick.left }">
+                    <b>{{ tick.label }}</b>
+                  </i>
+                </div>
               </div>
+              <div v-if="visibleScheduleRows.length" class="schedule-rows">
+                <div v-for="item in visibleScheduleRows" :key="item.planId" class="schedule-row">
+                  <div class="schedule-row-meta">
+                    <strong>{{ item.lineName }}</strong>
+                    <span>{{ item.planNo }}</span>
+                  </div>
+                  <div class="schedule-row-track">
+                    <span
+                      class="schedule-bar"
+                      :class="`is-${item.statusTone}`"
+                      :style="scheduleBarStyle(item)"
+                      :title="scheduleBarTitle(item)"
+                    >
+                      <b>{{ item.orderNo }}</b>
+                      <small>{{ item.productName }} · {{ formatNumber(item.plannedQuantity) }} 件</small>
+                      <em>{{ item.statusLabel }}</em>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="scheduleError" class="schedule-empty is-error">
+                <AppIcon name="alert" :size="28" />
+                <strong>排期数据暂未更新</strong>
+                <span>{{ scheduleError }}</span>
+              </div>
+              <div v-else class="schedule-empty">
+                <AppIcon name="calendar" :size="30" />
+                <strong>暂无有效生产排期</strong>
+                <span>请先为生产订单建立包含开始、结束时间和产线的生产计划</span>
+              </div>
+              <div v-if="scheduleError && visibleScheduleRows.length" class="schedule-stale"><AppIcon name="alert" :size="14" />当前保留上次成功排期</div>
+              <div class="schedule-expand-hint"><AppIcon name="fullscreen" :size="16" />点击放大查看完整排期</div>
             </div>
           </article>
 
@@ -550,6 +753,31 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="secondary-grid">
+          <article class="screen-panel trend-summary-panel">
+            <header class="panel-header compact">
+              <div>
+                <strong>近 7 日生产趋势</strong>
+                <span>报工总量与报工合格率</span>
+              </div>
+              <aside class="panel-tools">
+                <div class="panel-total compact-total">
+                  <span>累计</span>
+                  <b>{{ formatNumber(sevenDayOutput) }} 件</b>
+                </div>
+                <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
+                  <AppIcon name="arrow" :size="20" />
+                </button>
+              </aside>
+            </header>
+            <div class="trend-chart-wrap compact-chart">
+              <MesChart :option="trendOption" height="205px" />
+              <div v-if="!hasTrendData" class="empty-overlay compact-empty">
+                <AppIcon name="activity" :size="24" />
+                <strong>近 7 日暂无报工</strong>
+              </div>
+            </div>
+          </article>
+
           <article class="screen-panel quality-panel">
             <header class="panel-header compact">
               <div>
@@ -635,6 +863,76 @@ onBeforeUnmount(() => {
           </article>
         </section>
       </main>
+
+      <div v-if="scheduleExpanded" class="schedule-modal-backdrop" @click.self="closeSchedule">
+        <section class="schedule-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
+          <header class="schedule-modal-header">
+            <div>
+              <span>PRODUCTION SCHEDULE</span>
+              <strong id="schedule-modal-title">生产订单排期总览</strong>
+              <p>{{ previewMode ? '演示排期' : '真实生产计划' }} · {{ scheduleRangeLabel }}</p>
+            </div>
+            <aside>
+              <button class="modal-command" type="button" @click="openProductionPlans">
+                <AppIcon name="calendar" :size="19" />
+                <span>生产计划管理</span>
+              </button>
+              <button class="modal-close" type="button" title="关闭排期总览" aria-label="关闭排期总览" @click="closeSchedule">
+                <AppIcon name="close" :size="22" />
+              </button>
+            </aside>
+          </header>
+
+          <div class="schedule-board expanded-board">
+            <div class="schedule-axis">
+              <span>产线 / 生产计划</span>
+              <div class="schedule-axis-track">
+                <i v-for="tick in scheduleWindow.ticks" :key="`expanded-${tick.left}-${tick.label}`" :style="{ left: tick.left }">
+                  <b>{{ tick.label }}</b>
+                </i>
+              </div>
+            </div>
+            <div v-if="expandedScheduleRows.length" class="schedule-rows">
+              <div v-for="item in expandedScheduleRows" :key="`expanded-${item.planId}`" class="schedule-row">
+                <div class="schedule-row-meta">
+                  <strong>{{ item.lineName }}</strong>
+                  <span>{{ item.planNo }} · {{ item.statusLabel }}</span>
+                </div>
+                <div class="schedule-row-track">
+                  <span
+                    class="schedule-bar"
+                    :class="`is-${item.statusTone}`"
+                    :style="scheduleBarStyle(item)"
+                    :title="scheduleBarTitle(item)"
+                  >
+                    <b>{{ item.orderNo }}</b>
+                    <small>{{ item.productName }} · {{ formatNumber(item.plannedQuantity) }} 件</small>
+                    <em>{{ dayjs(item.plannedStartTime).format('MM-DD HH:mm') }} - {{ dayjs(item.plannedEndTime).format('MM-DD HH:mm') }}</em>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="scheduleError" class="schedule-empty is-error">
+              <AppIcon name="alert" :size="34" />
+              <strong>排期数据暂未更新</strong>
+              <span>{{ scheduleError }}</span>
+            </div>
+            <div v-else class="schedule-empty">
+              <AppIcon name="calendar" :size="36" />
+              <strong>暂无有效生产排期</strong>
+              <span>请在生产计划中补齐订单、产线、计划开始和计划结束时间</span>
+            </div>
+          </div>
+
+          <footer class="schedule-modal-footer">
+            <span><i class="is-draft" />待生效</span>
+            <span><i class="is-released" />已生效</span>
+            <span><i class="is-finished" />已完成</span>
+            <span><i class="is-closed" />已取消</span>
+            <b>显示 {{ expandedScheduleRows.length }} / {{ scheduleRows.length }} 条有效计划</b>
+          </footer>
+        </section>
+      </div>
     </div>
   </div>
 </template>
@@ -646,10 +944,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
   color: #edf4fa;
   background:
-    linear-gradient(rgb(61 91 116 / 7%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(61 91 116 / 7%) 1px, transparent 1px),
-    linear-gradient(180deg, #07111c 0%, #081522 48%, #060e17 100%);
-  background-size: 64px 64px, 64px 64px, auto;
+    linear-gradient(rgb(61 100 130 / 7%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(61 100 130 / 7%) 1px, transparent 1px),
+    linear-gradient(180deg, #06111c 0%, #071521 50%, #050e17 100%);
+  background-size: 72px 72px, 72px 72px, auto;
   font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
   letter-spacing: 0;
 }
@@ -657,8 +955,8 @@ onBeforeUnmount(() => {
 .big-screen-page::after {
   position: absolute;
   inset: 0;
-  border: 1px solid rgb(81 133 171 / 18%);
-  box-shadow: inset 0 0 120px rgb(0 0 0 / 26%);
+  border: 2px solid rgb(81 145 186 / 20%);
+  box-shadow: inset 0 0 140px rgb(0 0 0 / 30%);
   content: '';
   pointer-events: none;
 }
@@ -670,20 +968,20 @@ onBeforeUnmount(() => {
   width: 1920px;
   height: 1080px;
   overflow: hidden;
-  background: linear-gradient(180deg, rgb(6 17 29 / 92%), rgb(7 18 29 / 96%));
+  background: linear-gradient(180deg, rgb(5 16 28 / 91%), rgb(6 17 28 / 96%));
   font-variant-numeric: tabular-nums;
   transform-origin: top left;
 }
 
 .screen-header {
   display: grid;
-  height: 84px;
+  height: 90px;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 0 28px;
-  border-bottom: 1px solid #29465d;
-  background: rgb(8 22 36 / 96%);
-  box-shadow: 0 8px 28px rgb(0 0 0 / 20%);
+  padding: 0 30px;
+  border-bottom: 1px solid #27506a;
+  background: rgb(6 19 32 / 97%);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 22%), inset 0 -1px 0 rgb(69 163 201 / 12%);
 }
 
 .header-branding,
@@ -694,32 +992,32 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
-.header-branding { gap: 15px; }
+.header-branding { gap: 16px; }
 .header-branding > div { display: grid; gap: 4px; }
-.header-branding strong { color: #f3f8fc; font-size: 20px; font-weight: 720; line-height: 1.25; }
-.header-branding span { color: #9aafbf; font-size: 17px; line-height: 1.25; }
+.header-branding strong { color: #f3f8fc; font-size: 21px; font-weight: 720; line-height: 1.25; }
+.header-branding span { color: #91aabd; font-size: 16px; line-height: 1.25; }
 
 .header-title { display: grid; justify-items: center; gap: 5px; }
 .header-title {
   position: relative;
-  min-width: 500px;
-  padding: 0 76px 9px;
+  min-width: 540px;
+  padding: 0 82px 10px;
 }
 .header-title::before,
 .header-title::after {
   position: absolute;
   bottom: 0;
-  width: 128px;
-  height: 18px;
-  border-bottom: 2px solid #4eaccf;
+  width: 142px;
+  height: 19px;
+  border-bottom: 2px solid #51b4d8;
   content: '';
 }
-.header-title::before { left: 0; border-left: 2px solid #4eaccf; transform: skewX(38deg); }
-.header-title::after { right: 0; border-right: 2px solid #4eaccf; transform: skewX(-38deg); }
-.header-title strong { color: #fff; font-size: 30px; font-weight: 760; line-height: 1.2; text-shadow: 0 0 18px rgb(78 172 207 / 26%); }
-.header-title span { color: #6ea8c1; font-size: 13px; font-weight: 650; line-height: 1.25; }
+.header-title::before { left: 0; border-left: 2px solid #51b4d8; transform: skewX(38deg); }
+.header-title::after { right: 0; border-right: 2px solid #51b4d8; transform: skewX(-38deg); }
+.header-title strong { color: #fff; font-size: 32px; font-weight: 760; line-height: 1.2; text-shadow: 0 0 20px rgb(81 180 216 / 28%); }
+.header-title span { color: #75b2ca; font-size: 14px; font-weight: 650; line-height: 1.25; }
 
-.header-actions { justify-content: flex-end; gap: 10px; }
+.header-actions { justify-content: flex-end; gap: 9px; }
 .header-clock { gap: 9px; margin-left: 6px; color: #b4c3ce; font-size: 16px; white-space: nowrap; }
 .header-clock b { color: #fff; font-size: 18px; font-weight: 700; }
 
@@ -761,10 +1059,10 @@ onBeforeUnmount(() => {
 .screen-shell {
   position: relative;
   display: grid;
-  height: calc(100% - 84px);
-  grid-template-rows: 148px minmax(0, 1fr) 292px;
-  gap: 18px;
-  padding: 22px 24px 24px;
+  height: calc(100% - 90px);
+  grid-template-rows: 128px minmax(0, 1fr) 284px;
+  gap: 16px;
+  padding: 20px 22px 22px;
   box-sizing: border-box;
 }
 
@@ -791,80 +1089,123 @@ onBeforeUnmount(() => {
 .kpi-strip {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .kpi-card {
   --accent: #5297d4;
+  position: relative;
   display: grid;
   min-width: 0;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr);
   align-items: center;
-  gap: 19px;
-  padding: 20px 24px;
-  border: 1px solid #2c475d;
-  border-left: 5px solid var(--accent);
-  border-radius: 5px;
-  background: linear-gradient(105deg, rgb(18 42 61 / 94%), rgb(10 26 40 / 96%));
-  box-shadow: 0 8px 22px rgb(0 0 0 / 16%);
+  gap: 14px;
+  overflow: hidden;
+  padding: 15px 16px;
+  border: 1px solid #294b62;
+  border-radius: 4px;
+  background: rgb(9 28 44 / 96%);
+  box-shadow: 0 10px 26px rgb(0 0 0 / 17%), inset 0 1px 0 rgb(255 255 255 / 2%);
+}
+
+.kpi-card::before {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 82px;
+  height: 3px;
+  background: var(--accent);
+  content: '';
+}
+
+.kpi-card::after {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 22px;
+  height: 22px;
+  border-right: 3px solid color-mix(in srgb, var(--accent) 74%, #24465d);
+  border-bottom: 3px solid color-mix(in srgb, var(--accent) 74%, #24465d);
+  content: '';
 }
 
 .kpi-card.is-green { --accent: #4bc58a; }
 .kpi-card.is-cyan { --accent: #49b9d0; }
+.kpi-card.is-amber { --accent: #d8a253; }
+.kpi-card.is-steel { --accent: #7f9fb8; }
 .kpi-card.is-red { --accent: #e76d75; }
 .kpi-card.is-muted { --accent: #788c9b; }
 
 .kpi-icon {
   display: inline-flex;
-  width: 72px;
-  height: 72px;
+  width: 62px;
+  height: 62px;
   align-items: center;
   justify-content: center;
   color: var(--accent);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, #29465d);
-  border-radius: 6px;
+  border-radius: 50%;
   background: color-mix(in srgb, var(--accent) 13%, #102435);
+  box-shadow: inset 0 0 22px color-mix(in srgb, var(--accent) 12%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
-.kpi-copy { display: grid; min-width: 0; gap: 5px; }
-.kpi-copy > span { color: #b9c9d5; font-size: 20px; font-weight: 650; line-height: 1.2; }
-.kpi-copy strong { overflow: hidden; color: #fff; font-size: 52px; font-weight: 760; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
-.kpi-copy strong small { margin-left: 7px; color: #9eb0be; font-size: 17px; font-weight: 550; }
-.kpi-copy p { overflow: hidden; margin: 0; color: #9bafbd; font-size: 17px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.kpi-copy { display: grid; min-width: 0; gap: 4px; }
+.kpi-copy > span { color: #bdccd7; font-size: 16px; font-weight: 650; line-height: 1.2; }
+.kpi-copy strong { overflow: hidden; color: #fff; font-size: 38px; font-weight: 760; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.kpi-copy strong small { margin-left: 5px; color: #9eb0be; font-size: 15px; font-weight: 550; }
+.kpi-copy p { overflow: hidden; margin: 0; color: #94aaba; font-size: 14px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 
 .primary-grid {
   display: grid;
   min-height: 0;
-  grid-template-columns: minmax(700px, 1.25fr) minmax(520px, .92fr) minmax(410px, .72fr);
-  gap: 18px;
+  grid-template-areas: 'execution schedule report';
+  grid-template-columns: minmax(320px, .65fr) minmax(780px, 1.65fr) minmax(480px, .92fr);
+  gap: 16px;
 }
+
+.schedule-panel { grid-area: schedule; }
+.report-table-panel { grid-area: report; }
+.execution-panel { grid-area: execution; }
 
 .secondary-grid {
   display: grid;
   min-height: 0;
-  grid-template-columns: 1.02fr 1fr 1.18fr;
-  gap: 18px;
+  grid-template-columns: 1.18fr 1.05fr 1fr 1.17fr;
+  gap: 16px;
 }
 
 .screen-panel {
   position: relative;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #2b465b;
-  border-radius: 5px;
-  background: rgb(10 27 42 / 94%);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+  border: 1px solid #294a61;
+  border-radius: 4px;
+  background: rgb(8 25 40 / 96%);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 15%), inset 0 1px 0 rgb(255 255 255 / 2%);
 }
 .screen-panel::before {
   position: absolute;
   z-index: 2;
   top: -1px;
   left: 20px;
-  width: 92px;
-  height: 2px;
-  background: #4eaccf;
+  width: 104px;
+  height: 3px;
+  background: #51b4d8;
   content: '';
+}
+
+.screen-panel::after {
+  position: absolute;
+  z-index: 2;
+  right: -1px;
+  bottom: -1px;
+  width: 25px;
+  height: 25px;
+  border-right: 3px solid #337fa3;
+  border-bottom: 3px solid #337fa3;
+  content: '';
+  pointer-events: none;
 }
 
 .panel-header {
@@ -874,14 +1215,14 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 18px;
   padding: 0 22px;
-  border-bottom: 1px solid #29445a;
-  background: rgb(16 38 56 / 72%);
+  border-bottom: 1px solid #2a4960;
+  background: rgb(13 37 56 / 82%);
 }
 
 .panel-header.compact { min-height: 68px; }
 .panel-header > div { display: grid; gap: 5px; }
-.panel-header > div > strong { color: #f2f7fb; font-size: 22px; font-weight: 720; line-height: 1.25; }
-.panel-header > div > span { color: #a2b4c1; font-size: 17px; line-height: 1.25; }
+.panel-header > div > strong { color: #f2f7fb; font-size: 21px; font-weight: 720; line-height: 1.25; }
+.panel-header > div > span { color: #9db1c0; font-size: 16px; line-height: 1.25; }
 
 .panel-tools { display: flex; align-items: center; gap: 12px; }
 .panel-total { display: grid; gap: 4px; justify-items: end; }
@@ -903,7 +1244,255 @@ onBeforeUnmount(() => {
 }
 .panel-link:hover { color: #fff; border-color: #4f7896; background: #17364d; }
 
-.trend-chart-wrap { position: relative; height: calc(100% - 72px); padding: 5px 8px 0; }
+.schedule-panel .panel-header > div { min-width: 0; }
+.schedule-panel .panel-tools { gap: 8px; }
+.schedule-range {
+  max-width: 210px;
+  overflow: hidden;
+  color: #86b9d3;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-board {
+  position: relative;
+  height: calc(100% - 72px);
+  padding: 8px 14px 34px;
+  box-sizing: border-box;
+  outline: none;
+  cursor: zoom-in;
+}
+
+.schedule-board:focus-visible {
+  box-shadow: inset 0 0 0 2px #51b4d8;
+}
+
+.schedule-axis,
+.schedule-row {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+}
+
+.schedule-axis {
+  height: 44px;
+  align-items: end;
+  color: #91a7b7;
+  border-bottom: 1px solid #31536b;
+  font-size: 15px;
+}
+
+.schedule-axis > span { padding: 0 12px 10px 2px; }
+.schedule-axis-track { position: relative; height: 100%; }
+.schedule-axis-track i {
+  position: absolute;
+  bottom: -1px;
+  height: 11px;
+  border-left: 1px solid #42657d;
+  font-style: normal;
+  transform: translateX(-50%);
+}
+.schedule-axis-track i:first-child { transform: none; }
+.schedule-axis-track i:last-child { transform: translateX(-100%); }
+.schedule-axis-track b {
+  position: absolute;
+  right: 0;
+  bottom: 15px;
+  color: #9eb5c5;
+  font-size: 15px;
+  font-weight: 550;
+  white-space: nowrap;
+  transform: translateX(50%);
+}
+.schedule-axis-track i:first-child b { right: auto; left: 0; transform: none; }
+.schedule-axis-track i:last-child b { right: 0; transform: none; }
+
+.schedule-rows { min-height: 0; }
+.schedule-row {
+  height: 64px;
+  align-items: stretch;
+  border-bottom: 1px solid rgb(48 79 101 / 72%);
+}
+.schedule-row-meta {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 4px;
+  padding: 0 12px 0 2px;
+}
+.schedule-row-meta strong,
+.schedule-row-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.schedule-row-meta strong { color: #dbe8f0; font-size: 17px; font-weight: 680; }
+.schedule-row-meta span { color: #829caf; font-size: 14px; }
+.schedule-row-track {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background-image: linear-gradient(90deg, rgb(72 108 134 / 18%) 1px, transparent 1px);
+  background-size: 16.6667% 100%;
+}
+.schedule-bar {
+  position: absolute;
+  top: 8px;
+  display: grid;
+  height: 48px;
+  min-width: 48px;
+  align-content: center;
+  gap: 3px;
+  overflow: hidden;
+  padding: 5px 64px 5px 10px;
+  color: #eef7ff;
+  border: 1px solid rgb(117 174 215 / 52%);
+  border-radius: 4px;
+  background: #315d88;
+  box-sizing: border-box;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  white-space: nowrap;
+}
+.schedule-bar.is-released { border-color: rgb(83 194 139 / 58%); background: #26704f; }
+.schedule-bar.is-finished { border-color: rgb(215 166 83 / 58%); background: #765726; }
+.schedule-bar.is-closed { border-color: rgb(130 149 164 / 48%); background: #485765; }
+.schedule-bar b,
+.schedule-bar small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-bar b { font-size: 16px; font-weight: 700; }
+.schedule-bar small { color: rgb(239 247 252 / 78%); font-size: 13px; }
+.schedule-bar em {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  color: #fff;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 650;
+  transform: translateY(-50%);
+}
+
+.schedule-empty {
+  display: grid;
+  height: calc(100% - 44px);
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: #7790a2;
+  text-align: center;
+}
+.schedule-empty strong { color: #bdcbd5; font-size: 18px; }
+.schedule-empty span { max-width: 520px; font-size: 14px; }
+.schedule-empty.is-error { color: #d69a5f; }
+.schedule-stale {
+  position: absolute;
+  bottom: 8px;
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #dda45f;
+  font-size: 13px;
+}
+.schedule-expand-hint {
+  position: absolute;
+  right: 16px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #7f9caf;
+  font-size: 13px;
+}
+
+.schedule-modal-backdrop {
+  position: absolute;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(2 9 16 / 88%);
+  backdrop-filter: blur(5px);
+}
+.schedule-modal {
+  display: grid;
+  width: 1820px;
+  height: 980px;
+  grid-template-rows: 88px minmax(0, 1fr) 52px;
+  overflow: hidden;
+  border: 1px solid #397797;
+  border-radius: 5px;
+  background: #071827;
+  box-shadow: 0 28px 80px rgb(0 0 0 / 52%), inset 0 0 70px rgb(40 112 154 / 6%);
+}
+.schedule-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 28px;
+  border-bottom: 1px solid #2d536b;
+  background: #0a2134;
+}
+.schedule-modal-header > div { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 4px 14px; }
+.schedule-modal-header > div > span { color: #54b4d7; font-size: 13px; font-weight: 700; }
+.schedule-modal-header strong { color: #fff; font-size: 30px; font-weight: 750; }
+.schedule-modal-header p { grid-column: 1 / -1; margin: 0; color: #91a9b9; font-size: 16px; }
+.schedule-modal-header aside { display: flex; align-items: center; gap: 10px; }
+.modal-command,
+.modal-close {
+  display: inline-flex;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  color: #dbeaf3;
+  border: 1px solid #35627d;
+  border-radius: 4px;
+  background: #102c42;
+  cursor: pointer;
+}
+.modal-command { gap: 8px; padding: 0 15px; font-size: 15px; font-weight: 650; }
+.modal-close { width: 42px; padding: 0; }
+.modal-command:hover,
+.modal-close:hover { color: #fff; border-color: #55a9ce; background: #173b55; }
+.expanded-board {
+  height: auto;
+  padding: 16px 24px;
+  cursor: default;
+}
+.expanded-board .schedule-axis,
+.expanded-board .schedule-row { grid-template-columns: 200px minmax(0, 1fr); }
+.expanded-board .schedule-axis { height: 50px; font-size: 18px; }
+.expanded-board .schedule-axis > span { padding-left: 6px; }
+.expanded-board .schedule-axis-track b { font-size: 18px; }
+.expanded-board .schedule-row { height: 70px; }
+.expanded-board .schedule-row-meta { padding-left: 6px; }
+.expanded-board .schedule-row-meta strong { font-size: 20px; }
+.expanded-board .schedule-row-meta span { font-size: 16px; }
+.expanded-board .schedule-bar { top: 9px; height: 52px; padding: 6px 190px 6px 14px; }
+.expanded-board .schedule-bar b { font-size: 19px; }
+.expanded-board .schedule-bar small { font-size: 16px; }
+.expanded-board .schedule-bar em { right: 14px; font-size: 16px; }
+.schedule-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 0 28px;
+  color: #9db1bf;
+  border-top: 1px solid #2d536b;
+  background: #091d2d;
+  font-size: 14px;
+}
+.schedule-modal-footer span { display: inline-flex; align-items: center; gap: 7px; }
+.schedule-modal-footer i { width: 11px; height: 11px; border-radius: 2px; background: #315d88; }
+.schedule-modal-footer i.is-released { background: #26704f; }
+.schedule-modal-footer i.is-finished { background: #765726; }
+.schedule-modal-footer i.is-closed { background: #485765; }
+.schedule-modal-footer b { margin-left: auto; color: #c9d8e2; font-size: 14px; font-weight: 650; }
+
+.trend-chart-wrap { position: relative; height: calc(100% - 68px); padding: 0 6px; }
+.compact-total { gap: 2px; }
+.compact-total span { font-size: 13px; }
+.compact-total b { font-size: 16px; }
 .empty-overlay {
   position: absolute;
   inset: 62px 32px 30px 72px;
@@ -916,6 +1505,8 @@ onBeforeUnmount(() => {
 }
 .empty-overlay strong { color: #b2c3cf; font-size: 19px; }
 .empty-overlay span { font-size: 16px; }
+.compact-empty { inset: 48px 20px 18px 56px; gap: 6px; }
+.compact-empty strong { font-size: 16px; }
 
 .table-status { display: inline-flex; align-items: center; gap: 7px; color: #78cfa0; font-size: 15px; white-space: nowrap; }
 .table-status i { width: 7px; height: 7px; border-radius: 50%; background: #4bc58a; box-shadow: 0 0 7px rgb(75 197 138 / 48%); }
@@ -951,54 +1542,61 @@ onBeforeUnmount(() => {
 .table-empty { position: absolute; inset: 42px 16px 12px; display: grid; align-content: center; justify-items: center; gap: 8px; color: #879cab; background: #0b1d2c; font-size: 16px; }
 
 .execution-panel { display: grid; grid-template-rows: auto 1fr auto auto; }
+.execution-panel .panel-header { gap: 8px; padding: 0 14px; }
+.execution-panel .panel-header > div { min-width: 0; }
+.execution-panel .panel-header > div > span { max-width: 194px; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.execution-panel .panel-tools { gap: 6px; }
+.execution-panel .panel-link { width: 34px; height: 34px; }
 .live-badge { display: inline-flex; align-items: center; gap: 7px; color: #79cfa0; font-size: 16px; }
+.execution-panel .live-badge { gap: 5px; font-size: 14px; }
 .live-badge i { width: 8px; height: 8px; border-radius: 50%; background: #4bc58a; box-shadow: 0 0 8px rgb(75 197 138 / 58%); }
 
-.output-focus { display: grid; align-content: center; justify-items: center; gap: 7px; padding: 16px 24px 10px; }
-.output-focus > span { color: #a8bac6; font-size: 19px; line-height: 1.25; }
-.output-focus strong { color: #fff; font-size: 68px; font-weight: 780; line-height: 1; }
+.output-focus { display: grid; align-content: center; justify-items: center; gap: 7px; padding: 12px 18px 8px; }
+.output-focus > span { color: #a8bac6; font-size: 17px; line-height: 1.25; }
+.output-focus strong { color: #fff; font-size: 60px; font-weight: 780; line-height: 1; }
 .output-focus strong small { margin-left: 8px; color: #91a5b5; font-size: 19px; font-weight: 550; }
 .output-focus em { padding: 5px 12px; color: #7ed5a5; border-radius: 3px; background: rgb(75 197 138 / 10%); font-size: 16px; font-style: normal; line-height: 1.25; }
 .output-focus em.is-empty { color: #8da0ae; background: rgb(120 140 155 / 10%); }
 
-.output-breakdown { display: grid; grid-template-columns: 1fr 1fr; margin: 0 22px 14px; border-top: 1px solid #29445a; border-bottom: 1px solid #29445a; }
-.output-breakdown > div { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 18px; }
+.output-breakdown { display: grid; grid-template-columns: 1fr 1fr; margin: 0 14px 10px; border-top: 1px solid #29445a; border-bottom: 1px solid #29445a; }
+.output-breakdown > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 10px; }
 .output-breakdown > div + div { border-left: 1px solid #29445a; }
-.output-breakdown span { color: #9eb1bf; font-size: 17px; line-height: 1.25; }
-.output-breakdown b { color: #dcebf4; font-size: 28px; line-height: 1.1; }
+.output-breakdown span { color: #9eb1bf; font-size: 15px; line-height: 1.25; }
+.output-breakdown b { color: #dcebf4; font-size: 24px; line-height: 1.1; }
 .output-breakdown .is-qualified b { color: #66cf98; }
 .output-breakdown .is-defect b { color: #e58b68; }
 
-.production-stat-list { display: grid; grid-template-columns: 1fr; padding: 0 22px 10px; }
-.production-stat-row { display: grid; min-width: 0; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 6px 4px; }
+.production-stat-list { display: grid; grid-template-columns: 1fr; padding: 0 14px 8px; }
+.production-stat-row { display: grid; min-width: 0; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 6px 3px; }
 .production-stat-row + .production-stat-row { border-top: 1px solid #29445a; }
-.production-stat-row > span { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; color: #73add3; border-radius: 4px; background: #123149; }
+.production-stat-row > span { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; color: #73add3; border-radius: 4px; background: #123149; }
 .production-stat-row div { display: grid; min-width: 0; gap: 2px; }
-.production-stat-row b { color: #c9d7e1; font-size: 16px; line-height: 1.25; }
-.production-stat-row small { overflow: hidden; color: #91a6b5; font-size: 16px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-.production-stat-row strong { color: #fff; font-size: 28px; }
+.production-stat-row b { color: #c9d7e1; font-size: 15px; line-height: 1.25; }
+.production-stat-row small { overflow: hidden; color: #91a6b5; font-size: 14px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.production-stat-row strong { color: #fff; font-size: 24px; }
 
-.quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 154px minmax(0, 1fr); align-items: center; gap: 18px; padding: 14px 22px 16px; box-sizing: border-box; }
+.quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; padding: 12px 14px 14px; box-sizing: border-box; }
 .quality-dial {
   position: relative;
   display: grid;
-  width: 138px;
-  height: 138px;
+  width: 118px;
+  height: 118px;
   place-items: center;
   border-radius: 50%;
   background: conic-gradient(#4bc58a var(--quality-angle), #1b3548 0);
 }
-.quality-dial::after { position: absolute; inset: 13px; border: 1px solid #33566f; border-radius: 50%; background: #0b1e2e; content: ''; }
+.quality-dial::after { position: absolute; inset: 11px; border: 1px solid #33566f; border-radius: 50%; background: #0b1e2e; content: ''; }
 .quality-dial::before { position: absolute; inset: -4px; border: 1px solid rgb(78 172 207 / 24%); border-radius: 50%; content: ''; }
 .quality-dial.is-empty { background: #1b3548; }
 .quality-dial > div { position: relative; z-index: 1; display: grid; justify-items: center; gap: 4px; }
-.quality-dial span { color: #93a9b8; font-size: 14px; }
-.quality-dial strong { color: #fff; font-size: 35px; line-height: 1; }
+.quality-dial span { color: #93a9b8; font-size: 13px; }
+.quality-dial strong { color: #fff; font-size: 31px; line-height: 1; }
 .quality-dial strong small { margin-left: 2px; color: #94a8b6; font-size: 15px; }
-.quality-counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.quality-counts > div { display: grid; gap: 8px; padding: 14px 10px; border-left: 1px solid #365066; }
-.quality-counts span { color: #9aafbd; font-size: 16px; }
-.quality-counts b { color: #eaf3f8; font-size: 28px; }
+.quality-counts { display: grid; grid-template-columns: 1fr; gap: 0; border-left: 1px solid #365066; }
+.quality-counts > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; }
+.quality-counts > div + div { border-top: 1px solid rgb(54 80 102 / 76%); }
+.quality-counts span { color: #9aafbd; font-size: 15px; }
+.quality-counts b { color: #eaf3f8; font-size: 23px; }
 
 .equipment-total,
 .attention-total { color: #f0f6fa; font-size: 30px; font-weight: 750; }
