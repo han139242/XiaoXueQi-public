@@ -1,6 +1,6 @@
 -- 羽毛球 MES 最终企业基线主数据。
 -- 执行顺序：schema.sql（新库）或 master_data_type_migration.sql（现有库） -> 本脚本。
--- 使用前请先备份数据库并选择目标库；本脚本按业务编码补缺，不覆盖同编码有效数据，可重复执行。
+-- 使用前请先备份数据库并选择目标库；本脚本按业务编码补缺，仅规范化带最终基线标识的数据，可重复执行。
 -- 唯一清理动作：软删除所有业务字段均为空的历史设备占位记录，不处理任何有效设备。
 -- 本脚本不创建订单、工单、任务、库存余额、库存流水、检验结果等交易数据。
 
@@ -74,6 +74,10 @@ FROM (
   UNION ALL SELECT 'EMP-MFG-102', '刘洋', 'DEPT-MFG', '比赛球线班组长', 'ADVANCED', '负责比赛球产线班组'
   UNION ALL SELECT 'EMP-MFG-111', '陈晨', 'DEPT-MFG', '训练球线操作员', 'INTERMEDIATE', '训练球产线多能工'
   UNION ALL SELECT 'EMP-MFG-112', '赵敏', 'DEPT-MFG', '比赛球线操作员', 'ADVANCED', '比赛球产线多能工'
+  UNION ALL SELECT 'EMP-MFG-113', '马超', 'DEPT-MFG', '训练球线操作员', 'INTERMEDIATE', '训练球产线设备与包装操作'
+  UNION ALL SELECT 'EMP-MFG-114', '郑欣', 'DEPT-MFG', '训练球线操作员', 'INTERMEDIATE', '训练球产线检验与物料协作'
+  UNION ALL SELECT 'EMP-MFG-115', '何涛', 'DEPT-MFG', '比赛球线操作员', 'ADVANCED', '比赛球产线设备与包装操作'
+  UNION ALL SELECT 'EMP-MFG-116', '唐悦', 'DEPT-MFG', '比赛球线操作员', 'ADVANCED', '比赛球产线检验与物料协作'
   UNION ALL SELECT 'EMP-QMS-001', '周杰', 'DEPT-QMS', '质量工程师', 'EXPERT', '负责质量标准和检验放行'
   UNION ALL SELECT 'EMP-WMS-001', '吴迪', 'DEPT-WMS', '仓库主管', 'ADVANCED', '负责仓储收发和库存准确性'
   UNION ALL SELECT 'EMP-EAM-001', '孙宇', 'DEPT-EAM', '设备工程师', 'ADVANCED', '负责设备保障和维修'
@@ -125,8 +129,12 @@ SELECT team.`team_id`, employee.`employee_id`, '2026-01-01', NULL, 'ENABLE',
 FROM (
   SELECT 'TEAM-TRAIN-01' AS `team_code`, 'EMP-MFG-101' AS `employee_no`
   UNION ALL SELECT 'TEAM-TRAIN-01', 'EMP-MFG-111'
+  UNION ALL SELECT 'TEAM-TRAIN-01', 'EMP-MFG-113'
+  UNION ALL SELECT 'TEAM-TRAIN-01', 'EMP-MFG-114'
   UNION ALL SELECT 'TEAM-MATCH-01', 'EMP-MFG-102'
   UNION ALL SELECT 'TEAM-MATCH-01', 'EMP-MFG-112'
+  UNION ALL SELECT 'TEAM-MATCH-01', 'EMP-MFG-115'
+  UNION ALL SELECT 'TEAM-MATCH-01', 'EMP-MFG-116'
 ) seed
 JOIN `org_team` team ON team.`team_code` = seed.`team_code` AND team.`deleted_flag` = 0
 JOIN `org_employee` employee ON employee.`employee_no` = seed.`employee_no` AND employee.`deleted_flag` = 0
@@ -245,6 +253,7 @@ FROM (
   UNION ALL SELECT 'PKG-TUBE-12', '十二只装球筒', 'MAT-PACK', '12只/筒', 'EA', 'AUXILIARY', '成品筒装包装'
   UNION ALL SELECT 'PKG-LABEL-TRAIN-77', '训练级77速标签', 'MAT-PACK', 'TRAIN-77', 'SHEET', 'AUXILIARY', '训练级成品标识'
   UNION ALL SELECT 'PKG-LABEL-MATCH-77', '比赛级77速标签', 'MAT-PACK', 'MATCH-77', 'SHEET', 'AUXILIARY', '比赛级成品标识'
+  UNION ALL SELECT 'PKG-CARTON-25', '二十五筒装运输外箱', 'MAT-PACK', '25筒/箱', 'EA', 'AUXILIARY', '成品运输外包装'
   UNION ALL SELECT 'FG-SHUTTLE-TRAIN-77', '训练级77速羽毛球', 'MAT-FG', '77速/12只装', 'TUBE', 'FINISHED', '训练和日常使用'
   UNION ALL SELECT 'FG-SHUTTLE-MATCH-77', '比赛级77速羽毛球', 'MAT-FG', '77速/12只装', 'TUBE', 'FINISHED', '专业比赛和高强度训练'
 ) seed
@@ -294,15 +303,17 @@ FROM (
   SELECT 'BOM-TRAIN-77-V1' AS `bom_code`, 'RM-FEATHER-DUCK-A' AS `material_code`, 192.0000 AS `quantity`, 0.0800 AS `loss_rate`, 10 AS `sequence_no`
   UNION ALL SELECT 'BOM-TRAIN-77-V1', 'RM-CORK-COMPOSITE', 12.0000, 0.0200, 20
   UNION ALL SELECT 'BOM-TRAIN-77-V1', 'AUX-THREAD-NYLON', 4.8000, 0.0300, 30
-  UNION ALL SELECT 'BOM-TRAIN-77-V1', 'AUX-ADHESIVE-RESIN', 60.0000, 0.0500, 40
+  UNION ALL SELECT 'BOM-TRAIN-77-V1', 'AUX-ADHESIVE-RESIN', 7.2000, 0.0500, 40
   UNION ALL SELECT 'BOM-TRAIN-77-V1', 'PKG-TUBE-12', 1.0000, 0.0100, 50
   UNION ALL SELECT 'BOM-TRAIN-77-V1', 'PKG-LABEL-TRAIN-77', 1.0000, 0.0100, 60
+  UNION ALL SELECT 'BOM-TRAIN-77-V1', 'PKG-CARTON-25', 0.0400, 0.0050, 70
   UNION ALL SELECT 'BOM-MATCH-77-V1', 'RM-FEATHER-GOOSE-A', 192.0000, 0.1000, 10
   UNION ALL SELECT 'BOM-MATCH-77-V1', 'RM-CORK-NATURAL', 12.0000, 0.0300, 20
   UNION ALL SELECT 'BOM-MATCH-77-V1', 'AUX-THREAD-NYLON', 4.8000, 0.0300, 30
-  UNION ALL SELECT 'BOM-MATCH-77-V1', 'AUX-ADHESIVE-RESIN', 60.0000, 0.0500, 40
+  UNION ALL SELECT 'BOM-MATCH-77-V1', 'AUX-ADHESIVE-RESIN', 7.2000, 0.0500, 40
   UNION ALL SELECT 'BOM-MATCH-77-V1', 'PKG-TUBE-12', 1.0000, 0.0100, 50
   UNION ALL SELECT 'BOM-MATCH-77-V1', 'PKG-LABEL-MATCH-77', 1.0000, 0.0100, 60
+  UNION ALL SELECT 'BOM-MATCH-77-V1', 'PKG-CARTON-25', 0.0400, 0.0050, 70
 ) seed
 JOIN `mdm_bom` bom ON bom.`bom_code` = seed.`bom_code` AND bom.`deleted_flag` = 0
 JOIN `mdm_material` material
@@ -340,8 +351,8 @@ SELECT operation.`operation_id`, seed.`parameter_name`, seed.`standard_value`, s
 FROM (
   SELECT 'OP-FEATHER-INSERT' AS `operation_code`, '单球植毛数量' AS `parameter_name`,
          '16' AS `standard_value`, '16' AS `upper_limit`, '16' AS `lower_limit`, 'PCS' AS `unit_code`
-  UNION ALL SELECT 'OP-THREAD-WIND', '绕线张力', '12', '14', '10', 'N'
-  UNION ALL SELECT 'OP-GLUE-CURE', '单球涂胶量', '5.0', '5.5', '4.5', 'ML'
+  UNION ALL SELECT 'OP-THREAD-WIND', '绕线张力', '4.0', '4.5', '3.5', 'N'
+  UNION ALL SELECT 'OP-GLUE-CURE', '单球涂胶量', '0.60', '0.70', '0.50', 'ML'
   UNION ALL SELECT 'OP-GLUE-CURE', '固化温度', '45', '48', '42', 'CELSIUS'
   UNION ALL SELECT 'OP-GLUE-CURE', '固化时间', '45', '50', '40', 'MIN'
 ) seed
@@ -576,7 +587,7 @@ FROM (
   UNION ALL SELECT 'QI-RAW-APPEARANCE', '原材料外观', 'APPEARANCE', '目视检查完整性、色泽和污染', NULL
   UNION ALL SELECT 'QI-FINISHED-WEIGHT', '成品单球重量', 'WEIGHT', '校准电子天平称量', 'G'
   UNION ALL SELECT 'QI-SPEED-GRADE', '速度等级', 'PERFORMANCE', '标准温湿度下使用速度检测仪', NULL
-  UNION ALL SELECT 'QI-FLIGHT-STABILITY', '飞行稳定性', 'PERFORMANCE', '标准发球机和飞行通道检测', NULL
+  UNION ALL SELECT 'QI-FLIGHT-STABILITY', '飞行落点离散', 'PERFORMANCE', '同批随机抽样，每只使用标准发球机单次击发，计算落点相对样品组平均落点的最大径向偏差', 'MM'
   UNION ALL SELECT 'QI-FINISHED-APPEARANCE', '成品外观', 'APPEARANCE', '目视检查球头、毛片、绕线、胶层和标签', NULL
 ) seed
 LEFT JOIN `mdm_unit` unit
@@ -599,14 +610,14 @@ FROM (
   UNION ALL SELECT 'STD-IQC-TRAIN-RAW-APPEARANCE', 'QI-RAW-APPEARANCE', 'PROD-SHUTTLE-TRAIN-77', NULL, '合格', NULL, NULL, '无断毛、霉变、油污和明显色差判定合格'
   UNION ALL SELECT 'STD-IPQC-TRAIN-WEIGHT', 'QI-FINISHED-WEIGHT', 'PROD-SHUTTLE-TRAIN-77', 'OP-SPEED-TEST', '5.10', '5.50', '4.74', '单球重量在上下限内判定合格'
   UNION ALL SELECT 'STD-IPQC-TRAIN-SPEED', 'QI-SPEED-GRADE', 'PROD-SHUTTLE-TRAIN-77', 'OP-SPEED-TEST', '77', '77', '77', '标准环境下检测等级等于77判定合格'
-  UNION ALL SELECT 'STD-IPQC-TRAIN-FLIGHT', 'QI-FLIGHT-STABILITY', 'PROD-SHUTTLE-TRAIN-77', 'OP-SPEED-TEST', 'A级', NULL, NULL, '飞行轨迹稳定且无明显摆动判定A级'
+  UNION ALL SELECT 'STD-IPQC-TRAIN-FLIGHT', 'QI-FLIGHT-STABILITY', 'PROD-SHUTTLE-TRAIN-77', 'OP-SPEED-TEST', '500', '500', '0', '同批抽样样品的最大落点径向偏差不超过500mm判定合格'
   UNION ALL SELECT 'STD-FQC-TRAIN-APPEARANCE', 'QI-FINISHED-APPEARANCE', 'PROD-SHUTTLE-TRAIN-77', 'OP-PACK', '合格', NULL, NULL, '球头、毛片、绕线、胶层和标签均无明显缺陷判定合格'
   UNION ALL SELECT 'STD-IQC-MATCH-FEATHER-LENGTH', 'QI-FEATHER-LENGTH', 'PROD-SHUTTLE-MATCH-77', NULL, '66', '70', '62', '实测值在上下限内判定合格'
   UNION ALL SELECT 'STD-IQC-MATCH-HEAD-DIAMETER', 'QI-HEAD-DIAMETER', 'PROD-SHUTTLE-MATCH-77', NULL, '26.5', '28', '25', '实测值在上下限内判定合格'
   UNION ALL SELECT 'STD-IQC-MATCH-RAW-APPEARANCE', 'QI-RAW-APPEARANCE', 'PROD-SHUTTLE-MATCH-77', NULL, '合格', NULL, NULL, '毛片同色、完整，球头无裂纹和污染判定合格'
   UNION ALL SELECT 'STD-IPQC-MATCH-WEIGHT', 'QI-FINISHED-WEIGHT', 'PROD-SHUTTLE-MATCH-77', 'OP-SPEED-TEST', '5.10', '5.50', '4.74', '单球重量在上下限内判定合格'
   UNION ALL SELECT 'STD-IPQC-MATCH-SPEED', 'QI-SPEED-GRADE', 'PROD-SHUTTLE-MATCH-77', 'OP-SPEED-TEST', '77', '77', '77', '标准环境下检测等级等于77判定合格'
-  UNION ALL SELECT 'STD-IPQC-MATCH-FLIGHT', 'QI-FLIGHT-STABILITY', 'PROD-SHUTTLE-MATCH-77', 'OP-SPEED-TEST', 'A级', NULL, NULL, '飞行轨迹稳定、落点离散满足比赛级要求判定A级'
+  UNION ALL SELECT 'STD-IPQC-MATCH-FLIGHT', 'QI-FLIGHT-STABILITY', 'PROD-SHUTTLE-MATCH-77', 'OP-SPEED-TEST', '300', '300', '0', '同批抽样样品的最大落点径向偏差不超过300mm判定合格'
   UNION ALL SELECT 'STD-FQC-MATCH-APPEARANCE', 'QI-FINISHED-APPEARANCE', 'PROD-SHUTTLE-MATCH-77', 'OP-PACK', '合格', NULL, NULL, '球头、毛片、绕线、胶层和标签均无明显缺陷判定合格'
 ) seed
 JOIN `qms_inspection_item` item
@@ -674,6 +685,70 @@ WHERE NOT EXISTS (
   SELECT 1 FROM `qms_inspection_scheme_item` existing
   WHERE existing.`scheme_id` = scheme.`scheme_id` AND existing.`item_id` = item.`item_id`
 );
+
+-- 10. 仅规范化本脚本早期版本创建的基线值，使已执行库与新库保持一致。
+UPDATE `mdm_bom_item` item
+JOIN `mdm_bom` bom ON bom.`bom_id` = item.`bom_id` AND bom.`deleted_flag` = 0
+JOIN `mdm_material` material ON material.`material_id` = item.`material_id` AND material.`deleted_flag` = 0
+SET item.`quantity` = 7.2000,
+    item.`updated_by` = @baseline_operator_id,
+    item.`updated_time` = @baseline_time
+WHERE item.`deleted_flag` = 0
+  AND item.`remark` LIKE CONCAT(@baseline_marker, ':%')
+  AND bom.`bom_code` IN ('BOM-TRAIN-77-V1', 'BOM-MATCH-77-V1')
+  AND material.`material_code` = 'AUX-ADHESIVE-RESIN'
+  AND item.`quantity` <> 7.2000;
+
+UPDATE `process_parameter` parameter_record
+JOIN `process_operation` operation ON operation.`operation_id` = parameter_record.`operation_id` AND operation.`deleted_flag` = 0
+SET parameter_record.`standard_value` = CASE parameter_record.`parameter_name`
+      WHEN '绕线张力' THEN '4.0' ELSE '0.60' END,
+    parameter_record.`upper_limit` = CASE parameter_record.`parameter_name`
+      WHEN '绕线张力' THEN '4.5' ELSE '0.70' END,
+    parameter_record.`lower_limit` = CASE parameter_record.`parameter_name`
+      WHEN '绕线张力' THEN '3.5' ELSE '0.50' END,
+    parameter_record.`updated_by` = @baseline_operator_id,
+    parameter_record.`updated_time` = @baseline_time
+WHERE parameter_record.`deleted_flag` = 0
+  AND parameter_record.`remark` LIKE CONCAT(@baseline_marker, ':%')
+  AND ((operation.`operation_code` = 'OP-THREAD-WIND' AND parameter_record.`parameter_name` = '绕线张力')
+    OR (operation.`operation_code` = 'OP-GLUE-CURE' AND parameter_record.`parameter_name` = '单球涂胶量'))
+  AND (NOT (parameter_record.`standard_value` <=> CASE parameter_record.`parameter_name`
+        WHEN '绕线张力' THEN '4.0' ELSE '0.60' END)
+    OR NOT (parameter_record.`upper_limit` <=> CASE parameter_record.`parameter_name`
+        WHEN '绕线张力' THEN '4.5' ELSE '0.70' END)
+    OR NOT (parameter_record.`lower_limit` <=> CASE parameter_record.`parameter_name`
+        WHEN '绕线张力' THEN '3.5' ELSE '0.50' END));
+
+UPDATE `qms_inspection_item` item
+JOIN `mdm_unit` unit ON unit.`unit_code` = 'MM' AND unit.`deleted_flag` = 0
+SET item.`item_name` = '飞行落点离散',
+    item.`inspection_method` = '同批随机抽样，每只使用标准发球机单次击发，计算落点相对样品组平均落点的最大径向偏差',
+    item.`unit_id` = unit.`unit_id`,
+    item.`updated_by` = @baseline_operator_id,
+    item.`updated_time` = @baseline_time
+WHERE item.`item_code` = 'QI-FLIGHT-STABILITY'
+  AND item.`deleted_flag` = 0
+  AND item.`remark` LIKE CONCAT(@baseline_marker, ':%')
+  AND (NOT (item.`item_name` <=> '飞行落点离散')
+    OR NOT (item.`inspection_method` <=> '同批随机抽样，每只使用标准发球机单次击发，计算落点相对样品组平均落点的最大径向偏差')
+    OR NOT (item.`unit_id` <=> unit.`unit_id`));
+
+UPDATE `qms_inspection_standard`
+SET `standard_value` = '500', `upper_limit` = '500', `lower_limit` = '0',
+    `judgement_rule` = '同批抽样样品的最大落点径向偏差不超过500mm判定合格',
+    `updated_by` = @baseline_operator_id, `updated_time` = @baseline_time
+WHERE `deleted_flag` = 0 AND `remark` = CONCAT(@baseline_marker, ':STD-IPQC-TRAIN-FLIGHT')
+  AND (NOT (`standard_value` <=> '500') OR NOT (`upper_limit` <=> '500') OR NOT (`lower_limit` <=> '0')
+    OR NOT (`judgement_rule` <=> '同批抽样样品的最大落点径向偏差不超过500mm判定合格'));
+
+UPDATE `qms_inspection_standard`
+SET `standard_value` = '300', `upper_limit` = '300', `lower_limit` = '0',
+    `judgement_rule` = '同批抽样样品的最大落点径向偏差不超过300mm判定合格',
+    `updated_by` = @baseline_operator_id, `updated_time` = @baseline_time
+WHERE `deleted_flag` = 0 AND `remark` = CONCAT(@baseline_marker, ':STD-IPQC-MATCH-FLIGHT')
+  AND (NOT (`standard_value` <=> '300') OR NOT (`upper_limit` <=> '300') OR NOT (`lower_limit` <=> '0')
+    OR NOT (`judgement_rule` <=> '同批抽样样品的最大落点径向偏差不超过300mm判定合格'));
 
 COMMIT;
 

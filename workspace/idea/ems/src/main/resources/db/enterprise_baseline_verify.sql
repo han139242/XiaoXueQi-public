@@ -20,19 +20,19 @@ FROM (
 
   -- 基线记录数量，只统计带最终基线标识或明确关联到基线编码的记录。
   UNION ALL SELECT 'count', 'org_department', 6, (SELECT COUNT(*) FROM org_department WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
-  UNION ALL SELECT 'count', 'org_employee', 9, (SELECT COUNT(*) FROM org_employee WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
+  UNION ALL SELECT 'count', 'org_employee', 13, (SELECT COUNT(*) FROM org_employee WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'org_team', 2, (SELECT COUNT(*) FROM org_team WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
-  UNION ALL SELECT 'count', 'org_team_member', 4,
+  UNION ALL SELECT 'count', 'org_team_member', 8,
          (SELECT COUNT(*) FROM org_team_member member JOIN org_team team ON team.team_id = member.team_id JOIN org_employee employee ON employee.employee_id = member.employee_id WHERE member.deleted_flag = 0 AND team.deleted_flag=0 AND employee.deleted_flag=0 AND team.remark LIKE CONCAT(@baseline_marker, ':%') AND employee.remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'org_shift', 3, (SELECT COUNT(*) FROM org_shift WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'mdm_unit', 13, (SELECT COUNT(*) FROM mdm_unit WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'mdm_supplier', 3, (SELECT COUNT(*) FROM mdm_supplier WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'mdm_customer', 2, (SELECT COUNT(*) FROM mdm_customer WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'mdm_material_category', 6, (SELECT COUNT(*) FROM mdm_material_category WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
-  UNION ALL SELECT 'count', 'mdm_material', 11, (SELECT COUNT(*) FROM mdm_material WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
+  UNION ALL SELECT 'count', 'mdm_material', 12, (SELECT COUNT(*) FROM mdm_material WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'mdm_product', 2, (SELECT COUNT(*) FROM mdm_product WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'mdm_bom', 2, (SELECT COUNT(*) FROM mdm_bom WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
-  UNION ALL SELECT 'count', 'mdm_bom_item', 12, (SELECT COUNT(*) FROM mdm_bom_item WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
+  UNION ALL SELECT 'count', 'mdm_bom_item', 14, (SELECT COUNT(*) FROM mdm_bom_item WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'process_operation', 7, (SELECT COUNT(*) FROM process_operation WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'process_parameter', 5, (SELECT COUNT(*) FROM process_parameter WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
   UNION ALL SELECT 'count', 'process_route', 2, (SELECT COUNT(*) FROM process_route WHERE deleted_flag=0 AND remark LIKE CONCAT(@baseline_marker, ':%'))
@@ -97,8 +97,50 @@ FROM (
          (SELECT COUNT(*) FROM eam_equipment WHERE deleted_flag=0 AND (equipment_code IS NULL OR equipment_name IS NULL OR category_id IS NULL OR station_id IS NULL))
   UNION ALL SELECT 'rule', 'invalid BOM values', 0,
          (SELECT COUNT(*) FROM mdm_bom_item item JOIN mdm_bom bom ON bom.bom_id=item.bom_id WHERE item.deleted_flag=0 AND bom.remark LIKE CONCAT(@baseline_marker, ':%') AND (item.quantity <= 0 OR item.loss_rate < 0 OR item.loss_rate >= 1))
-  UNION ALL SELECT 'rule', 'BOM item count not 6', 0,
-         (SELECT COUNT(*) FROM (SELECT bom.bom_id FROM mdm_bom bom LEFT JOIN mdm_bom_item item ON item.bom_id=bom.bom_id AND item.deleted_flag=0 WHERE bom.deleted_flag=0 AND bom.remark LIKE CONCAT(@baseline_marker, ':%') GROUP BY bom.bom_id HAVING COUNT(item.bom_item_id) <> 6) invalid_bom)
+  UNION ALL SELECT 'rule', 'BOM item count not 7', 0,
+         (SELECT COUNT(*) FROM (SELECT bom.bom_id FROM mdm_bom bom LEFT JOIN mdm_bom_item item ON item.bom_id=bom.bom_id AND item.deleted_flag=0 WHERE bom.deleted_flag=0 AND bom.remark LIKE CONCAT(@baseline_marker, ':%') GROUP BY bom.bom_id HAVING COUNT(item.bom_item_id) <> 7) invalid_bom)
+  UNION ALL SELECT 'rule', 'team staffing/leader mismatch', 0,
+         (SELECT COUNT(*) FROM (
+           SELECT team.team_id
+           FROM org_team team
+           LEFT JOIN org_team_member member ON member.team_id=team.team_id AND member.deleted_flag=0 AND member.status='ENABLE'
+           WHERE team.deleted_flag=0 AND team.remark LIKE CONCAT(@baseline_marker, ':%')
+           GROUP BY team.team_id, team.leader_id
+           HAVING COUNT(member.id) <> 4 OR SUM(member.employee_id=team.leader_id) <> 1
+         ) invalid_team)
+  UNION ALL SELECT 'rule', 'outer carton usage mismatch', 0,
+         (SELECT IF(COUNT(*)=2, 0, 1) FROM mdm_bom_item item
+          JOIN mdm_bom bom ON bom.bom_id=item.bom_id AND bom.deleted_flag=0
+          JOIN mdm_material material ON material.material_id=item.material_id AND material.deleted_flag=0
+          WHERE item.deleted_flag=0 AND bom.remark LIKE CONCAT(@baseline_marker, ':%')
+            AND material.material_code='PKG-CARTON-25' AND item.quantity=0.0400)
+  UNION ALL SELECT 'rule', 'adhesive BOM/parameter mismatch', 0,
+         (SELECT IF(
+           (SELECT COUNT(*) FROM mdm_bom_item item
+            JOIN mdm_bom bom ON bom.bom_id=item.bom_id AND bom.deleted_flag=0
+            JOIN mdm_material material ON material.material_id=item.material_id AND material.deleted_flag=0
+            WHERE item.deleted_flag=0 AND bom.remark LIKE CONCAT(@baseline_marker, ':%')
+              AND material.material_code='AUX-ADHESIVE-RESIN' AND item.quantity=7.2000)=2
+           AND
+           (SELECT COUNT(*) FROM process_parameter parameter_record
+            JOIN process_operation operation ON operation.operation_id=parameter_record.operation_id AND operation.deleted_flag=0
+            JOIN mdm_unit unit ON unit.unit_id=parameter_record.unit_id AND unit.deleted_flag=0
+            WHERE parameter_record.deleted_flag=0 AND parameter_record.remark LIKE CONCAT(@baseline_marker, ':%')
+              AND operation.operation_code='OP-GLUE-CURE' AND parameter_record.parameter_name='单球涂胶量'
+              AND CAST(parameter_record.standard_value AS DECIMAL(10,2))=0.60
+              AND CAST(parameter_record.upper_limit AS DECIMAL(10,2))=0.70
+              AND CAST(parameter_record.lower_limit AS DECIMAL(10,2))=0.50
+              AND unit.unit_code='ML')=1,
+           0, 1))
+  UNION ALL SELECT 'rule', 'flight sampling/standard mismatch', 0,
+         (SELECT IF(COUNT(*)=2, 0, 1) FROM qms_inspection_standard standard_record
+          JOIN qms_inspection_item item ON item.item_id=standard_record.item_id AND item.deleted_flag=0
+          JOIN mdm_unit unit ON unit.unit_id=item.unit_id AND unit.deleted_flag=0
+          JOIN qms_inspection_scheme_item detail ON detail.standard_id=standard_record.standard_id AND detail.deleted_flag=0
+          WHERE standard_record.deleted_flag=0 AND item.item_code='QI-FLIGHT-STABILITY' AND unit.unit_code='MM'
+            AND standard_record.lower_limit='0'
+            AND ((standard_record.remark=CONCAT(@baseline_marker, ':STD-IPQC-TRAIN-FLIGHT') AND standard_record.upper_limit='500' AND detail.sample_quantity=5)
+              OR (standard_record.remark=CONCAT(@baseline_marker, ':STD-IPQC-MATCH-FLIGHT') AND standard_record.upper_limit='300' AND detail.sample_quantity=8)))
   UNION ALL SELECT 'rule', 'route item count not 7', 0,
          (SELECT COUNT(*) FROM (SELECT route.route_id FROM process_route route LEFT JOIN process_route_item item ON item.route_id=route.route_id AND item.deleted_flag=0 WHERE route.deleted_flag=0 AND route.remark LIKE CONCAT(@baseline_marker, ':%') GROUP BY route.route_id HAVING COUNT(item.route_item_id) <> 7 OR COUNT(DISTINCT item.sequence_no) <> 7) invalid_route)
   UNION ALL SELECT 'rule', 'non-positive standard time', 0,
