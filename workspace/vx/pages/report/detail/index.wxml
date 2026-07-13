@@ -1,0 +1,18 @@
+<view class="page">
+  <loading-state wx:if="{{loading}}"></loading-state>
+  <empty-state wx:elif="{{error}}" title="报工详情加载失败" description="{{error}}" action-text="重试" bind:action="loadData"></empty-state>
+  <empty-state wx:elif="{{!report}}" title="报工记录不存在"></empty-state>
+  <block wx:else>
+    <view class="detail-hero">
+      <view class="detail-hero__header"><view class="detail-hero__identity"><view class="detail-hero__icon"><app-icon name="file-text" size="40"></app-icon></view><view><text class="detail-hero__number" selectable>{{report.reportNo || ('报工 ID ' + report.reportId)}}</text><text class="hero-type">生产报工</text></view></view><status-tag text="{{report.statusView.text}}" tone="{{report.statusView.tone}}"></status-tag></view>
+      <view class="report-context"><view><app-icon name="list-checks" size="27" muted></app-icon><text>任务 ID {{report.taskId}}</text></view><view><app-icon name="user-round" size="27" muted></app-icon><text>{{report.operatorLabel}}</text></view><view><app-icon name="map-pin" size="27" muted></app-icon><text>{{report.stationLabel}}</text></view></view>
+      <view class="quantity-grid"><view><text>{{report.qualifiedQuantity}}</text><text>合格数量</text></view><view><text class="defect">{{report.defectQuantity}}</text><text>不良数量</text></view><view><text>{{report.actualWorkHours}}</text><text>实际工时</text></view></view>
+    </view>
+
+    <view class="detail-section surface report-info"><view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="info" size="34"></app-icon></view><text class="section-heading__title">报工信息</text></view></view><view class="field-row"><text class="field-label">报工时间</text><text class="field-value">{{report.reportTimeText}}</text></view><view class="field-row"><text class="field-label">备注</text><text class="field-value">{{report.remark || '-'}}</text></view></view>
+
+    <view class="section-heading materials-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="boxes" size="34"></app-icon></view><text class="section-heading__title">用料明细</text></view><text class="section-heading__meta">{{materials.length}} 项</text></view>
+    <empty-state wx:if="{{materials.length === 0}}" title="无用料明细"></empty-state>
+    <view wx:else class="material-list"><view wx:for="{{materials}}" wx:key="id" class="record-card material-item"><view class="record-header"><view class="record-identity"><view class="record-icon"><app-icon name="package" size="34"></app-icon></view><view><text class="record-number">物料 ID {{item.materialId}}</text><text class="record-subline">批次 ID {{item.batchId}}</text></view></view></view><view class="stat-grid"><view class="stat-cell"><text class="stat-value">{{item.usedQuantity}}</text><text class="stat-label">使用数量</text></view><view class="stat-cell"><text class="stat-value stat-value--danger">{{item.scrapQuantity}}</text><text class="stat-label">报废数量</text></view></view></view></view>
+  </block>
+</view>

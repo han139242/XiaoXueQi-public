@@ -1,0 +1,4 @@
+<view class="loading-state">
+  <view class="loading-ring"><view class="loading-dot"></view></view>
+  <text>加载中</text>
+</view>

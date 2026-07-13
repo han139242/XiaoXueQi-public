@@ -1,0 +1,27 @@
+.list-page {
+  padding-top: 20rpx;
+}
+
+.compact-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12rpx;
+}
+
+.compact-field {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 9rpx;
+  padding: 13rpx 14rpx;
+  color: #4d5c6c;
+  background: #f8fafc;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.compact-field text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

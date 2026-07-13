@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "登录",
+  "navigationStyle": "default",
+  "usingComponents": {
+    "loading-state": "/components/loading-state/index"
+  }
+}

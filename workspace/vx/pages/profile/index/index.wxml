@@ -1,0 +1,37 @@
+<view class="page profile-page">
+  <loading-state wx:if="{{loading && !user}}"></loading-state>
+  <empty-state wx:elif="{{error && !user}}" title="用户信息加载失败" description="{{error}}" action-text="重试" bind:action="loadUser"></empty-state>
+  <block wx:else>
+    <view class="identity-card">
+      <view class="avatar"><app-icon name="user-round" size="48"></app-icon></view>
+      <view class="identity-main"><text class="username">{{user.username || '-'}}</text><text class="employee">{{user.employeeId ? ('员工 ID ' + user.employeeId) : '未关联员工档案'}}</text><text class="identity-system">羽球智造 MES</text></view>
+      <status-tag text="{{user.status || '-'}}" tone="{{user.status === 'ENABLE' ? 'success' : 'warning'}}"></status-tag>
+    </view>
+
+    <view class="profile-section surface">
+      <view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="user-round" size="34"></app-icon></view><text class="section-heading__title">账号信息</text></view></view>
+      <view class="field-row"><text class="field-label">用户 ID</text><text class="field-value">{{user.userId}}</text></view>
+      <view class="field-row"><text class="field-label">员工 ID</text><text class="field-value">{{user.employeeId || '-'}}</text></view>
+      <view class="field-row"><text class="field-label">最近登录</text><text class="field-value">{{user.lastLoginTimeText}}</text></view>
+    </view>
+
+    <view class="profile-section surface">
+      <view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="badge-check" size="34"></app-icon></view><text class="section-heading__title">角色</text></view><text class="section-heading__meta">{{user.roles ? user.roles.length : 0}} 项</text></view>
+      <view wx:if="{{user.roles && user.roles.length}}" class="tag-list"><text wx:for="{{user.roles}}" wx:key="*this">{{item}}</text></view>
+      <view wx:else class="muted">未分配角色</view>
+    </view>
+
+    <view class="profile-section surface">
+      <view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="shield-check" size="34"></app-icon></view><text class="section-heading__title">权限</text></view><text class="section-heading__meta">{{user.permissions ? user.permissions.length : 0}} 项</text></view>
+      <view wx:if="{{user.permissions && user.permissions.length}}" class="permission-list"><text wx:for="{{user.permissions}}" wx:key="*this">{{item}}</text></view>
+      <view wx:else class="muted">未分配权限</view>
+    </view>
+
+    <view class="profile-section surface settings-list">
+      <button bindtap="loadUser"><view class="setting-main"><view class="setting-icon"><app-icon name="refresh-cw" size="32"></app-icon></view><text>刷新用户信息</text></view><app-icon name="chevron-right" size="28" muted></app-icon></button>
+      <button wx:if="{{envVersion !== 'release'}}" bindtap="setBaseUrl"><view class="setting-main"><view class="setting-icon"><app-icon name="server" size="32"></app-icon></view><view><text>后端地址</text><text class="setting-value">{{baseUrl}}</text></view></view><app-icon name="chevron-right" size="28" muted></app-icon></button>
+      <button bindtap="clearBusinessCache"><view class="setting-main"><view class="setting-icon"><app-icon name="trash-2" size="32"></app-icon></view><text>清理业务缓存</text></view><app-icon name="chevron-right" size="28" muted></app-icon></button>
+    </view>
+    <button class="danger-button logout-button" bindtap="logout"><app-icon name="log-out" size="34" inverse></app-icon><text>退出登录</text></button>
+  </block>
+</view>

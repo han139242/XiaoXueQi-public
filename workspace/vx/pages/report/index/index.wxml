@@ -1,0 +1,21 @@
+<view class="filter-shell">
+  <view class="filter-search"><view class="filter-search__input"><app-icon name="search" size="32" muted></app-icon><input value="{{keyword}}" placeholder="搜索报工编号" confirm-type="search" bindinput="handleKeyword" bindconfirm="search" /></view><button class="icon-button" bindtap="search" aria-label="搜索"><app-icon name="search" size="34"></app-icon></button></view>
+  <view class="report-filter-row">
+    <picker range="{{auditOptions}}" range-key="label" value="{{auditIndex}}" bindchange="handleAudit"><view class="filter-chip {{auditStatus ? 'filter-chip--active' : ''}}"><app-icon name="shield-check" size="28"></app-icon><text class="filter-chip__label">{{auditOptions[auditIndex].label}}</text><app-icon name="chevron-down" size="24" muted></app-icon></view></picker>
+    <label wx:if="{{employeeId}}" class="mine-filter"><switch checked="{{myOnly}}" color="#2d8cf0" bindchange="toggleMyOnly" /><text>仅看我的报工</text></label>
+  </view>
+</view>
+<view class="page list-page">
+  <loading-state wx:if="{{loading && list.length === 0}}"></loading-state>
+  <empty-state wx:elif="{{error && list.length === 0}}" title="报工记录加载失败" description="{{error}}" action-text="重试" bind:action="search"></empty-state>
+  <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无报工记录"></empty-state>
+  <view wx:else class="record-list">
+    <view wx:for="{{list}}" wx:key="reportId" class="record-card" data-id="{{item.reportId}}" bindtap="openDetail">
+      <view class="record-header"><view class="record-identity"><view class="record-icon"><app-icon name="file-text" size="36"></app-icon></view><view><text class="record-number" selectable>{{item.reportNo || ('报工 ID ' + item.reportId)}}</text><text class="record-subline">任务 ID {{item.taskId}}</text></view></view><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
+      <view class="report-meta"><view><app-icon name="user-round" size="27" muted></app-icon><text>{{item.operatorLabel}}</text></view><view><app-icon name="map-pin" size="27" muted></app-icon><text>{{item.stationLabel}}</text></view></view>
+      <view class="stat-grid"><view class="stat-cell"><text class="stat-value">{{item.qualifiedQuantity == null ? '-' : item.qualifiedQuantity}}</text><text class="stat-label">合格数量</text></view><view class="stat-cell"><text class="stat-value stat-value--danger">{{item.defectQuantity == null ? '-' : item.defectQuantity}}</text><text class="stat-label">不良数量</text></view></view>
+      <view class="record-footer"><view class="record-time"><app-icon name="clock-3" size="25" muted></app-icon><text>{{item.reportTimeText}}</text></view><view class="card-link"><text>查看详情</text><app-icon name="chevron-right" size="25"></app-icon></view></view>
+    </view>
+    <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view><view wx:elif="{{loading}}" class="list-footer">加载中</view><view wx:elif="{{finished}}" class="list-footer">已加载全部</view>
+  </view>
+</view>

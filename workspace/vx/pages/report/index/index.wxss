@@ -1,0 +1,47 @@
+.list-page {
+  padding-top: 20rpx;
+}
+
+.report-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-top: 14rpx;
+}
+
+.mine-filter {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: #617080;
+  font-size: 24rpx;
+}
+
+.mine-filter switch {
+  transform: scale(0.72);
+  transform-origin: center right;
+}
+
+.report-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12rpx;
+}
+
+.report-meta > view {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 9rpx;
+  padding: 13rpx 14rpx;
+  color: #4d5c6c;
+  background: #f8fafc;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+}
+
+.report-meta text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,5 @@
+<view class="data-card">
+  <slot name="header"></slot>
+  <slot></slot>
+  <slot name="footer"></slot>
+</view>

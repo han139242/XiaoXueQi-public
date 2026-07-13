@@ -1,0 +1,35 @@
+<view class="login-page">
+  <view class="login-header">
+    <view class="brand-lockup">
+      <view class="brand-mark"><app-icon name="factory" size="58" inverse></app-icon></view>
+      <view><view class="brand-name">羽球智造 MES</view><view class="brand-subtitle">车间移动生产平台</view></view>
+    </view>
+    <view class="header-line"></view>
+  </view>
+
+  <view class="login-body">
+    <loading-state wx:if="{{checking}}"></loading-state>
+
+    <view wx:else class="login-panel">
+      <view class="login-heading">
+        <view class="login-heading__icon"><app-icon name="shield-check" size="38"></app-icon></view>
+        <view>
+          <view class="login-title">账号登录</view>
+          <view class="login-caption">使用 MES 系统账号进入工作台</view>
+        </view>
+      </view>
+
+      <label class="input-field">
+        <text class="input-label">用户名</text>
+        <view class="input-shell"><app-icon name="user-round" size="34" muted></app-icon><input value="{{username}}" data-field="username" maxlength="64" placeholder="请输入用户名" bindinput="handleInput" /></view>
+      </label>
+      <label class="input-field">
+        <text class="input-label">密码</text>
+        <view class="input-shell"><app-icon name="lock-keyhole" size="34" muted></app-icon><input value="{{password}}" data-field="password" password maxlength="128" placeholder="请输入密码" bindinput="handleInput" confirm-type="done" bindconfirm="handleSubmit" /></view>
+      </label>
+      <view wx:if="{{error}}" class="login-error"><app-icon name="triangle-alert" size="30"></app-icon><text>{{error}}</text></view>
+      <button class="primary-button login-button" loading="{{submitting}}" disabled="{{submitting}}" bindtap="handleSubmit"><app-icon name="log-in" size="34" inverse></app-icon><text>登录</text></button>
+      <view class="login-trust"><app-icon name="shield-check" size="26" muted></app-icon><text>账号与操作权限由 MES 后端统一校验</text></view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "扫码追溯",
+  "usingComponents": {
+    "empty-state": "/components/empty-state/index",
+    "loading-state": "/components/loading-state/index"
+  }
+}

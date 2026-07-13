@@ -1,0 +1,69 @@
+.hero-type {
+  display: block;
+  margin-top: 5rpx;
+  color: #8a96a3;
+  font-size: 23rpx;
+}
+
+.form-panel {
+  margin-top: 20rpx;
+  padding: 24rpx;
+}
+
+.form-field {
+  display: block;
+  margin-top: 22rpx;
+}
+
+.form-field > text {
+  display: block;
+  margin-bottom: 10rpx;
+  color: #617080;
+  font-size: 25rpx;
+}
+
+.control-shell,
+.textarea-shell {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 0 18rpx;
+  background: #f6f8fa;
+  border: 1rpx solid #e2e8ee;
+  border-radius: 8rpx;
+}
+
+.control-shell {
+  height: 82rpx;
+}
+
+.control-shell input {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  font-size: 30rpx;
+}
+
+.textarea-shell {
+  align-items: flex-start;
+  padding-top: 20rpx;
+}
+
+.textarea-shell textarea {
+  min-width: 0;
+  height: 170rpx;
+  flex: 1;
+  font-size: 29rpx;
+}
+
+.form-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10rpx;
+  margin-top: 20rpx;
+  padding: 15rpx 16rpx;
+  color: #bf433e;
+  background: #fbeeed;
+  border-radius: 8rpx;
+  line-height: 1.5;
+}

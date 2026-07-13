@@ -1,0 +1,76 @@
+.hero-type {
+  display: block;
+  margin-top: 5rpx;
+  color: #8a96a3;
+  font-size: 23rpx;
+}
+
+.hero-product {
+  display: flex;
+  align-items: flex-start;
+  gap: 10rpx;
+  color: #4d5c6c;
+  line-height: 1.45;
+}
+
+.info-section .field-row + .field-row {
+  border-top: 1rpx solid #edf0f3;
+}
+
+.job-title {
+  margin-top: 30rpx;
+}
+
+.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.task-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12rpx;
+}
+
+.task-meta > view {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 9rpx;
+  padding: 12rpx 14rpx;
+  color: #4d5c6c;
+  background: #f8fafc;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+}
+
+.task-meta text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.job-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20rpx;
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid #edf0f3;
+}
+
+.report-button {
+  display: flex;
+  align-items: center;
+  min-height: 68rpx;
+  gap: 9rpx;
+  margin: 0 auto 0 0;
+  padding: 0 20rpx;
+  color: #2d8cf0;
+  background: #ffffff;
+  border: 1rpx solid #2d8cf0;
+  border-radius: 8rpx;
+  font-size: 25rpx;
+  line-height: 66rpx;
+}

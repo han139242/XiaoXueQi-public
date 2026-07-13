@@ -1,0 +1,17 @@
+<view class="page page-with-actions">
+  <loading-state wx:if="{{loading}}"></loading-state>
+  <empty-state wx:elif="{{error && !task}}" title="无法提交报工" description="{{error}}" action-text="{{operatorId ? '重试' : ''}}" bind:action="loadTask"></empty-state>
+  <empty-state wx:elif="{{!task}}" title="任务不存在"></empty-state>
+  <block wx:else>
+    <view class="job-summary surface"><view class="summary-header"><text selectable>{{task.taskNo || ('任务 ID ' + task.taskId)}}</text><status-tag text="{{task.statusView.text}}" tone="{{task.statusView.tone}}"></status-tag></view><view class="field-row"><text class="field-label">操作人</text><text class="field-value">员工 ID {{operatorId}}</text></view></view>
+    <view class="form-panel surface">
+      <view class="form-field"><text>工位</text><picker range="{{stationOptions}}" range-key="label" value="{{stationIndex}}" bindchange="handleStation"><view class="picker-value">{{stationOptions[stationIndex].label}}⌄</view></picker></view>
+      <label class="form-field"><text>合格数量</text><input type="digit" value="{{qualifiedQuantity}}" data-field="qualifiedQuantity" placeholder="请输入非负数字" bindinput="handleInput" /></label>
+      <label class="form-field"><text>不良数量</text><input type="digit" value="{{defectQuantity}}" data-field="defectQuantity" placeholder="请输入非负数字" bindinput="handleInput" /></label>
+      <label class="form-field"><text>实际工时</text><input type="digit" value="{{actualWorkHours}}" data-field="actualWorkHours" placeholder="选填，必须大于 0" bindinput="handleInput" /></label>
+      <label class="form-field"><text>备注</text><textarea value="{{remark}}" data-field="remark" maxlength="500" placeholder="选填" bindinput="handleInput"></textarea></label>
+      <view wx:if="{{error}}" class="form-error">{{error}}</view>
+    </view>
+  </block>
+</view>
+<view wx:if="{{task}}" class="fixed-actions"><button class="primary-button" loading="{{submitting}}" disabled="{{submitting || loading || task.status !== 'RUNNING'}}" bindtap="submit">提交报工</button></view>

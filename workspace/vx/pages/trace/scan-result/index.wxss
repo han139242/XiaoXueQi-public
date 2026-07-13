@@ -1,0 +1,116 @@
+.scan-panel {
+  padding: 24rpx;
+}
+
+.scan-heading {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 22rpx;
+}
+
+.scan-heading__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72rpx;
+  height: 72rpx;
+  flex: 0 0 72rpx;
+  background: #eaf4fe;
+  border-radius: 8rpx;
+}
+
+.scan-title,
+.scan-caption {
+  display: block;
+}
+
+.scan-title {
+  font-size: 34rpx;
+  font-weight: 650;
+}
+
+.scan-caption {
+  margin-top: 5rpx;
+  color: #8a96a3;
+  font-size: 23rpx;
+}
+
+.scan-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80rpx 124rpx;
+  gap: 12rpx;
+}
+
+.scan-input {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 80rpx;
+  gap: 12rpx;
+  padding: 0 18rpx;
+  background: #f6f8fa;
+  border: 1rpx solid #e2e8ee;
+  border-radius: 8rpx;
+}
+
+.scan-input input {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  font-size: 27rpx;
+}
+
+.query-button {
+  min-height: 80rpx;
+  margin: 0;
+  padding: 0 12rpx;
+  font-size: 27rpx;
+}
+
+.barcode-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 20rpx;
+  padding: 34rpx 26rpx;
+  background: #ffffff;
+  border: 1rpx solid #dce7f1;
+  border-top: 6rpx solid #2d8cf0;
+  border-radius: 8rpx;
+  box-shadow: 0 8rpx 22rpx rgba(32, 42, 54, 0.05);
+  text-align: center;
+}
+
+.barcode-hero__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96rpx;
+  height: 96rpx;
+  background: #eaf4fe;
+  border-radius: 50%;
+}
+
+.barcode-value {
+  margin-top: 20rpx;
+  font-size: 34rpx;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.barcode-type {
+  margin-top: 8rpx;
+  color: #617080;
+  font-size: 24rpx;
+}
+
+.barcode-detail {
+  margin-top: 20rpx;
+  padding: 24rpx;
+}
+
+.barcode-detail .field-row + .field-row {
+  border-top: 1rpx solid #edf0f3;
+}

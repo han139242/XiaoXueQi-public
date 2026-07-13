@@ -1,0 +1,22 @@
+<view class="page">
+  <view class="scan-panel surface">
+    <view class="scan-heading"><view class="scan-heading__icon"><app-icon name="scan-line" size="46"></app-icon></view><view><text class="scan-title">条码追溯</text><text class="scan-caption">扫描或输入条码查询业务来源</text></view></view>
+    <view class="scan-search"><view class="scan-input"><app-icon name="barcode" size="34" muted></app-icon><input value="{{value}}" placeholder="输入条码内容" confirm-type="search" bindinput="handleInput" bindconfirm="query" /></view><button class="icon-button" bindtap="rescan" aria-label="扫码"><app-icon name="scan-line" size="36"></app-icon></button><button class="primary-button query-button" bindtap="query"><app-icon name="search" size="30" inverse></app-icon><text>查询</text></button></view>
+  </view>
+  <loading-state wx:if="{{loading}}"></loading-state>
+  <empty-state wx:elif="{{error}}" title="条码查询失败" description="{{error}}" action-text="重试" bind:action="query"></empty-state>
+  <empty-state wx:elif="{{searched && !barcode}}" title="未找到对应条码" description="请核对条码内容后重试"></empty-state>
+  <empty-state wx:elif="{{!searched}}" title="等待扫描条码"></empty-state>
+  <block wx:else>
+    <view class="barcode-hero"><view class="barcode-hero__icon"><app-icon name="barcode" size="52"></app-icon></view><text class="barcode-value" selectable>{{barcode.barcodeValue}}</text><text class="barcode-type">{{barcode.barcodeType || '未标记类型'}}</text></view>
+    <view class="barcode-detail surface">
+      <view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="info" size="34"></app-icon></view><text class="section-heading__title">追溯信息</text></view></view>
+      <view class="field-row"><text class="field-label">业务类型</text><text class="field-value">{{barcode.bizType || '-'}}</text></view>
+      <view class="field-row"><text class="field-label">业务 ID</text><text class="field-value">{{barcode.bizId == null ? '-' : barcode.bizId}}</text></view>
+      <view class="field-row"><text class="field-label">状态</text><text class="field-value">{{barcode.status || '-'}}</text></view>
+      <view class="field-row"><text class="field-label">生成规则</text><text class="field-value">{{barcode.generatedRule || '-'}}</text></view>
+      <view class="field-row"><text class="field-label">创建时间</text><text class="field-value">{{barcode.createdTimeText}}</text></view>
+      <view class="field-row"><text class="field-label">备注</text><text class="field-value">{{barcode.remark || '-'}}</text></view>
+    </view>
+  </block>
+</view>

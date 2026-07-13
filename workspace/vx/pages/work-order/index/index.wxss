@@ -1,0 +1,52 @@
+.list-page {
+  padding-top: 20rpx;
+}
+
+.scan-button {
+  background: #2d8cf0;
+  border-color: #2d8cf0;
+  box-shadow: 0 6rpx 14rpx rgba(45, 140, 240, 0.18);
+}
+
+.work-order-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 66rpx;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.work-order-filters .filter-chip {
+  width: 100%;
+  max-width: none;
+}
+
+.record-fields {
+  padding: 2rpx 0;
+}
+
+.aligned-field {
+  display: grid;
+  grid-template-columns: 144rpx minmax(0, 1fr);
+  align-items: start;
+  gap: 20rpx;
+  min-height: 58rpx;
+  padding: 9rpx 0;
+  line-height: 1.45;
+}
+
+.aligned-label {
+  color: #617080;
+}
+
+.aligned-value {
+  min-width: 0;
+  color: #202a36;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.aligned-value--number {
+  color: #176fbe;
+  font-weight: 650;
+}

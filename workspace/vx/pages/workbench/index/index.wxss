@@ -1,0 +1,158 @@
+.workbench-page {
+  padding-top: 24rpx;
+}
+
+.workbench-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
+}
+
+.heading-main {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.heading-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72rpx;
+  height: 72rpx;
+  background: #eaf4fe;
+  border: 1rpx solid #cfe5fb;
+  border-radius: 8rpx;
+}
+
+.heading-title,
+.heading-subtitle {
+  display: block;
+}
+
+.heading-title {
+  font-size: 38rpx;
+  font-weight: 650;
+}
+
+.heading-subtitle {
+  margin-top: 6rpx;
+  color: #617080;
+  font-size: 24rpx;
+}
+
+.scan-action {
+  width: 80rpx;
+  height: 80rpx;
+  margin: 0;
+  padding: 0;
+  color: #ffffff;
+  background: #2d8cf0;
+  border-radius: 8rpx;
+  box-shadow: 0 8rpx 18rpx rgba(45, 140, 240, 0.2);
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.metric-item {
+  min-height: 170rpx;
+  padding: 22rpx;
+  background: #ffffff;
+  border: 1rpx solid #e2e8ee;
+  border-top: 5rpx solid #2d8cf0;
+  border-radius: 8rpx;
+  box-shadow: 0 6rpx 18rpx rgba(32, 42, 54, 0.045);
+}
+
+.metric-item--wide {
+  grid-column: 1 / -1;
+  min-height: 150rpx;
+}
+
+.metric-item--data { border-top-color: #2db7f5; }
+.metric-item--success { border-top-color: #2f8b70; }
+.metric-item--warning { border-top-color: #b77912; }
+.metric-item--danger { border-top-color: #bf433e; }
+
+.metric-top {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.metric-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54rpx;
+  height: 54rpx;
+  background: #eaf4fe;
+  border-radius: 8rpx;
+}
+
+.metric-value,
+.metric-label {
+  display: block;
+}
+
+.metric-value {
+  margin-top: 14rpx;
+  font-size: 46rpx;
+  font-weight: 650;
+  color: #202a36;
+}
+
+.metric-label {
+  color: #617080;
+  font-size: 24rpx;
+}
+
+.action-title {
+  margin-top: 34rpx;
+}
+
+.action-grid {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1rpx solid #dfe4e9;
+  border-radius: 8rpx;
+}
+
+.action-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 25%;
+  max-width: 25%;
+  flex: 0 0 25%;
+  min-width: 0;
+  min-height: 164rpx;
+  margin: 0;
+  padding: 22rpx 8rpx;
+  color: #202a36;
+  background: transparent;
+  border-radius: 0;
+  font-size: 24rpx;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.action-symbol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64rpx;
+  height: 64rpx;
+  margin: 0 auto 12rpx;
+  background: #e6f2fd;
+  border-radius: 8rpx;
+}

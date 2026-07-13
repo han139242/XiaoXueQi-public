@@ -1,0 +1,7 @@
+.data-card {
+  padding: 26rpx;
+  background: #ffffff;
+  border: 1rpx solid #e2e8ee;
+  border-radius: 10rpx;
+  box-shadow: 0 6rpx 18rpx rgba(32, 42, 54, 0.045);
+}

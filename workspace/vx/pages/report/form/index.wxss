@@ -1,0 +1,57 @@
+.job-summary,
+.form-panel {
+  padding: 24rpx;
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 14rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.form-panel {
+  margin-top: 20rpx;
+}
+
+.form-field {
+  display: block;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #dfe4e9;
+}
+
+.form-field > text {
+  display: block;
+  margin-bottom: 14rpx;
+  color: #617080;
+  font-size: 26rpx;
+}
+
+.form-field input,
+.form-field textarea {
+  width: 100%;
+  font-size: 30rpx;
+}
+
+.picker-value {
+  min-height: 64rpx;
+  color: #202a36;
+  font-size: 30rpx;
+  line-height: 64rpx;
+}
+
+.form-field input {
+  height: 64rpx;
+}
+
+.form-field textarea {
+  height: 160rpx;
+}
+
+.form-error {
+  margin-top: 20rpx;
+  color: #bf433e;
+  line-height: 1.5;
+}

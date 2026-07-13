@@ -1,0 +1,149 @@
+.profile-page {
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
+}
+
+.identity-card {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 28rpx;
+  color: #ffffff;
+  background: #2d8cf0;
+  border-radius: 8rpx;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 88rpx;
+  flex: 0 0 88rpx;
+  color: #2d8cf0;
+  background: #ffffff;
+  border-radius: 50%;
+}
+
+.identity-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.username,
+.employee {
+  display: block;
+}
+
+.identity-system {
+  display: block;
+  margin-top: 5rpx;
+  color: #cfe5fb;
+  font-size: 22rpx;
+}
+
+.username {
+  font-size: 36rpx;
+  font-weight: 650;
+}
+
+.employee {
+  margin-top: 8rpx;
+  color: #e6f2fd;
+  font-size: 24rpx;
+}
+
+.profile-section {
+  margin-top: 20rpx;
+  padding: 24rpx;
+}
+
+.profile-section .field-row + .field-row {
+  border-top: 1rpx solid #edf0f3;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.tag-list text {
+  padding: 10rpx 14rpx;
+  color: #176fbe;
+  background: #e6f2fd;
+  border-radius: 6rpx;
+  font-size: 24rpx;
+}
+
+.permission-list {
+  max-height: 320rpx;
+  overflow-y: auto;
+}
+
+.permission-list text {
+  display: block;
+  padding: 12rpx 0;
+  color: #617080;
+  font-size: 24rpx;
+  overflow-wrap: anywhere;
+}
+
+.settings-list {
+  padding: 0 24rpx;
+}
+
+.settings-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 92rpx;
+  margin: 0;
+  padding: 14rpx 0;
+  color: #202a36;
+  background: transparent;
+  border-radius: 0;
+  border-bottom: 1rpx solid #dfe4e9;
+  font-size: 28rpx;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.settings-list button:last-child {
+  border-bottom: 0;
+}
+
+.settings-list button view {
+  min-width: 0;
+}
+
+.setting-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  gap: 14rpx;
+}
+
+.setting-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58rpx;
+  height: 58rpx;
+  flex: 0 0 58rpx;
+  background: #eaf4fe;
+  border-radius: 8rpx;
+}
+
+.setting-value {
+  display: block;
+  max-width: 450rpx;
+  margin-top: 4rpx;
+  color: #8a96a3;
+  font-size: 22rpx;
+  overflow-wrap: anywhere;
+}
+
+.logout-button {
+  margin-top: 28rpx;
+}

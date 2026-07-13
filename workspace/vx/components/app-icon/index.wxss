@@ -1,0 +1,13 @@
+.app-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.app-icon--inverse {
+  filter: brightness(0) invert(1);
+}
+
+.app-icon--muted {
+  filter: grayscale(1);
+  opacity: 0.58;
+}

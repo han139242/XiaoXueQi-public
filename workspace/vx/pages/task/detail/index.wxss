@@ -1,0 +1,101 @@
+.hero-type {
+  display: block;
+  margin-top: 5rpx;
+  color: #8a96a3;
+  font-size: 23rpx;
+}
+
+.task-context {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10rpx;
+}
+
+.task-context > view {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 9rpx;
+  padding: 12rpx 14rpx;
+  color: #4d5c6c;
+  background: #f8fafc;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+}
+
+.task-context > view:first-child {
+  grid-column: 1 / -1;
+}
+
+.task-context text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 16rpx;
+  padding: 20rpx 0;
+  background: #f6f9fc;
+  border: 1rpx solid #edf1f5;
+  border-radius: 8rpx;
+  text-align: center;
+}
+
+.progress-grid > view + view {
+  border-left: 1rpx solid #dfe4e9;
+}
+
+.progress-value,
+.progress-label {
+  display: block;
+}
+
+.progress-value {
+  color: #176fbe;
+  font-size: 36rpx;
+  font-weight: 650;
+}
+
+.progress-value.defect,
+.defect-text {
+  color: #bf433e;
+}
+
+.progress-label {
+  margin-top: 4rpx;
+  color: #8a96a3;
+  font-size: 23rpx;
+}
+
+.task-info .field-row + .field-row {
+  border-top: 1rpx solid #edf0f3;
+}
+
+.report-title {
+  margin-top: 30rpx;
+}
+
+.report-quantity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15rpx 18rpx;
+  color: #2f8b70;
+  background: #f6f9fc;
+  border-radius: 8rpx;
+  font-size: 25rpx;
+  font-weight: 600;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16rpx;
+}
+
+.action-row button {
+  width: 100%;
+  margin: 0;
+}

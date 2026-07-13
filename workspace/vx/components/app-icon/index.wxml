@@ -1,0 +1,1 @@
+<image class="app-icon {{inverse ? 'app-icon--inverse' : ''}} {{muted ? 'app-icon--muted' : ''}}" src="/assets/icons/{{name}}.svg" style="width: {{size}}rpx; height: {{size}}rpx;" mode="aspectFit"></image>

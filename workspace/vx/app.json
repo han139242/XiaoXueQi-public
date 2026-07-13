@@ -1,12 +1,64 @@
 {
   "pages": [
-    "pages/index/index",
-    "pages/logs/logs"
+    "pages/login/index",
+    "pages/work-order/index/index",
+    "pages/work-order/detail/index",
+    "pages/task/index/index",
+    "pages/task/detail/index",
+    "pages/task/finish/index",
+    "pages/workbench/index/index",
+    "pages/report/index/index",
+    "pages/report/detail/index",
+    "pages/report/form/index",
+    "pages/trace/scan-result/index",
+    "pages/profile/index/index"
   ],
   "window": {
-    "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "Weixin",
-    "navigationBarBackgroundColor": "#ffffff"
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "羽球智造 MES",
+    "navigationBarBackgroundColor": "#2d8cf0",
+    "backgroundColor": "#f4f6f8"
+  },
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index"
+  },
+  "tabBar": {
+    "color": "#7f8b98",
+    "selectedColor": "#2d8cf0",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/work-order/index/index",
+        "text": "工单",
+        "iconPath": "assets/icons/tab-work-order.png",
+        "selectedIconPath": "assets/icons/tab-work-order-active.png"
+      },
+      {
+        "pagePath": "pages/task/index/index",
+        "text": "任务",
+        "iconPath": "assets/icons/tab-task.png",
+        "selectedIconPath": "assets/icons/tab-task-active.png"
+      },
+      {
+        "pagePath": "pages/workbench/index/index",
+        "text": "工作台",
+        "iconPath": "assets/icons/tab-workbench.png",
+        "selectedIconPath": "assets/icons/tab-workbench-active.png"
+      },
+      {
+        "pagePath": "pages/report/index/index",
+        "text": "报工",
+        "iconPath": "assets/icons/tab-report.png",
+        "selectedIconPath": "assets/icons/tab-report-active.png"
+      },
+      {
+        "pagePath": "pages/profile/index/index",
+        "text": "我的",
+        "iconPath": "assets/icons/tab-profile.png",
+        "selectedIconPath": "assets/icons/tab-profile-active.png"
+      }
+    ]
   },
   "style": "v2",
   "componentFramework": "glass-easel",

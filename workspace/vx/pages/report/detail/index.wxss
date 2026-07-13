@@ -1,0 +1,82 @@
+.hero-type {
+  display: block;
+  margin-top: 5rpx;
+  color: #8a96a3;
+  font-size: 23rpx;
+}
+
+.report-context {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10rpx;
+}
+
+.report-context > view {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 9rpx;
+  padding: 12rpx 14rpx;
+  color: #4d5c6c;
+  background: #f8fafc;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+}
+
+.report-context > view:first-child {
+  grid-column: 1 / -1;
+}
+
+.report-context text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.quantity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 16rpx;
+  padding: 20rpx 0;
+  background: #f6f9fc;
+  border: 1rpx solid #edf1f5;
+  border-radius: 8rpx;
+  text-align: center;
+}
+
+.quantity-grid > view + view {
+  border-left: 1rpx solid #dfe4e9;
+}
+
+.quantity-grid text {
+  display: block;
+}
+
+.quantity-grid view > text:first-child {
+  color: #176fbe;
+  font-size: 36rpx;
+  font-weight: 650;
+}
+
+.quantity-grid view > text:first-child.defect {
+  color: #bf433e;
+}
+
+.quantity-grid view > text:last-child {
+  margin-top: 4rpx;
+  color: #8a96a3;
+  font-size: 23rpx;
+}
+
+.report-info .field-row + .field-row {
+  border-top: 1rpx solid #edf0f3;
+}
+
+.materials-title {
+  margin-top: 30rpx;
+}
+
+.material-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}

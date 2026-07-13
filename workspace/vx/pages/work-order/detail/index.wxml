@@ -1,0 +1,33 @@
+<view class="page">
+  <loading-state wx:if="{{loading}}"></loading-state>
+  <empty-state wx:elif="{{error}}" title="工单详情加载失败" description="{{error}}" action-text="重试" bind:action="loadData"></empty-state>
+  <empty-state wx:elif="{{!workOrder}}" title="工单不存在" description="记录可能已删除"></empty-state>
+
+  <block wx:else>
+    <view class="detail-hero">
+      <view class="detail-hero__header">
+        <view class="detail-hero__identity"><view class="detail-hero__icon"><app-icon name="clipboard-list" size="40"></app-icon></view><view><text class="detail-hero__number" selectable>{{workOrder.workOrderNo || ('工单 ID ' + workOrder.workOrderId)}}</text><text class="hero-type">生产工单</text></view></view>
+        <status-tag text="{{workOrder.statusView.text}}" tone="{{workOrder.statusView.tone}}"></status-tag>
+      </view>
+      <view class="hero-product"><app-icon name="package" size="30" muted></app-icon><text>{{workOrder.productLabel}}</text></view>
+      <view class="stat-grid"><view class="stat-cell"><text class="stat-value">{{workOrder.plannedQuantity == null ? '-' : workOrder.plannedQuantity}}</text><text class="stat-label">计划数量</text></view><view class="stat-cell"><text class="stat-value">{{workOrder.completedQuantity == null ? '-' : workOrder.completedQuantity}}</text><text class="stat-label">完成数量</text></view></view>
+    </view>
+
+    <view class="detail-section surface info-section">
+      <view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="info" size="34"></app-icon></view><text class="section-heading__title">工单信息</text></view></view>
+      <view class="field-row"><text class="field-label">创建时间</text><text class="field-value">{{workOrder.createdTimeText}}</text></view>
+      <view class="field-row"><text class="field-label">更新时间</text><text class="field-value">{{workOrder.updatedTimeText}}</text></view>
+      <view class="field-row"><text class="field-label">备注</text><text class="field-value">{{workOrder.remark || '-'}}</text></view>
+    </view>
+
+    <view class="section-heading job-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="list-checks" size="34"></app-icon></view><text class="section-heading__title">生产任务</text></view><text class="section-heading__meta">{{tasks.length}} 项</text></view>
+    <empty-state wx:if="{{tasks.length === 0}}" title="暂无生产任务"></empty-state>
+    <view wx:else class="job-list">
+      <view wx:for="{{tasks}}" wx:key="taskId" class="record-card" data-id="{{item.taskId}}" bindtap="openTask">
+        <view class="record-header"><view class="record-identity"><view class="record-icon"><app-icon name="list-checks" size="34"></app-icon></view><view><text class="record-number" selectable>{{item.taskNo || ('任务 ID ' + item.taskId)}}</text><text class="record-subline">{{item.operationLabel}}</text></view></view><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
+        <view class="task-meta"><view><app-icon name="map-pin" size="26" muted></app-icon><text>{{item.stationLabel}}</text></view><view><app-icon name="chart-no-axes-column-increasing" size="26" muted></app-icon><text>{{item.plannedQuantity == null ? '-' : item.plannedQuantity}} / {{item.completedQuantity == null ? '-' : item.completedQuantity}}</text></view></view>
+        <view class="job-actions"><button wx:if="{{item.status === 'RUNNING'}}" class="report-button" data-id="{{item.taskId}}" catchtap="openReportForm"><app-icon name="notebook-pen" size="28"></app-icon><text>提交报工</text></button><view class="card-link"><text>查看详情</text><app-icon name="chevron-right" size="25"></app-icon></view></view>
+      </view>
+    </view>
+  </block>
+</view>
