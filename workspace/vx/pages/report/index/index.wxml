@@ -18,7 +18,7 @@
   <view wx:else class="record-list">
     <view wx:for="{{list}}" wx:key="reportId" class="record-card" data-id="{{item.reportId}}" bindtap="openDetail">
       <view class="record-header"><text class="record-number" selectable>{{item.reportNo || item.reportTimeText || ('报工 ID ' + item.reportId)}}</text><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
-      <view class="report-fields"><view><text>任务编号</text><text>{{item.taskId}}</text></view><view><text>工位名称</text><text>{{item.stationLabel}}</text></view><view><text>操作人员</text><text>{{item.operatorLabel}}</text></view><view><text>报工数量</text><text>合格 {{item.qualifiedQuantity == null ? '-' : item.qualifiedQuantity}} / 不良 {{item.defectQuantity == null ? '-' : item.defectQuantity}}</text></view></view>
+      <view class="report-fields"><view><text>任务编号</text><text selectable>{{item.taskNo}}</text></view><view><text>工位名称</text><text>{{item.stationLabel}}</text></view><view><text>操作人员</text><text>{{item.operatorLabel}}</text></view><view><text>报工数量</text><text>合格 {{item.qualifiedQuantity == null ? '-' : item.qualifiedQuantity}} / 不良 {{item.defectQuantity == null ? '-' : item.defectQuantity}}</text></view></view>
       <view class="record-footer"><text>查看详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view>
     </view>
     <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view><view wx:elif="{{loading}}" class="list-footer">加载中</view><view wx:elif="{{finished}}" class="list-footer">已加载全部</view>

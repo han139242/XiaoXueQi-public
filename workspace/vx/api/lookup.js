@@ -67,6 +67,13 @@ const definitions = {
       return [item.equipmentCode, item.equipmentName].filter(Boolean).join(' · ')
     }
   },
+  task: {
+    url: '/api/mfg/task/page',
+    id: 'taskId',
+    label(item) {
+      return item.taskNo
+    }
+  },
   workOrder: {
     url: '/api/mfg/work-order/page',
     id: 'workOrderId',

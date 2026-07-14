@@ -55,9 +55,9 @@
 }
 
 .form-field > text {
-  width: 180rpx;
+  width: 220rpx;
   padding-top: 25rpx;
-  flex: 0 0 180rpx;
+  flex: 0 0 220rpx;
   color: #3e4852;
   font-size: 30rpx;
   line-height: 1.25;
@@ -112,6 +112,11 @@
   min-width: 0;
   gap: 8rpx;
   color: #111111;
+}
+
+.picker-field > text {
+  flex: 0 0 220rpx;
+  line-height: 1.35;
 }
 
 .image-section {

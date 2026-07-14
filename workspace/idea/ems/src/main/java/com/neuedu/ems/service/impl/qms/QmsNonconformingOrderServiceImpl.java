@@ -7,11 +7,13 @@ import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.qms.QmsNonconformingDetail;
 import com.neuedu.ems.entity.qms.QmsNonconformingOrder;
+import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.sys.SysApprovalRecord;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.qms.QmsNonconformingDetailMapper;
 import com.neuedu.ems.mapper.qms.QmsNonconformingOrderMapper;
+import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
 import com.neuedu.ems.mapper.sys.SysApprovalRecordMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
@@ -34,6 +36,9 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
 
     @Autowired
     private QmsNonconformingDetailMapper qmsNonconformingDetailMapper;
+
+    @Autowired
+    private QmsInspectionOrderMapper qmsInspectionOrderMapper;
 
     @Autowired
     private SysStatusChangeLogMapper sysStatusChangeLogMapper;
@@ -99,6 +104,10 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
      */
     @Override
     public boolean saveNonconformingOrder(QmsNonconformingOrder nonconformingOrder) {
+        if (!isFailedInspection(nonconformingOrder.getInspectionId())
+                || !StringUtils.hasText(nonconformingOrder.getDispositionType())) {
+            return false;
+        }
         prepareNonconformingOrder(nonconformingOrder);
         return baseMapper.insert(nonconformingOrder) > 0;
     }
@@ -112,7 +121,9 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
     @Override
     @Transactional
     public Long saveNonconformingOrderFull(QmsNonconformingOrder nonconformingOrder, List<QmsNonconformingDetail> details) {
-        saveNonconformingOrder(nonconformingOrder);
+        if (!saveNonconformingOrder(nonconformingOrder)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR);
+        }
         insertDetails(nonconformingOrder.getNcrId(), details);
         return nonconformingOrder.getNcrId();
     }
@@ -130,6 +141,10 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
         QmsNonconformingOrder existing = getNonconformingOrderById(nonconformingOrder.getNcrId());
         if (existing == null || BusinessStatus.isApprovalResult(existing.getApprovalStatus())
                 || BusinessStatus.Document.CLOSED.equals(existing.getStatus())) {
+            return false;
+        }
+        if (nonconformingOrder.getInspectionId() != null
+                && !isFailedInspection(nonconformingOrder.getInspectionId())) {
             return false;
         }
         nonconformingOrder.setApprovalStatus(null);
@@ -264,6 +279,18 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
         if (order.getDeletedFlag() == null) {
             order.setDeletedFlag(0);
         }
+    }
+
+    private boolean isFailedInspection(Long inspectionId) {
+        if (inspectionId == null) {
+            return false;
+        }
+        LambdaQueryWrapper<QmsInspectionOrder> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(QmsInspectionOrder::getInspectionId, inspectionId)
+                .eq(QmsInspectionOrder::getInspectionResult, BusinessStatus.Quality.FAIL)
+                .eq(QmsInspectionOrder::getStatus, BusinessStatus.Production.FINISHED)
+                .eq(QmsInspectionOrder::getDeletedFlag, 0);
+        return qmsInspectionOrderMapper.selectOne(queryWrapper) != null;
     }
 
     /**

@@ -8,6 +8,8 @@
       <view class="defect-name"><view class="defect-marker"></view><text>{{item.displayName}}</text></view>
       <view class="defect-card">
         <view class="defect-row"><text>不良品项编号</text><text>{{item.displayNo}}</text></view>
+        <view class="defect-row"><text>关联检验单</text><text>{{item.inspectionLabel}}</text></view>
+        <view class="defect-row"><text>处理方式</text><text>{{item.dispositionText}}</text></view>
         <view class="defect-media-row">
           <view class="media-labels">
             <text>图片</text>
@@ -15,7 +17,7 @@
           <image wx:if="{{item.imageUrl}}" class="defect-image" src="{{item.imageUrl}}" mode="aspectFill"></image>
           <view wx:else class="defect-image defect-image--empty"></view>
         </view>
-        <view class="defect-row"><text>创建时间</text><text>{{item.createdTimeText}}</text></view>
+        <view class="defect-row"><text>录入时间</text><text>{{item.createdTimeText}}</text></view>
         <view class="defect-row"><text>创建人</text><text>{{item.createdByText}}</text></view>
       </view>
     </view>

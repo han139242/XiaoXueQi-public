@@ -7,10 +7,12 @@ import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.qms.QmsInspectionResult;
+import com.neuedu.ems.entity.mfg.MfgWorkReport;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
 import com.neuedu.ems.mapper.qms.QmsInspectionResultMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.qms.QmsInspectionOrderService;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -29,8 +32,13 @@ import java.util.List;
 @Service
 public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrderMapper, QmsInspectionOrder> implements QmsInspectionOrderService {
 
+    private static final BigDecimal UNQUALIFIED_RATE_LIMIT = new BigDecimal("0.005");
+
     @Autowired
     private QmsInspectionResultMapper qmsInspectionResultMapper;
+
+    @Autowired
+    private MfgWorkReportMapper mfgWorkReportMapper;
 
     @Autowired
     private SysStatusChangeLogMapper sysStatusChangeLogMapper;
@@ -139,6 +147,10 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         }
         inspectionOrder.setStatus(null);
         inspectionOrder.setInspectionResult(null);
+        inspectionOrder.setSampleQuantity(null);
+        inspectionOrder.setQualifiedQuantity(null);
+        inspectionOrder.setUnqualifiedQuantity(null);
+        inspectionOrder.setInspectionTime(null);
         inspectionOrder.setDeletedFlag(null);
         if (inspectionOrder.getVersion() == null) {
             inspectionOrder.setVersion(existing.getVersion());
@@ -197,28 +209,79 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     @Override
     @Transactional
     public boolean submitInspectionOrder(Long inspectionId, String inspectionResult, String remark, Long operatorId) {
-        String normalizedInspectionResult = BusinessStatus.normalizeCode(inspectionResult);
-        if (!BusinessStatus.isInspectionResult(normalizedInspectionResult)) {
-            return false;
-        }
+        return submitInspectionOrder(inspectionId, inspectionResult, remark, operatorId, null, null, null);
+    }
+
+    /**
+     * 提交检验单结果和汇总数量并结束检验单；未提供数量时兼容原有调用。
+     */
+    @Override
+    @Transactional
+    public boolean submitInspectionOrder(Long inspectionId, String inspectionResult, String remark, Long operatorId,
+                                         BigDecimal sampleQuantity, BigDecimal qualifiedQuantity,
+                                         BigDecimal unqualifiedQuantity) {
+        boolean quantitiesProvided = sampleQuantity != null || qualifiedQuantity != null || unqualifiedQuantity != null;
+        String normalizedInspectionResult = quantitiesProvided
+                ? determineInspectionResult(sampleQuantity, unqualifiedQuantity)
+                : BusinessStatus.normalizeCode(inspectionResult);
+        if (!BusinessStatus.isInspectionResult(normalizedInspectionResult)) return false;
         QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
         if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
             return false;
         }
+        if (quantitiesProvided && !validInspectionQuantities(existing, sampleQuantity, qualifiedQuantity, unqualifiedQuantity)) {
+            return false;
+        }
+        LocalDateTime inspectionTime = LocalDateTime.now();
         QmsInspectionOrder update = new QmsInspectionOrder();
         update.setInspectionId(inspectionId);
         update.setVersion(existing.getVersion());
         update.setInspectionResult(normalizedInspectionResult);
         update.setStatus(BusinessStatus.Production.FINISHED);
+        update.setInspectionTime(inspectionTime);
         update.setRemark(StringUtils.hasText(remark) ? remark : existing.getRemark());
+        if (quantitiesProvided) {
+            update.setSampleQuantity(sampleQuantity);
+            update.setQualifiedQuantity(qualifiedQuantity);
+            update.setUnqualifiedQuantity(unqualifiedQuantity);
+        }
         boolean updated = baseMapper.updateById(update) > 0;
         if (updated) {
-            LocalDateTime now = LocalDateTime.now();
             insertStatusChangeLog(inspectionId, existing.getStatus(), BusinessStatus.Production.FINISHED, "QMS_INSPECTION_ORDER",
-                    "SUBMIT_INSPECTION", operatorId, remark, now);
-            insertOperationLog(inspectionId, "SUBMIT_INSPECTION", "qms_inspection_order", operatorId, remark, now);
+                    "SUBMIT_INSPECTION", operatorId, remark, inspectionTime);
+            insertOperationLog(inspectionId, "SUBMIT_INSPECTION", "qms_inspection_order", operatorId, remark, inspectionTime);
         }
         return updated;
+    }
+
+    private String determineInspectionResult(BigDecimal sampleQuantity, BigDecimal unqualifiedQuantity) {
+        if (sampleQuantity == null || unqualifiedQuantity == null || sampleQuantity.signum() <= 0) return null;
+        return unqualifiedQuantity.compareTo(sampleQuantity.multiply(UNQUALIFIED_RATE_LIMIT)) <= 0
+                ? BusinessStatus.Quality.PASS
+                : BusinessStatus.Quality.FAIL;
+    }
+
+    private boolean validInspectionQuantities(QmsInspectionOrder inspectionOrder, BigDecimal sampleQuantity,
+                                              BigDecimal qualifiedQuantity,
+                                              BigDecimal unqualifiedQuantity) {
+        if (sampleQuantity == null || qualifiedQuantity == null || unqualifiedQuantity == null
+                || sampleQuantity.signum() <= 0 || qualifiedQuantity.signum() < 0 || unqualifiedQuantity.signum() < 0
+                || qualifiedQuantity.add(unqualifiedQuantity).compareTo(sampleQuantity) != 0) {
+            return false;
+        }
+        if (inspectionOrder.getReportId() == null) {
+            return true;
+        }
+        LambdaQueryWrapper<MfgWorkReport> reportQuery = new LambdaQueryWrapper<>();
+        reportQuery.eq(MfgWorkReport::getReportId, inspectionOrder.getReportId())
+                .eq(MfgWorkReport::getDeletedFlag, 0);
+        MfgWorkReport report = mfgWorkReportMapper.selectOne(reportQuery);
+        if (report == null) {
+            return false;
+        }
+        BigDecimal reportQualified = report.getQualifiedQuantity() == null ? BigDecimal.ZERO : report.getQualifiedQuantity();
+        BigDecimal reportDefect = report.getDefectQuantity() == null ? BigDecimal.ZERO : report.getDefectQuantity();
+        return sampleQuantity.compareTo(reportQualified.add(reportDefect)) <= 0;
     }
 
     /**

@@ -2,10 +2,12 @@ package com.neuedu.ems.service.impl.qms;
 
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.qms.QmsNonconformingOrder;
+import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.sys.SysApprovalRecord;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.qms.QmsNonconformingDetailMapper;
 import com.neuedu.ems.mapper.qms.QmsNonconformingOrderMapper;
+import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
 import com.neuedu.ems.mapper.sys.SysApprovalRecordMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
@@ -28,6 +30,7 @@ class QmsNonconformingOrderServiceImplTest {
 
     private QmsNonconformingOrderServiceImpl service;
     private QmsNonconformingOrderMapper orderMapper;
+    private QmsInspectionOrderMapper inspectionOrderMapper;
     private SysStatusChangeLogMapper statusChangeLogMapper;
     private SysApprovalRecordMapper approvalRecordMapper;
 
@@ -35,10 +38,12 @@ class QmsNonconformingOrderServiceImplTest {
     void setUp() {
         service = new QmsNonconformingOrderServiceImpl();
         orderMapper = mock(QmsNonconformingOrderMapper.class);
+        inspectionOrderMapper = mock(QmsInspectionOrderMapper.class);
         statusChangeLogMapper = mock(SysStatusChangeLogMapper.class);
         approvalRecordMapper = mock(SysApprovalRecordMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", orderMapper);
         ReflectionTestUtils.setField(service, "qmsNonconformingDetailMapper", mock(QmsNonconformingDetailMapper.class));
+        ReflectionTestUtils.setField(service, "qmsInspectionOrderMapper", inspectionOrderMapper);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusChangeLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", mock(SysOperationLogMapper.class));
         ReflectionTestUtils.setField(service, "sysApprovalRecordMapper", approvalRecordMapper);
@@ -103,6 +108,42 @@ class QmsNonconformingOrderServiceImplTest {
         verify(orderMapper).updateById(update.capture());
         assertNull(update.getValue().getApprovalStatus());
         assertNull(update.getValue().getStatus());
+    }
+
+    @Test
+    void saveRequiresFinishedFailedInspectionAndNormalizesDisposition() {
+        QmsInspectionOrder inspectionOrder = new QmsInspectionOrder();
+        inspectionOrder.setInspectionId(10L);
+        inspectionOrder.setStatus(BusinessStatus.Production.FINISHED);
+        inspectionOrder.setInspectionResult(BusinessStatus.Quality.FAIL);
+        when(inspectionOrderMapper.selectOne(any())).thenReturn(inspectionOrder);
+        when(orderMapper.insert(any(QmsNonconformingOrder.class))).thenReturn(1);
+        QmsNonconformingOrder request = new QmsNonconformingOrder();
+        request.setInspectionId(10L);
+        request.setDispositionType("rework");
+
+        assertTrue(service.saveNonconformingOrder(request));
+
+        ArgumentCaptor<QmsNonconformingOrder> saved = ArgumentCaptor.forClass(QmsNonconformingOrder.class);
+        verify(orderMapper).insert(saved.capture());
+        assertEquals(BusinessStatus.Quality.REWORK, saved.getValue().getDispositionType());
+        assertEquals(10L, saved.getValue().getInspectionId());
+    }
+
+    @Test
+    void saveRejectsNonFailedInspectionAndMissingDisposition() {
+        QmsNonconformingOrder request = new QmsNonconformingOrder();
+        request.setInspectionId(10L);
+        request.setDispositionType("REWORK");
+
+        assertFalse(service.saveNonconformingOrder(request));
+        verify(orderMapper, never()).insert(any(QmsNonconformingOrder.class));
+
+        QmsInspectionOrder failedInspection = new QmsInspectionOrder();
+        failedInspection.setInspectionId(10L);
+        when(inspectionOrderMapper.selectOne(any())).thenReturn(failedInspection);
+        request.setDispositionType(null);
+        assertFalse(service.saveNonconformingOrder(request));
     }
 
     private QmsNonconformingOrder existingOrder() {

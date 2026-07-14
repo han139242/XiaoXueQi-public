@@ -1,0 +1,26 @@
+<view class="page page-with-actions inspection-form-page">
+  <loading-state wx:if="{{loading}}"></loading-state>
+  <empty-state wx:elif="{{error && !detail}}" title="无法录入检验记录" description="{{error}}" action-text="重试" bind:action="loadData"></empty-state>
+  <block wx:elif="{{detail}}">
+    <view class="inspection-summary">
+      <text class="inspection-no" selectable>{{detail.inspectionNo || ('检验单 ' + detail.inspectionId)}}</text>
+      <view class="summary-row"><text>工单编号</text><text>{{detail.workOrderLabel}}</text></view>
+      <view class="summary-row"><text>任务编号</text><text selectable>{{detail.taskLabel}}</text></view>
+      <view class="summary-row"><text>报工编号</text><text selectable>{{detail.reportLabel}}</text></view>
+      <view wx:if="{{detail.availableQuantity !== null}}" class="summary-row"><text>可检数量</text><text>{{detail.availableQuantity}}</text></view>
+    </view>
+
+    <view class="form-panel">
+      <view class="form-field readonly-field"><text>检验时间</text><text>{{inspectionTimeText}}</text></view>
+      <label class="form-field"><text>抽检数量</text><input type="digit" value="{{sampleQuantity}}" data-field="sampleQuantity" placeholder="请输入大于 0 的数量" bindinput="handleInput" /></label>
+      <label class="form-field"><text>合格数量</text><input type="digit" value="{{qualifiedQuantity}}" data-field="qualifiedQuantity" placeholder="请输入非负数量" bindinput="handleInput" /></label>
+      <label class="form-field"><text>不合格数量</text><input type="digit" value="{{unqualifiedQuantity}}" data-field="unqualifiedQuantity" placeholder="请输入非负数量" bindinput="handleInput" /></label>
+      <view class="form-field readonly-field"><text>不合格率</text><text>{{unqualifiedRateText}}</text></view>
+      <view class="form-field readonly-field"><text>系统判定</text><text class="result-value result-value--{{inspectionResultTone}}">{{inspectionResultText}}</text></view>
+      <label class="form-field"><text>备注</text><textarea value="{{remark}}" data-field="remark" maxlength="500" placeholder="选填，记录检验说明" bindinput="handleInput"></textarea></label>
+      <view wx:if="{{error}}" class="form-error">{{error}}</view>
+    </view>
+  </block>
+</view>
+
+<view wx:if="{{detail}}" class="fixed-actions"><button class="primary-button" loading="{{submitting}}" disabled="{{submitting || loading}}" bindtap="submit">提交检验记录</button></view>

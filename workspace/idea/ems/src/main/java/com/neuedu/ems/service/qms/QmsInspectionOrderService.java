@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.qms.QmsInspectionResult;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -103,4 +104,18 @@ public interface QmsInspectionOrderService extends IService<QmsInspectionOrder> 
      * @return 是否成功
      */
     boolean submitInspectionOrder(Long inspectionId, String inspectionResult, String remark, Long operatorId);
+
+    /**
+     * 提交带汇总数量的检验记录并结束检验单。
+     * @param inspectionId 检验单ID
+     * @param inspectionResult 检验结果
+     * @param remark 备注
+     * @param operatorId 操作人ID
+     * @param sampleQuantity 抽检数量
+     * @param qualifiedQuantity 合格数量
+     * @param unqualifiedQuantity 不合格数量
+     * @return 是否成功
+     */
+    boolean submitInspectionOrder(Long inspectionId, String inspectionResult, String remark, Long operatorId,
+                                  BigDecimal sampleQuantity, BigDecimal qualifiedQuantity, BigDecimal unqualifiedQuantity);
 }

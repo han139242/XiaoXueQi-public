@@ -1,4 +1,12 @@
 const now = '2026-07-13T09:30:00'
+const UNQUALIFIED_RATE_LIMIT = 0.005
+
+function currentLocalTime() {
+  const date = new Date()
+  const pad = (value) => value < 10 ? '0' + value : String(value)
+  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
+    + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds())
+}
 
 const currentUser = {
   userId: 1,
@@ -473,6 +481,10 @@ let inspectionOrders = [
     reportNo: 'REP-20260713-001',
     batchId: 0,
     inspectorId: 1003,
+    sampleQuantity: 0,
+    qualifiedQuantity: 0,
+    unqualifiedQuantity: 0,
+    inspectionTime: null,
     inspectionResult: '',
     status: 'WAIT_INSPECTION',
     remark: '自动线 A 首批终检',
@@ -491,6 +503,10 @@ let inspectionOrders = [
     reportNo: '',
     batchId: 0,
     inspectorId: 1003,
+    sampleQuantity: 0,
+    qualifiedQuantity: 0,
+    unqualifiedQuantity: 0,
+    inspectionTime: null,
     inspectionResult: '',
     status: 'WAIT_INSPECTION',
     remark: '绕线工序巡检',
@@ -509,6 +525,10 @@ let inspectionOrders = [
     reportNo: 'REP-20260712-002',
     batchId: 0,
     inspectorId: 1003,
+    sampleQuantity: 100,
+    qualifiedQuantity: 100,
+    unqualifiedQuantity: 0,
+    inspectionTime: '2026-07-12T18:25:00',
     inspectionResult: 'PASS',
     status: 'FINISHED',
     remark: '成品抽检合格',
@@ -527,6 +547,10 @@ let inspectionOrders = [
     reportNo: 'REP-20260712-002',
     batchId: 0,
     inspectorId: 1003,
+    sampleQuantity: 100,
+    qualifiedQuantity: 92,
+    unqualifiedQuantity: 8,
+    inspectionTime: '2026-07-12T17:58:00',
     inspectionResult: 'FAIL',
     status: 'FINISHED',
     remark: '绕线外观复检不合格',
@@ -539,11 +563,11 @@ let nonconformingOrders = [
   {
     ncrId: 11001,
     ncrNo: 'NCR-20260713-001',
-    inspectionId: 10001,
-    inspectionNo: 'IQC-20260713-001',
+    inspectionId: 10004,
+    inspectionNo: 'PQC-20260712-004',
     productLotId: 0,
     defectReason: '涂胶不均匀',
-    dispositionType: 'rework',
+    dispositionType: 'REWORK',
     approvalStatus: 'PENDING',
     status: 'OPEN',
     remark: '抽检发现局部胶量不足',
@@ -794,6 +818,10 @@ function createInspectionOrderFromReport(report, task) {
     reportNo: report.reportNo,
     batchId: 0,
     inspectorId: 1003,
+    sampleQuantity: 0,
+    qualifiedQuantity: 0,
+    unqualifiedQuantity: 0,
+    inspectionTime: null,
     inspectionResult: '',
     status: 'WAIT_INSPECTION',
     remark: '报工提交后自动生成待检任务',
@@ -885,10 +913,32 @@ function submitInspectionOrder(id, data) {
   const inspection = findById(inspectionOrders, 'inspectionId', id)
   if (!inspection) throw new Error('检验单不存在')
   if (!['WAIT_INSPECTION', 'INSPECTING'].includes(inspection.status)) throw new Error('当前检验单状态不允许提交')
-  inspection.inspectionResult = data && data.inspectionResult ? data.inspectionResult : 'PASS'
+  const quantitiesProvided = data && (compact(data.sampleQuantity) || compact(data.qualifiedQuantity) || compact(data.unqualifiedQuantity))
+  if (quantitiesProvided) {
+    const sampleQuantity = Number(data.sampleQuantity)
+    const qualifiedQuantity = Number(data.qualifiedQuantity)
+    const unqualifiedQuantity = Number(data.unqualifiedQuantity)
+    if (!Number.isFinite(sampleQuantity) || sampleQuantity <= 0
+      || !Number.isFinite(qualifiedQuantity) || qualifiedQuantity < 0
+      || !Number.isFinite(unqualifiedQuantity) || unqualifiedQuantity < 0
+      || Math.abs(qualifiedQuantity + unqualifiedQuantity - sampleQuantity) > 0.000001) {
+      throw new Error('检验数量不符合要求')
+    }
+    const report = inspection.reportId ? findById(reports, 'reportId', inspection.reportId) : null
+    if (report && sampleQuantity > Number(report.qualifiedQuantity || 0) + Number(report.defectQuantity || 0)) {
+      throw new Error('抽检数量不能超过关联报工数量')
+    }
+    inspection.sampleQuantity = sampleQuantity
+    inspection.qualifiedQuantity = qualifiedQuantity
+    inspection.unqualifiedQuantity = unqualifiedQuantity
+    inspection.inspectionResult = unqualifiedQuantity / sampleQuantity <= UNQUALIFIED_RATE_LIMIT ? 'PASS' : 'FAIL'
+  } else {
+    inspection.inspectionResult = data && data.inspectionResult ? data.inspectionResult : 'PASS'
+  }
   inspection.remark = data && data.remark ? data.remark : inspection.remark
   inspection.status = 'FINISHED'
-  inspection.updatedTime = now
+  inspection.inspectionTime = currentLocalTime()
+  inspection.updatedTime = inspection.inspectionTime
   return inspection
 }
 
@@ -897,10 +947,18 @@ function createNonconformingOrder(data) {
   if (!compact(data.defectReason)) throw new Error('不良原因不能为空')
   const inspection = findById(inspectionOrders, 'inspectionId', data.inspectionId)
   if (!inspection) throw new Error('检验单不存在')
+  if (inspection.status !== 'FINISHED' || inspection.inspectionResult !== 'FAIL') {
+    throw new Error('只能关联已完成且不合格的检验单')
+  }
+  const dispositionType = String(data.dispositionType || '').toUpperCase()
+  if (!['REWORK', 'SCRAP', 'DOWNGRADE', 'CONCESSION'].includes(dispositionType)) {
+    throw new Error('请选择有效的处理方式')
+  }
 
   const ncrId = nonconformingOrders.length
     ? Math.max.apply(null, nonconformingOrders.map((item) => item.ncrId)) + 1
     : 11001
+  const createdTime = currentLocalTime()
   const order = {
     ncrId,
     ncrNo: 'NCR-20260713-' + String(ncrId).slice(-3),
@@ -908,12 +966,12 @@ function createNonconformingOrder(data) {
     inspectionNo: inspection.inspectionNo,
     productLotId: data.productLotId ? Number(data.productLotId) : 0,
     defectReason: String(data.defectReason || '').trim(),
-    dispositionType: data.dispositionType || 'rework',
+    dispositionType,
     approvalStatus: 'PENDING',
     status: 'OPEN',
     remark: data.remark || '',
-    createdTime: now,
-    updatedTime: now
+    createdTime,
+    updatedTime: createdTime
   }
   nonconformingOrders = [order].concat(nonconformingOrders)
   inspection.inspectionResult = 'FAIL'
@@ -928,7 +986,7 @@ function updateNonconformingOrder(id, data) {
   if (data && compact(data.inspectionId)) order.inspectionId = Number(data.inspectionId)
   if (data && compact(data.productLotId)) order.productLotId = Number(data.productLotId)
   if (data && compact(data.defectReason)) order.defectReason = String(data.defectReason).trim()
-  if (data && compact(data.dispositionType)) order.dispositionType = data.dispositionType
+  if (data && compact(data.dispositionType)) order.dispositionType = String(data.dispositionType).toUpperCase()
   order.imageUrl = data && data.imageUrl || order.imageUrl || ''
   order.remark = data && data.remark || ''
   order.updatedTime = now

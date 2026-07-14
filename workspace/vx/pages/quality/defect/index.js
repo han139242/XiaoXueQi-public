@@ -3,10 +3,10 @@ const qualityApi = require('../../../api/quality')
 const format = require('../../../utils/format')
 
 const dispositionMap = {
-  rework: '返工',
-  scrap: '报废',
-  downgrade: '降级',
-  concession: '让步接收'
+  REWORK: '返工',
+  SCRAP: '报废',
+  DOWNGRADE: '降级',
+  CONCESSION: '让步接收'
 }
 
 const approvalMap = {
@@ -52,7 +52,7 @@ Page({
       createdByText: item.createdByName || item.creatorName || item.createByName || '超级管理员',
       imageUrl: item.imageUrl || item.pictureUrl || item.photoUrl || '',
       inspectionLabel: item.inspectionNo || (item.inspectionId ? '检验单 ID ' + item.inspectionId : '-'),
-      dispositionText: dispositionMap[item.dispositionType] || item.dispositionType || '-',
+      dispositionText: dispositionMap[String(item.dispositionType || '').toUpperCase()] || item.dispositionType || '-',
       approvalText: approval[0],
       approvalTone: approval[1],
       createdTimeText: format.formatDateTime(item.createdTime)

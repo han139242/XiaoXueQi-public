@@ -1,5 +1,4 @@
 const guard = require('../../../utils/guard')
-const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')
 const lookupApi = require('../../../api/lookup')
 const format = require('../../../utils/format')
@@ -104,32 +103,9 @@ Page({
     })
   },
 
-  submitPass(event) {
-    const inspectionId = event.currentTarget.dataset.id
-    wx.showModal({
-      title: '确认检验通过',
-      content: '确认该检验单结果为合格？',
-      success: async (result) => {
-        if (!result.confirm) return
-        try {
-          const user = auth.getUser() || {}
-          await qualityApi.submitInspection(inspectionId, {
-            inspectionResult: 'PASS',
-            remark: '小程序检验通过',
-            operatorId: user.employeeId || user.userId
-          })
-          wx.showToast({ title: '已提交', icon: 'success' })
-          this.loadPage(true)
-        } catch (error) {
-          wx.showToast({ title: error.message || '提交失败', icon: 'none' })
-        }
-      }
-    })
-  },
-
-  openDefectForm(event) {
+  openInspectionForm(event) {
     wx.navigateTo({
-      url: '/pages/quality/defect-form/index?inspectionId=' + encodeURIComponent(event.currentTarget.dataset.id)
+      url: '/pages/quality/inspection-form/index?inspectionId=' + encodeURIComponent(event.currentTarget.dataset.id)
     })
   }
 })

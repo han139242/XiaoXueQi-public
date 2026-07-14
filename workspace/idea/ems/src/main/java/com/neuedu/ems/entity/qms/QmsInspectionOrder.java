@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 /**
  * qms_inspection_order
@@ -29,6 +30,10 @@ public class QmsInspectionOrder {
     private Long reportId;
     private Long batchId;
     private Long inspectorId;
+    private BigDecimal sampleQuantity;
+    private BigDecimal qualifiedQuantity;
+    private BigDecimal unqualifiedQuantity;
+    private LocalDateTime inspectionTime;
     private String inspectionResult;
     private String status;
     private String remark;
