@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 
 export function createDashboardPreview() {
+  const scheduleStart = dayjs().startOf('day').hour(7).minute(0).second(0)
   return {
     summary: {
       productionOrderCount: 24,
@@ -35,6 +36,14 @@ export function createDashboardPreview() {
       stopped: 6,
       fault: 2,
       maintenance: 3
-    }
+    },
+    schedule: [
+      { planId: 1, planNo: 'PLAN-001', productionOrderId: 1, orderNo: 'MO-20260713-001', lineId: 1, lineName: '训练球自动线', productName: '训练级羽毛球', plannedStartTime: scheduleStart.format('YYYY-MM-DDTHH:mm:ss'), plannedEndTime: scheduleStart.add(4, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedQuantity: 500, status: 'RELEASED', statusLabel: '已生效', statusTone: 'released' },
+      { planId: 2, planNo: 'PLAN-002', productionOrderId: 2, orderNo: 'MO-20260713-002', lineId: 2, lineName: '比赛球自动线', productName: '比赛级羽毛球', plannedStartTime: scheduleStart.add(1.5, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedEndTime: scheduleStart.add(6.5, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedQuantity: 300, status: 'RELEASED', statusLabel: '已生效', statusTone: 'released' },
+      { planId: 3, planNo: 'PLAN-003', productionOrderId: 3, orderNo: 'MO-20260713-003', lineId: 1, lineName: '训练球自动线', productName: '训练级羽毛球', plannedStartTime: scheduleStart.add(4.5, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedEndTime: scheduleStart.add(9, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedQuantity: 420, status: 'DRAFT', statusLabel: '待生效', statusTone: 'draft' },
+      { planId: 4, planNo: 'PLAN-004', productionOrderId: 4, orderNo: 'MO-20260713-004', lineId: 2, lineName: '比赛球自动线', productName: '比赛级羽毛球', plannedStartTime: scheduleStart.add(7, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedEndTime: scheduleStart.add(11.5, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedQuantity: 260, status: 'DRAFT', statusLabel: '待生效', statusTone: 'draft' },
+      { planId: 5, planNo: 'PLAN-005', productionOrderId: 5, orderNo: 'MO-20260713-005', lineId: 1, lineName: '训练球自动线', productName: '训练级羽毛球', plannedStartTime: scheduleStart.add(9.5, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedEndTime: scheduleStart.add(13, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedQuantity: 360, status: 'FINISHED', statusLabel: '已完成', statusTone: 'finished' },
+      { planId: 6, planNo: 'PLAN-006', productionOrderId: 6, orderNo: 'MO-20260713-006', lineId: 2, lineName: '比赛球自动线', productName: '比赛级羽毛球', plannedStartTime: scheduleStart.add(12, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedEndTime: scheduleStart.add(15, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedQuantity: 180, status: 'CLOSED', statusLabel: '已取消', statusTone: 'closed' }
+    ]
   }
 }

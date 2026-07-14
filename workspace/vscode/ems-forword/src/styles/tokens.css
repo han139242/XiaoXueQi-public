@@ -40,24 +40,24 @@
   --mes-danger-soft: #fff0ef;
   --mes-info: #64707d;
 
-  --mes-bg: #f1f3f6;
+  --mes-bg: #eef2f6;
   --mes-surface: #ffffff;
-  --mes-surface-muted: #f7f9fb;
-  --mes-tabs-bg: #f2f5f8;
+  --mes-surface-muted: #f6f8fa;
+  --mes-tabs-bg: #eef2f6;
   --mes-tab-surface: #ffffff;
-  --mes-border: #dbe2e9;
-  --mes-border-strong: #c3ced8;
+  --mes-border: #d7e0e8;
+  --mes-border-strong: #bcc9d5;
   --mes-text: #202a36;
   --mes-text-secondary: #617080;
   --mes-text-muted: #8a96a3;
-  --mes-shadow-sm: 0 2px 8px rgb(32 42 54 / 6%);
-  --mes-shadow-md: 0 10px 28px rgb(32 42 54 / 11%);
+  --mes-shadow-sm: 0 1px 2px rgb(32 42 54 / 4%), 0 6px 18px rgb(32 42 54 / 5%);
+  --mes-shadow-md: 0 2px 5px rgb(32 42 54 / 5%), 0 14px 32px rgb(32 42 54 / 9%);
   --mes-radius-sm: 4px;
   --mes-radius: 6px;
-  --mes-sidebar-width: 200px;
+  --mes-sidebar-width: 208px;
   --mes-sidebar-collapsed-width: 64px;
-  --mes-header-height: 60px;
-  --mes-tabs-height: 36px;
+  --mes-header-height: 62px;
+  --mes-tabs-height: 38px;
   --mes-font: Inter, 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
 
   --el-color-primary: var(--mes-primary);

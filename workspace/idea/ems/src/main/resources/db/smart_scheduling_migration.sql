@@ -161,10 +161,12 @@ INSERT INTO `mfg_line_product_capability`
 SELECT line.`line_id`, product.`product_id`, route.`route_id`, 10, 1.0000, 'ENABLE',
        CONCAT(@scheduling_marker, ': 专用产线产品路线映射'), @scheduling_operator_id, @scheduling_time
 FROM (
-  SELECT 'LINE-TRAIN-01' AS `line_code`, 'PROD-SHUTTLE-TRAIN-77' AS `product_code`,
-         'ROUTE-TRAIN-77-V1' AS `route_code`
-  UNION ALL
-  SELECT 'LINE-MATCH-01', 'PROD-SHUTTLE-MATCH-77', 'ROUTE-MATCH-77-V1'
+  SELECT 'LINE-TRAIN-01' AS `line_code`, 'PROD-LNX-T300-76' AS `product_code`,
+         'ROUTE-LNX-T300-76-V1' AS `route_code`
+  UNION ALL SELECT 'LINE-TRAIN-01', 'PROD-LNX-T300-77', 'ROUTE-LNX-T300-77-V1'
+  UNION ALL SELECT 'LINE-TRAIN-01', 'PROD-OEM-XY-C500-77', 'ROUTE-OEM-XY-C500-77-V1'
+  UNION ALL SELECT 'LINE-MATCH-01', 'PROD-LNX-M700-77', 'ROUTE-LNX-M700-77-V1'
+  UNION ALL SELECT 'LINE-MATCH-01', 'PROD-LNX-M700-78', 'ROUTE-LNX-M700-78-V1'
 ) seed
 JOIN `factory_line` line ON line.`line_code` = seed.`line_code` AND line.`deleted_flag` = 0
 JOIN `mdm_product` product ON product.`product_code` = seed.`product_code` AND product.`deleted_flag` = 0

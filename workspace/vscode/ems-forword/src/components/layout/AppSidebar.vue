@@ -99,7 +99,7 @@ function handleSelect(index) {
   color: var(--mes-sidebar-text);
   border-right: 1px solid var(--mes-sidebar-border);
   background: var(--mes-sidebar);
-  box-shadow: 2px 0 10px rgb(32 42 54 / 5%);
+  box-shadow: 2px 0 12px rgb(32 42 54 / 5%);
 }
 
 .sidebar-brand {
@@ -107,8 +107,8 @@ function handleSelect(index) {
   height: var(--mes-header-height);
   flex: none;
   align-items: center;
-  gap: 11px;
-  padding: 0 18px;
+  gap: 12px;
+  padding: 0 19px;
   border-bottom: 1px solid var(--mes-header-border);
   background: var(--mes-brand-bg);
 }
@@ -121,8 +121,8 @@ function handleSelect(index) {
 .sidebar-logo {
   position: relative;
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -161,7 +161,7 @@ function handleSelect(index) {
 .brand-copy strong {
   overflow: hidden;
   color: #f4f7fa;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 680;
   line-height: 1.25;
   white-space: nowrap;
@@ -170,7 +170,7 @@ function handleSelect(index) {
 .brand-copy span {
   margin-top: 2px;
   color: rgb(255 255 255 / 72%);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -185,27 +185,27 @@ function handleSelect(index) {
 }
 
 :deep(.el-menu-item) {
-  height: 40px;
+  height: 42px;
   margin: 0;
-  padding: 0 17px !important;
-  gap: 11px;
+  padding: 0 18px !important;
+  gap: 12px;
   color: var(--mes-sidebar-text);
   border-left: 3px solid transparent;
   border-radius: 0;
   font-size: 13px;
-  line-height: 40px;
+  line-height: 42px;
 }
 
 :deep(.el-sub-menu__title) {
-  height: 40px;
+  height: 42px;
   margin: 0;
-  padding: 0 17px !important;
-  gap: 11px;
+  padding: 0 18px !important;
+  gap: 12px;
   color: var(--mes-sidebar-text);
   border-left: 3px solid transparent;
   border-radius: 0;
   font-size: 13px;
-  line-height: 40px;
+  line-height: 42px;
 }
 
 :deep(.el-sub-menu__title:hover) {
@@ -221,11 +221,11 @@ function handleSelect(index) {
 }
 
 :deep(.el-sub-menu .el-menu-item) {
-  height: 38px;
+  height: 40px;
   margin: 0;
   padding-left: 38px !important;
   font-size: 12px;
-  line-height: 38px;
+  line-height: 40px;
 }
 
 .submenu-marker {
@@ -276,9 +276,9 @@ function handleSelect(index) {
 }
 
 .menu-group-label {
-  padding: 14px 20px 6px;
+  padding: 16px 21px 7px;
   color: var(--mes-sidebar-group);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -288,7 +288,7 @@ function handleSelect(index) {
   flex: none;
   align-items: center;
   gap: 10px;
-  padding: 12px 18px;
+  padding: 12px 19px;
   border-top: 1px solid var(--mes-sidebar-border);
 }
 

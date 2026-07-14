@@ -21,7 +21,7 @@ FROM (
           AND TABLE_NAME='mfg_schedule_item'
           AND INDEX_NAME IN ('idx_mfg_schedule_item_production_order_id',
                              'idx_mfg_schedule_item_product_id', 'idx_mfg_schedule_item_route_id'))
-  UNION ALL SELECT 'count', 'foundation line capabilities', 2,
+  UNION ALL SELECT 'count', 'foundation line capabilities', 5,
          (SELECT COUNT(*) FROM mfg_line_product_capability WHERE deleted_flag=0
           AND remark LIKE CONCAT(@scheduling_marker, ':%'))
   UNION ALL SELECT 'count', 'foundation calendar rules', 12,
@@ -67,15 +67,21 @@ FROM (
           AND (day_of_week NOT BETWEEN 1 AND 7 OR effective_to<effective_from
             OR capacity_factor<=0 OR capacity_factor>2 OR status NOT IN ('ENABLE','DISABLE')))
   UNION ALL SELECT 'rule', 'foundation capability mapping mismatch', 0,
-         (SELECT IF(COUNT(*)=2,0,1) FROM mfg_line_product_capability capability
+         (SELECT IF(COUNT(*)=5,0,1) FROM mfg_line_product_capability capability
           JOIN factory_line line ON line.line_id=capability.line_id AND line.deleted_flag=0
           JOIN mdm_product product ON product.product_id=capability.product_id AND product.deleted_flag=0
           JOIN process_route route ON route.route_id=capability.route_id AND route.deleted_flag=0
           WHERE capability.deleted_flag=0 AND capability.status='ENABLE'
-            AND ((line.line_code='LINE-TRAIN-01' AND product.product_code='PROD-SHUTTLE-TRAIN-77'
-                  AND route.route_code='ROUTE-TRAIN-77-V1')
-              OR (line.line_code='LINE-MATCH-01' AND product.product_code='PROD-SHUTTLE-MATCH-77'
-                  AND route.route_code='ROUTE-MATCH-77-V1')))
+            AND ((line.line_code='LINE-TRAIN-01' AND product.product_code='PROD-LNX-T300-76'
+                  AND route.route_code='ROUTE-LNX-T300-76-V1')
+              OR (line.line_code='LINE-TRAIN-01' AND product.product_code='PROD-LNX-T300-77'
+                  AND route.route_code='ROUTE-LNX-T300-77-V1')
+              OR (line.line_code='LINE-TRAIN-01' AND product.product_code='PROD-OEM-XY-C500-77'
+                  AND route.route_code='ROUTE-OEM-XY-C500-77-V1')
+              OR (line.line_code='LINE-MATCH-01' AND product.product_code='PROD-LNX-M700-77'
+                  AND route.route_code='ROUTE-LNX-M700-77-V1')
+              OR (line.line_code='LINE-MATCH-01' AND product.product_code='PROD-LNX-M700-78'
+                  AND route.route_code='ROUTE-LNX-M700-78-V1')))
   UNION ALL SELECT 'rule', 'invalid scheduling scenarios', 0,
          (SELECT COUNT(*) FROM mfg_schedule_scenario WHERE deleted_flag=0
           AND (horizon_start>=horizon_end OR status NOT IN ('DRAFT','CALCULATED','CONFIRMED','CANCELLED')

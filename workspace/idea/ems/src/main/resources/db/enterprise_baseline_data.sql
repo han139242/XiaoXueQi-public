@@ -36,8 +36,8 @@ WHERE `deleted_flag` = 0
 -- 1. 组织、人员、班组和班次
 INSERT INTO `org_department`
   (`parent_id`, `department_code`, `department_name`, `manager_id`, `remark`, `created_by`, `created_time`)
-SELECT NULL, 'DEPT-PLANT', '羽毛球制造中心', NULL,
-       CONCAT(@baseline_marker, ': 制造组织根节点'), @baseline_operator_id, @baseline_time
+SELECT NULL, 'DEPT-PLANT', '雷尼克斯制造中心', NULL,
+       CONCAT(@baseline_marker, ': 雷尼克斯体育用品制造有限公司制造组织根节点'), @baseline_operator_id, @baseline_time
 WHERE NOT EXISTS (
   SELECT 1 FROM `org_department` WHERE `department_code` = 'DEPT-PLANT'
 );
@@ -111,8 +111,8 @@ SELECT seed.`team_code`, seed.`team_name`, leader.`employee_id`, department.`dep
        CONCAT(@baseline_marker, ': ', seed.`description`), @baseline_operator_id, @baseline_time
 FROM (
   SELECT 'TEAM-TRAIN-01' AS `team_code`, '训练球一班' AS `team_name`, 'EMP-MFG-101' AS `leader_no`,
-         '负责训练级 77 速羽毛球生产' AS `description`
-  UNION ALL SELECT 'TEAM-MATCH-01', '比赛球一班', 'EMP-MFG-102', '负责比赛级 77 速羽毛球生产'
+         '负责雷尼克斯T300及迅羽C500 OEM产品生产' AS `description`
+  UNION ALL SELECT 'TEAM-MATCH-01', '比赛球一班', 'EMP-MFG-102', '负责雷尼克斯M700比赛级产品生产'
 ) seed
 JOIN `org_employee` leader
   ON leader.`employee_no` = seed.`leader_no` AND leader.`deleted_flag` = 0
@@ -185,10 +185,12 @@ INSERT INTO `mdm_supplier`
 SELECT seed.`supplier_code`, seed.`supplier_name`, seed.`contact_name`, NULL, 'ENABLE',
        CONCAT(@baseline_marker, ': ', seed.`supply_scope`), @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'SUP-FEATHER-001' AS `supplier_code`, '华东羽材供应有限公司' AS `supplier_name`,
-         '采购对接人' AS `contact_name`, '供应鹅毛和鸭毛片' AS `supply_scope`
-  UNION ALL SELECT 'SUP-CORK-001', '江南球头材料有限公司', '采购对接人', '供应天然软木和复合软木球头'
-  UNION ALL SELECT 'SUP-PACK-001', '新锐包装制品有限公司', '采购对接人', '供应筒装包装和标签'
+  SELECT 'SUP-DUCK-001' AS `supplier_code`, '皖东羽材精选有限公司' AS `supplier_name`,
+         '采购对接人' AS `contact_name`, '供应A级鸭毛片' AS `supply_scope`
+  UNION ALL SELECT 'SUP-GOOSE-001', '江北白鹅羽业有限公司', '采购对接人', '供应A级鹅毛片'
+  UNION ALL SELECT 'SUP-CORK-001', '华南软木制品有限公司', '采购对接人', '供应76/77速复合及77/78速天然软木球头'
+  UNION ALL SELECT 'SUP-AUX-001', '科联辅材科技有限公司', '采购对接人', '供应高强尼龙绕线和低挥发树脂胶'
+  UNION ALL SELECT 'SUP-PACK-001', '新彩包装制品有限公司', '采购对接人', '供应雷尼克斯和迅羽OEM包装材料'
 ) seed
 WHERE NOT EXISTS (
   SELECT 1 FROM `mdm_supplier` existing WHERE existing.`supplier_code` = seed.`supplier_code`
@@ -199,9 +201,13 @@ INSERT INTO `mdm_customer`
 SELECT seed.`customer_code`, seed.`customer_name`, seed.`contact_name`, NULL, 'ENABLE',
        CONCAT(@baseline_marker, ': ', seed.`customer_type`), @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'CUS-DIST-001' AS `customer_code`, '全国体育用品渠道中心' AS `customer_name`,
-         '渠道对接人' AS `contact_name`, '经销渠道客户' AS `customer_type`
-  UNION ALL SELECT 'CUS-CLUB-001', '专业羽毛球俱乐部联盟', '赛事对接人', '俱乐部与赛事客户'
+  SELECT 'CUS-RETAIL-001' AS `customer_code`, '远航体育用品连锁有限公司' AS `customer_name`,
+         '渠道对接人' AS `contact_name`, '零售连锁客户，主要采购T300训练级产品' AS `customer_type`
+  UNION ALL SELECT 'CUS-DIST-001', '城际运动装备有限公司', '渠道对接人', '区域经销客户，采购雷尼克斯全系列'
+  UNION ALL SELECT 'CUS-SCHOOL-001', '启程校园体育服务有限公司', '校园采购对接人', '校园体育渠道客户，主要采购T300 77速'
+  UNION ALL SELECT 'CUS-CLUB-001', '凌云羽毛球俱乐部', '俱乐部对接人', '俱乐部客户，主要采购M700 77速'
+  UNION ALL SELECT 'CUS-EVENT-001', '卓冠赛事运营有限公司', '赛事对接人', '赛事客户，采购M700 77/78速'
+  UNION ALL SELECT 'CUS-OEM-001', '东澜体育用品有限公司', 'OEM项目对接人', '迅羽C500 77速OEM委托客户'
 ) seed
 WHERE NOT EXISTS (
   SELECT 1 FROM `mdm_customer` existing WHERE existing.`customer_code` = seed.`customer_code`
@@ -244,18 +250,29 @@ SELECT seed.`material_code`, seed.`material_name`, category.`category_id`, seed.
        @baseline_operator_id, @baseline_time
 FROM (
   SELECT 'RM-FEATHER-DUCK-A' AS `material_code`, 'A级鸭毛片' AS `material_name`, 'MAT-RAW-FEATHER' AS `category_code`,
-         '62-70mm' AS `spec_model`, 'PCS' AS `unit_code`, 'RAW' AS `material_type`, '训练级羽毛球用毛片' AS `usage_note`
-  UNION ALL SELECT 'RM-FEATHER-GOOSE-A', 'A级鹅毛片', 'MAT-RAW-FEATHER', '62-70mm', 'PCS', 'RAW', '比赛级羽毛球用毛片'
-  UNION ALL SELECT 'RM-CORK-COMPOSITE', '复合软木球头', 'MAT-RAW-CORK', '直径25-28mm', 'PCS', 'RAW', '训练级羽毛球球头'
-  UNION ALL SELECT 'RM-CORK-NATURAL', '天然软木球头', 'MAT-RAW-CORK', '直径25-28mm', 'PCS', 'RAW', '比赛级羽毛球球头'
-  UNION ALL SELECT 'AUX-THREAD-NYLON', '高强尼龙绕线', 'MAT-AUX', '0.7mm', 'M', 'AUXILIARY', '毛片固定绕线'
+         '64-70mm' AS `spec_model`, 'PCS' AS `unit_code`, 'RAW' AS `material_type`, 'T300和迅羽C500用毛片' AS `usage_note`
+  UNION ALL SELECT 'RM-FEATHER-GOOSE-A', 'A级鹅毛片', 'MAT-RAW-FEATHER', '64-70mm', 'PCS', 'RAW', 'M700比赛级羽毛球用毛片'
+  UNION ALL SELECT 'RM-CORK-COMPOSITE-76', '76速复合软木球头', 'MAT-RAW-CORK', '76速配重/直径25-28mm', 'PCS', 'RAW', 'T300 76速球头'
+  UNION ALL SELECT 'RM-CORK-COMPOSITE-77', '77速复合软木球头', 'MAT-RAW-CORK', '77速配重/直径25-28mm', 'PCS', 'RAW', 'T300 77速和迅羽C500球头'
+  UNION ALL SELECT 'RM-CORK-NATURAL-77', '77速天然软木球头', 'MAT-RAW-CORK', '77速配重/直径25-28mm', 'PCS', 'RAW', 'M700 77速球头'
+  UNION ALL SELECT 'RM-CORK-NATURAL-78', '78速天然软木球头', 'MAT-RAW-CORK', '78速配重/直径25-28mm', 'PCS', 'RAW', 'M700 78速球头'
+  UNION ALL SELECT 'AUX-THREAD-NYLON-07', '高强尼龙绕线', 'MAT-AUX', '0.7mm', 'M', 'AUXILIARY', '全部产品毛片固定绕线'
   UNION ALL SELECT 'AUX-ADHESIVE-RESIN', '羽毛球专用树脂胶', 'MAT-AUX', '低挥发型', 'ML', 'AUXILIARY', '植毛和绕线固化'
-  UNION ALL SELECT 'PKG-TUBE-12', '十二只装球筒', 'MAT-PACK', '12只/筒', 'EA', 'AUXILIARY', '成品筒装包装'
-  UNION ALL SELECT 'PKG-LABEL-TRAIN-77', '训练级77速标签', 'MAT-PACK', 'TRAIN-77', 'SHEET', 'AUXILIARY', '训练级成品标识'
-  UNION ALL SELECT 'PKG-LABEL-MATCH-77', '比赛级77速标签', 'MAT-PACK', 'MATCH-77', 'SHEET', 'AUXILIARY', '比赛级成品标识'
-  UNION ALL SELECT 'PKG-CARTON-25', '二十五筒装运输外箱', 'MAT-PACK', '25筒/箱', 'EA', 'AUXILIARY', '成品运输外包装'
-  UNION ALL SELECT 'FG-SHUTTLE-TRAIN-77', '训练级77速羽毛球', 'MAT-FG', '77速/12只装', 'TUBE', 'FINISHED', '训练和日常使用'
-  UNION ALL SELECT 'FG-SHUTTLE-MATCH-77', '比赛级77速羽毛球', 'MAT-FG', '77速/12只装', 'TUBE', 'FINISHED', '专业比赛和高强度训练'
+  UNION ALL SELECT 'PKG-TUBE-LNX-T300', '雷尼克斯T300十二只装球筒', 'MAT-PACK', '12只/筒', 'EA', 'AUXILIARY', 'T300 76/77速包装'
+  UNION ALL SELECT 'PKG-TUBE-LNX-M700', '雷尼克斯M700十二只装球筒', 'MAT-PACK', '12只/筒', 'EA', 'AUXILIARY', 'M700 77/78速包装'
+  UNION ALL SELECT 'PKG-TUBE-XY-C500', '迅羽C500十二只装OEM球筒', 'MAT-PACK', '12只/筒', 'EA', 'AUXILIARY', '迅羽OEM包装'
+  UNION ALL SELECT 'PKG-LABEL-LNX-T300-76', '雷尼克斯T300 76速标签', 'MAT-PACK', 'LNX-T300-76', 'SHEET', 'AUXILIARY', 'T300 76速成品标识'
+  UNION ALL SELECT 'PKG-LABEL-LNX-T300-77', '雷尼克斯T300 77速标签', 'MAT-PACK', 'LNX-T300-77', 'SHEET', 'AUXILIARY', 'T300 77速成品标识'
+  UNION ALL SELECT 'PKG-LABEL-LNX-M700-77', '雷尼克斯M700 77速标签', 'MAT-PACK', 'LNX-M700-77', 'SHEET', 'AUXILIARY', 'M700 77速成品标识'
+  UNION ALL SELECT 'PKG-LABEL-LNX-M700-78', '雷尼克斯M700 78速标签', 'MAT-PACK', 'LNX-M700-78', 'SHEET', 'AUXILIARY', 'M700 78速成品标识'
+  UNION ALL SELECT 'PKG-LABEL-XY-C500-77', '迅羽C500 OEM 77速标签', 'MAT-PACK', 'XY-C500-77', 'SHEET', 'AUXILIARY', '迅羽OEM成品标识'
+  UNION ALL SELECT 'PKG-CARTON-LNX-25', '雷尼克斯二十五筒装运输外箱', 'MAT-PACK', '25筒/箱', 'EA', 'AUXILIARY', '雷尼克斯成品运输外包装'
+  UNION ALL SELECT 'PKG-CARTON-XY-25', '迅羽OEM二十五筒装运输外箱', 'MAT-PACK', '25筒/箱', 'EA', 'AUXILIARY', '迅羽OEM成品运输外包装'
+  UNION ALL SELECT 'FG-LNX-T300-76', '雷尼克斯T300训练级羽毛球76速', 'MAT-FG', 'T300/76速/12只装', 'TUBE', 'FINISHED', '较高温度或较高海拔训练场景'
+  UNION ALL SELECT 'FG-LNX-T300-77', '雷尼克斯T300训练级羽毛球77速', 'MAT-FG', 'T300/77速/12只装', 'TUBE', 'FINISHED', '常温日常训练和校园渠道'
+  UNION ALL SELECT 'FG-LNX-M700-77', '雷尼克斯M700比赛级羽毛球77速', 'MAT-FG', 'M700/77速/12只装', 'TUBE', 'FINISHED', '俱乐部和常规赛事'
+  UNION ALL SELECT 'FG-LNX-M700-78', '雷尼克斯M700比赛级羽毛球78速', 'MAT-FG', 'M700/78速/12只装', 'TUBE', 'FINISHED', '较低温度环境和专业赛事'
+  UNION ALL SELECT 'FG-OEM-XY-C500-77', '迅羽C500 OEM俱乐部级羽毛球77速', 'MAT-FG', 'C500/77速/12只装', 'TUBE', 'FINISHED', '东澜体育OEM客户定制产品'
 ) seed
 JOIN `mdm_material_category` category
   ON category.`category_code` = seed.`category_code` AND category.`deleted_flag` = 0
@@ -269,10 +286,16 @@ INSERT INTO `mdm_product`
 SELECT seed.`product_code`, seed.`product_name`, seed.`product_model`, material.`material_id`, 'ENABLE',
        CONCAT(@baseline_marker, ': ', seed.`positioning`), @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'PROD-SHUTTLE-TRAIN-77' AS `product_code`, '训练级77速羽毛球' AS `product_name`,
-         'TRAIN-77-12' AS `product_model`, 'FG-SHUTTLE-TRAIN-77' AS `material_code`, '训练和日常使用产品' AS `positioning`
-  UNION ALL SELECT 'PROD-SHUTTLE-MATCH-77', '比赛级77速羽毛球', 'MATCH-77-12',
-                   'FG-SHUTTLE-MATCH-77', '专业比赛和高强度训练产品'
+  SELECT 'PROD-LNX-T300-76' AS `product_code`, '雷尼克斯T300训练级羽毛球76速' AS `product_name`,
+         'T300-76-12' AS `product_model`, 'FG-LNX-T300-76' AS `material_code`, '较高温度或较高海拔训练产品' AS `positioning`
+  UNION ALL SELECT 'PROD-LNX-T300-77', '雷尼克斯T300训练级羽毛球77速', 'T300-77-12',
+                   'FG-LNX-T300-77', '常温日常训练和校园渠道产品'
+  UNION ALL SELECT 'PROD-LNX-M700-77', '雷尼克斯M700比赛级羽毛球77速', 'M700-77-12',
+                   'FG-LNX-M700-77', '俱乐部和常规赛事产品'
+  UNION ALL SELECT 'PROD-LNX-M700-78', '雷尼克斯M700比赛级羽毛球78速', 'M700-78-12',
+                   'FG-LNX-M700-78', '较低温度环境和专业赛事产品'
+  UNION ALL SELECT 'PROD-OEM-XY-C500-77', '迅羽C500 OEM俱乐部级羽毛球77速', 'C500-77-12',
+                   'FG-OEM-XY-C500-77', '东澜体育OEM客户定制产品'
 ) seed
 JOIN `mdm_material` material
   ON material.`material_code` = seed.`material_code` AND material.`deleted_flag` = 0
@@ -286,8 +309,11 @@ INSERT INTO `mdm_bom`
 SELECT seed.`bom_code`, product.`product_id`, '1.0', '2026-01-01', 'RELEASED',
        CONCAT(@baseline_marker, ': 每筒12只标准BOM'), @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'BOM-TRAIN-77-V1' AS `bom_code`, 'PROD-SHUTTLE-TRAIN-77' AS `product_code`
-  UNION ALL SELECT 'BOM-MATCH-77-V1', 'PROD-SHUTTLE-MATCH-77'
+  SELECT 'BOM-LNX-T300-76-V1' AS `bom_code`, 'PROD-LNX-T300-76' AS `product_code`
+  UNION ALL SELECT 'BOM-LNX-T300-77-V1', 'PROD-LNX-T300-77'
+  UNION ALL SELECT 'BOM-LNX-M700-77-V1', 'PROD-LNX-M700-77'
+  UNION ALL SELECT 'BOM-LNX-M700-78-V1', 'PROD-LNX-M700-78'
+  UNION ALL SELECT 'BOM-OEM-XY-C500-77-V1', 'PROD-OEM-XY-C500-77'
 ) seed
 JOIN `mdm_product` product
   ON product.`product_code` = seed.`product_code` AND product.`deleted_flag` = 0
@@ -300,20 +326,41 @@ INSERT INTO `mdm_bom_item`
 SELECT bom.`bom_id`, material.`material_id`, seed.`quantity`, seed.`loss_rate`, seed.`sequence_no`,
        CONCAT(@baseline_marker, ': 一筒标准用量'), @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'BOM-TRAIN-77-V1' AS `bom_code`, 'RM-FEATHER-DUCK-A' AS `material_code`, 192.0000 AS `quantity`, 0.0800 AS `loss_rate`, 10 AS `sequence_no`
-  UNION ALL SELECT 'BOM-TRAIN-77-V1', 'RM-CORK-COMPOSITE', 12.0000, 0.0200, 20
-  UNION ALL SELECT 'BOM-TRAIN-77-V1', 'AUX-THREAD-NYLON', 4.8000, 0.0300, 30
-  UNION ALL SELECT 'BOM-TRAIN-77-V1', 'AUX-ADHESIVE-RESIN', 7.2000, 0.0500, 40
-  UNION ALL SELECT 'BOM-TRAIN-77-V1', 'PKG-TUBE-12', 1.0000, 0.0100, 50
-  UNION ALL SELECT 'BOM-TRAIN-77-V1', 'PKG-LABEL-TRAIN-77', 1.0000, 0.0100, 60
-  UNION ALL SELECT 'BOM-TRAIN-77-V1', 'PKG-CARTON-25', 0.0400, 0.0050, 70
-  UNION ALL SELECT 'BOM-MATCH-77-V1', 'RM-FEATHER-GOOSE-A', 192.0000, 0.1000, 10
-  UNION ALL SELECT 'BOM-MATCH-77-V1', 'RM-CORK-NATURAL', 12.0000, 0.0300, 20
-  UNION ALL SELECT 'BOM-MATCH-77-V1', 'AUX-THREAD-NYLON', 4.8000, 0.0300, 30
-  UNION ALL SELECT 'BOM-MATCH-77-V1', 'AUX-ADHESIVE-RESIN', 7.2000, 0.0500, 40
-  UNION ALL SELECT 'BOM-MATCH-77-V1', 'PKG-TUBE-12', 1.0000, 0.0100, 50
-  UNION ALL SELECT 'BOM-MATCH-77-V1', 'PKG-LABEL-MATCH-77', 1.0000, 0.0100, 60
-  UNION ALL SELECT 'BOM-MATCH-77-V1', 'PKG-CARTON-25', 0.0400, 0.0050, 70
+  SELECT 'BOM-LNX-T300-76-V1' AS `bom_code`, 'RM-FEATHER-DUCK-A' AS `material_code`, 192.0000 AS `quantity`, 0.0800 AS `loss_rate`, 10 AS `sequence_no`
+  UNION ALL SELECT 'BOM-LNX-T300-76-V1', 'RM-CORK-COMPOSITE-76', 12.0000, 0.0200, 20
+  UNION ALL SELECT 'BOM-LNX-T300-76-V1', 'AUX-THREAD-NYLON-07', 4.8000, 0.0300, 30
+  UNION ALL SELECT 'BOM-LNX-T300-76-V1', 'AUX-ADHESIVE-RESIN', 7.2000, 0.0500, 40
+  UNION ALL SELECT 'BOM-LNX-T300-76-V1', 'PKG-TUBE-LNX-T300', 1.0000, 0.0100, 50
+  UNION ALL SELECT 'BOM-LNX-T300-76-V1', 'PKG-LABEL-LNX-T300-76', 1.0000, 0.0100, 60
+  UNION ALL SELECT 'BOM-LNX-T300-76-V1', 'PKG-CARTON-LNX-25', 0.0400, 0.0050, 70
+  UNION ALL SELECT 'BOM-LNX-T300-77-V1', 'RM-FEATHER-DUCK-A', 192.0000, 0.0800, 10
+  UNION ALL SELECT 'BOM-LNX-T300-77-V1', 'RM-CORK-COMPOSITE-77', 12.0000, 0.0200, 20
+  UNION ALL SELECT 'BOM-LNX-T300-77-V1', 'AUX-THREAD-NYLON-07', 4.8000, 0.0300, 30
+  UNION ALL SELECT 'BOM-LNX-T300-77-V1', 'AUX-ADHESIVE-RESIN', 7.2000, 0.0500, 40
+  UNION ALL SELECT 'BOM-LNX-T300-77-V1', 'PKG-TUBE-LNX-T300', 1.0000, 0.0100, 50
+  UNION ALL SELECT 'BOM-LNX-T300-77-V1', 'PKG-LABEL-LNX-T300-77', 1.0000, 0.0100, 60
+  UNION ALL SELECT 'BOM-LNX-T300-77-V1', 'PKG-CARTON-LNX-25', 0.0400, 0.0050, 70
+  UNION ALL SELECT 'BOM-LNX-M700-77-V1', 'RM-FEATHER-GOOSE-A', 192.0000, 0.1000, 10
+  UNION ALL SELECT 'BOM-LNX-M700-77-V1', 'RM-CORK-NATURAL-77', 12.0000, 0.0300, 20
+  UNION ALL SELECT 'BOM-LNX-M700-77-V1', 'AUX-THREAD-NYLON-07', 4.8000, 0.0300, 30
+  UNION ALL SELECT 'BOM-LNX-M700-77-V1', 'AUX-ADHESIVE-RESIN', 7.2000, 0.0500, 40
+  UNION ALL SELECT 'BOM-LNX-M700-77-V1', 'PKG-TUBE-LNX-M700', 1.0000, 0.0100, 50
+  UNION ALL SELECT 'BOM-LNX-M700-77-V1', 'PKG-LABEL-LNX-M700-77', 1.0000, 0.0100, 60
+  UNION ALL SELECT 'BOM-LNX-M700-77-V1', 'PKG-CARTON-LNX-25', 0.0400, 0.0050, 70
+  UNION ALL SELECT 'BOM-LNX-M700-78-V1', 'RM-FEATHER-GOOSE-A', 192.0000, 0.1000, 10
+  UNION ALL SELECT 'BOM-LNX-M700-78-V1', 'RM-CORK-NATURAL-78', 12.0000, 0.0300, 20
+  UNION ALL SELECT 'BOM-LNX-M700-78-V1', 'AUX-THREAD-NYLON-07', 4.8000, 0.0300, 30
+  UNION ALL SELECT 'BOM-LNX-M700-78-V1', 'AUX-ADHESIVE-RESIN', 7.2000, 0.0500, 40
+  UNION ALL SELECT 'BOM-LNX-M700-78-V1', 'PKG-TUBE-LNX-M700', 1.0000, 0.0100, 50
+  UNION ALL SELECT 'BOM-LNX-M700-78-V1', 'PKG-LABEL-LNX-M700-78', 1.0000, 0.0100, 60
+  UNION ALL SELECT 'BOM-LNX-M700-78-V1', 'PKG-CARTON-LNX-25', 0.0400, 0.0050, 70
+  UNION ALL SELECT 'BOM-OEM-XY-C500-77-V1', 'RM-FEATHER-DUCK-A', 192.0000, 0.0800, 10
+  UNION ALL SELECT 'BOM-OEM-XY-C500-77-V1', 'RM-CORK-COMPOSITE-77', 12.0000, 0.0200, 20
+  UNION ALL SELECT 'BOM-OEM-XY-C500-77-V1', 'AUX-THREAD-NYLON-07', 4.8000, 0.0300, 30
+  UNION ALL SELECT 'BOM-OEM-XY-C500-77-V1', 'AUX-ADHESIVE-RESIN', 7.2000, 0.0500, 40
+  UNION ALL SELECT 'BOM-OEM-XY-C500-77-V1', 'PKG-TUBE-XY-C500', 1.0000, 0.0100, 50
+  UNION ALL SELECT 'BOM-OEM-XY-C500-77-V1', 'PKG-LABEL-XY-C500-77', 1.0000, 0.0100, 60
+  UNION ALL SELECT 'BOM-OEM-XY-C500-77-V1', 'PKG-CARTON-XY-25', 0.0400, 0.0050, 70
 ) seed
 JOIN `mdm_bom` bom ON bom.`bom_code` = seed.`bom_code` AND bom.`deleted_flag` = 0
 JOIN `mdm_material` material
@@ -370,9 +417,12 @@ INSERT INTO `process_route`
 SELECT seed.`route_code`, seed.`route_name`, product.`product_id`, '1.0', 'RELEASED',
        CONCAT(@baseline_marker, ': 标准生产工艺路线'), @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'ROUTE-TRAIN-77-V1' AS `route_code`, '训练级77速标准工艺路线' AS `route_name`,
-         'PROD-SHUTTLE-TRAIN-77' AS `product_code`
-  UNION ALL SELECT 'ROUTE-MATCH-77-V1', '比赛级77速标准工艺路线', 'PROD-SHUTTLE-MATCH-77'
+  SELECT 'ROUTE-LNX-T300-76-V1' AS `route_code`, '雷尼克斯T300 76速标准工艺路线' AS `route_name`,
+         'PROD-LNX-T300-76' AS `product_code`
+  UNION ALL SELECT 'ROUTE-LNX-T300-77-V1', '雷尼克斯T300 77速标准工艺路线', 'PROD-LNX-T300-77'
+  UNION ALL SELECT 'ROUTE-LNX-M700-77-V1', '雷尼克斯M700 77速标准工艺路线', 'PROD-LNX-M700-77'
+  UNION ALL SELECT 'ROUTE-LNX-M700-78-V1', '雷尼克斯M700 78速标准工艺路线', 'PROD-LNX-M700-78'
+  UNION ALL SELECT 'ROUTE-OEM-XY-C500-77-V1', '迅羽C500 OEM 77速标准工艺路线', 'PROD-OEM-XY-C500-77'
 ) seed
 JOIN `mdm_product` product
   ON product.`product_code` = seed.`product_code` AND product.`deleted_flag` = 0
@@ -385,20 +435,27 @@ INSERT INTO `process_route_item`
 SELECT route.`route_id`, operation.`operation_id`, seed.`sequence_no`, seed.`standard_time`, seed.`qc_required`,
        CONCAT(@baseline_marker, ': 路线级工时，分钟/筒'), @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'ROUTE-TRAIN-77-V1' AS `route_code`, 'OP-FEATHER-SORT' AS `operation_code`, 10 AS `sequence_no`, 0.25 AS `standard_time`, 1 AS `qc_required`
-  UNION ALL SELECT 'ROUTE-TRAIN-77-V1', 'OP-CORK-FORM', 20, 0.20, 1
-  UNION ALL SELECT 'ROUTE-TRAIN-77-V1', 'OP-FEATHER-INSERT', 30, 0.35, 0
-  UNION ALL SELECT 'ROUTE-TRAIN-77-V1', 'OP-THREAD-WIND', 40, 0.25, 0
-  UNION ALL SELECT 'ROUTE-TRAIN-77-V1', 'OP-GLUE-CURE', 50, 0.55, 0
-  UNION ALL SELECT 'ROUTE-TRAIN-77-V1', 'OP-SPEED-TEST', 60, 0.30, 1
-  UNION ALL SELECT 'ROUTE-TRAIN-77-V1', 'OP-PACK', 70, 0.20, 1
-  UNION ALL SELECT 'ROUTE-MATCH-77-V1', 'OP-FEATHER-SORT', 10, 0.35, 1
-  UNION ALL SELECT 'ROUTE-MATCH-77-V1', 'OP-CORK-FORM', 20, 0.30, 1
-  UNION ALL SELECT 'ROUTE-MATCH-77-V1', 'OP-FEATHER-INSERT', 30, 0.50, 0
-  UNION ALL SELECT 'ROUTE-MATCH-77-V1', 'OP-THREAD-WIND', 40, 0.35, 0
-  UNION ALL SELECT 'ROUTE-MATCH-77-V1', 'OP-GLUE-CURE', 50, 0.80, 0
-  UNION ALL SELECT 'ROUTE-MATCH-77-V1', 'OP-SPEED-TEST', 60, 0.45, 1
-  UNION ALL SELECT 'ROUTE-MATCH-77-V1', 'OP-PACK', 70, 0.25, 1
+  SELECT route_seed.`route_code`, operation_seed.`operation_code`, operation_seed.`sequence_no`,
+         CASE route_seed.`route_family`
+           WHEN 'TRAIN' THEN operation_seed.`train_time`
+           ELSE operation_seed.`match_time`
+         END AS `standard_time`, operation_seed.`qc_required`
+  FROM (
+    SELECT 'ROUTE-LNX-T300-76-V1' AS `route_code`, 'TRAIN' AS `route_family`
+    UNION ALL SELECT 'ROUTE-LNX-T300-77-V1', 'TRAIN'
+    UNION ALL SELECT 'ROUTE-OEM-XY-C500-77-V1', 'TRAIN'
+    UNION ALL SELECT 'ROUTE-LNX-M700-77-V1', 'MATCH'
+    UNION ALL SELECT 'ROUTE-LNX-M700-78-V1', 'MATCH'
+  ) route_seed
+  CROSS JOIN (
+    SELECT 'OP-FEATHER-SORT' AS `operation_code`, 10 AS `sequence_no`, 0.25 AS `train_time`, 0.35 AS `match_time`, 1 AS `qc_required`
+    UNION ALL SELECT 'OP-CORK-FORM', 20, 0.20, 0.30, 1
+    UNION ALL SELECT 'OP-FEATHER-INSERT', 30, 0.35, 0.50, 0
+    UNION ALL SELECT 'OP-THREAD-WIND', 40, 0.25, 0.35, 0
+    UNION ALL SELECT 'OP-GLUE-CURE', 50, 0.55, 0.80, 0
+    UNION ALL SELECT 'OP-SPEED-TEST', 60, 0.30, 0.45, 1
+    UNION ALL SELECT 'OP-PACK', 70, 0.20, 0.25, 1
+  ) operation_seed
 ) seed
 JOIN `process_route` route ON route.`route_code` = seed.`route_code` AND route.`deleted_flag` = 0
 JOIN `process_operation` operation
@@ -412,8 +469,8 @@ WHERE NOT EXISTS (
 -- 6. 工厂、产线、工位和工位能力
 INSERT INTO `factory_workshop`
   (`workshop_code`, `workshop_name`, `manager_id`, `status`, `remark`, `created_by`, `created_time`)
-SELECT 'WS-SHUTTLE-01', '羽毛球制造车间', manager.`employee_id`, 'RUNNING',
-       CONCAT(@baseline_marker, ': 羽毛球生产主车间'), @baseline_operator_id, @baseline_time
+SELECT 'WS-SHUTTLE-01', '雷尼克斯羽毛球制造车间', manager.`employee_id`, 'RUNNING',
+       CONCAT(@baseline_marker, ': 雷尼克斯羽毛球生产主车间'), @baseline_operator_id, @baseline_time
 FROM `org_employee` manager
 WHERE manager.`employee_no` = 'EMP-MFG-001' AND manager.`deleted_flag` = 0
   AND NOT EXISTS (
@@ -604,21 +661,60 @@ SELECT item.`item_id`, product.`product_id`, operation.`operation_id`, seed.`sta
        seed.`upper_limit`, seed.`lower_limit`, seed.`judgement_rule`,
        CONCAT(@baseline_marker, ':', seed.`standard_key`), @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'STD-IQC-TRAIN-FEATHER-LENGTH' AS `standard_key`, 'QI-FEATHER-LENGTH' AS `item_code`, 'PROD-SHUTTLE-TRAIN-77' AS `product_code`, NULL AS `operation_code`,
-         '66' AS `standard_value`, '70' AS `upper_limit`, '62' AS `lower_limit`, '实测值在上下限内判定合格' AS `judgement_rule`
-  UNION ALL SELECT 'STD-IQC-TRAIN-HEAD-DIAMETER', 'QI-HEAD-DIAMETER', 'PROD-SHUTTLE-TRAIN-77', NULL, '26.5', '28', '25', '实测值在上下限内判定合格'
-  UNION ALL SELECT 'STD-IQC-TRAIN-RAW-APPEARANCE', 'QI-RAW-APPEARANCE', 'PROD-SHUTTLE-TRAIN-77', NULL, '合格', NULL, NULL, '无断毛、霉变、油污和明显色差判定合格'
-  UNION ALL SELECT 'STD-IPQC-TRAIN-WEIGHT', 'QI-FINISHED-WEIGHT', 'PROD-SHUTTLE-TRAIN-77', 'OP-SPEED-TEST', '5.10', '5.50', '4.74', '单球重量在上下限内判定合格'
-  UNION ALL SELECT 'STD-IPQC-TRAIN-SPEED', 'QI-SPEED-GRADE', 'PROD-SHUTTLE-TRAIN-77', 'OP-SPEED-TEST', '77', '77', '77', '标准环境下检测等级等于77判定合格'
-  UNION ALL SELECT 'STD-IPQC-TRAIN-FLIGHT', 'QI-FLIGHT-STABILITY', 'PROD-SHUTTLE-TRAIN-77', 'OP-SPEED-TEST', '500', '500', '0', '同批抽样样品的最大落点径向偏差不超过500mm判定合格'
-  UNION ALL SELECT 'STD-FQC-TRAIN-APPEARANCE', 'QI-FINISHED-APPEARANCE', 'PROD-SHUTTLE-TRAIN-77', 'OP-PACK', '合格', NULL, NULL, '球头、毛片、绕线、胶层和标签均无明显缺陷判定合格'
-  UNION ALL SELECT 'STD-IQC-MATCH-FEATHER-LENGTH', 'QI-FEATHER-LENGTH', 'PROD-SHUTTLE-MATCH-77', NULL, '66', '70', '62', '实测值在上下限内判定合格'
-  UNION ALL SELECT 'STD-IQC-MATCH-HEAD-DIAMETER', 'QI-HEAD-DIAMETER', 'PROD-SHUTTLE-MATCH-77', NULL, '26.5', '28', '25', '实测值在上下限内判定合格'
-  UNION ALL SELECT 'STD-IQC-MATCH-RAW-APPEARANCE', 'QI-RAW-APPEARANCE', 'PROD-SHUTTLE-MATCH-77', NULL, '合格', NULL, NULL, '毛片同色、完整，球头无裂纹和污染判定合格'
-  UNION ALL SELECT 'STD-IPQC-MATCH-WEIGHT', 'QI-FINISHED-WEIGHT', 'PROD-SHUTTLE-MATCH-77', 'OP-SPEED-TEST', '5.10', '5.50', '4.74', '单球重量在上下限内判定合格'
-  UNION ALL SELECT 'STD-IPQC-MATCH-SPEED', 'QI-SPEED-GRADE', 'PROD-SHUTTLE-MATCH-77', 'OP-SPEED-TEST', '77', '77', '77', '标准环境下检测等级等于77判定合格'
-  UNION ALL SELECT 'STD-IPQC-MATCH-FLIGHT', 'QI-FLIGHT-STABILITY', 'PROD-SHUTTLE-MATCH-77', 'OP-SPEED-TEST', '300', '300', '0', '同批抽样样品的最大落点径向偏差不超过300mm判定合格'
-  UNION ALL SELECT 'STD-FQC-MATCH-APPEARANCE', 'QI-FINISHED-APPEARANCE', 'PROD-SHUTTLE-MATCH-77', 'OP-PACK', '合格', NULL, NULL, '球头、毛片、绕线、胶层和标签均无明显缺陷判定合格'
+  SELECT CONCAT('STD-', profile.`profile_key`, '-', standard_type.`standard_suffix`) AS `standard_key`,
+         standard_type.`item_code`, profile.`product_code`, standard_type.`operation_code`,
+         CASE standard_type.`standard_suffix`
+           WHEN 'IQC-FEATHER-LENGTH' THEN '67'
+           WHEN 'IQC-HEAD-DIAMETER' THEN '26.5'
+           WHEN 'IQC-RAW-APPEARANCE' THEN '合格'
+           WHEN 'IPQC-WEIGHT' THEN profile.`nominal_weight`
+           WHEN 'IPQC-SPEED' THEN profile.`speed_grade`
+           WHEN 'IPQC-FLIGHT' THEN profile.`flight_limit`
+           ELSE '合格'
+         END AS `standard_value`,
+         CASE standard_type.`standard_suffix`
+           WHEN 'IQC-FEATHER-LENGTH' THEN '70'
+           WHEN 'IQC-HEAD-DIAMETER' THEN '28'
+           WHEN 'IPQC-WEIGHT' THEN profile.`weight_upper`
+           WHEN 'IPQC-SPEED' THEN profile.`speed_grade`
+           WHEN 'IPQC-FLIGHT' THEN profile.`flight_limit`
+           ELSE NULL
+         END AS `upper_limit`,
+         CASE standard_type.`standard_suffix`
+           WHEN 'IQC-FEATHER-LENGTH' THEN '64'
+           WHEN 'IQC-HEAD-DIAMETER' THEN '25'
+           WHEN 'IPQC-WEIGHT' THEN profile.`weight_lower`
+           WHEN 'IPQC-SPEED' THEN profile.`speed_grade`
+           WHEN 'IPQC-FLIGHT' THEN '0'
+           ELSE NULL
+         END AS `lower_limit`,
+         CASE standard_type.`standard_suffix`
+           WHEN 'IQC-FEATHER-LENGTH' THEN '毛片长度在64-70mm内判定合格'
+           WHEN 'IQC-HEAD-DIAMETER' THEN '球头直径在25-28mm内判定合格'
+           WHEN 'IQC-RAW-APPEARANCE' THEN '无断毛、霉变、油污、裂纹和明显色差判定合格'
+           WHEN 'IPQC-WEIGHT' THEN CONCAT('单球重量在', profile.`weight_lower`, '-', profile.`weight_upper`, 'g内判定合格')
+           WHEN 'IPQC-SPEED' THEN CONCAT('标准环境下检测等级等于', profile.`speed_grade`, '判定合格')
+           WHEN 'IPQC-FLIGHT' THEN CONCAT('最大落点径向偏差不超过', profile.`flight_limit`, 'mm判定合格')
+           ELSE '球头、毛片、绕线、胶层、球筒和标签均无明显缺陷判定合格'
+         END AS `judgement_rule`
+  FROM (
+    SELECT 'LNX-T300-76' AS `profile_key`, 'PROD-LNX-T300-76' AS `product_code`,
+           '4.90' AS `nominal_weight`, '4.95' AS `weight_upper`, '4.85' AS `weight_lower`,
+           '76' AS `speed_grade`, '500' AS `flight_limit`
+    UNION ALL SELECT 'LNX-T300-77', 'PROD-LNX-T300-77', '5.00', '5.05', '4.95', '77', '500'
+    UNION ALL SELECT 'LNX-M700-77', 'PROD-LNX-M700-77', '5.00', '5.05', '4.95', '77', '300'
+    UNION ALL SELECT 'LNX-M700-78', 'PROD-LNX-M700-78', '5.10', '5.15', '5.05', '78', '300'
+    UNION ALL SELECT 'OEM-XY-C500-77', 'PROD-OEM-XY-C500-77', '5.00', '5.05', '4.95', '77', '400'
+  ) profile
+  CROSS JOIN (
+    SELECT 'IQC-FEATHER-LENGTH' AS `standard_suffix`, 'QI-FEATHER-LENGTH' AS `item_code`, NULL AS `operation_code`
+    UNION ALL SELECT 'IQC-HEAD-DIAMETER', 'QI-HEAD-DIAMETER', NULL
+    UNION ALL SELECT 'IQC-RAW-APPEARANCE', 'QI-RAW-APPEARANCE', NULL
+    UNION ALL SELECT 'IPQC-WEIGHT', 'QI-FINISHED-WEIGHT', 'OP-SPEED-TEST'
+    UNION ALL SELECT 'IPQC-SPEED', 'QI-SPEED-GRADE', 'OP-SPEED-TEST'
+    UNION ALL SELECT 'IPQC-FLIGHT', 'QI-FLIGHT-STABILITY', 'OP-SPEED-TEST'
+    UNION ALL SELECT 'FQC-APPEARANCE', 'QI-FINISHED-APPEARANCE', 'OP-PACK'
+  ) standard_type
 ) seed
 JOIN `qms_inspection_item` item
   ON item.`item_code` = seed.`item_code` AND item.`deleted_flag` = 0
@@ -639,12 +735,21 @@ SELECT seed.`scheme_code`, seed.`scheme_name`, product.`product_id`, operation.`
        seed.`inspection_type`, 'RELEASED', CONCAT(@baseline_marker, ': 已发布标准检验方案'),
        @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'QMS-IQC-TRAIN-77' AS `scheme_code`, '训练级77速来料检验方案' AS `scheme_name`, 'PROD-SHUTTLE-TRAIN-77' AS `product_code`, NULL AS `operation_code`, 'INCOMING' AS `inspection_type`
-  UNION ALL SELECT 'QMS-IPQC-TRAIN-77', '训练级77速过程检验方案', 'PROD-SHUTTLE-TRAIN-77', 'OP-SPEED-TEST', 'PROCESS'
-  UNION ALL SELECT 'QMS-FQC-TRAIN-77', '训练级77速最终检验方案', 'PROD-SHUTTLE-TRAIN-77', 'OP-PACK', 'FINAL'
-  UNION ALL SELECT 'QMS-IQC-MATCH-77', '比赛级77速来料检验方案', 'PROD-SHUTTLE-MATCH-77', NULL, 'INCOMING'
-  UNION ALL SELECT 'QMS-IPQC-MATCH-77', '比赛级77速过程检验方案', 'PROD-SHUTTLE-MATCH-77', 'OP-SPEED-TEST', 'PROCESS'
-  UNION ALL SELECT 'QMS-FQC-MATCH-77', '比赛级77速最终检验方案', 'PROD-SHUTTLE-MATCH-77', 'OP-PACK', 'FINAL'
+  SELECT CONCAT('QMS-', scheme_type.`scheme_prefix`, '-', profile.`profile_key`) AS `scheme_code`,
+         CONCAT(profile.`product_label`, scheme_type.`scheme_label`) AS `scheme_name`,
+         profile.`product_code`, scheme_type.`operation_code`, scheme_type.`inspection_type`
+  FROM (
+    SELECT 'LNX-T300-76' AS `profile_key`, 'PROD-LNX-T300-76' AS `product_code`, '雷尼克斯T300 76速' AS `product_label`
+    UNION ALL SELECT 'LNX-T300-77', 'PROD-LNX-T300-77', '雷尼克斯T300 77速'
+    UNION ALL SELECT 'LNX-M700-77', 'PROD-LNX-M700-77', '雷尼克斯M700 77速'
+    UNION ALL SELECT 'LNX-M700-78', 'PROD-LNX-M700-78', '雷尼克斯M700 78速'
+    UNION ALL SELECT 'OEM-XY-C500-77', 'PROD-OEM-XY-C500-77', '迅羽C500 OEM 77速'
+  ) profile
+  CROSS JOIN (
+    SELECT 'IQC' AS `scheme_prefix`, '来料检验方案' AS `scheme_label`, NULL AS `operation_code`, 'INCOMING' AS `inspection_type`
+    UNION ALL SELECT 'IPQC', '过程检验方案', 'OP-SPEED-TEST', 'PROCESS'
+    UNION ALL SELECT 'FQC', '最终检验方案', 'OP-PACK', 'FINAL'
+  ) scheme_type
 ) seed
 JOIN `mdm_product` product
   ON product.`product_code` = seed.`product_code` AND product.`deleted_flag` = 0
@@ -660,20 +765,30 @@ INSERT INTO `qms_inspection_scheme_item`
 SELECT scheme.`scheme_id`, item.`item_id`, standard.`standard_id`, seed.`sample_quantity`, seed.`sequence_no`,
        CONCAT(@baseline_marker, ': 方案检验明细'), @baseline_operator_id, @baseline_time
 FROM (
-  SELECT 'QMS-IQC-TRAIN-77' AS `scheme_code`, 'QI-FEATHER-LENGTH' AS `item_code`, 'STD-IQC-TRAIN-FEATHER-LENGTH' AS `standard_key`, 32.0000 AS `sample_quantity`, 10 AS `sequence_no`
-  UNION ALL SELECT 'QMS-IQC-TRAIN-77', 'QI-HEAD-DIAMETER', 'STD-IQC-TRAIN-HEAD-DIAMETER', 12.0000, 20
-  UNION ALL SELECT 'QMS-IQC-TRAIN-77', 'QI-RAW-APPEARANCE', 'STD-IQC-TRAIN-RAW-APPEARANCE', 32.0000, 30
-  UNION ALL SELECT 'QMS-IPQC-TRAIN-77', 'QI-FINISHED-WEIGHT', 'STD-IPQC-TRAIN-WEIGHT', 5.0000, 10
-  UNION ALL SELECT 'QMS-IPQC-TRAIN-77', 'QI-SPEED-GRADE', 'STD-IPQC-TRAIN-SPEED', 5.0000, 20
-  UNION ALL SELECT 'QMS-IPQC-TRAIN-77', 'QI-FLIGHT-STABILITY', 'STD-IPQC-TRAIN-FLIGHT', 5.0000, 30
-  UNION ALL SELECT 'QMS-FQC-TRAIN-77', 'QI-FINISHED-APPEARANCE', 'STD-FQC-TRAIN-APPEARANCE', 5.0000, 10
-  UNION ALL SELECT 'QMS-IQC-MATCH-77', 'QI-FEATHER-LENGTH', 'STD-IQC-MATCH-FEATHER-LENGTH', 32.0000, 10
-  UNION ALL SELECT 'QMS-IQC-MATCH-77', 'QI-HEAD-DIAMETER', 'STD-IQC-MATCH-HEAD-DIAMETER', 12.0000, 20
-  UNION ALL SELECT 'QMS-IQC-MATCH-77', 'QI-RAW-APPEARANCE', 'STD-IQC-MATCH-RAW-APPEARANCE', 32.0000, 30
-  UNION ALL SELECT 'QMS-IPQC-MATCH-77', 'QI-FINISHED-WEIGHT', 'STD-IPQC-MATCH-WEIGHT', 8.0000, 10
-  UNION ALL SELECT 'QMS-IPQC-MATCH-77', 'QI-SPEED-GRADE', 'STD-IPQC-MATCH-SPEED', 8.0000, 20
-  UNION ALL SELECT 'QMS-IPQC-MATCH-77', 'QI-FLIGHT-STABILITY', 'STD-IPQC-MATCH-FLIGHT', 8.0000, 30
-  UNION ALL SELECT 'QMS-FQC-MATCH-77', 'QI-FINISHED-APPEARANCE', 'STD-FQC-MATCH-APPEARANCE', 8.0000, 10
+  SELECT CONCAT('QMS-', detail_type.`scheme_prefix`, '-', profile.`profile_key`) AS `scheme_code`,
+         detail_type.`item_code`, CONCAT('STD-', profile.`profile_key`, '-', detail_type.`standard_suffix`) AS `standard_key`,
+         CASE
+           WHEN detail_type.`standard_suffix` = 'IQC-FEATHER-LENGTH' THEN 32.0000
+           WHEN detail_type.`standard_suffix` = 'IQC-HEAD-DIAMETER' THEN 12.0000
+           WHEN detail_type.`standard_suffix` = 'IQC-RAW-APPEARANCE' THEN 32.0000
+           ELSE profile.`sample_quantity`
+         END AS `sample_quantity`, detail_type.`sequence_no`
+  FROM (
+    SELECT 'LNX-T300-76' AS `profile_key`, 5.0000 AS `sample_quantity`
+    UNION ALL SELECT 'LNX-T300-77', 5.0000
+    UNION ALL SELECT 'LNX-M700-77', 8.0000
+    UNION ALL SELECT 'LNX-M700-78', 8.0000
+    UNION ALL SELECT 'OEM-XY-C500-77', 5.0000
+  ) profile
+  CROSS JOIN (
+    SELECT 'IQC' AS `scheme_prefix`, 'QI-FEATHER-LENGTH' AS `item_code`, 'IQC-FEATHER-LENGTH' AS `standard_suffix`, 10 AS `sequence_no`
+    UNION ALL SELECT 'IQC', 'QI-HEAD-DIAMETER', 'IQC-HEAD-DIAMETER', 20
+    UNION ALL SELECT 'IQC', 'QI-RAW-APPEARANCE', 'IQC-RAW-APPEARANCE', 30
+    UNION ALL SELECT 'IPQC', 'QI-FINISHED-WEIGHT', 'IPQC-WEIGHT', 10
+    UNION ALL SELECT 'IPQC', 'QI-SPEED-GRADE', 'IPQC-SPEED', 20
+    UNION ALL SELECT 'IPQC', 'QI-FLIGHT-STABILITY', 'IPQC-FLIGHT', 30
+    UNION ALL SELECT 'FQC', 'QI-FINISHED-APPEARANCE', 'FQC-APPEARANCE', 10
+  ) detail_type
 ) seed
 JOIN `qms_inspection_scheme` scheme
   ON scheme.`scheme_code` = seed.`scheme_code` AND scheme.`deleted_flag` = 0
@@ -695,7 +810,9 @@ SET item.`quantity` = 7.2000,
     item.`updated_time` = @baseline_time
 WHERE item.`deleted_flag` = 0
   AND item.`remark` LIKE CONCAT(@baseline_marker, ':%')
-  AND bom.`bom_code` IN ('BOM-TRAIN-77-V1', 'BOM-MATCH-77-V1')
+  AND bom.`bom_code` IN ('BOM-LNX-T300-76-V1', 'BOM-LNX-T300-77-V1',
+                         'BOM-LNX-M700-77-V1', 'BOM-LNX-M700-78-V1',
+                         'BOM-OEM-XY-C500-77-V1')
   AND material.`material_code` = 'AUX-ADHESIVE-RESIN'
   AND item.`quantity` <> 7.2000;
 
@@ -734,21 +851,25 @@ WHERE item.`item_code` = 'QI-FLIGHT-STABILITY'
     OR NOT (item.`inspection_method` <=> '同批随机抽样，每只使用标准发球机单次击发，计算落点相对样品组平均落点的最大径向偏差')
     OR NOT (item.`unit_id` <=> unit.`unit_id`));
 
-UPDATE `qms_inspection_standard`
-SET `standard_value` = '500', `upper_limit` = '500', `lower_limit` = '0',
-    `judgement_rule` = '同批抽样样品的最大落点径向偏差不超过500mm判定合格',
-    `updated_by` = @baseline_operator_id, `updated_time` = @baseline_time
-WHERE `deleted_flag` = 0 AND `remark` = CONCAT(@baseline_marker, ':STD-IPQC-TRAIN-FLIGHT')
-  AND (NOT (`standard_value` <=> '500') OR NOT (`upper_limit` <=> '500') OR NOT (`lower_limit` <=> '0')
-    OR NOT (`judgement_rule` <=> '同批抽样样品的最大落点径向偏差不超过500mm判定合格'));
-
-UPDATE `qms_inspection_standard`
-SET `standard_value` = '300', `upper_limit` = '300', `lower_limit` = '0',
-    `judgement_rule` = '同批抽样样品的最大落点径向偏差不超过300mm判定合格',
-    `updated_by` = @baseline_operator_id, `updated_time` = @baseline_time
-WHERE `deleted_flag` = 0 AND `remark` = CONCAT(@baseline_marker, ':STD-IPQC-MATCH-FLIGHT')
-  AND (NOT (`standard_value` <=> '300') OR NOT (`upper_limit` <=> '300') OR NOT (`lower_limit` <=> '0')
-    OR NOT (`judgement_rule` <=> '同批抽样样品的最大落点径向偏差不超过300mm判定合格'));
+UPDATE `qms_inspection_standard` standard_record
+JOIN (
+  SELECT 'STD-LNX-T300-76-IPQC-FLIGHT' AS `standard_key`, '500' AS `flight_limit`
+  UNION ALL SELECT 'STD-LNX-T300-77-IPQC-FLIGHT', '500'
+  UNION ALL SELECT 'STD-LNX-M700-77-IPQC-FLIGHT', '300'
+  UNION ALL SELECT 'STD-LNX-M700-78-IPQC-FLIGHT', '300'
+  UNION ALL SELECT 'STD-OEM-XY-C500-77-IPQC-FLIGHT', '400'
+) seed ON standard_record.`remark` = CONCAT(@baseline_marker, ':', seed.`standard_key`)
+SET standard_record.`standard_value` = seed.`flight_limit`,
+    standard_record.`upper_limit` = seed.`flight_limit`,
+    standard_record.`lower_limit` = '0',
+    standard_record.`judgement_rule` = CONCAT('最大落点径向偏差不超过', seed.`flight_limit`, 'mm判定合格'),
+    standard_record.`updated_by` = @baseline_operator_id,
+    standard_record.`updated_time` = @baseline_time
+WHERE standard_record.`deleted_flag` = 0
+  AND (NOT (standard_record.`standard_value` <=> seed.`flight_limit`)
+    OR NOT (standard_record.`upper_limit` <=> seed.`flight_limit`)
+    OR NOT (standard_record.`lower_limit` <=> '0')
+    OR NOT (standard_record.`judgement_rule` <=> CONCAT('最大落点径向偏差不超过', seed.`flight_limit`, 'mm判定合格')));
 
 COMMIT;
 

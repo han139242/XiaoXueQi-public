@@ -87,6 +87,7 @@ async function enterPreview() {
           ref="formRef"
           :model="form"
           :rules="rules"
+          :aria-busy="loading"
           label-position="top"
           size="large"
           @keyup.enter="handleLogin"
@@ -150,7 +151,7 @@ async function enterPreview() {
   position: absolute;
   inset: 0;
   background: var(--shuttlecock-image) center / cover no-repeat;
-  filter: brightness(.97) saturate(.92) contrast(1.01);
+  filter: brightness(.96) saturate(.9) contrast(1.02);
   content: '';
   opacity: 1;
   animation: background-breathe 18s ease-in-out infinite alternate;
@@ -160,7 +161,9 @@ async function enterPreview() {
 .login-page::after {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgb(230 243 255 / 8%) 0%, transparent 48%, rgb(20 74 130 / 12%) 100%);
+  background:
+    linear-gradient(180deg, rgb(240 248 255 / 24%) 0%, transparent 30%, rgb(27 86 145 / 7%) 100%),
+    linear-gradient(90deg, rgb(255 255 255 / 10%) 0%, transparent 50%, rgb(20 74 130 / 10%) 100%);
   content: '';
   pointer-events: none;
 }
@@ -187,7 +190,7 @@ async function enterPreview() {
 
 .brand-copy {
   width: min(520px, 100%);
-  margin: 40px auto 0;
+  margin: 34px auto 0;
   text-align: center;
 }
 
@@ -195,26 +198,28 @@ async function enterPreview() {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  margin-bottom: 13px;
-  color: #2d6da7;
-  font-size: 10px;
+  margin-bottom: 11px;
+  color: #245f95;
+  font-size: 11px;
   font-weight: 760;
+  line-height: 1.2;
 }
 
 .brand-kicker::before,
 .brand-kicker::after {
   width: 28px;
-  height: 2px;
-  background: var(--mes-primary);
+  height: 1px;
+  background: rgb(var(--mes-primary-rgb) / 78%);
   content: '';
 }
 
 .brand-copy h1 {
   color: #123a62;
-  font-size: 38px;
+  font-size: 40px;
   font-weight: 720;
   line-height: 1.14;
   letter-spacing: 0;
+  text-shadow: 0 2px 12px rgb(255 255 255 / 52%);
 }
 
 .brand-copy h1 strong {
@@ -225,10 +230,10 @@ async function enterPreview() {
 .brand-copy p {
   max-width: 480px;
   margin-top: 9px;
-  color: #486987;
-  font-size: 15px;
+  color: #416583;
+  font-size: 14px;
   font-weight: 520;
-  line-height: 1.7;
+  line-height: 1.6;
 }
 
 .login-panel {
@@ -238,21 +243,21 @@ async function enterPreview() {
   min-height: 100dvh;
   align-items: center;
   justify-content: center;
-  padding: 158px 24px 38px;
+  padding: 152px 24px 34px;
   background: transparent;
 }
 
 .login-card {
   position: relative;
   width: 100%;
-  max-width: 420px;
+  max-width: 432px;
   overflow: hidden;
-  padding: 34px 34px 26px;
-  border: 1px solid rgb(255 255 255 / 88%);
-  border-radius: 8px;
-  background: rgb(250 253 255 / 84%);
-  box-shadow: 0 24px 70px rgb(24 70 117 / 18%);
-  backdrop-filter: blur(22px) saturate(104%);
+  padding: 34px 36px 25px;
+  border: 1px solid rgb(255 255 255 / 92%);
+  border-radius: 7px;
+  background: rgb(250 253 255 / 91%);
+  box-shadow: 0 28px 72px rgb(24 70 117 / 20%), 0 3px 10px rgb(26 61 96 / 8%);
+  backdrop-filter: blur(20px) saturate(106%);
   animation: login-enter .9s cubic-bezier(.2, .8, .2, 1) .12s both;
 }
 
@@ -261,21 +266,21 @@ async function enterPreview() {
   top: 0;
   right: 0;
   left: 0;
-  height: 3px;
+  height: 4px;
   background: var(--mes-primary);
   content: '';
 }
 
 .login-heading {
-  margin-bottom: 26px;
+  margin-bottom: 24px;
 }
 
 .login-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  margin-bottom: 9px;
-  color: #3975aa;
+  margin-bottom: 10px;
+  color: #2f6fa7;
   font-size: 11px;
   font-weight: 760;
   letter-spacing: 0;
@@ -292,15 +297,16 @@ async function enterPreview() {
 .login-heading h2 {
   color: var(--mes-text);
   font-family: var(--mes-font);
-  font-size: 29px;
+  font-size: 28px;
   font-weight: 720;
   line-height: 1.2;
 }
 
 .login-heading p {
-  margin-top: 8px;
+  margin-top: 7px;
   color: var(--mes-text-secondary);
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .login-options {
@@ -308,7 +314,7 @@ async function enterPreview() {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: -3px 0 22px;
+  margin: -2px 0 21px;
 }
 
 .login-status {
@@ -316,7 +322,7 @@ async function enterPreview() {
   align-items: center;
   gap: 5px;
   overflow: hidden;
-  color: var(--mes-text-muted);
+  color: #708294;
   font-size: 11px;
   text-align: right;
   text-overflow: ellipsis;
@@ -326,9 +332,9 @@ async function enterPreview() {
 .login-submit.el-button,
 .preview-button.el-button {
   width: 100%;
-  height: 46px;
+  height: 48px;
   margin: 0;
-  border-radius: 4px;
+  border-radius: 5px;
   font-size: 14px;
   font-weight: 660;
   transition: transform .2s ease, box-shadow .2s ease, background-color .2s ease, border-color .2s ease;
@@ -340,13 +346,14 @@ async function enterPreview() {
   border: 0;
   color: #fff;
   background: #2d8cf0;
+  box-shadow: 0 8px 20px rgb(31 112 194 / 18%);
   letter-spacing: 0;
 }
 
 .login-submit.el-button:hover:not(:disabled) {
   background: #1679dc;
   box-shadow: 0 10px 24px rgb(31 112 194 / 24%);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .login-submit.el-button:active:not(:disabled),
@@ -358,7 +365,7 @@ async function enterPreview() {
   margin-top: 10px;
   color: var(--mes-text-secondary);
   border-color: #c8d7e5;
-  background: rgb(255 255 255 / 66%);
+  background: rgb(255 255 255 / 76%);
 }
 
 .preview-button.el-button:hover:not(:disabled) {
@@ -366,7 +373,7 @@ async function enterPreview() {
   border-color: var(--mes-primary-border);
   background: var(--mes-primary-soft);
   box-shadow: 0 8px 18px rgb(var(--mes-primary-rgb) / 12%);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .login-footer {
@@ -375,10 +382,10 @@ async function enterPreview() {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 24px;
-  padding-top: 15px;
+  margin-top: 22px;
+  padding-top: 14px;
   border-top: 1px solid rgb(190 207 222 / 72%);
-  color: #7c8d9d;
+  color: #748697;
   font-size: 10px;
 }
 
@@ -388,31 +395,32 @@ async function enterPreview() {
   gap: 5px;
 }
 
-:deep(.el-form-item) { margin-bottom: 18px; }
+:deep(.el-form-item) { margin-bottom: 17px; }
 
 :deep(.el-form-item__label) {
   padding-bottom: 7px;
   color: #3e4d5d;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 660;
 }
 
 :deep(.el-input__wrapper) {
-  min-height: 46px;
+  min-height: 48px;
+  padding: 1px 12px 1px 10px;
   border-radius: 5px;
-  background: rgb(255 255 255 / 88%);
-  box-shadow: 0 0 0 1px #c4d2df inset;
-  transition: box-shadow .18s, background-color .18s;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 0 0 1px #bdccda inset, 0 2px 6px rgb(48 76 104 / 4%);
+  transition: box-shadow .18s ease, background-color .18s ease;
 }
 
 :deep(.el-input__wrapper:hover) {
   background: #fff;
-  box-shadow: 0 0 0 1px #8fbae2 inset;
+  box-shadow: 0 0 0 1px #83b2de inset, 0 3px 8px rgb(48 76 104 / 6%);
 }
 
 :deep(.el-input__wrapper.is-focus) {
   background: #fff;
-  box-shadow: 0 0 0 2px #2d8cf0 inset, 0 0 0 4px rgb(45 140 240 / 9%) !important;
+  box-shadow: 0 0 0 1px #2d8cf0 inset, 0 0 0 4px rgb(45 140 240 / 10%) !important;
 }
 
 :deep(.el-form-item__content) { overflow: visible; }
@@ -423,7 +431,18 @@ async function enterPreview() {
   font-size: 14px;
 }
 
-:deep(.el-input__prefix) { color: #6f7f90; }
+:deep(.el-input__inner::placeholder) { color: #9aa8b5; }
+
+:deep(.el-input__prefix) { color: var(--mes-primary); }
+
+:deep(.el-input__prefix-inner) {
+  width: 29px;
+  justify-content: center;
+  margin-right: 7px;
+  border-right: 1px solid #e0e8ef;
+}
+
+:deep(.el-input__suffix) { color: #748494; }
 
 :deep(.el-input__inner:-webkit-autofill),
 :deep(.el-input__inner:-webkit-autofill:hover),
@@ -452,41 +471,45 @@ async function enterPreview() {
 }
 
 @media (max-width: 1080px) {
-  .brand-copy { margin-top: 34px; }
-  .login-panel { padding-top: 150px; }
+  .brand-copy { margin-top: 30px; }
+  .login-panel { padding-top: 146px; }
 }
 
 @media (max-width: 880px) {
-  .login-page::before { background-position: 34% center; }
+  .login-page::before { background-position: 31% center; }
+
+  .login-page::after {
+    background: linear-gradient(180deg, rgb(242 249 255 / 30%) 0%, rgb(235 245 255 / 8%) 55%, rgb(28 87 145 / 8%) 100%);
+  }
 
   .brand-panel { padding-inline: 18px; }
-  .brand-copy { width: min(430px, 100%); margin-top: 30px; }
+  .brand-copy { width: min(430px, 100%); margin-top: 27px; }
   .brand-copy h1 { font-size: 32px; }
 
   .login-panel {
     min-height: 100dvh;
-    padding: 140px 20px 32px;
+    padding: 136px 20px 30px;
     background: transparent;
   }
 
   .login-card {
     max-width: 480px;
     margin: 0 auto;
-    background: rgb(255 255 255 / 91%);
+    background: rgb(255 255 255 / 94%);
     box-shadow: 0 18px 46px rgb(25 63 102 / 16%);
     backdrop-filter: blur(18px);
   }
 }
 
 @media (max-width: 600px) {
-  .brand-copy { margin-top: 24px; }
+  .brand-copy { margin-top: 22px; }
   .brand-copy h1 { font-size: 30px; }
-  .brand-copy p { margin-top: 7px; font-size: 13px; }
-  .brand-kicker { margin-bottom: 9px; }
+  .brand-copy p { margin-top: 6px; font-size: 13px; }
+  .brand-kicker { margin-bottom: 8px; font-size: 10px; }
   .brand-kicker::before,
   .brand-kicker::after { width: 18px; }
-  .login-panel { padding: 128px 14px 24px; }
-  .login-card { padding: 28px 22px 22px; }
+  .login-panel { padding: 124px 14px 22px; }
+  .login-card { padding: 27px 22px 21px; }
   .login-footer { align-items: flex-start; flex-direction: column; gap: 5px; }
 }
 
@@ -495,7 +518,7 @@ async function enterPreview() {
   .brand-copy h1 { font-size: 32px; }
   .brand-copy p { margin-top: 5px; font-size: 13px; }
   .brand-kicker { margin-bottom: 7px; }
-  .login-panel { padding: 118px 24px 22px; }
+  .login-panel { padding: 114px 24px 20px; }
   .login-card { padding: 27px 30px 20px; }
   .login-heading { margin-bottom: 20px; }
   :deep(.el-form-item) { margin-bottom: 14px; }
@@ -504,8 +527,8 @@ async function enterPreview() {
 }
 
 @keyframes background-breathe {
-  from { filter: brightness(.95) saturate(.88) contrast(1.02); transform: scale(1.018); }
-  to { filter: brightness(.99) saturate(.94) contrast(1.01); transform: scale(1.003); }
+  from { filter: brightness(.95) saturate(.88) contrast(1.02); transform: scale(1.014); }
+  to { filter: brightness(.98) saturate(.92) contrast(1.01); transform: scale(1.002); }
 }
 
 @keyframes login-enter {
