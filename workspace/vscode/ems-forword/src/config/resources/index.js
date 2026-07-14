@@ -8,6 +8,7 @@ import wms from './wms'
 import qms from './qms'
 import eam from './eam'
 import trace from './trace'
+import { resourcePermission } from '@/utils/permission'
 
 export const resources = [...sys, ...org, ...mdm, ...process, ...factory, ...mfg, ...wms, ...qms, ...eam, ...trace]
 export const resourceMap = Object.fromEntries(resources.map((item) => [item.key, item]))
@@ -38,5 +39,5 @@ export const resourceRoutes = resources.map((config) => ({
   name: `Resource-${config.key}`,
   component: () => import('@/pages/resource/index.vue'),
   props: { resourceKey: config.key },
-  meta: { title: config.title, icon: config.icon, resourceKey: config.key }
+  meta: { title: config.title, icon: config.icon, resourceKey: config.key, permission: resourcePermission(config.key, 'view') }
 }))

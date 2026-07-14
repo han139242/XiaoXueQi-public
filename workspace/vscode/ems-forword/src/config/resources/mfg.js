@@ -2,8 +2,33 @@ import { defineResource, field, optionSets, values } from './helpers'
 
 const sourceTypes = values([['ERP', 'ERP 同步', 'primary'], ['MANUAL', '手工创建', 'success']])
 const alertTypes = values([['MATERIAL', '缺料', 'warning'], ['EQUIPMENT', '设备', 'danger'], ['QUALITY', '质量', 'danger'], ['SAFETY', '安全', 'danger'], ['OTHER', '其他', 'info']])
+const weekdays = values([[1, '周一', 'primary'], [2, '周二', 'primary'], [3, '周三', 'primary'], [4, '周四', 'primary'], [5, '周五', 'primary'], [6, '周六', 'warning'], [7, '周日', 'info']])
 
 export default [
+  defineResource({
+    key: 'mfg-line-product-capability', domain: 'mfg', route: 'mfg/line-product-capabilities', title: '产线产品能力', icon: 'route', baseUrl: '/api/mfg/line-product-capability', idField: 'capabilityId',
+    description: '维护产品可进入的产线、已发布工艺路线、适配优先级和有效产能系数',
+    fields: ['lineId', 'productId', 'routeId', 'priorityLevel', 'capacityFactor', 'status', 'remark', 'createdTime'], filters: ['lineId', 'productId', 'routeId', 'status'], defaults: { priorityLevel: 100, capacityFactor: 1, status: 'ENABLE' },
+    permissions: { delete: false, export: false },
+    overrides: {
+      lineId: { required: true, type: 'reference', reference: 'factory-line' }, productId: { required: true, type: 'reference', reference: 'mdm-product' }, routeId: { required: true, type: 'reference', reference: 'process-route' },
+      priorityLevel: { required: true, type: 'number', min: 1, precision: 0 }, capacityFactor: { required: true, type: 'number', min: 0.0001, max: 2, precision: 4, step: 0.1 },
+      status: { required: true, type: 'select', options: optionSets.enable }, remark: { type: 'textarea' }, createdTime: { form: false, width: 170 }
+    },
+    actions: [{ key: 'disable', label: '停用', icon: 'close', method: 'put', path: (row) => `/api/mfg/line-product-capability/${row.capabilityId}/disable`, visible: (row) => row.status === 'ENABLE', previewPatch: () => ({ status: 'DISABLE' }) }]
+  }),
+  defineResource({
+    key: 'mfg-line-calendar-rule', domain: 'mfg', route: 'mfg/line-calendar-rules', title: '产线周历规则', icon: 'calendar', baseUrl: '/api/mfg/line-calendar-rule', idField: 'calendarRuleId',
+    description: '维护产线按星期和班次生效的排产日历与有效产能系数',
+    fields: ['lineId', 'dayOfWeek', 'shiftId', 'effectiveFrom', 'effectiveTo', 'capacityFactor', 'status', 'remark', 'createdTime'], filters: ['lineId', 'dayOfWeek', 'shiftId', 'status'], defaults: { capacityFactor: 1, status: 'ENABLE' },
+    permissions: { delete: false, export: false },
+    overrides: {
+      lineId: { required: true, type: 'reference', reference: 'factory-line' }, dayOfWeek: { required: true, type: 'select', options: weekdays }, shiftId: { required: true, type: 'reference', reference: 'org-shift' },
+      effectiveFrom: { required: true, type: 'date' }, effectiveTo: { type: 'date' }, capacityFactor: { required: true, type: 'number', min: 0.0001, max: 2, precision: 4, step: 0.1 },
+      status: { required: true, type: 'select', options: optionSets.enable }, remark: { type: 'textarea' }, createdTime: { form: false, width: 170 }
+    },
+    actions: [{ key: 'disable', label: '停用', icon: 'close', method: 'put', path: (row) => `/api/mfg/line-calendar-rule/${row.calendarRuleId}/disable`, visible: (row) => row.status === 'ENABLE', previewPatch: () => ({ status: 'DISABLE' }) }]
+  }),
   defineResource({
     key: 'mfg-production-order', domain: 'mfg', route: 'mfg/production-orders', title: '生产订单', icon: 'clipboard', baseUrl: '/api/mfg/production-order', idField: 'productionOrderId',
     description: '管理客户生产需求、交付日期和订单执行状态',
@@ -50,7 +75,7 @@ export default [
     fullChild: { property: 'materials', title: '报工用料', resource: 'mfg-report-material', parentField: 'reportId', endpoint: (row) => `/api/mfg/report-material/report/${row.reportId}` },
     createPath: '/full', updatePath: '/full',
     canEdit: (row) => row.auditStatus !== 'APPROVED', canDelete: (row) => row.auditStatus !== 'APPROVED', lockedReason: '已审核通过的报工单不可修改或删除',
-    actions: [{ key: 'audit', label: '审核报工', icon: 'shield-check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-report/${row.reportId}/audit`, visible: (row) => row.auditStatus === 'SUBMITTED', fields: [field('auditResult', { label: '审核结果', type: 'select', options: optionSets.audit.filter((item) => item.value !== 'SUBMITTED'), required: true }), field('auditComment', { label: '审核意见', type: 'textarea' }), field('operatorId', { label: '审核人', type: 'reference', reference: 'org-employee' })], previewPatch: (values) => ({ auditStatus: values.auditResult }) }]
+    actions: [{ key: 'audit', label: '审核报工', icon: 'shield-check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-report/${row.reportId}/audit`, visible: (row) => row.auditStatus === 'SUBMITTED', fields: [field('auditResult', { label: '审核结果', type: 'select', options: optionSets.audit.filter((item) => item.value !== 'SUBMITTED'), required: true }), field('auditComment', { label: '审核意见', type: 'textarea' })], previewPatch: (values) => ({ auditStatus: values.auditResult }) }]
   }),
   defineResource({ key: 'mfg-report-material', domain: 'mfg', route: 'mfg/report-materials', title: '报工用料', baseUrl: '/api/mfg/report-material', idField: 'id', menu: false, fields: ['reportId', 'materialId', 'batchId', 'usedQuantity', 'scrapQuantity', 'remark'], filters: ['reportId', 'materialId', 'batchId'], overrides: { reportId: { required: true }, materialId: { required: true }, batchId: { required: true }, usedQuantity: { required: true, type: 'number', min: 0 }, scrapQuantity: { type: 'number', min: 0 } } }),
   defineResource({

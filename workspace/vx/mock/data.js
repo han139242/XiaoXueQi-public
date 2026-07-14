@@ -15,7 +15,10 @@ const currentUser = {
   employeeId: 1001,
   roles: ['生产操作员'],
   roleNames: ['生产操作员'],
-  permissions: ['mfg:task:start', 'mfg:task:finish', 'mfg:work-report:submit'],
+  permissions: [
+    'dashboard:summary:view', 'mfg:work-order:view', 'mfg:task:view', 'mfg:task:start', 'mfg:task:finish',
+    'mfg:work-report:view', 'mfg:work-report:create', 'mfg:work-report:submit', 'trace:barcode:scan'
+  ],
   lastLoginTime: now
 }
 

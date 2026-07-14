@@ -1,4 +1,5 @@
 const guard = require('../../../utils/guard')
+const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')
 const lookupApi = require('../../../api/lookup')
 const format = require('../../../utils/format')
@@ -26,7 +27,8 @@ Page({
     loading: false,
     finished: false,
     error: '',
-    lookups: null
+    lookups: null,
+    canSubmit: false
   },
 
   onLoad() {
@@ -35,6 +37,7 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({ canSubmit: auth.hasPermission('qms:inspection-order:submit') })
     if (!this.data.loading) this.loadPage(true)
   },
 
@@ -104,6 +107,7 @@ Page({
   },
 
   openInspectionForm(event) {
+    if (!guard.requirePermission('qms:inspection-order:submit')) return
     wx.navigateTo({
       url: '/pages/quality/inspection-form/index?inspectionId=' + encodeURIComponent(event.currentTarget.dataset.id)
     })

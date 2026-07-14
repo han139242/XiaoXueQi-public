@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AiServiceImplTest {
@@ -155,6 +156,28 @@ class AiServiceImplTest {
         verify(dashboardService).getProductionTrend(beginDate, endDate);
         verify(dashboardService).getQualityStatistics(beginDate, endDate);
         verify(dashboardService).getEquipmentStatus();
+    }
+
+    @Test
+    void scheduleScenarioAdviceUsesOnlyProvidedSummary() {
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        DashboardService dashboardService = mock(DashboardService.class);
+        AiServiceImpl service = createService(enabledProperties(), responseClient(200,
+                upstreamResponse("{\"answer\":\"产线存在瓶颈\",\"suggestions\":[\"人工复核冲突订单\"]}"), request -> {
+                    Buffer buffer = new Buffer();
+                    request.body().writeTo(buffer);
+                    requestBody.set(buffer.readUtf8());
+                }), dashboardService);
+
+        AiResponse result = service.getScheduleScenarioAdvice(Map.of(
+                "scenario", Map.of("orderCount", 2, "conflictOrderCount", 1),
+                "conflictReasons", Map.of("排程窗口有效产能不足", 1)));
+
+        assertEquals("产线存在瓶颈", result.getAnswer());
+        assertEquals(List.of("人工复核冲突订单"), result.getSuggestions());
+        assertTrue(requestBody.get().contains("scheduleScenario"));
+        assertTrue(requestBody.get().contains("排程窗口有效产能不足"));
+        verifyNoInteractions(dashboardService);
     }
 
     private AiServiceImpl createService(AiProperties properties, OkHttpClient client,

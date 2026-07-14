@@ -22,4 +22,9 @@ public interface SysRoleMenuService extends IService<SysRoleMenu> {
     boolean removeRoleMenuById(Long id);
 
     List<SysRoleMenu> listByRoleId(Long roleId);
+
+    /**
+     * 以目标菜单集合替换角色当前权限。
+     */
+    boolean replaceRoleMenus(Long roleId, List<Long> menuIds);
 }

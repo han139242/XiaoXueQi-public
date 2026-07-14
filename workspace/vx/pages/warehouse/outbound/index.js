@@ -25,6 +25,7 @@ Page({
     size: 10,
     loading: false,
     finished: false,
+    canConfirm: false,
     error: '',
     lookups: null
   },
@@ -35,6 +36,7 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({ canConfirm: auth.hasPermission('wms:outbound-order:confirm') })
     if (!this.data.loading) this.loadPage(true)
   },
 
@@ -94,6 +96,7 @@ Page({
   },
 
   confirmOrder(event) {
+    if (!guard.requirePermission('wms:outbound-order:confirm')) return
     const outboundId = event.currentTarget.dataset.id
     wx.showModal({
       title: '确认出库',

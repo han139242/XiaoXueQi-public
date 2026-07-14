@@ -26,10 +26,27 @@ function clearAuth() {
   if (app && app.globalData) app.globalData.user = null
 }
 
+function isSuperAdmin(user = getUser()) {
+  return Boolean(user && (user.superAdmin || (Array.isArray(user.roles) && user.roles.includes('SUPER_ADMIN'))))
+}
+
+function hasPermission(permissionCode, user = getUser()) {
+  if (!permissionCode) return false
+  if (isSuperAdmin(user)) return true
+  return Boolean(user && Array.isArray(user.permissions) && user.permissions.includes(permissionCode))
+}
+
+function hasAnyPermission(permissionCodes, user = getUser()) {
+  return Array.isArray(permissionCodes) && permissionCodes.some((code) => hasPermission(code, user))
+}
+
 module.exports = {
   getToken,
   setToken,
   getUser,
   setUser,
-  clearAuth
+  clearAuth,
+  isSuperAdmin,
+  hasPermission,
+  hasAnyPermission
 }

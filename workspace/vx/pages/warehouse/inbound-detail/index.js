@@ -16,6 +16,7 @@ Page({
     inboundId: '',
     detail: null,
     lines: [],
+    canConfirm: false,
     loading: false,
     error: '',
     lookups: null
@@ -28,6 +29,7 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({ canConfirm: auth.hasPermission('wms:inbound-order:confirm') })
     if (this.data.inboundId && !this.data.loading) this.loadDetail()
   },
 
@@ -86,6 +88,7 @@ Page({
   },
 
   confirmOrder() {
+    if (!guard.requirePermission('wms:inbound-order:confirm')) return
     wx.showModal({
       title: '确认入库',
       content: '确认该入库单已完成实物入库？',

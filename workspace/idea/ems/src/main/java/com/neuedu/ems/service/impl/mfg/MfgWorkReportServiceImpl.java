@@ -12,6 +12,8 @@ import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgWorkReportService;
+import com.neuedu.ems.service.sys.DataScopeService;
+import com.neuedu.ems.exception.DataScopeAccessDeniedException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,9 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired(required = false)
+    private DataScopeService dataScopeService;
 
     /**
      * 分页查询生产报工，支持编号、任务、人员、工位和审核状态筛选。
@@ -81,7 +86,14 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         LambdaQueryWrapper<MfgWorkReport> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(MfgWorkReport::getReportId, reportId)
                 .eq(MfgWorkReport::getDeletedFlag, 0);
-        return baseMapper.selectOne(queryWrapper);
+        applyDataScope(queryWrapper);
+        MfgWorkReport report = baseMapper.selectOne(queryWrapper);
+        if (report == null && dataScopeService != null && dataScopeService.isRestricted()
+                && baseMapper.selectCount(new LambdaQueryWrapper<MfgWorkReport>()
+                .eq(MfgWorkReport::getReportId, reportId).eq(MfgWorkReport::getDeletedFlag, 0)) > 0) {
+            throw new DataScopeAccessDeniedException();
+        }
+        return report;
     }
 
     /**
@@ -91,6 +103,9 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
      */
     @Override
     public boolean saveWorkReport(MfgWorkReport workReport) {
+        if (dataScopeService != null) {
+            dataScopeService.assertCanWriteWorkReport(workReport);
+        }
         prepareWorkReport(workReport);
         return baseMapper.insert(workReport) > 0;
     }
@@ -180,9 +195,10 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         workReport.setAuditStatus(SUBMITTED_STATUS);
         Long reportId = saveWorkReportFull(workReport, materials);
         LocalDateTime now = LocalDateTime.now();
+        Long currentUserId = currentUserId(workReport.getCreatedBy());
         insertStatusChangeLog(reportId, oldStatus, SUBMITTED_STATUS, "MFG_WORK_REPORT", "SUBMIT_WORK_REPORT",
-                workReport.getOperatorId(), workReport.getRemark(), now);
-        insertOperationLog(reportId, "SUBMIT_WORK_REPORT", "mfg_work_report", workReport.getOperatorId(), workReport.getRemark(), now);
+                currentUserId, workReport.getRemark(), now);
+        insertOperationLog(reportId, "SUBMIT_WORK_REPORT", "mfg_work_report", currentUserId, workReport.getRemark(), now);
         return reportId;
     }
 
@@ -238,7 +254,19 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
                 .eq(StringUtils.hasText(auditStatus), MfgWorkReport::getAuditStatus, auditStatus)
                 .orderByDesc(MfgWorkReport::getReportTime)
                 .orderByDesc(MfgWorkReport::getCreatedTime);
+        applyDataScope(queryWrapper);
         return queryWrapper;
+    }
+
+    private void applyDataScope(LambdaQueryWrapper<MfgWorkReport> queryWrapper) {
+        if (dataScopeService != null) {
+            dataScopeService.applyWorkReportScope(queryWrapper);
+        }
+    }
+
+    private Long currentUserId(Long fallbackUserId) {
+        Long currentUserId = dataScopeService == null ? null : dataScopeService.currentUserId();
+        return currentUserId == null ? fallbackUserId : currentUserId;
     }
 
     /**

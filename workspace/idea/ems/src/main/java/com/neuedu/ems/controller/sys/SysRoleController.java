@@ -5,6 +5,7 @@ import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.common.ResultData;
 import com.neuedu.ems.entity.sys.SysRole;
 import com.neuedu.ems.service.sys.SysRoleService;
+import com.neuedu.ems.service.sys.SysRoleMenuService;
 import com.neuedu.ems.util.ExcelExportUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import lombok.Data;
 
 @RestController
 @RequestMapping("/api/sys/role")
@@ -26,6 +28,9 @@ public class SysRoleController {
 
     @Autowired
     private SysRoleService sysRoleService;
+
+    @Autowired
+    private SysRoleMenuService sysRoleMenuService;
 
     @Autowired
     private ExcelExportUtil excelExportUtil;
@@ -79,6 +84,16 @@ public class SysRoleController {
     }
 
     /**
+     * 替换角色的全部菜单和操作权限。
+     */
+    @PutMapping("/{roleId}/menus")
+    public ResultData replaceMenus(@PathVariable("roleId") Long roleId,
+                                   @RequestBody AssignMenusRequest request) {
+        boolean flag = sysRoleMenuService.replaceRoleMenus(roleId, request.getMenuIds());
+        return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.PARAM_ERROR);
+    }
+
+    /**
      * 导出角色 Excel。
      */
     @GetMapping("/excel")
@@ -87,5 +102,10 @@ public class SysRoleController {
                       @RequestParam(required = false) String status) {
         List<SysRole> roles = sysRoleService.listRoles(keyword, status);
         excelExportUtil.exportExcel(response, roles, SysRole.class, "角色列表", "角色列表");
+    }
+
+    @Data
+    public static class AssignMenusRequest {
+        private List<Long> menuIds;
     }
 }

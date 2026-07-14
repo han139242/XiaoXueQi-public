@@ -135,6 +135,21 @@ public class AiServiceImpl implements AiService {
         return invokeModel(prompt);
     }
 
+    @Override
+    public AiResponse getScheduleScenarioAdvice(Map<String, Object> scheduleSummary) {
+        if (scheduleSummary == null || scheduleSummary.isEmpty()) {
+            throw new AiServiceException("排程方案汇总不能为空");
+        }
+        ensureAvailable();
+        JsonNode sanitizedSummary = sanitizeContext(scheduleSummary);
+        Map<String, Object> businessData = new LinkedHashMap<>();
+        businessData.put("scheduleScenario", sanitizedSummary);
+        String prompt = buildPrompt("基于已计算排程方案的脱敏汇总，说明产线瓶颈、交期延期和资源冲突风险",
+                "请只根据方案汇总和冲突原因给出风险说明与人工处理建议，不得调整或确认方案。",
+                "production-scheduling", JsonNodeFactory.instance.objectNode(), businessData);
+        return invokeModel(prompt);
+    }
+
     private void validateQuestion(AiQuestion request) {
         if (request == null || !StringUtils.hasText(request.getQuestion())) {
             throw new AiServiceException("问题不能为空");

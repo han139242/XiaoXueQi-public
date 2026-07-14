@@ -6,6 +6,9 @@ target/
 dist/
 build/
 *.class
+tmp/
+__pycache__/
+*.py[cod]
 
 # IDE and local tool settings
 .idea/

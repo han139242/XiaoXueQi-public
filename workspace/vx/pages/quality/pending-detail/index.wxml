@@ -56,7 +56,7 @@
 
     <view wx:if="{{!readonly}}" class="detail-actions">
       <button class="secondary-button" bindtap="goBack">返回</button>
-      <button class="primary-button" bindtap="openInspectionForm">录入检验记录</button>
+      <button wx:if="{{canSubmit}}" class="primary-button" bindtap="openInspectionForm">录入检验记录</button>
     </view>
   </view>
 </view>

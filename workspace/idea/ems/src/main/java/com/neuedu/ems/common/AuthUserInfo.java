@@ -13,6 +13,8 @@ public record AuthUserInfo(
         String status,
         LocalDateTime lastLoginTime,
         List<String> roles,
-        List<String> permissions
+        List<String> permissions,
+        boolean superAdmin,
+        String dataScope
 ) {
 }

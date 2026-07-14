@@ -20,6 +20,7 @@ import {
 import { getResourceConfig } from '@/config/resources'
 import { canUseResourceMockFallback, clearReferenceOptions, createPreviewRows, loadReferenceOptions } from '@/utils/resource-options'
 import { isFrameworkPreview } from '@/utils/auth'
+import { hasPermission, hasRequestPermission, resourcePermission } from '@/utils/permission'
 
 const props = defineProps({
   resourceKey: { type: String, required: true }
@@ -59,7 +60,16 @@ const uploadOpen = ref(false)
 const uploadFile = ref(null)
 const uploadMeta = reactive({ bizType: '', bizId: null })
 
-const permissions = computed(() => ({ create: true, edit: true, delete: true, export: true, ...config.value.permissions }))
+const permissions = computed(() => {
+  const configured = { create: true, edit: true, delete: true, export: true, ...config.value.permissions }
+  return {
+    create: configured.create && hasRequestPermission('post', resourceUrl(config.value.createPath)),
+    edit: configured.edit && hasRequestPermission('put', resourceUrl(config.value.updatePath)),
+    delete: configured.delete && hasRequestPermission('delete', `${config.value.baseUrl}/_id_`),
+    export: configured.export && hasRequestPermission('get', `${config.value.baseUrl}/excel`)
+  }
+})
+const visibleGlobalActions = computed(() => (config.value.globalActions || []).filter((action) => canUseAction(action)))
 const tableFields = computed(() => config.value.fields.filter((item) => item.table !== false))
 const visibleTableFields = computed(() => tableFields.value.filter((item) => columnVisibility[item.prop] !== false))
 const visibleFilters = computed(() => filterExpanded.value ? config.value.filters : config.value.filters.slice(0, 4))
@@ -93,13 +103,19 @@ const dataSourceLabel = computed(() => {
   if (dataMode.value === 'mock') return '本地测试数据'
   return '实时接口'
 })
+const pulseRows = computed(() => config.value.treeEndpoint ? flattenTree(rows.value) : rows.value)
 const pagePulse = computed(() => {
-  const metrics = [{ key: 'records', label: '当前结果', value: total.value, type: 'primary' }]
+  const metrics = [{
+    key: 'records',
+    label: config.value.treeEndpoint ? '全部节点' : '当前页',
+    value: pulseRows.value.length,
+    type: 'primary'
+  }]
   if (stateField.value) {
     return metrics.concat(stateField.value.options.map((item) => ({
       key: `${stateField.value.prop}-${item.value}`,
       label: item.label,
-      value: rows.value.filter((row) => String(row[stateField.value.prop]) === String(item.value)).length,
+      value: pulseRows.value.filter((row) => String(row[stateField.value.prop]) === String(item.value)).length,
       type: item.type || 'info'
     })))
   }
@@ -107,7 +123,7 @@ const pagePulse = computed(() => {
   return metrics.concat(quantityFields.map((item) => ({
     key: item.prop,
     label: item.label,
-    value: rows.value.reduce((sum, row) => sum + Number(row[item.prop] || 0), 0),
+    value: pulseRows.value.reduce((sum, row) => sum + Number(row[item.prop] || 0), 0),
     type: 'info'
   })))
 })
@@ -149,6 +165,11 @@ function formatMetric(value) {
 
 function cleanParams(source) {
   return Object.fromEntries(Object.entries(source).filter(([, value]) => value !== '' && value !== null && value !== undefined))
+}
+
+function resourceUrl(path = '') {
+  if (!path) return config.value.baseUrl
+  return `${config.value.baseUrl}${String(path).startsWith('/') ? path : `/${path}`}`
 }
 
 function applyLocalRows(mode = 'mock') {
@@ -460,7 +481,20 @@ function saveBlob(response, fallbackName) {
 }
 
 function visibleActions(row) {
-  return (config.value.actions || []).filter((item) => !item.visible || item.visible(row))
+  return (config.value.actions || []).filter((item) => (!item.visible || item.visible(row)) && canUseAction(item, row))
+}
+
+function visibleRelations(row) {
+  return (config.value.relations || []).filter((relation) => {
+    const relationPermission = resourcePermission(relation.resource, 'view')
+    return hasPermission(relationPermission) && (!relation.visible || relation.visible(row))
+  })
+}
+
+function canUseAction(action, row = null) {
+  const url = action.url || (typeof action.path === 'function' ? action.path(row) : action.path)
+  const method = action.method || (action.kind === 'upload' ? 'post' : 'get')
+  return Boolean(url) && hasRequestPermission(method, url)
 }
 
 function canEditRow(row) {
@@ -477,6 +511,10 @@ function rowLockReason(row, action) {
 }
 
 async function openAction(action, row = null) {
+  if (!canUseAction(action, row)) {
+    ElMessage.warning('当前账号没有执行该操作的权限')
+    return
+  }
   if (action.kind === 'download') {
     if (localDataMode.value) return ElMessage.info('本地测试数据不下载真实文件')
     try {
@@ -511,6 +549,18 @@ async function openAction(action, row = null) {
     item.prop,
     item.defaultValue ?? (item.multiple ? [] : item.type === 'number' ? undefined : '')
   ]))
+  if (action.preload && !localDataMode.value) {
+    submitting.value = true
+    try {
+      const result = await getResourceList(action.preload.path(row))
+      Object.assign(actionModel.value, action.preload.map(result?.data, row))
+    } catch {
+      currentAction.value = null
+      return
+    } finally {
+      submitting.value = false
+    }
+  }
   if (action.fields?.length) {
     actionOpen.value = true
     await nextTick()
@@ -654,7 +704,7 @@ onMounted(initialize)
         <div class="toolbar-primary">
           <el-button v-if="permissions.create" type="primary" @click="openCreate"><AppIcon name="plus" :size="16" />新增</el-button>
           <el-button
-            v-for="action in config.globalActions || []"
+            v-for="action in visibleGlobalActions"
             :key="action.key"
             :type="action.type || 'default'"
             :plain="action.type !== 'primary'"
@@ -727,14 +777,14 @@ onMounted(initialize)
               <el-tooltip v-if="permissions.edit" :content="canEditRow(scope.row) ? '编辑' : rowLockReason(scope.row, 'edit')" placement="top">
                 <span class="row-action-control"><el-button link type="primary" aria-label="编辑" :disabled="!canEditRow(scope.row)" @click="openEdit(scope.row)"><AppIcon name="edit" :size="16" /></el-button></span>
               </el-tooltip>
-              <el-dropdown v-if="visibleActions(scope.row).length || config.relations?.length" trigger="click">
+              <el-dropdown v-if="visibleActions(scope.row).length || visibleRelations(scope.row).length" trigger="click">
                 <el-button link type="primary">更多<AppIcon name="chevron" :size="13" /></el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item v-for="action in visibleActions(scope.row)" :key="action.key" @click="openAction(action, scope.row)">
                       <AppIcon :name="action.icon || 'activity'" :size="15" />{{ action.label }}
                     </el-dropdown-item>
-                    <el-dropdown-item v-for="relation in config.relations || []" :key="relation.key" @click="openRelation(relation, scope.row)">
+                    <el-dropdown-item v-for="relation in visibleRelations(scope.row)" :key="relation.key" @click="openRelation(relation, scope.row)">
                       <AppIcon name="link" :size="15" />{{ relation.title }}
                     </el-dropdown-item>
                   </el-dropdown-menu>
@@ -859,7 +909,8 @@ onMounted(initialize)
 .pulse-caption span { color:var(--mes-text); font-size:12px; font-weight:650; }
 .pulse-caption small { margin-top:3px; color:var(--mes-text-muted); font-size:9px; white-space:nowrap; }
 .pulse-metrics { display:flex; min-width:0; align-items:stretch; overflow-x:auto; }
-.pulse-metric { --pulse-color:var(--mes-text-muted); display:grid; min-width:112px; grid-template-columns:7px minmax(0,1fr); grid-template-rows:auto auto; align-content:center; column-gap:8px; padding:8px 14px; border-right:1px solid var(--mes-border); }
+.pulse-metric { --pulse-color:var(--mes-text-muted); display:grid; min-width:112px; flex:1 0 112px; grid-template-columns:7px minmax(0,1fr); grid-template-rows:auto auto; align-content:center; column-gap:8px; padding:8px 14px; border-right:1px solid var(--mes-border); }
+.pulse-metric:last-child { border-right:0; }
 .pulse-metric i { width:7px; height:7px; grid-row:1/3; align-self:center; border-radius:50%; background:var(--pulse-color); box-shadow:0 0 0 3px color-mix(in srgb,var(--pulse-color) 14%,transparent); }
 .pulse-metric span { color:var(--mes-text-muted); font-size:9px; white-space:nowrap; }
 .pulse-metric strong { margin-top:1px; color:var(--mes-text); font-size:16px; font-variant-numeric:tabular-nums; }

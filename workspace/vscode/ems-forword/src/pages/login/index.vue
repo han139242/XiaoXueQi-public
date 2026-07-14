@@ -3,7 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AppIcon from '@/components/common/AppIcon.vue'
-import { login } from '@/api/auth'
+import { getCurrentUserInfo, login } from '@/api/auth'
 import shuttlecockImage from '@/assets/login-background-blue.png'
 import {
   setCurrentUser,
@@ -46,7 +46,8 @@ async function handleLogin() {
       password: form.password
     })
     setToken(result.token, form.remember)
-    setCurrentUser(result.data)
+    const userInfo = await getCurrentUserInfo()
+    setCurrentUser(userInfo.data || result.data)
     ElMessage.success('登录成功')
     await router.replace(resolveTarget())
   } catch {

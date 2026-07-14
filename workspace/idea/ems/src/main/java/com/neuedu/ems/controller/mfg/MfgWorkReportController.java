@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -135,9 +136,11 @@ public class MfgWorkReportController {
      * @return 操作结果
      */
     @PutMapping("/{reportId}/audit")
-    public ResultData audit(@PathVariable("reportId") Long reportId, @RequestBody Map<String, Object> request) {
+    public ResultData audit(@PathVariable("reportId") Long reportId,
+                            @RequestAttribute("userId") Long userId,
+                            @RequestBody Map<String, Object> request) {
         boolean flag = mfgWorkReportService.auditWorkReport(reportId, getString(request, "auditResult"),
-                getString(request, "auditComment"), getLong(request, "operatorId"));
+                getString(request, "auditComment"), userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 

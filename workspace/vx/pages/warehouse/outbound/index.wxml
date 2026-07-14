@@ -15,7 +15,7 @@
       </view>
       <view class="record-footer">
         <view class="card-link"><text>查看详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view>
-        <view wx:if="{{item.auditStatus === 'SUBMITTED'}}" class="mini-action" data-id="{{item.outboundId}}" catchtap="confirmOrder">确认出库</view>
+        <view wx:if="{{canConfirm && item.auditStatus === 'SUBMITTED'}}" class="mini-action" data-id="{{item.outboundId}}" catchtap="confirmOrder">确认出库</view>
       </view>
     </view>
     <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>

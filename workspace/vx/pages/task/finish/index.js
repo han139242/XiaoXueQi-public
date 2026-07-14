@@ -54,6 +54,7 @@ Page({
   },
 
   submit() {
+    if (!guard.requirePermission('mfg:task:finish')) return
     if (this.data.submitting || !this.data.task) return
     if (!['RUNNING', 'PAUSED'].includes(this.data.task.status)) {
       this.setData({ error: '当前任务状态不允许完成' })

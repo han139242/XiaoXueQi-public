@@ -29,7 +29,7 @@
   <view class="defect-tools">
     <view class="tool-button tool-button--light" bindtap="showSearchTip"><app-icon name="search" size="30"></app-icon></view>
     <view class="tool-button tool-button--light" bindtap="refreshList"><app-icon name="refresh-cw" size="30"></app-icon></view>
-    <view class="tool-button tool-button--light" bindtap="openForm"><app-icon name="notebook-pen" size="34"></app-icon></view>
+    <view wx:if="{{canCreate}}" class="tool-button tool-button--light" bindtap="openForm"><app-icon name="notebook-pen" size="34"></app-icon></view>
     <view class="tool-button tool-button--primary" bindtap="refreshList"><app-icon name="list-checks" size="34" inverse></app-icon></view>
   </view>
 </view>

@@ -14,6 +14,7 @@ import { createDashboardPreview } from '@/config/dashboard-preview'
 import { getCurrentUser, isFrameworkPreview } from '@/utils/auth'
 import { openAiAssistant } from '@/utils/app-events'
 import { activeTheme } from '@/utils/theme'
+import { hasPermission } from '@/utils/permission'
 
 const router = useRouter()
 const loading = ref(false)
@@ -25,6 +26,8 @@ const trend = ref([])
 const quality = ref({})
 const equipment = ref({})
 const currentUser = getCurrentUser()
+const canUseAi = computed(() => hasPermission('ai:assistant:use'))
+const canOpenBigScreen = computed(() => hasPermission('dashboard:big-screen:view'))
 
 const previewPayload = createDashboardPreview()
 
@@ -337,11 +340,11 @@ onMounted(loadDashboard)
             <AppIcon name="refresh" :size="17" />
           </el-button>
         </el-tooltip>
-        <el-button class="ai-insight-command" @click="openAiAssistant">
+        <el-button v-if="canUseAi" class="ai-insight-command" @click="openAiAssistant">
           <AppIcon name="bot" :size="16" />
           AI 解读
         </el-button>
-        <el-button type="primary" plain @click="router.push('/big-screen/production')">
+        <el-button v-if="canOpenBigScreen" type="primary" plain @click="router.push('/big-screen/production')">
           <AppIcon name="monitor" :size="16" />
           生产大屏
         </el-button>

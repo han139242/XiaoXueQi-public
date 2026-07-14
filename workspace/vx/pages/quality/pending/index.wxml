@@ -17,7 +17,7 @@
         <view><text>创建时间</text><text>{{item.createdTimeText}}</text></view>
       </view>
       <view class="inspection-actions">
-        <view class="action-record" data-id="{{item.inspectionId}}" catchtap="openInspectionForm"><app-icon name="notebook-pen" size="28"></app-icon><text>录入检验记录</text></view>
+        <view wx:if="{{canSubmit}}" class="action-record" data-id="{{item.inspectionId}}" catchtap="openInspectionForm"><app-icon name="notebook-pen" size="28"></app-icon><text>录入检验记录</text></view>
       </view>
     </view>
     <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>

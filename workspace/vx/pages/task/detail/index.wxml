@@ -25,9 +25,9 @@
         <view class="progress-quantity"><text>良品数: {{item.qualifiedQuantity}}</text><text>不良品数: {{item.defectQuantity == null ? 0 : item.defectQuantity}}</text></view>
         <view class="progress-actions">
           <button class="detail-action" data-id="{{item.taskId}}" bindtap="openProgressDetail">详情</button>
-          <button wx:if="{{item.status === 'WAIT_START'}}" class="primary-action" loading="{{submitting}}" disabled="{{submitting}}" data-id="{{item.taskId}}" bindtap="startTask">开工</button>
-          <button wx:elif="{{item.status === 'RUNNING'}}" class="primary-action" data-id="{{item.taskId}}" bindtap="openReportForm">报工</button>
-          <button wx:elif="{{item.status === 'PAUSED'}}" class="primary-action" data-id="{{item.taskId}}" bindtap="openFinish">完工</button>
+          <button wx:if="{{canStart && item.status === 'WAIT_START'}}" class="primary-action" loading="{{submitting}}" disabled="{{submitting}}" data-id="{{item.taskId}}" bindtap="startTask">开工</button>
+          <button wx:elif="{{canReport && item.status === 'RUNNING'}}" class="primary-action" data-id="{{item.taskId}}" bindtap="openReportForm">报工</button>
+          <button wx:elif="{{canFinish && item.status === 'PAUSED'}}" class="primary-action" data-id="{{item.taskId}}" bindtap="openFinish">完工</button>
         </view>
       </view>
     </view>
@@ -45,7 +45,7 @@
           <text class="report-count">良品 {{item.qualifiedQuantity}} / 不良 {{item.defectQuantity}}</text>
         </view>
       </view>
-      <button wx:if="{{task.status === 'RUNNING' || task.status === 'PAUSED'}}" class="finish-action" data-id="{{task.taskId}}" bindtap="openFinish">完成当前任务</button>
+      <button wx:if="{{canFinish && (task.status === 'RUNNING' || task.status === 'PAUSED')}}" class="finish-action" data-id="{{task.taskId}}" bindtap="openFinish">完成当前任务</button>
     </view>
   </block>
 </view>

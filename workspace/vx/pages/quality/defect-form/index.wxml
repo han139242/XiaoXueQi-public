@@ -45,6 +45,6 @@
   <view class="fixed-actions defect-form-actions">
     <button class="danger-button form-action-button" disabled="{{submitting}}" bindtap="removeDraft"><app-icon name="trash-2" size="30" inverse></app-icon><text>删除</text></button>
     <button class="reset-button form-action-button" disabled="{{submitting}}" bindtap="resetForm"><app-icon name="refresh-cw" size="30" inverse></app-icon><text>重置</text></button>
-    <button class="primary-button form-action-button" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit"><app-icon name="circle-check-big" size="30" inverse></app-icon><text>{{submitting ? '提交中' : '提交'}}</text></button>
+    <button wx:if="{{canSave}}" class="primary-button form-action-button" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit"><app-icon name="circle-check-big" size="30" inverse></app-icon><text>{{submitting ? '提交中' : '提交'}}</text></button>
   </view>
 </view>

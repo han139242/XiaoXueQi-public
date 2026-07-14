@@ -1,4 +1,5 @@
 const guard = require('../../../utils/guard')
+const auth = require('../../../utils/auth')
 const equipmentApi = require('../../../api/equipment')
 const lookupApi = require('../../../api/lookup')
 const format = require('../../../utils/format')
@@ -17,6 +18,7 @@ Page({
     equipmentId: '',
     detail: null,
     rawDetail: null,
+    canUpdate: false,
     loading: false,
     error: '',
     lookups: null
@@ -29,6 +31,7 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({ canUpdate: auth.hasPermission('eam:equipment:update') })
     if (this.data.equipmentId && !this.data.loading) this.loadDetail()
   },
 
@@ -77,6 +80,7 @@ Page({
   },
 
   updateStatus(event) {
+    if (!guard.requirePermission('eam:equipment:update')) return
     const status = event.currentTarget.dataset.status
     const labelMap = {
       RUNNING: '标记运行',

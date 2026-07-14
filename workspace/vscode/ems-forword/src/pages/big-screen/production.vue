@@ -106,6 +106,9 @@ const scheduleRows = computed(() => schedulePlans.value
   .sort((a, b) => dayjs(a.plannedStartTime).valueOf() - dayjs(b.plannedStartTime).valueOf()))
 const visibleScheduleRows = computed(() => scheduleRows.value.slice(0, 5))
 const expandedScheduleRows = computed(() => scheduleRows.value.slice(0, 10))
+const scheduleModalStyle = computed(() => ({
+  '--schedule-modal-height': `${Math.min(940, Math.max(560, 222 + expandedScheduleRows.value.length * 78))}px`
+}))
 const scheduleWindow = computed(() => {
   if (!scheduleRows.value.length) {
     return { start: null, end: null, duration: 0, ticks: [] }
@@ -351,6 +354,16 @@ function scheduleBarTitle(item) {
     `${formatNumber(item.plannedQuantity)} 件`,
     item.statusLabel
   ].join(' · ')
+}
+
+function formatScheduleTime(item) {
+  const start = dayjs(item.plannedStartTime)
+  const end = dayjs(item.plannedEndTime)
+  if (!start.isValid() || !end.isValid()) return '--'
+  if (start.isSame(end, 'day')) {
+    return `${start.format('MM-DD HH:mm')} - ${end.format('HH:mm')}`
+  }
+  return `${start.format('MM-DD HH:mm')} - ${end.format('MM-DD HH:mm')}`
 }
 
 async function loadProductionSchedule() {
@@ -637,7 +650,7 @@ onBeforeUnmount(() => {
                 <div v-for="item in visibleScheduleRows" :key="item.planId" class="schedule-row">
                   <div class="schedule-row-meta">
                     <strong>{{ item.lineName }}</strong>
-                    <span>{{ item.planNo }}</span>
+                    <span>{{ item.planNo }} · {{ item.statusLabel }}</span>
                   </div>
                   <div class="schedule-row-track">
                     <span
@@ -648,7 +661,6 @@ onBeforeUnmount(() => {
                     >
                       <b>{{ item.orderNo }}</b>
                       <small>{{ item.productName }} · {{ formatNumber(item.plannedQuantity) }} 件</small>
-                      <em>{{ item.statusLabel }}</em>
                     </span>
                   </div>
                 </div>
@@ -865,7 +877,7 @@ onBeforeUnmount(() => {
       </main>
 
       <div v-if="scheduleExpanded" class="schedule-modal-backdrop" @click.self="closeSchedule">
-        <section class="schedule-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
+        <section class="schedule-modal" :style="scheduleModalStyle" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
           <header class="schedule-modal-header">
             <div>
               <span>PRODUCTION SCHEDULE</span>
@@ -897,6 +909,7 @@ onBeforeUnmount(() => {
                 <div class="schedule-row-meta">
                   <strong>{{ item.lineName }}</strong>
                   <span>{{ item.planNo }} · {{ item.statusLabel }}</span>
+                  <small>{{ formatScheduleTime(item) }}</small>
                 </div>
                 <div class="schedule-row-track">
                   <span
@@ -907,7 +920,6 @@ onBeforeUnmount(() => {
                   >
                     <b>{{ item.orderNo }}</b>
                     <small>{{ item.productName }} · {{ formatNumber(item.plannedQuantity) }} 件</small>
-                    <em>{{ dayjs(item.plannedStartTime).format('MM-DD HH:mm') }} - {{ dayjs(item.plannedEndTime).format('MM-DD HH:mm') }}</em>
                   </span>
                 </div>
               </div>
@@ -1271,7 +1283,7 @@ onBeforeUnmount(() => {
 .schedule-axis,
 .schedule-row {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: 170px minmax(0, 1fr);
 }
 
 .schedule-axis {
@@ -1342,9 +1354,9 @@ onBeforeUnmount(() => {
   height: 48px;
   min-width: 48px;
   align-content: center;
-  gap: 3px;
+  gap: 2px;
   overflow: hidden;
-  padding: 5px 64px 5px 10px;
+  padding: 5px 8px;
   color: #eef7ff;
   border: 1px solid rgb(117 174 215 / 52%);
   border-radius: 4px;
@@ -1358,18 +1370,8 @@ onBeforeUnmount(() => {
 .schedule-bar.is-closed { border-color: rgb(130 149 164 / 48%); background: #485765; }
 .schedule-bar b,
 .schedule-bar small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.schedule-bar b { font-size: 16px; font-weight: 700; }
-.schedule-bar small { color: rgb(239 247 252 / 78%); font-size: 13px; }
-.schedule-bar em {
-  position: absolute;
-  top: 50%;
-  right: 9px;
-  color: #fff;
-  font-size: 13px;
-  font-style: normal;
-  font-weight: 650;
-  transform: translateY(-50%);
-}
+.schedule-bar b { font-size: 15px; font-weight: 700; }
+.schedule-bar small { color: rgb(239 247 252 / 78%); font-size: 12px; }
 
 .schedule-empty {
   display: grid;
@@ -1416,7 +1418,8 @@ onBeforeUnmount(() => {
 .schedule-modal {
   display: grid;
   width: 1820px;
-  height: 980px;
+  height: var(--schedule-modal-height, 760px);
+  max-height: calc(100% - 72px);
   grid-template-rows: 88px minmax(0, 1fr) 52px;
   overflow: hidden;
   border: 1px solid #397797;
@@ -1456,22 +1459,24 @@ onBeforeUnmount(() => {
 .modal-close:hover { color: #fff; border-color: #55a9ce; background: #173b55; }
 .expanded-board {
   height: auto;
+  min-height: 0;
+  overflow-y: auto;
   padding: 16px 24px;
   cursor: default;
 }
 .expanded-board .schedule-axis,
-.expanded-board .schedule-row { grid-template-columns: 200px minmax(0, 1fr); }
+.expanded-board .schedule-row { grid-template-columns: 260px minmax(0, 1fr); }
 .expanded-board .schedule-axis { height: 50px; font-size: 18px; }
 .expanded-board .schedule-axis > span { padding-left: 6px; }
 .expanded-board .schedule-axis-track b { font-size: 18px; }
-.expanded-board .schedule-row { height: 70px; }
-.expanded-board .schedule-row-meta { padding-left: 6px; }
+.expanded-board .schedule-row { height: 78px; }
+.expanded-board .schedule-row-meta { gap: 3px; padding-left: 6px; }
 .expanded-board .schedule-row-meta strong { font-size: 20px; }
 .expanded-board .schedule-row-meta span { font-size: 16px; }
-.expanded-board .schedule-bar { top: 9px; height: 52px; padding: 6px 190px 6px 14px; }
+.expanded-board .schedule-row-meta small { color: #6f93a9; font-size: 14px; white-space: nowrap; }
+.expanded-board .schedule-bar { top: 10px; height: 58px; padding: 7px 14px; }
 .expanded-board .schedule-bar b { font-size: 19px; }
 .expanded-board .schedule-bar small { font-size: 16px; }
-.expanded-board .schedule-bar em { right: 14px; font-size: 16px; }
 .schedule-modal-footer {
   display: flex;
   align-items: center;

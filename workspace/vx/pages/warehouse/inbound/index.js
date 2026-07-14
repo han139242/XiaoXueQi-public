@@ -25,6 +25,7 @@ Page({
     size: 10,
     loading: false,
     finished: false,
+    canConfirm: false,
     error: '',
     lookups: null
   },
@@ -35,6 +36,7 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({ canConfirm: auth.hasPermission('wms:inbound-order:confirm') })
     if (!this.data.loading) this.loadPage(true)
   },
 
@@ -93,6 +95,7 @@ Page({
   },
 
   confirmOrder(event) {
+    if (!guard.requirePermission('wms:inbound-order:confirm')) return
     const inboundId = event.currentTarget.dataset.id
     wx.showModal({
       title: '确认入库',

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/common/AppIcon.vue'
-import { getNavigationItems, navigationGroups } from '@/config/navigation'
+import { getNavigationGroups, getNavigationItems } from '@/config/navigation'
 import { openAiAssistant } from '@/utils/app-events'
 
 const props = defineProps({
@@ -13,7 +13,8 @@ const props = defineProps({
 const emit = defineEmits(['navigate'])
 const route = useRoute()
 const router = useRouter()
-const navigationItems = getNavigationItems()
+const navigationItems = computed(() => getNavigationItems())
+const navigationGroups = computed(() => getNavigationGroups())
 const activePath = computed(() => route.path)
 const menuCollapsed = computed(() => props.collapsed && !props.mobile)
 
@@ -22,7 +23,7 @@ function itemIndex(item) {
 }
 
 function handleSelect(index) {
-  const item = navigationItems.find((candidate) => itemIndex(candidate) === index)
+  const item = navigationItems.value.find((candidate) => itemIndex(candidate) === index)
   if (!item) return
 
   if (item.action === 'ai') {
@@ -52,6 +53,7 @@ function handleSelect(index) {
         :default-active="activePath"
         :collapse="menuCollapsed"
         :collapse-transition="false"
+        unique-opened
         @select="handleSelect"
       >
         <template v-for="group in navigationGroups" :key="group.label">
