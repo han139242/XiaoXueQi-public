@@ -1,0 +1,42 @@
+<view class="filter-shell quality-filter-shell">
+  <view class="quality-filter-bar">
+    <view class="quality-filter {{keyword ? 'quality-filter--active' : ''}}" data-field="keyword" bindtap="toggleFilter"><text>{{keyword || '检验单号'}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="quality-filter {{filters.status ? 'quality-filter--active' : ''}}" data-field="status" bindtap="toggleFilter"><text>{{statusOptions[statusIndex].label}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="quality-filter {{filters.inspectionResult ? 'quality-filter--active' : ''}}" data-field="result" bindtap="toggleFilter"><text>{{resultOptions[resultIndex].label}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+  </view>
+  <view wx:if="{{activeFilter === 'keyword'}}" class="quality-dropdown keyword-dropdown">
+    <view class="keyword-input"><app-icon name="search" size="28" muted></app-icon><input value="{{keyword}}" placeholder="输入检验单号" confirm-type="search" focus bindinput="handleKeyword" bindconfirm="submitKeyword" /><view wx:if="{{keyword}}" class="keyword-clear" bindtap="clearKeyword">清除</view></view>
+    <button class="keyword-submit" bindtap="submitKeyword">查询</button>
+  </view>
+  <view wx:elif="{{activeFilter}}" class="quality-dropdown">
+    <view wx:for="{{dropdownOptions}}" wx:key="value" class="dropdown-option {{item.selected ? 'dropdown-option--active' : ''}}" data-index="{{item.index}}" bindtap="selectFilter"><text>{{item.label}}</text><app-icon wx:if="{{item.selected}}" name="circle-check-big" size="28"></app-icon></view>
+  </view>
+</view>
+
+<view class="page quality-record-page">
+  <loading-state wx:if="{{loading && list.length === 0}}"></loading-state>
+  <empty-state wx:elif="{{error && list.length === 0}}" title="质检记录加载失败" description="{{error}}" action-text="重试" bind:action="search"></empty-state>
+  <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无质检记录" description="当前筛选条件下没有记录"></empty-state>
+
+  <view wx:else class="record-list">
+    <view wx:for="{{list}}" wx:key="inspectionId" class="record-card" data-id="{{item.inspectionId}}" bindtap="openDetail">
+      <view class="record-header">
+        <view class="record-title"><view class="title-marker"></view><text class="record-number" selectable>{{item.inspectionNo || ('检验单 ' + item.inspectionId)}}</text></view>
+        <status-tag text="{{item.statusText}}" tone="{{item.statusTone}}"></status-tag>
+      </view>
+      <view class="quality-record-fields">
+        <view><text>检验类型</text><text>{{item.typeText}}</text></view>
+        <view><text>检验结果</text><text class="result-text result-text--{{item.resultTone}}">{{item.resultText}}</text></view>
+        <view><text>工单编号</text><text>{{item.workOrderLabel}}</text></view>
+        <view><text>任务编号</text><text>{{item.taskLabel}}</text></view>
+        <view><text>报工编号</text><text>{{item.reportLabel}}</text></view>
+        <view><text>质检员</text><text>{{item.inspectorLabel}}</text></view>
+        <view><text>更新时间</text><text>{{item.updatedTimeText}}</text></view>
+      </view>
+      <view class="record-footer"><text>查看记录详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view>
+    </view>
+    <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>
+    <view wx:elif="{{loading}}" class="list-footer">加载中</view>
+    <view wx:elif="{{finished}}" class="list-footer">已加载全部</view>
+  </view>
+</view>

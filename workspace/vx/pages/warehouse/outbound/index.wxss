@@ -1,0 +1,4 @@
+.warehouse-page { padding-top: 20rpx; }
+.module-fields > view { display: flex; justify-content: space-between; gap: 22rpx; padding: 8rpx 0; color: #7a848e; font-size: 25rpx; line-height: 1.45; }
+.module-fields > view text:last-child { min-width: 0; color: #202a36; text-align: right; overflow-wrap: anywhere; }
+.mini-action { display: flex; align-items: center; justify-content: center; min-width: 150rpx; height: 58rpx; padding: 0 18rpx; color: #176fbe; background: #e6f2fd; border-radius: 8rpx; font-size: 25rpx; }

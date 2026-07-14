@@ -1,0 +1,11 @@
+.detail-page { padding-top: 22rpx; background: #f4f6f8; }
+.detail-stack { display: flex; flex-direction: column; gap: 18rpx; }
+.detail-card { padding: 22rpx; background: #ffffff; border: 1rpx solid #e2e8ee; border-radius: 8rpx; }
+.subline { display: block; margin-top: 6rpx; color: #8a96a3; font-size: 24rpx; }
+.detail-fields > view { display: flex; justify-content: space-between; gap: 22rpx; padding: 9rpx 0; color: #7a848e; font-size: 26rpx; line-height: 1.45; }
+.detail-fields > view text:last-child { min-width: 0; color: #202a36; text-align: right; overflow-wrap: anywhere; }
+.remark-text { color: #3e4852; font-size: 27rpx; line-height: 1.55; overflow-wrap: anywhere; }
+.detail-actions { display: flex; align-items: stretch; gap: 18rpx; }
+.detail-actions button { flex: 1 1 0; min-width: 0; height: 78rpx; min-height: 78rpx; margin: 0; padding: 0 8rpx; border-radius: 8rpx; font-size: 28rpx; line-height: 78rpx; white-space: nowrap; }
+.idle-button { display: flex; align-items: center; justify-content: center; color: #ffffff; background: #42ae82; }
+.idle-button:active { background: #2f8b70; }

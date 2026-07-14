@@ -1,0 +1,4 @@
+.inventory-page { padding-top: 20rpx; }
+.inventory-fields { margin-top: 14rpx; }
+.inventory-fields > view { display: flex; justify-content: space-between; gap: 22rpx; padding: 8rpx 0; color: #7a848e; font-size: 25rpx; line-height: 1.45; }
+.inventory-fields > view text:last-child { min-width: 0; color: #202a36; text-align: right; overflow-wrap: anywhere; }

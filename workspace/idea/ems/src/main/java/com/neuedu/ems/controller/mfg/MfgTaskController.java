@@ -45,6 +45,8 @@ public class MfgTaskController {
      * @param workOrderId 工单ID，可选
      * @param operationId 工序ID，可选
      * @param stationId 工位ID，可选
+     * @param employeeId 已分配员工ID，可选
+     * @param sort 创建时间排序，可选值newest、oldest
      * @return 分页结果
      */
     @GetMapping("/page")
@@ -55,8 +57,10 @@ public class MfgTaskController {
                            @RequestParam(required = false) Long dispatchId,
                            @RequestParam(required = false) Long workOrderId,
                            @RequestParam(required = false) Long operationId,
-                           @RequestParam(required = false) Long stationId) {
-        Page<MfgTask> result = mfgTaskService.pageTasks(current, size, keyword, status, dispatchId, workOrderId, operationId, stationId);
+                           @RequestParam(required = false) Long stationId,
+                           @RequestParam(required = false) Long employeeId,
+                           @RequestParam(required = false) String sort) {
+        Page<MfgTask> result = mfgTaskService.pageTasks(current, size, keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort);
         return ResultData.success(ResultCode.SUCCESS, result);
     }
 
@@ -143,6 +147,8 @@ public class MfgTaskController {
      * @param workOrderId 工单ID，可选
      * @param operationId 工序ID，可选
      * @param stationId 工位ID，可选
+     * @param employeeId 已分配员工ID，可选
+     * @param sort 创建时间排序，可选值newest、oldest
      */
     @GetMapping("/excel")
     public void excel(HttpServletResponse response,
@@ -151,8 +157,10 @@ public class MfgTaskController {
                       @RequestParam(required = false) Long dispatchId,
                       @RequestParam(required = false) Long workOrderId,
                       @RequestParam(required = false) Long operationId,
-                      @RequestParam(required = false) Long stationId) {
-        List<MfgTask> tasks = mfgTaskService.listTasks(keyword, status, dispatchId, workOrderId, operationId, stationId);
+                      @RequestParam(required = false) Long stationId,
+                      @RequestParam(required = false) Long employeeId,
+                      @RequestParam(required = false) String sort) {
+        List<MfgTask> tasks = mfgTaskService.listTasks(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort);
         excelExportUtil.exportExcel(response, tasks, MfgTask.class, "生产任务列表", "生产任务列表");
     }
 

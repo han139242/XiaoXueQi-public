@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "录入不良品",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index",
+    "empty-state": "/components/empty-state/index"
+  }
+}

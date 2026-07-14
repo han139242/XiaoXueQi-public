@@ -26,7 +26,7 @@
       <view wx:for="{{tasks}}" wx:key="taskId" class="record-card" data-id="{{item.taskId}}" bindtap="openTask">
         <view class="record-header"><view class="record-identity"><view class="record-icon"><app-icon name="list-checks" size="34"></app-icon></view><view><text class="record-number" selectable>{{item.taskNo || ('任务 ID ' + item.taskId)}}</text><text class="record-subline">{{item.operationLabel}}</text></view></view><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
         <view class="task-meta"><view><app-icon name="map-pin" size="26" muted></app-icon><text>{{item.stationLabel}}</text></view><view><app-icon name="chart-no-axes-column-increasing" size="26" muted></app-icon><text>{{item.plannedQuantity == null ? '-' : item.plannedQuantity}} / {{item.completedQuantity == null ? '-' : item.completedQuantity}}</text></view></view>
-        <view class="job-actions"><button wx:if="{{item.status === 'RUNNING'}}" class="report-button" data-id="{{item.taskId}}" catchtap="openReportForm"><app-icon name="notebook-pen" size="28"></app-icon><text>提交报工</text></button><view class="card-link"><text>查看详情</text><app-icon name="chevron-right" size="25"></app-icon></view></view>
+        <view class="job-actions"><view class="card-link"><text>查看详情</text><app-icon name="chevron-right" size="25"></app-icon></view></view>
       </view>
     </view>
   </block>

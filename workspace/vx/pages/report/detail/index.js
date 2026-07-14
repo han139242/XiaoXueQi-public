@@ -18,7 +18,12 @@ Page({
   },
 
   onShow() {
-    guard.requireAuth()
+    if (!guard.requireAuth()) return
+    if (this.data.id && !this.data.loading) this.loadData()
+  },
+
+  onPullDownRefresh() {
+    this.loadData().finally(() => wx.stopPullDownRefresh())
   },
 
   async loadData() {

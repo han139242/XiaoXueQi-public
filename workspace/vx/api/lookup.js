@@ -6,6 +6,16 @@ const definitions = {
     id: 'productId',
     label(item) {
       return [item.productCode, item.productName].filter(Boolean).join(' · ')
+    },
+    details(item) {
+      return { productCode: item.productCode || '', productName: item.productName || '' }
+    }
+  },
+  customer: {
+    url: '/api/mdm/customer/page',
+    id: 'customerId',
+    label(item) {
+      return item.customerName || item.customerCode
     }
   },
   operation: {
@@ -29,11 +39,42 @@ const definitions = {
       return item.employeeName
     }
   },
+  material: {
+    url: '/api/mdm/material/page',
+    id: 'materialId',
+    label(item) {
+      return [item.materialCode, item.materialName].filter(Boolean).join(' · ')
+    }
+  },
+  warehouse: {
+    url: '/api/wms/warehouse/page',
+    id: 'warehouseId',
+    label(item) {
+      return item.warehouseName || item.warehouseCode
+    }
+  },
+  location: {
+    url: '/api/wms/location/page',
+    id: 'locationId',
+    label(item) {
+      return item.locationName || item.locationCode
+    }
+  },
+  equipment: {
+    url: '/api/eam/equipment/page',
+    id: 'equipmentId',
+    label(item) {
+      return [item.equipmentCode, item.equipmentName].filter(Boolean).join(' · ')
+    }
+  },
   workOrder: {
     url: '/api/mfg/work-order/page',
     id: 'workOrderId',
     label(item) {
       return item.workOrderNo
+    },
+    details(item) {
+      return { productId: item.productId, planId: item.planId, createdTime: item.createdTime, updatedTime: item.updatedTime }
     }
   }
 }
@@ -62,7 +103,8 @@ async function loadOne(name, force) {
     const records = result && Array.isArray(result.records) ? result.records : []
     const items = records.map((item) => ({
       id: item[definition.id],
-      label: definition.label(item) || String(item[definition.id])
+      label: definition.label(item) || String(item[definition.id]),
+      ...(definition.details ? definition.details(item) : {})
     })).filter((item) => item.id !== null && item.id !== undefined)
     const map = {}
     items.forEach((item) => {

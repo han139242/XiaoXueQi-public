@@ -1,0 +1,97 @@
+.pending-detail-page {
+  min-height: 100vh;
+  padding-top: 24rpx;
+  background: #f4f6f8;
+}
+
+.detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.detail-card {
+  padding: 22rpx;
+  background: #ffffff;
+  border: 1rpx solid #e2e8ee;
+  border-radius: 8rpx;
+}
+
+.detail-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14rpx;
+  margin-bottom: 14rpx;
+}
+
+.title-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 12rpx;
+  color: #202a36;
+  font-size: 31rpx;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.title-main text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.title-marker {
+  width: 8rpx;
+  height: 34rpx;
+  flex: 0 0 8rpx;
+  background: #20a8f2;
+}
+
+.section-title {
+  margin-bottom: 12rpx;
+  color: #202a36;
+  font-size: 29rpx;
+  font-weight: 650;
+}
+
+.detail-fields > view {
+  display: flex;
+  justify-content: space-between;
+  gap: 22rpx;
+  padding: 9rpx 0;
+  color: #7a848e;
+  font-size: 26rpx;
+  line-height: 1.45;
+}
+
+.detail-fields > view text:last-child {
+  min-width: 0;
+  color: #202a36;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.remark-text {
+  min-height: 52rpx;
+  color: #3e4852;
+  font-size: 27rpx;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.detail-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18rpx;
+  padding: 8rpx 0 calc(24rpx + env(safe-area-inset-bottom));
+}
+
+.detail-actions button {
+  height: 78rpx;
+  min-height: 78rpx;
+  margin: 0;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  line-height: 78rpx;
+}

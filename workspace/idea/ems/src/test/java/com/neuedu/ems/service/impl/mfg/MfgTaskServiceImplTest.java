@@ -1,10 +1,14 @@
 package com.neuedu.ems.service.impl.mfg;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -85,6 +89,19 @@ class MfgTaskServiceImplTest {
 
         assertFalse(service.startTask(1L, 2L));
         verify(taskMapper).update(any(MfgTask.class), any());
+    }
+
+    @Test
+    void employeeFilterUsesActiveTaskOperatorAssignments() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"), MfgTask.class);
+        LambdaQueryWrapper<MfgTask> query = ReflectionTestUtils.invokeMethod(
+                service, "buildTaskQuery", null, null, null, null, null, null, 1001L, "oldest");
+
+        String sql = query.getSqlSegment();
+        assertTrue(sql.contains("mfg_task_operator"));
+        assertTrue(sql.contains("employee_id = 1001"));
+        assertTrue(sql.contains("deleted_flag = 0"));
+        assertTrue(sql.contains("ORDER BY created_time ASC"));
     }
 
     private MfgTask task(String status) {

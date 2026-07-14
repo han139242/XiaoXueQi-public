@@ -31,13 +31,15 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      * @param workOrderId 工单ID
      * @param operationId 工序ID
      * @param stationId 工位ID
+     * @param employeeId 已分配员工ID
+     * @param sort 创建时间排序
      * @return 分页结果
      */
     @Override
     public Page<MfgTask> pageTasks(Integer current, Integer size, String keyword, String status,
-                                   Long dispatchId, Long workOrderId, Long operationId, Long stationId) {
+                                   Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort) {
         Page<MfgTask> page = new Page<>(current, size);
-        return baseMapper.selectPage(page, buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId));
+        return baseMapper.selectPage(page, buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
     }
 
     /**
@@ -48,11 +50,13 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      * @param workOrderId 工单ID
      * @param operationId 工序ID
      * @param stationId 工位ID
+     * @param employeeId 已分配员工ID
+     * @param sort 创建时间排序
      * @return 生产任务列表
      */
     @Override
-    public List<MfgTask> listTasks(String keyword, String status, Long dispatchId, Long workOrderId, Long operationId, Long stationId) {
-        return baseMapper.selectList(buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId));
+    public List<MfgTask> listTasks(String keyword, String status, Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort) {
+        return baseMapper.selectList(buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
     }
 
     /**
@@ -197,10 +201,12 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      * @param workOrderId 工单ID
      * @param operationId 工序ID
      * @param stationId 工位ID
+     * @param employeeId 已分配员工ID
+     * @param sort 创建时间排序
      * @return 查询条件包装器
      */
     private LambdaQueryWrapper<MfgTask> buildTaskQuery(String keyword, String status,
-                                                       Long dispatchId, Long workOrderId, Long operationId, Long stationId) {
+                                                       Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort) {
         LambdaQueryWrapper<MfgTask> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(MfgTask::getDeletedFlag, 0)
                 .like(StringUtils.hasText(keyword), MfgTask::getTaskNo, keyword)
@@ -209,7 +215,13 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 .eq(workOrderId != null, MfgTask::getWorkOrderId, workOrderId)
                 .eq(operationId != null, MfgTask::getOperationId, operationId)
                 .eq(stationId != null, MfgTask::getStationId, stationId)
-                .orderByDesc(MfgTask::getCreatedTime);
+                .inSql(employeeId != null, MfgTask::getTaskId,
+                        "SELECT task_id FROM mfg_task_operator WHERE employee_id = " + employeeId + " AND deleted_flag = 0");
+        if ("oldest".equalsIgnoreCase(sort)) {
+            queryWrapper.orderByAsc(MfgTask::getCreatedTime);
+        } else {
+            queryWrapper.orderByDesc(MfgTask::getCreatedTime);
+        }
         return queryWrapper;
     }
 }

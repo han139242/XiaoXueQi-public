@@ -1,0 +1,11 @@
+{
+  "navigationBarTitleText": "不良品项",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index",
+    "empty-state": "/components/empty-state/index",
+    "loading-state": "/components/loading-state/index",
+    "status-tag": "/components/status-tag/index"
+  }
+}

@@ -1,0 +1,23 @@
+<view class="page repair-page">
+  <loading-state wx:if="{{loading && list.length === 0}}"></loading-state>
+  <empty-state wx:elif="{{error && list.length === 0}}" title="维修单加载失败" description="{{error}}" action-text="重试" bind:action="loadPage"></empty-state>
+  <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无维修单"></empty-state>
+  <view wx:else class="record-list">
+    <view wx:for="{{list}}" wx:key="repairId" class="record-card" data-id="{{item.repairId}}" bindtap="openDetail">
+      <view class="record-header">
+        <view class="record-identity"><view class="record-icon"><app-icon name="notebook-pen" size="34"></app-icon></view><view><text class="record-number" selectable>{{item.repairNo || ('维修单 ' + item.repairId)}}</text><text class="record-subline">{{item.equipmentLabel}}</text></view></view>
+        <status-tag text="{{item.statusText}}" tone="{{item.statusTone}}"></status-tag>
+      </view>
+      <view class="module-fields">
+        <view><text>报修人</text><text>{{item.applicantLabel}}</text></view>
+        <view><text>维修人</text><text>{{item.repairerLabel}}</text></view>
+        <view><text>报修时间</text><text>{{item.reportedTimeText}}</text></view>
+        <view><text>故障描述</text><text>{{item.faultDescription || '-'}}</text></view>
+      </view>
+      <view class="record-footer"><text>查看维修详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view>
+    </view>
+    <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>
+    <view wx:elif="{{loading}}" class="list-footer">加载中</view>
+    <view wx:elif="{{finished}}" class="list-footer">已加载全部</view>
+  </view>
+</view>

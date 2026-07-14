@@ -1,4 +1,11 @@
 const maps = {
+  productionOrder: {
+    DRAFT: ['新建', 'neutral'],
+    SCHEDULED: ['已排产', 'primary'],
+    RUNNING: ['生产中', 'warning'],
+    FINISHED: ['已完成', 'success'],
+    CLOSED: ['已关闭', 'neutral']
+  },
   workOrder: {
     DRAFT: ['新建', 'neutral'],
     APPROVED: ['已审核', 'primary'],

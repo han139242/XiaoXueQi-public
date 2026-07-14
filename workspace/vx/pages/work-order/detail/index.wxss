@@ -59,18 +59,3 @@
   padding-top: 16rpx;
   border-top: 1rpx solid #edf0f3;
 }
-
-.report-button {
-  display: flex;
-  align-items: center;
-  min-height: 68rpx;
-  gap: 9rpx;
-  margin: 0 auto 0 0;
-  padding: 0 20rpx;
-  color: #2d8cf0;
-  background: #ffffff;
-  border: 1rpx solid #2d8cf0;
-  border-radius: 8rpx;
-  font-size: 25rpx;
-  line-height: 66rpx;
-}

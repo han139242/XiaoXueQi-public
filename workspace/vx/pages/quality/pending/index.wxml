@@ -1,0 +1,28 @@
+<view class="page quality-page">
+  <loading-state wx:if="{{loading && list.length === 0}}"></loading-state>
+  <empty-state wx:elif="{{error && list.length === 0}}" title="待检任务加载失败" description="{{error}}" action-text="重试" bind:action="loadPage"></empty-state>
+  <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无待检任务" description="当前没有需要处理的检验单"></empty-state>
+
+  <view wx:else class="inspection-list">
+    <view wx:for="{{list}}" wx:key="inspectionId" class="inspection-card" data-id="{{item.inspectionId}}" bindtap="openDetail">
+      <view class="inspection-title">
+        <view class="title-main"><view class="title-marker"></view><text selectable>{{item.inspectionNo || ('检验单 ' + item.inspectionId)}}</text></view>
+        <status-tag text="{{item.statusText}}" tone="{{item.statusTone}}"></status-tag>
+      </view>
+      <view class="inspection-fields">
+        <view><text>检验类型</text><text>{{item.typeText}}</text></view>
+        <view><text>工单编号</text><text>{{item.workOrderLabel}}</text></view>
+        <view><text>任务编号</text><text>{{item.taskLabel}}</text></view>
+        <view><text>报工编号</text><text>{{item.reportLabel}}</text></view>
+        <view><text>创建时间</text><text>{{item.createdTimeText}}</text></view>
+      </view>
+      <view class="inspection-actions">
+        <view class="action-pass" data-id="{{item.inspectionId}}" catchtap="submitPass"><app-icon name="circle-check-big" size="28"></app-icon><text>检验通过</text></view>
+        <view class="action-fail" data-id="{{item.inspectionId}}" catchtap="openDefectForm"><app-icon name="triangle-alert" size="28"></app-icon><text>录入不良</text></view>
+      </view>
+    </view>
+    <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>
+    <view wx:elif="{{loading}}" class="list-footer">加载中</view>
+    <view wx:elif="{{finished}}" class="list-footer">已加载全部</view>
+  </view>
+</view>

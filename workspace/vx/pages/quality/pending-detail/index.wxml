@@ -1,0 +1,41 @@
+<view class="page pending-detail-page">
+  <loading-state wx:if="{{loading && !detail}}"></loading-state>
+  <empty-state wx:elif="{{error && !detail}}" title="检验单详情加载失败" description="{{error}}" action-text="重试" bind:action="loadDetail"></empty-state>
+
+  <view wx:elif="{{detail}}" class="detail-content">
+    <view class="detail-card">
+      <view class="detail-title">
+        <view class="title-main"><view class="title-marker"></view><text selectable>{{detail.inspectionNo || ('检验单 ' + detail.inspectionId)}}</text></view>
+        <status-tag text="{{detail.statusText}}" tone="{{detail.statusTone}}"></status-tag>
+      </view>
+      <view class="detail-fields">
+        <view><text>检验类型</text><text>{{detail.typeText}}</text></view>
+        <view><text>检验结果</text><text>{{detail.resultText}}</text></view>
+        <view><text>工单编号</text><text>{{detail.workOrderLabel}}</text></view>
+        <view><text>任务编号</text><text>{{detail.taskLabel}}</text></view>
+        <view><text>报工编号</text><text>{{detail.reportLabel}}</text></view>
+        <view><text>产品批次</text><text>{{detail.batchLabel}}</text></view>
+        <view><text>检验方案</text><text>{{detail.schemeLabel}}</text></view>
+        <view><text>质检员</text><text>{{detail.inspectorLabel}}</text></view>
+      </view>
+    </view>
+
+    <view class="detail-card">
+      <view class="section-title">时间信息</view>
+      <view class="detail-fields">
+        <view><text>创建时间</text><text>{{detail.createdTimeText}}</text></view>
+        <view><text>更新时间</text><text>{{detail.updatedTimeText}}</text></view>
+      </view>
+    </view>
+
+    <view class="detail-card">
+      <view class="section-title">备注</view>
+      <view class="remark-text">{{detail.remarkText}}</view>
+    </view>
+
+    <view wx:if="{{!readonly}}" class="detail-actions">
+      <button class="secondary-button" bindtap="goBack">返回</button>
+      <button class="danger-button" bindtap="openDefectForm">录入不良</button>
+    </view>
+  </view>
+</view>

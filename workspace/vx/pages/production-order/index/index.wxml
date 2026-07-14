@@ -1,0 +1,31 @@
+<view class="order-search">
+  <view class="search-shell">
+    <app-icon name="search" size="30" muted></app-icon>
+    <input value="{{keyword}}" placeholder="搜索生产订单号" confirm-type="search" bindinput="handleKeyword" bindconfirm="search" />
+    <view wx:if="{{keyword}}" class="search-clear" bindtap="clearKeyword"><app-icon name="trash-2" size="28" muted></app-icon></view>
+  </view>
+  <button class="search-button" bindtap="search">搜索</button>
+</view>
+<view class="page production-order-page">
+  <loading-state wx:if="{{loading && list.length === 0}}"></loading-state>
+  <empty-state wx:elif="{{error && list.length === 0}}" title="生产订单加载失败" description="{{error}}" action-text="重试" bind:action="search"></empty-state>
+  <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无生产订单"></empty-state>
+  <view wx:else class="record-list">
+    <view wx:for="{{list}}" wx:key="productionOrderId" class="record-card" data-id="{{item.productionOrderId}}" bindtap="openDetail">
+      <view class="record-header">
+        <view class="record-identity"><view class="record-icon"><app-icon name="factory" size="34"></app-icon></view><view><text class="record-number" selectable>{{item.productionOrderNo || ('生产订单 ' + item.productionOrderId)}}</text><text class="record-subline">{{item.customerLabel}}</text></view></view>
+        <status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag>
+      </view>
+      <view class="order-fields">
+        <view><text>产品</text><text>{{item.productLabel}}</text></view>
+        <view><text>订单数量</text><text>{{item.orderQuantity}}</text></view>
+        <view><text>交付日期</text><text>{{item.deliveryDateText}}</text></view>
+        <view><text>创建时间</text><text>{{item.createdTimeText}}</text></view>
+      </view>
+      <view class="record-footer"><view class="card-link"><text>查看订单详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view></view>
+    </view>
+    <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>
+    <view wx:elif="{{loading}}" class="list-footer">加载中</view>
+    <view wx:elif="{{finished}}" class="list-footer">已加载全部</view>
+  </view>
+</view>
