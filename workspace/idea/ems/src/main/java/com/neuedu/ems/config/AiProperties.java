@@ -12,7 +12,7 @@ public class AiProperties {
 
     private boolean enabled;
     private String apiUrl = "https://api.deepseek.com";
-    private String apiKey = "REDACTED_CONFIGURE_ENVIRONMENT";
+    private String apiKey;
     private String model = "deepseek-chat";
     private int maxContextChars = 5000;
     private int maxAnswerChars = 8000;
