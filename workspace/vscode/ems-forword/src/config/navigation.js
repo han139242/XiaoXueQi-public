@@ -1,6 +1,23 @@
 import { domainDefinitions, getDomainResources } from '@/config/resources'
 import { hasPermission, resourcePermission } from '@/utils/permission'
 
+function domainEntries(domain) {
+  const specialEntries = domain === 'mfg'
+    ? [{ label: '智能排产工作台', icon: 'route', path: '/mfg/schedule-workbench', description: '计算排程方案、识别风险并人工确认生产计划', permission: 'module:mfg:view' }]
+    : []
+  return [
+    ...specialEntries,
+    ...getDomainResources(domain).map((resource) => ({
+      label: resource.title,
+      icon: resource.icon,
+      path: resource.routePath,
+      resourceKey: resource.key,
+      description: resource.description,
+      permission: resourcePermission(resource.key, 'view')
+    }))
+  ]
+}
+
 function moduleEntry(domain) {
   const definition = domainDefinitions[domain]
   return {
@@ -8,15 +25,7 @@ function moduleEntry(domain) {
     label: definition.title,
     icon: definition.icon,
     permission: `module:${domain}:view`,
-    children: [
-      ...getDomainResources(domain).map((resource) => ({
-        label: resource.title,
-        icon: resource.icon,
-        path: resource.routePath,
-        resourceKey: resource.key,
-        permission: resourcePermission(resource.key, 'view')
-      }))
-    ]
+    children: domainEntries(domain)
   }
 }
 
@@ -24,13 +33,7 @@ export const moduleCatalog = Object.fromEntries(Object.entries(domainDefinitions
   key,
   {
     ...definition,
-    entries: getDomainResources(key).map((resource) => ({
-      label: resource.title,
-      path: resource.routePath,
-      icon: resource.icon,
-      description: resource.description,
-      permission: resourcePermission(resource.key, 'view')
-    }))
+    entries: domainEntries(key)
   }
 ]))
 
@@ -40,11 +43,18 @@ moduleCatalog['big-screen'] = {
 }
 
 moduleCatalog.ai = {
-  title: 'AI 智能助手', icon: 'bot', tone: 'blue', description: '智能问答、看板解读与业务建议',
-  entries: [{ label: '打开智能助手', action: 'ai', icon: 'bot', permission: 'ai:assistant:use' }]
+  title: 'AI 工作台', icon: 'bot', tone: 'blue', description: '业务问答、看板解读、风险分析与智能写作',
+  entries: [{ label: '进入 AI 工作台', path: '/ai/workbench', icon: 'bot', permission: 'ai:assistant:use' }]
 }
 
 export const navigationGroups = [
+  {
+    label: '重点能力',
+    items: [
+      { label: 'AI 工作台', icon: 'bot', path: '/ai/workbench', featured: true, permission: 'ai:assistant:use' },
+      { label: '可视化大屏', icon: 'monitor', path: '/big-screen/production', featured: true, permission: 'dashboard:big-screen:view' }
+    ]
+  },
   {
     label: '运营中心',
     items: [
@@ -61,13 +71,6 @@ export const navigationGroups = [
   {
     label: '运营保障',
     items: [moduleEntry('eam'), moduleEntry('trace'), moduleEntry('org'), moduleEntry('sys')]
-  },
-  {
-    label: '重点能力',
-    items: [
-      { label: '可视化大屏', icon: 'monitor', path: '/big-screen/production', featured: true, permission: 'dashboard:big-screen:view' },
-      { label: 'AI 智能助手', icon: 'bot', action: 'ai', featured: true, permission: 'ai:assistant:use' }
-    ]
   }
 ]
 

@@ -1,27 +1,18 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppTabs from '@/components/layout/AppTabs.vue'
-import AiAssistant from '@/components/ai/AiAssistant.vue'
 import { OPEN_AI_ASSISTANT_EVENT } from '@/utils/app-events'
 
 const route = useRoute()
+const router = useRouter()
 const collapsed = ref(localStorage.getItem('mes_sidebar_collapsed') === 'true')
 const mobile = ref(false)
 const mobileMenuOpen = ref(false)
 const viewVersion = ref(0)
 const tabs = ref([{ path: '/dashboard', title: '首页', affix: true }])
-const aiOpen = ref(false)
-const aiModule = computed(() => {
-  if (route.path === '/dashboard') return 'dashboard'
-  if (route.meta.resourceKey) return String(route.meta.resourceKey).split('-')[0]
-  const domain = route.path.split('/').filter(Boolean)[0]
-  return ['sys', 'org', 'mdm', 'process', 'factory', 'mfg', 'wms', 'qms', 'eam', 'trace'].includes(domain)
-    ? domain
-    : String(route.params.moduleKey || 'general')
-})
 
 function updateViewport() {
   mobile.value = window.innerWidth < 1120
@@ -45,7 +36,7 @@ function closeMobileMenu() {
 }
 
 function handleOpenAi() {
-  aiOpen.value = true
+  router.push('/ai/workbench')
 }
 
 watch(collapsed, (value) => {
@@ -89,8 +80,6 @@ onBeforeUnmount(() => {
         </RouterView>
       </main>
     </section>
-
-    <AiAssistant v-model="aiOpen" :module="aiModule" />
   </div>
 </template>
 

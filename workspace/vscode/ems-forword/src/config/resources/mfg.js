@@ -2,8 +2,33 @@ import { defineResource, field, optionSets, values } from './helpers'
 
 const sourceTypes = values([['ERP', 'ERP 同步', 'primary'], ['MANUAL', '手工创建', 'success']])
 const alertTypes = values([['MATERIAL', '缺料', 'warning'], ['EQUIPMENT', '设备', 'danger'], ['QUALITY', '质量', 'danger'], ['SAFETY', '安全', 'danger'], ['OTHER', '其他', 'info']])
+const weekdays = values([[1, '周一', 'primary'], [2, '周二', 'primary'], [3, '周三', 'primary'], [4, '周四', 'primary'], [5, '周五', 'primary'], [6, '周六', 'warning'], [7, '周日', 'info']])
 
 export default [
+  defineResource({
+    key: 'mfg-line-product-capability', domain: 'mfg', route: 'mfg/line-product-capabilities', title: '产线产品能力', icon: 'route', baseUrl: '/api/mfg/line-product-capability', idField: 'capabilityId',
+    description: '维护产品可进入的产线、已发布工艺路线、适配优先级和有效产能系数',
+    fields: ['lineId', 'productId', 'routeId', 'priorityLevel', 'capacityFactor', 'status', 'remark', 'createdTime'], filters: ['lineId', 'productId', 'routeId', 'status'], defaults: { priorityLevel: 100, capacityFactor: 1, status: 'ENABLE' },
+    permissions: { delete: false, export: false },
+    overrides: {
+      lineId: { required: true, type: 'reference', reference: 'factory-line' }, productId: { required: true, type: 'reference', reference: 'mdm-product' }, routeId: { required: true, type: 'reference', reference: 'process-route' },
+      priorityLevel: { required: true, type: 'number', min: 1, precision: 0 }, capacityFactor: { required: true, type: 'number', min: 0.0001, max: 2, precision: 4, step: 0.1 },
+      status: { required: true, type: 'select', options: optionSets.enable }, remark: { type: 'textarea' }, createdTime: { form: false, width: 170 }
+    },
+    actions: [{ key: 'disable', label: '停用', icon: 'close', method: 'put', path: (row) => `/api/mfg/line-product-capability/${row.capabilityId}/disable`, visible: (row) => row.status === 'ENABLE', previewPatch: () => ({ status: 'DISABLE' }) }]
+  }),
+  defineResource({
+    key: 'mfg-line-calendar-rule', domain: 'mfg', route: 'mfg/line-calendar-rules', title: '产线周历规则', icon: 'calendar', baseUrl: '/api/mfg/line-calendar-rule', idField: 'calendarRuleId',
+    description: '维护产线按星期和班次生效的排产日历与有效产能系数',
+    fields: ['lineId', 'dayOfWeek', 'shiftId', 'effectiveFrom', 'effectiveTo', 'capacityFactor', 'status', 'remark', 'createdTime'], filters: ['lineId', 'dayOfWeek', 'shiftId', 'status'], defaults: { capacityFactor: 1, status: 'ENABLE' },
+    permissions: { delete: false, export: false },
+    overrides: {
+      lineId: { required: true, type: 'reference', reference: 'factory-line' }, dayOfWeek: { required: true, type: 'select', options: weekdays }, shiftId: { required: true, type: 'reference', reference: 'org-shift' },
+      effectiveFrom: { required: true, type: 'date' }, effectiveTo: { type: 'date' }, capacityFactor: { required: true, type: 'number', min: 0.0001, max: 2, precision: 4, step: 0.1 },
+      status: { required: true, type: 'select', options: optionSets.enable }, remark: { type: 'textarea' }, createdTime: { form: false, width: 170 }
+    },
+    actions: [{ key: 'disable', label: '停用', icon: 'close', method: 'put', path: (row) => `/api/mfg/line-calendar-rule/${row.calendarRuleId}/disable`, visible: (row) => row.status === 'ENABLE', previewPatch: () => ({ status: 'DISABLE' }) }]
+  }),
   defineResource({
     key: 'mfg-production-order', domain: 'mfg', route: 'mfg/production-orders', title: '生产订单', icon: 'clipboard', baseUrl: '/api/mfg/production-order', idField: 'productionOrderId',
     description: '管理客户生产需求、交付日期和订单执行状态',

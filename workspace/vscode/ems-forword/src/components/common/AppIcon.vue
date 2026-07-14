@@ -41,6 +41,8 @@ const paths = {
   package: 'm21 8-9-5-9 5 9 5 9-5ZM3 8v8l9 5 9-5V8M12 13v8',
   activity: 'M3 12h4l3-9 4 18 3-9h4',
   calendar: 'M3 5h18v16H3zM16 3v4M8 3v4M3 10h18',
+  'zoom-in': 'M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12ZM11 8v6M8 11h6M16 16l5 5',
+  'zoom-out': 'M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12ZM8 11h6M16 16l5 5',
   more: 'M5 12h.01M12 12h.01M19 12h.01'
   ,plus: 'M12 5v14M5 12h14'
   ,edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z'
