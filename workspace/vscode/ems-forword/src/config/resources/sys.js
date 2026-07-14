@@ -35,9 +35,19 @@ export default [
     fields: ['roleCode', 'roleName', 'dataScope', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status'], defaults: { status: 'ENABLE', dataScope: 'ALL' },
     overrides: {
       roleCode: { required: true }, roleName: { required: true },
-      dataScope: { type: 'select', required: true, options: values([['ALL', '全部数据', 'primary'], ['DEPARTMENT', '本部门', 'success'], ['SELF', '仅本人', 'info']]) },
+      dataScope: { type: 'select', required: true, options: values([['ALL', '全部数据', 'primary'], ['DEPARTMENT', '本部门', 'success'], ['TEAM', '本班组', 'warning'], ['SELF', '仅本人', 'info']]) },
       status: enable, createdTime: { form: false, width: 170 }
-    }
+    },
+    actions: [{
+      key: 'assign-menus', label: '分配权限', icon: 'shield-check', method: 'put', type: 'primary',
+      path: (row) => `/api/sys/role/${row.roleId}/menus`,
+      fields: [field('menuIds', { label: '菜单与操作权限', type: 'reference', reference: 'sys-menu', multiple: true, required: true })],
+      preload: {
+        path: (row) => `/api/sys/role-menu/role/${row.roleId}`,
+        map: (relations) => ({ menuIds: (Array.isArray(relations) ? relations : []).map((item) => item.menuId) })
+      },
+      payload: (values) => ({ menuIds: values.menuIds || [] })
+    }]
   }),
   defineResource({
     key: 'sys-menu', domain: 'sys', route: 'sys/menus', title: '菜单管理', icon: 'menu', baseUrl: '/api/sys/menu', idField: 'menuId', treeEndpoint: '/api/sys/menu/tree',

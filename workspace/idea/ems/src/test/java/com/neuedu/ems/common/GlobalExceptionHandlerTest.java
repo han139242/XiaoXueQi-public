@@ -2,6 +2,7 @@ package com.neuedu.ems.common;
 
 import com.neuedu.ems.exception.AccountStatusException;
 import com.neuedu.ems.exception.OptimisticLockConflictException;
+import com.neuedu.ems.exception.DataScopeAccessDeniedException;
 import org.mybatis.spring.MyBatisSystemException;
 import org.junit.jupiter.api.Test;
 
@@ -33,6 +34,14 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(ResultCode.DATA_CONFLICT.getCode(), result.get("code"));
         assertEquals(ResultCode.DATA_CONFLICT.getMessage(), result.get("msg"));
+    }
+
+    @Test
+    void returnsForbiddenForOutOfScopeData() {
+        ResultData result = handler.handleDataScopeAccessDenied(new DataScopeAccessDeniedException());
+
+        assertEquals(ResultCode.FORBIDDEN.getCode(), result.get("code"));
+        assertEquals(ResultCode.FORBIDDEN.getMessage(), result.get("msg"));
     }
 
     private void assertAccountStatusResult(ResultCode resultCode) {

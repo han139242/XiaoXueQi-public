@@ -9,6 +9,7 @@ import com.neuedu.ems.entity.sys.SysUserRole;
 import com.neuedu.ems.mapper.sys.SysUserMapper;
 import com.neuedu.ems.mapper.sys.SysUserRoleMapper;
 import com.neuedu.ems.service.sys.SysUserService;
+import com.neuedu.ems.service.sys.PermissionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Autowired
     private PasswordHasher passwordHasher;
+
+    @Autowired
+    private PermissionService permissionService;
 
     @Override
     public Page<SysUser> pageUsers(Integer current, Integer size, String keyword, String status) {
@@ -58,7 +62,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user.getDeletedFlag() == null) {
             user.setDeletedFlag(0);
         }
-        return baseMapper.insert(user) > 0;
+        boolean saved = baseMapper.insert(user) > 0;
+        if (saved) {
+            permissionService.evictUser(user.getUserId());
+        }
+        return saved;
     }
 
     @Override
@@ -73,9 +81,17 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             wrapper.eq(SysUser::getUserId, user.getUserId())
                     .set(SysUser::getLoginFailCount, 0)
                     .set(SysUser::getLockedTime, null);
-            return baseMapper.update(user, wrapper) > 0;
+            boolean updated = baseMapper.update(user, wrapper) > 0;
+            if (updated) {
+                permissionService.evictUser(user.getUserId());
+            }
+            return updated;
         }
-        return baseMapper.updateById(user) > 0;
+        boolean updated = baseMapper.updateById(user) > 0;
+        if (updated) {
+            permissionService.evictUser(user.getUserId());
+        }
+        return updated;
     }
 
     @Override
@@ -88,7 +104,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         user.setUserId(userId);
         user.setDeletedFlag(1);
         user.setVersion(existing.getVersion());
-        return baseMapper.updateById(user) > 0;
+        boolean removed = baseMapper.updateById(user) > 0;
+        if (removed) {
+            permissionService.evictUser(userId);
+        }
+        return removed;
     }
 
     @Override
@@ -111,7 +131,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         user.setLoginFailCount(0);
         user.setLockedTime(null);
         user.setVersion(existing.getVersion());
-        return baseMapper.updateById(user) > 0;
+        boolean reset = baseMapper.updateById(user) > 0;
+        if (reset) {
+            permissionService.evictUser(userId);
+        }
+        return reset;
     }
 
     @Override
@@ -157,6 +181,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             userRole.setDeletedFlag(0);
             sysUserRoleMapper.insert(userRole);
         }
+        permissionService.evictUser(userId);
         return true;
     }
 

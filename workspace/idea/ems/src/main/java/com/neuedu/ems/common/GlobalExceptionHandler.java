@@ -4,6 +4,7 @@ import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.exception.AiServiceException;
 import com.neuedu.ems.exception.AccountStatusException;
 import com.neuedu.ems.exception.OptimisticLockConflictException;
+import com.neuedu.ems.exception.DataScopeAccessDeniedException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,13 @@ import java.util.Map;
 @RestControllerAdvice  // 等同于 @ControllerAdvice + @ResponseBody
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(DataScopeAccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ResultData handleDataScopeAccessDenied(DataScopeAccessDeniedException e) {
+        log.info("数据范围拒绝：{}", e.getMessage());
+        return ResultData.fail(ResultCode.FORBIDDEN);
+    }
 
     /**
      * 返回明确的账号停用、锁定或状态异常提示。

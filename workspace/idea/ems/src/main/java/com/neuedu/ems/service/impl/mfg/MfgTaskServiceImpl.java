@@ -8,6 +8,9 @@ import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.service.mfg.MfgTaskService;
+import com.neuedu.ems.service.sys.DataScopeService;
+import com.neuedu.ems.exception.DataScopeAccessDeniedException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -20,6 +23,9 @@ import java.util.List;
  */
 @Service
 public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> implements MfgTaskService {
+
+    @Autowired(required = false)
+    private DataScopeService dataScopeService;
 
     /**
      * 分页查询生产任务列表，支持任务编号、状态、派工单、工单、工序和工位筛选。
@@ -65,7 +71,14 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         LambdaQueryWrapper<MfgTask> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(MfgTask::getTaskId, taskId)
                 .eq(MfgTask::getDeletedFlag, 0);
-        return baseMapper.selectOne(queryWrapper);
+        applyDataScope(queryWrapper);
+        MfgTask task = baseMapper.selectOne(queryWrapper);
+        if (task == null && dataScopeService != null && dataScopeService.isRestricted()
+                && baseMapper.selectCount(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getTaskId, taskId).eq(MfgTask::getDeletedFlag, 0)) > 0) {
+            throw new DataScopeAccessDeniedException();
+        }
+        return task;
     }
 
     /**
@@ -75,6 +88,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      */
     @Override
     public boolean saveTask(MfgTask task) {
+        if (dataScopeService != null) {
+            dataScopeService.assertCanCreateTask(task);
+        }
         if (task.getDeletedFlag() == null) {
             task.setDeletedFlag(0);
         }
@@ -210,6 +226,13 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 .eq(operationId != null, MfgTask::getOperationId, operationId)
                 .eq(stationId != null, MfgTask::getStationId, stationId)
                 .orderByDesc(MfgTask::getCreatedTime);
+        applyDataScope(queryWrapper);
         return queryWrapper;
+    }
+
+    private void applyDataScope(LambdaQueryWrapper<MfgTask> queryWrapper) {
+        if (dataScopeService != null) {
+            dataScopeService.applyTaskScope(queryWrapper);
+        }
     }
 }

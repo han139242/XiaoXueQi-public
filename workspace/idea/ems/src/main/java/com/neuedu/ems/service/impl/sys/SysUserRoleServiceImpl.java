@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.sys.SysUserRole;
 import com.neuedu.ems.mapper.sys.SysUserRoleMapper;
+import com.neuedu.ems.service.sys.PermissionService;
 import com.neuedu.ems.service.sys.SysUserRoleService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -16,6 +18,9 @@ import java.util.List;
  */
 @Service
 public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUserRole> implements SysUserRoleService {
+
+    @Autowired
+    private PermissionService permissionService;
 
     @Override
     public Page<SysUserRole> pageUserRoles(Integer current, Integer size, Long userId, Long roleId) {
@@ -42,7 +47,11 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
         if (userRole.getDeletedFlag() == null) {
             userRole.setDeletedFlag(0);
         }
-        return baseMapper.insert(userRole) > 0;
+        boolean saved = baseMapper.insert(userRole) > 0;
+        if (saved) {
+            permissionService.evictUser(userRole.getUserId());
+        }
+        return saved;
     }
 
     @Override
@@ -51,7 +60,11 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
             return false;
         }
         userRole.setDeletedFlag(null);
-        return baseMapper.updateById(userRole) > 0;
+        boolean updated = baseMapper.updateById(userRole) > 0;
+        if (updated) {
+            permissionService.evictAll();
+        }
+        return updated;
     }
 
     @Override
@@ -59,7 +72,11 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
         SysUserRole userRole = new SysUserRole();
         userRole.setId(id);
         userRole.setDeletedFlag(1);
-        return baseMapper.updateById(userRole) > 0;
+        boolean removed = baseMapper.updateById(userRole) > 0;
+        if (removed) {
+            permissionService.evictAll();
+        }
+        return removed;
     }
 
     @Override

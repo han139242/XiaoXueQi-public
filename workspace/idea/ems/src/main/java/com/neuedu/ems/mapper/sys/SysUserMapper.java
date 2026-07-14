@@ -72,4 +72,33 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
             order by m.permission_code
             """)
     List<String> listPermissionCodes(@Param("userId") Long userId);
+
+    @Select("""
+            select distinct r.data_scope
+            from sys_user_role ur
+            join sys_role r on r.role_id = ur.role_id and r.deleted_flag = 0 and r.status = 'ENABLE'
+            where ur.user_id = #{userId} and ur.deleted_flag = 0
+              and r.data_scope is not null and r.data_scope <> ''
+            """)
+    List<String> listDataScopes(@Param("userId") Long userId);
+
+    @Select("""
+            select e.department_id
+            from sys_user u
+            join org_employee e on e.employee_id = u.employee_id and e.deleted_flag = 0
+            where u.user_id = #{userId} and u.deleted_flag = 0
+            limit 1
+            """)
+    Long getDepartmentIdByUserId(@Param("userId") Long userId);
+
+    @Select("""
+            select distinct member.team_id
+            from sys_user u
+            join org_team_member member
+              on member.employee_id = u.employee_id and member.deleted_flag = 0 and member.status = 'ENABLE'
+            join org_team team on team.team_id = member.team_id and team.deleted_flag = 0
+            where u.user_id = #{userId} and u.deleted_flag = 0
+            order by member.team_id
+            """)
+    List<Long> listTeamIdsByUserId(@Param("userId") Long userId);
 }

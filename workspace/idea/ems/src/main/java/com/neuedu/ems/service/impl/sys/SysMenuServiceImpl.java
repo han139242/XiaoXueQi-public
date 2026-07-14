@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.sys.SysMenu;
 import com.neuedu.ems.mapper.sys.SysMenuMapper;
+import com.neuedu.ems.service.sys.PermissionService;
 import com.neuedu.ems.service.sys.SysMenuService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -16,6 +18,9 @@ import java.util.List;
  */
 @Service
 public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> implements SysMenuService {
+
+    @Autowired
+    private PermissionService permissionService;
 
     @Override
     public Page<SysMenu> pageMenus(Integer current, Integer size, String keyword, String menuType) {
@@ -36,7 +41,11 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
         if (menu.getDeletedFlag() == null) {
             menu.setDeletedFlag(0);
         }
-        return baseMapper.insert(menu) > 0;
+        boolean saved = baseMapper.insert(menu) > 0;
+        if (saved) {
+            permissionService.evictAll();
+        }
+        return saved;
     }
 
     @Override
@@ -45,7 +54,11 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
             return false;
         }
         menu.setDeletedFlag(null);
-        return baseMapper.updateById(menu) > 0;
+        boolean updated = baseMapper.updateById(menu) > 0;
+        if (updated) {
+            permissionService.evictAll();
+        }
+        return updated;
     }
 
     @Override
@@ -53,7 +66,11 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
         SysMenu menu = new SysMenu();
         menu.setMenuId(menuId);
         menu.setDeletedFlag(1);
-        return baseMapper.updateById(menu) > 0;
+        boolean removed = baseMapper.updateById(menu) > 0;
+        if (removed) {
+            permissionService.evictAll();
+        }
+        return removed;
     }
 
     @Override

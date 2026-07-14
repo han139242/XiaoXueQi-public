@@ -2,8 +2,10 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import aRoutes from './modules/a'
 import bRoutes from './modules/b'
 import cRoutes from './modules/c'
-import { hasAuthenticatedSession } from '@/utils/auth'
+import { clearAuth, getCurrentUser, hasAuthenticatedSession, isFrameworkPreview, setCurrentUser } from '@/utils/auth'
 import { getDomainResources, resourceRoutes } from '@/config/resources'
+import { getCurrentUserInfo } from '@/api/auth'
+import { hasPermission, resourcePermission } from '@/utils/permission'
 
 const routes = [
   {
@@ -16,7 +18,7 @@ const routes = [
     path: '/big-screen/production',
     name: 'ProductionBigScreen',
     component: () => import('@/pages/big-screen/production.vue'),
-    meta: { title: '生产运营大屏' }
+    meta: { title: '生产运营大屏', permission: 'dashboard:big-screen:view' }
   },
   {
     path: '/',
@@ -30,10 +32,17 @@ const routes = [
       {
         path: 'module/:moduleKey',
         name: 'ModuleHub',
-        redirect: (to) => getDomainResources(to.params.moduleKey)[0]?.routePath || '/dashboard',
+        redirect: (to) => getDomainResources(to.params.moduleKey)
+          .find((resource) => hasPermission(resourcePermission(resource.key, 'view')))?.routePath || '/dashboard',
         meta: { title: '模块总览', icon: 'package' }
       }
     ]
+  },
+  {
+    path: '/forbidden',
+    name: 'Forbidden',
+    component: () => import('@/pages/error/forbidden.vue'),
+    meta: { title: '无访问权限', permissionExempt: true }
   },
   {
     path: '/:pathMatch(.*)*',
@@ -49,7 +58,7 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 })
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (to.meta.public) {
     if (to.name === 'Login' && hasAuthenticatedSession()) {
       return to.query.redirect || '/dashboard'
@@ -62,6 +71,25 @@ router.beforeEach((to) => {
       path: '/login',
       query: { redirect: to.fullPath }
     }
+  }
+
+  if (!isFrameworkPreview()) {
+    const currentUser = getCurrentUser()
+    if (!Array.isArray(currentUser.permissions) || !Array.isArray(currentUser.roles)) {
+      try {
+        const result = await getCurrentUserInfo()
+        setCurrentUser(result.data || {})
+      } catch {
+        clearAuth()
+        return { path: '/login', query: { redirect: to.fullPath } }
+      }
+    }
+  }
+
+  const requiredPermission = to.meta.permission
+    || (to.name === 'ModuleHub' ? `module:${to.params.moduleKey}:view` : '')
+  if (!to.meta.permissionExempt && requiredPermission && !hasPermission(requiredPermission)) {
+    return { path: '/forbidden', query: { from: to.fullPath } }
   }
 
   return true
