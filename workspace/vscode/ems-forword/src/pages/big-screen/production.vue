@@ -650,7 +650,7 @@ onBeforeUnmount(() => {
                 <div v-for="item in visibleScheduleRows" :key="item.planId" class="schedule-row">
                   <div class="schedule-row-meta">
                     <strong>{{ item.lineName }}</strong>
-                    <span>{{ item.planNo }}</span>
+                    <span>{{ item.planNo }} · {{ item.statusLabel }}</span>
                   </div>
                   <div class="schedule-row-track">
                     <span
@@ -661,7 +661,6 @@ onBeforeUnmount(() => {
                     >
                       <b>{{ item.orderNo }}</b>
                       <small>{{ item.productName }} · {{ formatNumber(item.plannedQuantity) }} 件</small>
-                      <em>{{ item.statusLabel }}</em>
                     </span>
                   </div>
                 </div>
@@ -1284,7 +1283,7 @@ onBeforeUnmount(() => {
 .schedule-axis,
 .schedule-row {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: 170px minmax(0, 1fr);
 }
 
 .schedule-axis {
@@ -1355,9 +1354,9 @@ onBeforeUnmount(() => {
   height: 48px;
   min-width: 48px;
   align-content: center;
-  gap: 3px;
+  gap: 2px;
   overflow: hidden;
-  padding: 5px 64px 5px 10px;
+  padding: 5px 8px;
   color: #eef7ff;
   border: 1px solid rgb(117 174 215 / 52%);
   border-radius: 4px;
@@ -1371,18 +1370,8 @@ onBeforeUnmount(() => {
 .schedule-bar.is-closed { border-color: rgb(130 149 164 / 48%); background: #485765; }
 .schedule-bar b,
 .schedule-bar small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.schedule-bar b { font-size: 16px; font-weight: 700; }
-.schedule-bar small { color: rgb(239 247 252 / 78%); font-size: 13px; }
-.schedule-bar em {
-  position: absolute;
-  top: 50%;
-  right: 9px;
-  color: #fff;
-  font-size: 13px;
-  font-style: normal;
-  font-weight: 650;
-  transform: translateY(-50%);
-}
+.schedule-bar b { font-size: 15px; font-weight: 700; }
+.schedule-bar small { color: rgb(239 247 252 / 78%); font-size: 12px; }
 
 .schedule-empty {
   display: grid;
