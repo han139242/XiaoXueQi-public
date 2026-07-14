@@ -277,8 +277,8 @@ onBeforeUnmount(() => {
         <div v-else class="notification-empty">暂无待处理任务</div>
       </el-popover>
 
-      <el-tooltip v-if="canUseAi" content="AI 智能助手" placement="bottom">
-        <el-button class="header-icon-button" text aria-label="AI 智能助手" @click="openAiAssistant">
+      <el-tooltip v-if="canUseAi" content="AI 工作台" placement="bottom">
+        <el-button class="header-icon-button" text aria-label="AI 工作台" @click="openAiAssistant">
           <AppIcon name="bot" :size="18" />
         </el-button>
       </el-tooltip>

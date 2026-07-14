@@ -17,4 +17,6 @@ public interface AiService {
     AiResponse getDashboardInsight(AiQuestion request);
 
     AiResponse getModuleSuggestion(AiQuestion request);
+
+    AiResponse getScheduleScenarioAdvice(Map<String, Object> scheduleSummary);
 }

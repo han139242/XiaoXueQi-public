@@ -160,7 +160,7 @@ const labels = {
   oldStatus: '原状态', newStatus: '新状态', changeReason: '变更原因', changedBy: '变更人', changedTime: '变更时间',
   approvalNode: '审批节点', approverId: '审批人', approvalResult: '审批结果', approvalComment: '审批意见', approvalTime: '审批时间',
   departmentCode: '部门编码', departmentName: '部门名称', managerId: '负责人', employeeNo: '员工工号', employeeName: '员工姓名',
-  positionName: '岗位名称', skillLevel: '技能等级', phone: '联系电话', teamCode: '班组编码', teamName: '班组名称',
+  positionName: '岗位名称', skillLevel: '技能等级', phone: '联系电话', teamCode: '班组编码', teamName: '班组名称', shiftId: '班次',
   leaderId: '班组长', teamId: '班组', joinDate: '加入日期', leaveDate: '离开日期', shiftCode: '班次编码', shiftName: '班次名称',
   startTime: '开始时间', endTime: '结束时间', unitCode: '单位编码', unitName: '单位名称', precisionScale: '精度位数',
   supplierCode: '供应商编码', supplierName: '供应商名称', customerCode: '客户编码', customerName: '客户名称',
@@ -173,6 +173,8 @@ const labels = {
   routeCode: '路线编码', routeName: '路线名称', routeId: '工艺路线', version: '版本', qcRequired: '需要质检',
   instructionId: '作业指导书', title: '标题', fileId: '附件', effectiveTime: '生效时间',
   workshopCode: '车间编码', workshopName: '车间名称', workshopId: '车间', lineCode: '产线编码', lineName: '产线名称', lineId: '产线',
+  capabilityId: '产线产品能力', calendarRuleId: '产线周历规则', priorityLevel: '适配优先级', capacityFactor: '产能系数',
+  dayOfWeek: '星期', effectiveFrom: '生效日期', effectiveTo: '失效日期',
   dailyCapacity: '日产能', stationCode: '工位编码', stationName: '工位名称', stationId: '工位', stationType: '工位类型', isDefault: '默认工序',
   productionOrderNo: '生产订单号', productionOrderId: '生产订单', customerId: '客户', productId: '产品', orderQuantity: '订单数量', deliveryDate: '交付日期', sourceType: '来源类型',
   planNo: '计划编号', planId: '生产计划', plannedStartTime: '计划开始', plannedEndTime: '计划结束', plannedQuantity: '计划数量',
@@ -210,7 +212,7 @@ const labels = {
 
 export const referencePresentation = {
   'sys-user': ['username'], 'sys-role': ['roleName', 'roleCode'], 'sys-menu': ['menuName'], 'sys-file': ['fileName'],
-  'org-department': ['departmentName', 'departmentCode'], 'org-employee': ['employeeName', 'employeeNo'], 'org-team': ['teamName', 'teamCode'],
+  'org-department': ['departmentName', 'departmentCode'], 'org-employee': ['employeeName', 'employeeNo'], 'org-team': ['teamName', 'teamCode'], 'org-shift': ['shiftName', 'shiftCode'],
   'mdm-unit': ['unitName', 'unitCode'], 'mdm-supplier': ['supplierName', 'supplierCode'], 'mdm-customer': ['customerName', 'customerCode'],
   'mdm-material-category': ['categoryName', 'categoryCode'], 'mdm-material': ['materialName', 'materialCode'], 'mdm-product': ['productName', 'productCode'], 'mdm-bom': ['bomCode', 'bomVersion'],
   'process-operation': ['operationName', 'operationCode'], 'process-route': ['routeName', 'routeCode'],
@@ -224,7 +226,7 @@ export const referencePresentation = {
 
 const defaultReferences = {
   userId: 'sys-user', approverId: 'org-employee', changedBy: 'org-employee', employeeId: 'org-employee', managerId: 'org-employee', leaderId: 'org-employee', operatorId: 'org-employee', applicantId: 'org-employee', inspectorId: 'org-employee', maintainerId: 'org-employee', checkerId: 'org-employee', repairerId: 'org-employee', responsibleId: 'org-employee', reportedBy: 'org-employee', triggeredBy: 'org-employee',
-  roleId: 'sys-role', menuId: 'sys-menu', fileId: 'sys-file', photoFileId: 'sys-file', departmentId: 'org-department', teamId: 'org-team', unitId: 'mdm-unit', supplierId: 'mdm-supplier', customerId: 'mdm-customer', materialId: 'mdm-material', productId: 'mdm-product', bomId: 'mdm-bom', operationId: 'process-operation', routeId: 'process-route', workshopId: 'factory-workshop', lineId: 'factory-line', stationId: 'factory-station', productionOrderId: 'mfg-production-order', workOrderId: 'mfg-work-order', dispatchId: 'mfg-dispatch-order', taskId: 'mfg-task', reportId: 'mfg-work-report', warehouseId: 'wms-warehouse', locationId: 'wms-location', batchId: 'wms-material-batch', schemeId: 'qms-inspection-scheme', itemId: 'qms-inspection-item', standardId: 'qms-inspection-standard', inspectionId: 'qms-inspection-order', inspectionResultId: 'qms-inspection-result', ncrId: 'qms-nonconforming-order', equipmentId: 'eam-equipment', exceptionId: 'mfg-exception', barcodeId: 'trace-barcode', productLotId: 'trace-product-lot'
+  roleId: 'sys-role', menuId: 'sys-menu', fileId: 'sys-file', photoFileId: 'sys-file', departmentId: 'org-department', teamId: 'org-team', shiftId: 'org-shift', unitId: 'mdm-unit', supplierId: 'mdm-supplier', customerId: 'mdm-customer', materialId: 'mdm-material', productId: 'mdm-product', bomId: 'mdm-bom', operationId: 'process-operation', routeId: 'process-route', workshopId: 'factory-workshop', lineId: 'factory-line', stationId: 'factory-station', productionOrderId: 'mfg-production-order', workOrderId: 'mfg-work-order', dispatchId: 'mfg-dispatch-order', taskId: 'mfg-task', reportId: 'mfg-work-report', warehouseId: 'wms-warehouse', locationId: 'wms-location', batchId: 'wms-material-batch', schemeId: 'qms-inspection-scheme', itemId: 'qms-inspection-item', standardId: 'qms-inspection-standard', inspectionId: 'qms-inspection-order', inspectionResultId: 'qms-inspection-result', ncrId: 'qms-nonconforming-order', equipmentId: 'eam-equipment', exceptionId: 'mfg-exception', barcodeId: 'trace-barcode', productLotId: 'trace-product-lot'
 }
 
 const dateProps = new Set(['deliveryDate', 'effectiveDate', 'joinDate', 'leaveDate', 'productionDate', 'receivedDate', 'purchaseDate'])
