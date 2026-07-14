@@ -16,6 +16,10 @@ const specialRules = [
   ['put', /^\/api\/mfg\/task\/[^/]+\/finish$/, 'mfg:task:finish'],
   ['post', /^\/api\/mfg\/work-report\/submit$/, 'mfg:work-report:submit'],
   ['put', /^\/api\/mfg\/work-report\/[^/]+\/audit$/, 'mfg:work-report:audit'],
+  ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/validate$/, 'mfg:schedule-scenario:validate'],
+  ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/orders\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
+  ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
+  ['put', /^\/api\/mfg\/schedule-scenario\/[^/]+\/confirm$/, 'mfg:schedule-scenario:confirm'],
   ['put', /^\/api\/wms\/inbound-order\/[^/]+\/confirm$/, 'wms:inbound-order:confirm'],
   ['put', /^\/api\/wms\/outbound-order\/[^/]+\/confirm$/, 'wms:outbound-order:confirm'],
   ['put', /^\/api\/wms\/return-order\/[^/]+\/confirm$/, 'wms:return-order:confirm'],
@@ -40,6 +44,8 @@ export function currentPermissions() {
 
 export function hasPermission(permissionCode) {
   if (isFrameworkPreview()) return true
+  const user = getCurrentUser()
+  if (user?.superAdmin || user?.roles?.includes('SUPER_ADMIN')) return true
   return Boolean(permissionCode) && currentPermissions().has(permissionCode)
 }
 

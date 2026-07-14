@@ -6,6 +6,9 @@ export default [
   defineResource({
     key: 'sys-user', domain: 'sys', route: 'sys/users', title: '用户管理', icon: 'users', baseUrl: '/api/sys/user', idField: 'userId',
     description: '维护系统账号、员工绑定、账号状态和角色授权',
+    canEdit: (row) => row.username !== 'admin',
+    canDelete: (row) => row.username !== 'admin',
+    lockedReason: (row) => row.username === 'admin' ? '系统超级管理员账号受保护' : '当前账号不可操作',
     fields: ['username', 'passwordHash', 'employeeId', 'status', 'lastLoginTime', 'remark', 'createdTime'],
     filters: ['keyword', 'status'], defaults: { status: 'ENABLE' },
     overrides: {
@@ -23,6 +26,7 @@ export default [
       },
       {
         key: 'assign-roles', label: '分配角色', icon: 'users', method: 'put', type: 'primary',
+        visible: (row) => row.username !== 'admin',
         path: (row) => `/api/sys/user/${row.userId}/roles`,
         fields: [field('roleIds', { label: '角色', type: 'reference', reference: 'sys-role', multiple: true, required: true })],
         payload: (values) => ({ roleIds: values.roleIds || [] })
@@ -32,6 +36,9 @@ export default [
   defineResource({
     key: 'sys-role', domain: 'sys', route: 'sys/roles', title: '角色管理', icon: 'shield-check', baseUrl: '/api/sys/role', idField: 'roleId',
     description: '维护角色编码、数据权限范围和启停状态',
+    canEdit: (row) => row.roleCode !== 'SUPER_ADMIN',
+    canDelete: (row) => row.roleCode !== 'SUPER_ADMIN',
+    lockedReason: (row) => row.roleCode === 'SUPER_ADMIN' ? '超级管理员角色由系统保护' : '当前角色不可操作',
     fields: ['roleCode', 'roleName', 'dataScope', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status'], defaults: { status: 'ENABLE', dataScope: 'ALL' },
     overrides: {
       roleCode: { required: true }, roleName: { required: true },
@@ -40,6 +47,7 @@ export default [
     },
     actions: [{
       key: 'assign-menus', label: '分配权限', icon: 'shield-check', method: 'put', type: 'primary',
+      visible: (row) => row.roleCode !== 'SUPER_ADMIN',
       path: (row) => `/api/sys/role/${row.roleId}/menus`,
       fields: [field('menuIds', { label: '菜单与操作权限', type: 'reference', reference: 'sys-menu', multiple: true, required: true })],
       preload: {

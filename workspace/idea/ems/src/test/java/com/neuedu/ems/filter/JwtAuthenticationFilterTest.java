@@ -64,6 +64,20 @@ class JwtAuthenticationFilterTest {
         assertEquals(7L, chain.getRequest().getAttribute("userId"));
     }
 
+    @Test
+    void letsSuperAdminReachNewPermissionWithoutExplicitRelation() throws Exception {
+        MockHttpServletRequest request = authenticatedRequest("PUT", "/api/mfg/schedule-scenario/5/confirm");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        AuthorizationContext context = new AuthorizationContext(
+                7L, 21L, 3L, "ALL", Set.of("SUPER_ADMIN"), Set.of(), Set.of());
+        when(permissionService.getContext(7L)).thenReturn(context);
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals(200, response.getStatus());
+    }
+
     private MockHttpServletRequest authenticatedRequest(String method, String uri) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(method, uri);
         request.addHeader("Authorization", "Bearer token");

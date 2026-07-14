@@ -1,4 +1,5 @@
 const guard = require('../../../utils/guard')
+const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')
 const lookupApi = require('../../../api/lookup')
 const format = require('../../../utils/format')
@@ -29,6 +30,7 @@ Page({
     detail: null,
     recordMode: false,
     readonly: false,
+    canCreateDefect: false,
     loading: false,
     error: '',
     lookups: null
@@ -44,6 +46,7 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({ canCreateDefect: auth.hasPermission('qms:nonconforming-order:create') })
     if (this.data.inspectionId && !this.data.loading) this.loadDetail()
   },
 
@@ -104,6 +107,7 @@ Page({
   },
 
   openDefectForm() {
+    if (!guard.requirePermission('qms:nonconforming-order:create')) return
     if (!this.data.inspectionId) return
     wx.navigateTo({
       url: '/pages/quality/defect-form/index?inspectionId=' + encodeURIComponent(this.data.inspectionId)

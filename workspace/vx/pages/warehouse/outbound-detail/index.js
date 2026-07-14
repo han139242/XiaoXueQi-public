@@ -16,6 +16,7 @@ Page({
     outboundId: '',
     detail: null,
     lines: [],
+    canConfirm: false,
     loading: false,
     error: '',
     lookups: null
@@ -28,6 +29,7 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({ canConfirm: auth.hasPermission('wms:outbound-order:confirm') })
     if (this.data.outboundId && !this.data.loading) this.loadDetail()
   },
 
@@ -87,6 +89,7 @@ Page({
   },
 
   confirmOrder() {
+    if (!guard.requirePermission('wms:outbound-order:confirm')) return
     wx.showModal({
       title: '确认出库',
       content: '确认该出库单已完成实物出库？',

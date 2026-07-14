@@ -33,11 +33,14 @@ public class DataScopeService {
 
     public void applyTaskScope(LambdaQueryWrapper<MfgTask> wrapper) {
         AuthorizationContext context = currentContext();
-        if (context == null || "ALL".equals(context.dataScope()) || "DEPARTMENT".equals(context.dataScope())) {
+        if (context == null || "ALL".equals(context.dataScope())) {
             return;
         }
-        requireEmployee(context);
-        if ("TEAM".equals(context.dataScope())) {
+        if ("DEPARTMENT".equals(context.dataScope())) {
+            requireDepartment(context);
+            applyDepartmentTaskScope(wrapper, context.departmentId());
+        } else if ("TEAM".equals(context.dataScope())) {
+            requireEmployee(context);
             wrapper.apply("""
                     EXISTS (
                       SELECT 1
@@ -52,6 +55,7 @@ public class DataScopeService {
                     )
                     """, context.employeeId());
         } else if ("SELF".equals(context.dataScope())) {
+            requireEmployee(context);
             wrapper.apply("""
                     EXISTS (
                       SELECT 1
@@ -66,11 +70,22 @@ public class DataScopeService {
 
     public void applyWorkReportScope(LambdaQueryWrapper<MfgWorkReport> wrapper) {
         AuthorizationContext context = currentContext();
-        if (context == null || "ALL".equals(context.dataScope()) || "DEPARTMENT".equals(context.dataScope())) {
+        if (context == null || "ALL".equals(context.dataScope())) {
             return;
         }
-        requireEmployee(context);
-        if ("TEAM".equals(context.dataScope())) {
+        if ("DEPARTMENT".equals(context.dataScope())) {
+            requireDepartment(context);
+            wrapper.apply("""
+                    EXISTS (
+                      SELECT 1
+                      FROM org_employee scope_employee
+                      WHERE scope_employee.employee_id = mfg_work_report.operator_id
+                        AND scope_employee.department_id = {0}
+                        AND scope_employee.deleted_flag = 0
+                    )
+                    """, context.departmentId());
+        } else if ("TEAM".equals(context.dataScope())) {
+            requireEmployee(context);
             wrapper.apply("""
                     EXISTS (
                       SELECT 1
@@ -88,16 +103,17 @@ public class DataScopeService {
                     )
                     """, context.employeeId());
         } else if ("SELF".equals(context.dataScope())) {
-            wrapper.eq(MfgWorkReport::getOperatorId, context.employeeId());
+            requireEmployee(context);
+            wrapper.apply("mfg_work_report.operator_id = {0}", context.employeeId());
         }
     }
 
     public void assertCanCreateTask(MfgTask task) {
         AuthorizationContext context = currentContext();
-        if (context == null || "ALL".equals(context.dataScope()) || "DEPARTMENT".equals(context.dataScope())) {
+        if (context == null || "ALL".equals(context.dataScope())) {
             return;
         }
-        if (!"TEAM".equals(context.dataScope()) || task == null || task.getDispatchId() == null
+        if (task == null || task.getDispatchId() == null
                 || !canAccessDispatch(task.getDispatchId(), context)) {
             throw new DataScopeAccessDeniedException();
         }
@@ -105,7 +121,7 @@ public class DataScopeService {
 
     public void assertCanWriteWorkReport(MfgWorkReport workReport) {
         AuthorizationContext context = currentContext();
-        if (context == null || "ALL".equals(context.dataScope()) || "DEPARTMENT".equals(context.dataScope())) {
+        if (context == null || "ALL".equals(context.dataScope())) {
             return;
         }
         requireEmployee(context);
@@ -122,7 +138,7 @@ public class DataScopeService {
 
     public boolean isRestricted() {
         AuthorizationContext context = currentContext();
-        return context != null && ("TEAM".equals(context.dataScope()) || "SELF".equals(context.dataScope()));
+        return context != null && !"ALL".equals(context.dataScope());
     }
 
     public Long currentUserId() {
@@ -140,8 +156,24 @@ public class DataScopeService {
     private boolean canAccessDispatch(Long dispatchId, AuthorizationContext context) {
         LambdaQueryWrapper<MfgDispatchOrder> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(MfgDispatchOrder::getDispatchId, dispatchId)
-                .eq(MfgDispatchOrder::getDeletedFlag, 0)
-                .apply("""
+                .eq(MfgDispatchOrder::getDeletedFlag, 0);
+        if ("DEPARTMENT".equals(context.dataScope())) {
+            requireDepartment(context);
+            wrapper.apply("""
+                        EXISTS (
+                          SELECT 1 FROM org_team_member scope_member
+                          JOIN org_employee scope_employee
+                            ON scope_employee.employee_id = scope_member.employee_id
+                           AND scope_employee.deleted_flag = 0
+                          WHERE scope_member.team_id = mfg_dispatch_order.team_id
+                            AND scope_employee.department_id = {0}
+                            AND scope_member.status = 'ENABLE'
+                            AND scope_member.deleted_flag = 0
+                        )
+                    """, context.departmentId());
+        } else if ("TEAM".equals(context.dataScope())) {
+            requireEmployee(context);
+            wrapper.apply("""
                         EXISTS (
                           SELECT 1 FROM org_team_member scope_member
                           WHERE scope_member.team_id = mfg_dispatch_order.team_id
@@ -149,12 +181,18 @@ public class DataScopeService {
                             AND scope_member.status = 'ENABLE'
                             AND scope_member.deleted_flag = 0
                         )
-                        """, context.employeeId());
+                    """, context.employeeId());
+        } else {
+            return false;
+        }
         return mfgDispatchOrderMapper.selectCount(wrapper) > 0;
     }
 
     private void applyTaskScope(LambdaQueryWrapper<MfgTask> wrapper, AuthorizationContext context) {
-        if ("TEAM".equals(context.dataScope())) {
+        if ("DEPARTMENT".equals(context.dataScope())) {
+            requireDepartment(context);
+            applyDepartmentTaskScope(wrapper, context.departmentId());
+        } else if ("TEAM".equals(context.dataScope())) {
             wrapper.apply("""
                     EXISTS (
                       SELECT 1 FROM mfg_dispatch_order scope_dispatch
@@ -178,6 +216,35 @@ public class DataScopeService {
         }
     }
 
+    private void applyDepartmentTaskScope(LambdaQueryWrapper<MfgTask> wrapper, Long departmentId) {
+        wrapper.apply("""
+                (
+                  EXISTS (
+                    SELECT 1 FROM mfg_task_operator scope_operator
+                    JOIN org_employee scope_employee
+                      ON scope_employee.employee_id = scope_operator.employee_id
+                     AND scope_employee.deleted_flag = 0
+                    WHERE scope_operator.task_id = mfg_task.task_id
+                      AND scope_operator.deleted_flag = 0
+                      AND scope_employee.department_id = {0}
+                  )
+                  OR EXISTS (
+                    SELECT 1 FROM mfg_dispatch_order scope_dispatch
+                    JOIN org_team_member scope_member
+                      ON scope_member.team_id = scope_dispatch.team_id
+                     AND scope_member.status = 'ENABLE'
+                     AND scope_member.deleted_flag = 0
+                    JOIN org_employee scope_employee
+                      ON scope_employee.employee_id = scope_member.employee_id
+                     AND scope_employee.deleted_flag = 0
+                    WHERE scope_dispatch.dispatch_id = mfg_task.dispatch_id
+                      AND scope_dispatch.deleted_flag = 0
+                      AND scope_employee.department_id = {0}
+                  )
+                )
+                """, departmentId);
+    }
+
     private AuthorizationContext currentContext() {
         if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
             return null;
@@ -193,6 +260,12 @@ public class DataScopeService {
 
     private void requireEmployee(AuthorizationContext context) {
         if (context.employeeId() == null) {
+            throw new DataScopeAccessDeniedException();
+        }
+    }
+
+    private void requireDepartment(AuthorizationContext context) {
+        if (context.departmentId() == null) {
             throw new DataScopeAccessDeniedException();
         }
     }

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -81,14 +82,23 @@ public class AuthServiceImpl implements AuthService {
             return null;
         }
         validateAccountStatus(user);
+        List<String> roles = sysUserMapper.listRoleCodes(userId);
+        boolean superAdmin = roles.contains("SUPER_ADMIN");
+        List<String> dataScopes = sysUserMapper.listDataScopes(userId);
+        String dataScope = superAdmin ? "ALL" : List.of("ALL", "DEPARTMENT", "TEAM", "SELF").stream()
+                .filter(dataScopes::contains)
+                .findFirst()
+                .orElse("SELF");
         return new AuthUserInfo(
                 user.getUserId(),
                 user.getUsername(),
                 user.getEmployeeId(),
                 user.getStatus(),
                 user.getLastLoginTime(),
-                sysUserMapper.listRoleCodes(userId),
-                sysUserMapper.listPermissionCodes(userId));
+                roles,
+                sysUserMapper.listPermissionCodes(userId),
+                superAdmin,
+                dataScope);
     }
 
     @Override

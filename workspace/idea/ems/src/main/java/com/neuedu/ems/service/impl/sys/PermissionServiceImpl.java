@@ -73,7 +73,9 @@ public class PermissionServiceImpl implements PermissionService {
         Set<String> roles = new LinkedHashSet<>(sysUserMapper.listRoleCodes(userId));
         Set<String> permissions = new LinkedHashSet<>(sysUserMapper.listPermissionCodes(userId));
         List<String> scopes = sysUserMapper.listDataScopes(userId);
-        String dataScope = SCOPE_PRIORITY.stream().filter(scopes::contains).findFirst().orElse("SELF");
+        String dataScope = roles.contains(AuthorizationContext.SUPER_ADMIN_ROLE)
+                ? "ALL"
+                : SCOPE_PRIORITY.stream().filter(scopes::contains).findFirst().orElse("SELF");
         return new AuthorizationContext(
                 userId,
                 user.getEmployeeId(),

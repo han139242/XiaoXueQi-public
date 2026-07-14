@@ -27,7 +27,9 @@ Page({
     loading: false,
     finished: false,
     error: '',
-    lookups: null
+    lookups: null,
+    canSubmit: false,
+    canCreateDefect: false
   },
 
   onLoad() {
@@ -36,6 +38,10 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({
+      canSubmit: auth.hasPermission('qms:inspection-order:submit'),
+      canCreateDefect: auth.hasPermission('qms:nonconforming-order:create')
+    })
     if (!this.data.loading) this.loadPage(true)
   },
 
@@ -105,6 +111,7 @@ Page({
   },
 
   submitPass(event) {
+    if (!guard.requirePermission('qms:inspection-order:submit')) return
     const inspectionId = event.currentTarget.dataset.id
     wx.showModal({
       title: '确认检验通过',
@@ -128,6 +135,7 @@ Page({
   },
 
   openDefectForm(event) {
+    if (!guard.requirePermission('qms:nonconforming-order:create')) return
     wx.navigateTo({
       url: '/pages/quality/defect-form/index?inspectionId=' + encodeURIComponent(event.currentTarget.dataset.id)
     })

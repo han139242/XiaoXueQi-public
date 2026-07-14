@@ -53,6 +53,22 @@ class PermissionServiceImplTest {
         assertNull(new PermissionServiceImpl(mapper).getContext(7L));
     }
 
+    @Test
+    void superAdminHasAllPermissionsAndAllDataScope() {
+        SysUserMapper mapper = mock(SysUserMapper.class);
+        when(mapper.selectById(7L)).thenReturn(enabledUser());
+        when(mapper.listRoleCodes(7L)).thenReturn(List.of("SUPER_ADMIN"));
+        when(mapper.listPermissionCodes(7L)).thenReturn(List.of());
+        when(mapper.listDataScopes(7L)).thenReturn(List.of("SELF"));
+        when(mapper.listTeamIdsByUserId(7L)).thenReturn(List.of());
+
+        AuthorizationContext context = new PermissionServiceImpl(mapper).getContext(7L);
+
+        assertTrue(context.isSuperAdmin());
+        assertTrue(context.hasPermission("mfg:schedule-scenario:confirm"));
+        assertEquals("ALL", context.dataScope());
+    }
+
     private SysUser enabledUser() {
         SysUser user = new SysUser();
         user.setUserId(7L);

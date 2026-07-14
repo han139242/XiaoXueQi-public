@@ -40,6 +40,7 @@
     "app-icon": "/components/app-icon/index"
   },
   "tabBar": {
+    "custom": true,
     "color": "#7f8b98",
     "selectedColor": "#2d8cf0",
     "backgroundColor": "#ffffff",

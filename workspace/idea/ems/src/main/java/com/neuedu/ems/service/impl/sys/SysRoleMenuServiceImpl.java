@@ -54,6 +54,9 @@ public class SysRoleMenuServiceImpl extends ServiceImpl<SysRoleMenuMapper, SysRo
 
     @Override
     public boolean saveRoleMenu(SysRoleMenu roleMenu) {
+        if (isSuperAdminRole(roleMenu.getRoleId())) {
+            return false;
+        }
         if (roleMenu.getCreatedTime() == null) {
             roleMenu.setCreatedTime(LocalDateTime.now());
         }
@@ -72,6 +75,10 @@ public class SysRoleMenuServiceImpl extends ServiceImpl<SysRoleMenuMapper, SysRo
         if (roleMenu.getId() == null) {
             return false;
         }
+        SysRoleMenu existing = getRoleMenuById(roleMenu.getId());
+        if (existing == null || isSuperAdminRole(existing.getRoleId()) || isSuperAdminRole(roleMenu.getRoleId())) {
+            return false;
+        }
         roleMenu.setDeletedFlag(null);
         boolean updated = baseMapper.updateById(roleMenu) > 0;
         if (updated) {
@@ -82,6 +89,10 @@ public class SysRoleMenuServiceImpl extends ServiceImpl<SysRoleMenuMapper, SysRo
 
     @Override
     public boolean removeRoleMenuById(Long id) {
+        SysRoleMenu existing = getRoleMenuById(id);
+        if (existing == null || isSuperAdminRole(existing.getRoleId())) {
+            return false;
+        }
         SysRoleMenu roleMenu = new SysRoleMenu();
         roleMenu.setId(id);
         roleMenu.setDeletedFlag(1);
@@ -109,7 +120,8 @@ public class SysRoleMenuServiceImpl extends ServiceImpl<SysRoleMenuMapper, SysRo
         }
         QueryWrapper<SysRole> roleQuery = new QueryWrapper<>();
         roleQuery.eq("role_id", roleId).eq("deleted_flag", 0).eq("status", "ENABLE");
-        if (sysRoleMapper.selectCount(roleQuery) != 1) {
+        SysRole role = sysRoleMapper.selectOne(roleQuery);
+        if (role == null || "SUPER_ADMIN".equals(role.getRoleCode())) {
             return false;
         }
 
@@ -171,5 +183,16 @@ public class SysRoleMenuServiceImpl extends ServiceImpl<SysRoleMenuMapper, SysRo
         }
         wrapper.orderByDesc("id");
         return wrapper;
+    }
+
+    private boolean isSuperAdminRole(Long roleId) {
+        if (roleId == null) {
+            return false;
+        }
+        QueryWrapper<SysRole> wrapper = new QueryWrapper<>();
+        wrapper.eq("role_id", roleId)
+                .eq("role_code", "SUPER_ADMIN")
+                .eq("deleted_flag", 0);
+        return sysRoleMapper.selectCount(wrapper) > 0;
     }
 }

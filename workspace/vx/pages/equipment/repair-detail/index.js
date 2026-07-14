@@ -16,6 +16,8 @@ Page({
   data: {
     repairId: '',
     detail: null,
+    canAssign: false,
+    canClose: false,
     loading: false,
     error: '',
     lookups: null
@@ -28,6 +30,10 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({
+      canAssign: auth.hasPermission('eam:repair-order:assign'),
+      canClose: auth.hasPermission('eam:repair-order:close')
+    })
     if (this.data.repairId && !this.data.loading) this.loadDetail()
   },
 
@@ -81,15 +87,17 @@ Page({
   },
 
   assignRepair() {
+    if (!guard.requirePermission('eam:repair-order:assign')) return
+    const repairerId = guard.requireEmployee()
+    if (!repairerId) return
     wx.showModal({
       title: '派工维修',
       content: '确认将该维修单派给当前账号对应人员？',
       success: async (result) => {
         if (!result.confirm) return
         try {
-          const user = auth.getUser() || {}
           await equipmentApi.assignRepair(this.data.repairId, {
-            repairerId: user.employeeId || 1002,
+            repairerId,
             remark: '小程序派工'
           })
           wx.showToast({ title: '已派工', icon: 'success' })
@@ -102,6 +110,7 @@ Page({
   },
 
   closeRepair() {
+    if (!guard.requirePermission('eam:repair-order:close')) return
     wx.showModal({
       title: '关闭维修单',
       content: '确认维修已完成并关闭该维修单？',

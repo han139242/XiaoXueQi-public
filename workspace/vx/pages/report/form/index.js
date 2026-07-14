@@ -1,4 +1,5 @@
 const guard = require('../../../utils/guard')
+const auth = require('../../../utils/auth')
 const taskApi = require('../../../api/task')
 const reportApi = require('../../../api/work-report')
 const lookupApi = require('../../../api/lookup')
@@ -19,6 +20,7 @@ Page({
     remark: '',
     loading: true,
     submitting: false,
+    canSubmit: false,
     error: ''
   },
 
@@ -35,7 +37,8 @@ Page({
   },
 
   onShow() {
-    guard.requireAuth()
+    if (!guard.requireAuth()) return
+    this.setData({ canSubmit: auth.hasPermission('mfg:work-report:submit') })
   },
 
   handleInput(event) {
@@ -83,6 +86,7 @@ Page({
   },
 
   async submit() {
+    if (!guard.requirePermission('mfg:work-report:submit')) return
     if (this.data.submitting || !this.data.task) return
     const operatorId = guard.requireEmployee()
     if (!operatorId) return

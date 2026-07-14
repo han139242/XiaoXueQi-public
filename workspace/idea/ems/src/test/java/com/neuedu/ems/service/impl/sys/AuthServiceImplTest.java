@@ -141,12 +141,29 @@ class AuthServiceImplTest {
         when(sysUserMapper.selectById(1L)).thenReturn(user);
         when(sysUserMapper.listRoleCodes(1L)).thenReturn(List.of("admin"));
         when(sysUserMapper.listPermissionCodes(1L)).thenReturn(List.of("sys:user:list"));
+        when(sysUserMapper.listDataScopes(1L)).thenReturn(List.of("TEAM"));
 
         AuthUserInfo info = authService.getUserInfo(1L);
 
         assertEquals("admin", info.username());
         assertEquals(List.of("admin"), info.roles());
         assertEquals(List.of("sys:user:list"), info.permissions());
+        assertEquals("TEAM", info.dataScope());
+        assertEquals(false, info.superAdmin());
+    }
+
+    @Test
+    void marksSuperAdminAndForcesAllDataScope() {
+        SysUser user = userWithStatus("ENABLE");
+        when(sysUserMapper.selectById(1L)).thenReturn(user);
+        when(sysUserMapper.listRoleCodes(1L)).thenReturn(List.of("SUPER_ADMIN"));
+        when(sysUserMapper.listPermissionCodes(1L)).thenReturn(List.of());
+        when(sysUserMapper.listDataScopes(1L)).thenReturn(List.of("SELF"));
+
+        AuthUserInfo info = authService.getUserInfo(1L);
+
+        assertTrue(info.superAdmin());
+        assertEquals("ALL", info.dataScope());
     }
 
     private void assertLoginRejected(String status, ResultCode resultCode) {

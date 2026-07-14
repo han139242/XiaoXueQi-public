@@ -19,7 +19,7 @@
       <view class="section-title">备注</view>
       <view class="remark-text">{{detail.remarkText}}</view>
     </view>
-    <view class="detail-actions">
+    <view wx:if="{{canUpdate}}" class="detail-actions">
       <button wx:if="{{detail.status !== 'RUNNING'}}" class="primary-button" data-status="RUNNING" bindtap="updateStatus">标记运行</button>
       <button wx:if="{{detail.status !== 'IDLE'}}" class="idle-button" data-status="IDLE" bindtap="updateStatus">标记空闲</button>
       <button wx:if="{{detail.status !== 'FAULT'}}" class="danger-button" data-status="FAULT" bindtap="updateStatus">标记故障</button>

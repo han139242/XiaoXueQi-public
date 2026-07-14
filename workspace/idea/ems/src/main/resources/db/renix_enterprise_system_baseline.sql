@@ -215,9 +215,12 @@ INSERT INTO `tmp_renix_resource` VALUES
   ('mfg','mfg-andon-alert','安灯告警','/mfg/andon-alerts',1),
   ('mfg','mfg-dispatch-order','派工管理','/mfg/dispatch-orders',1),
   ('mfg','mfg-exception','生产异常','/mfg/exceptions',1),
+  ('mfg','mfg-line-calendar-rule','产线周历规则','/mfg/line-calendar-rules',1),
+  ('mfg','mfg-line-product-capability','产线产品能力','/mfg/line-product-capabilities',1),
   ('mfg','mfg-production-order','生产订单','/mfg/production-orders',1),
   ('mfg','mfg-production-plan','生产计划','/mfg/production-plans',1),
   ('mfg','mfg-report-material','报工用料','/mfg/report-materials',0),
+  ('mfg','mfg-schedule-scenario','智能排产工作台','/mfg/schedule-workbench',1),
   ('mfg','mfg-task','生产任务','/mfg/tasks',1),
   ('mfg','mfg-task-operator','任务人员','/mfg/task-operators',0),
   ('mfg','mfg-work-order','生产工单','/mfg/work-orders',1),
@@ -338,10 +341,10 @@ CROSS JOIN `tmp_renix_action` action
 JOIN `sys_menu` resource_menu
   ON resource_menu.`permission_code` = CONCAT(resource.`domain_code`, ':', SUBSTRING(resource.`resource_key`, LENGTH(resource.`domain_code`) + 2), ':view')
  AND resource_menu.`deleted_flag` = 0
-WHERE action.`action_code` = 'export'
-   OR resource.`resource_key` NOT IN (
+WHERE (action.`action_code` = 'export' AND resource.`resource_key` <> 'mfg-schedule-scenario')
+   OR (action.`action_code` <> 'export' AND resource.`resource_key` NOT IN (
      'sys-operation-log','sys-status-change-log','eam-equipment-status-log','wms-inventory','wms-stock-movement'
-   )
+   ))
 ON DUPLICATE KEY UPDATE
   `parent_id` = VALUES(`parent_id`), `menu_name` = VALUES(`menu_name`), `menu_type` = 'BUTTON',
   `remark` = VALUES(`remark`), `updated_by` = @admin_user_id, `updated_time` = @system_time, `deleted_flag` = 0;
@@ -366,6 +369,9 @@ INSERT INTO `tmp_renix_special_permission` VALUES
   ('mfg-task','mfg:task:finish','完成生产任务'),
   ('mfg-work-report','mfg:work-report:submit','提交生产报工'),
   ('mfg-work-report','mfg:work-report:audit','审核生产报工'),
+  ('mfg-schedule-scenario','mfg:schedule-scenario:validate','校验排产草案'),
+  ('mfg-schedule-scenario','mfg:schedule-scenario:ai-advice','生成排产 AI 建议'),
+  ('mfg-schedule-scenario','mfg:schedule-scenario:confirm','确认排产并生成生产计划'),
   ('wms-inbound-order','wms:inbound-order:confirm','确认入库'),
   ('wms-outbound-order','wms:outbound-order:confirm','确认出库'),
   ('wms-return-order','wms:return-order:confirm','确认退料'),
@@ -429,6 +435,8 @@ INSERT INTO `tmp_renix_role_pattern` VALUES
   ('PLAN_SCHEDULER','factory:%:view'),('PLAN_SCHEDULER','mfg:%:view'),('PLAN_SCHEDULER','wms:%:view'),
   ('PLAN_SCHEDULER','qms:%:view'),('PLAN_SCHEDULER','eam:%:view'),('PLAN_SCHEDULER','trace:%:view'),
   ('PLAN_SCHEDULER','mfg:production-order:%'),('PLAN_SCHEDULER','mfg:production-plan:%'),
+  ('PLAN_SCHEDULER','mfg:line-product-capability:%'),('PLAN_SCHEDULER','mfg:line-calendar-rule:%'),
+  ('PLAN_SCHEDULER','mfg:schedule-scenario:%'),
   ('PLAN_SCHEDULER','dashboard:%'),('PLAN_SCHEDULER','ai:%');
 
 -- 班组长：制造相关只读，派工、任务、报工、异常和安灯可执行。

@@ -35,7 +35,7 @@
 
     <view wx:if="{{!readonly}}" class="detail-actions">
       <button class="secondary-button" bindtap="goBack">返回</button>
-      <button class="danger-button" bindtap="openDefectForm">录入不良</button>
+      <button wx:if="{{canCreateDefect}}" class="danger-button" bindtap="openDefectForm">录入不良</button>
     </view>
   </view>
 </view>

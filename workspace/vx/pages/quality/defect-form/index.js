@@ -1,4 +1,5 @@
 const guard = require('../../../utils/guard')
+const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')
 
 const dispositionOptions = [
@@ -26,7 +27,8 @@ Page({
     dispositionIndex: 0,
     submitting: false,
     loading: false,
-    mode: 'create'
+    mode: 'create',
+    canSave: false
   },
 
   onLoad(options) {
@@ -40,7 +42,16 @@ Page({
   },
 
   onShow() {
-    guard.requireAuth()
+    if (!guard.requireAuth()) return
+    const permission = this.data.mode === 'detail'
+      ? 'qms:nonconforming-order:update'
+      : 'qms:nonconforming-order:create'
+    const canSave = auth.hasPermission(permission)
+    this.setData({ canSave })
+    if (!canSave && this.data.mode !== 'detail') {
+      wx.showToast({ title: '当前账号无新增权限', icon: 'none' })
+      setTimeout(() => wx.navigateBack(), 300)
+    }
   },
 
   handleInput(event) {
@@ -112,6 +123,8 @@ Page({
   },
 
   async submit() {
+    const permission = this.data.form.ncrId ? 'qms:nonconforming-order:update' : 'qms:nonconforming-order:create'
+    if (!guard.requirePermission(permission)) return
     if (this.data.submitting) return
     const message = this.validate()
     if (message) {

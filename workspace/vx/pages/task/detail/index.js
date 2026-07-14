@@ -1,4 +1,5 @@
 const guard = require('../../../utils/guard')
+const auth = require('../../../utils/auth')
 const taskApi = require('../../../api/task')
 const workOrderApi = require('../../../api/work-order')
 const productionPlanApi = require('../../../api/production-plan')
@@ -34,7 +35,10 @@ Page({
     showDetails: false,
     loading: true,
     error: '',
-    submitting: false
+    submitting: false,
+    canStart: false,
+    canReport: false,
+    canFinish: false
   },
 
   onLoad(options) {
@@ -49,6 +53,11 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    this.setData({
+      canStart: auth.hasPermission('mfg:task:start'),
+      canReport: auth.hasPermission('mfg:work-report:create') && auth.hasPermission('mfg:work-report:submit'),
+      canFinish: auth.hasPermission('mfg:task:finish')
+    })
     if (this.data.id && !this.data.loading) this.loadData()
   },
 
@@ -57,6 +66,7 @@ Page({
   },
 
   async startTask(event) {
+    if (!guard.requirePermission('mfg:task:start')) return
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
     if (this.data.submitting || !target || target.status !== 'WAIT_START') return
@@ -82,6 +92,7 @@ Page({
   },
 
   openReportForm(event) {
+    if (!guard.requirePermission('mfg:work-report:create') || !guard.requirePermission('mfg:work-report:submit')) return
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
     if (!target || target.status !== 'RUNNING') return
@@ -89,6 +100,7 @@ Page({
   },
 
   openFinish(event) {
+    if (!guard.requirePermission('mfg:task:finish')) return
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
     if (!target || !['RUNNING', 'PAUSED'].includes(target.status)) return

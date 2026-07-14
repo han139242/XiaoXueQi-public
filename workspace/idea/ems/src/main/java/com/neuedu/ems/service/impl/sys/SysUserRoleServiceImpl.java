@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.sys.SysUserRole;
+import com.neuedu.ems.entity.sys.SysRole;
+import com.neuedu.ems.mapper.sys.SysRoleMapper;
 import com.neuedu.ems.mapper.sys.SysUserRoleMapper;
 import com.neuedu.ems.service.sys.PermissionService;
 import com.neuedu.ems.service.sys.SysUserRoleService;
@@ -22,6 +24,9 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
     @Autowired
     private PermissionService permissionService;
 
+    @Autowired
+    private SysRoleMapper sysRoleMapper;
+
     @Override
     public Page<SysUserRole> pageUserRoles(Integer current, Integer size, Long userId, Long roleId) {
         Page<SysUserRole> page = new Page<>(current, size);
@@ -38,6 +43,9 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
 
     @Override
     public boolean saveUserRole(SysUserRole userRole) {
+        if (isSuperAdminRole(userRole.getRoleId())) {
+            return false;
+        }
         if (userRole.getAssignedTime() == null) {
             userRole.setAssignedTime(LocalDateTime.now());
         }
@@ -59,6 +67,10 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
         if (userRole.getId() == null) {
             return false;
         }
+        SysUserRole existing = getUserRoleById(userRole.getId());
+        if (existing == null || isSuperAdminRole(existing.getRoleId()) || isSuperAdminRole(userRole.getRoleId())) {
+            return false;
+        }
         userRole.setDeletedFlag(null);
         boolean updated = baseMapper.updateById(userRole) > 0;
         if (updated) {
@@ -69,6 +81,10 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
 
     @Override
     public boolean removeUserRoleById(Long id) {
+        SysUserRole existing = getUserRoleById(id);
+        if (existing == null || isSuperAdminRole(existing.getRoleId())) {
+            return false;
+        }
         SysUserRole userRole = new SysUserRole();
         userRole.setId(id);
         userRole.setDeletedFlag(1);
@@ -99,5 +115,16 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
         }
         wrapper.orderByDesc("id");
         return wrapper;
+    }
+
+    private boolean isSuperAdminRole(Long roleId) {
+        if (roleId == null) {
+            return false;
+        }
+        QueryWrapper<SysRole> wrapper = new QueryWrapper<>();
+        wrapper.eq("role_id", roleId)
+                .eq("role_code", "SUPER_ADMIN")
+                .eq("deleted_flag", 0);
+        return sysRoleMapper.selectCount(wrapper) > 0;
     }
 }

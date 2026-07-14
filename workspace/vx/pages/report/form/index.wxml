@@ -14,4 +14,4 @@
     </view>
   </block>
 </view>
-<view wx:if="{{task}}" class="fixed-actions"><button class="primary-button" loading="{{submitting}}" disabled="{{submitting || loading || task.status !== 'RUNNING'}}" bindtap="submit">提交报工</button></view>
+<view wx:if="{{task && canSubmit}}" class="fixed-actions"><button class="primary-button" loading="{{submitting}}" disabled="{{submitting || loading || task.status !== 'RUNNING'}}" bindtap="submit">提交报工</button></view>

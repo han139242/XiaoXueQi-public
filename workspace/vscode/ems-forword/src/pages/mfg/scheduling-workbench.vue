@@ -17,6 +17,7 @@ import {
   validateManualScheduleDraft
 } from '@/api/mfg/scheduling'
 import { loadReferenceOptions } from '@/utils/resource-options'
+import { hasPermission } from '@/utils/permission'
 
 const draft = ref(null)
 const scheduleItems = ref([])
@@ -69,9 +70,15 @@ const filteredPendingOrders = computed(() => {
 })
 const scheduledItems = computed(() => scheduleItems.value.filter((item) => item.lineId && item.plannedStartTime && item.plannedEndTime))
 const conflictItems = computed(() => scheduleItems.value.filter((item) => item.status === 'CONFLICT'))
+const canCreateSchedule = computed(() => hasPermission('mfg:schedule-scenario:create'))
+const canUpdateSchedule = computed(() => hasPermission('mfg:schedule-scenario:update'))
+const canDeleteSchedule = computed(() => hasPermission('mfg:schedule-scenario:delete'))
+const canValidateSchedule = computed(() => hasPermission('mfg:schedule-scenario:validate'))
+const canRequestAdvice = computed(() => hasPermission('mfg:schedule-scenario:ai-advice'))
+const canConfirmSchedule = computed(() => hasPermission('mfg:schedule-scenario:confirm'))
 const isEditable = computed(() => draft.value?.status === 'DRAFT')
 const isCalculated = computed(() => draft.value?.status === 'CALCULATED')
-const canConfirm = computed(() => isCalculated.value && !conflictItems.value.length)
+const canConfirm = computed(() => canConfirmSchedule.value && isCalculated.value && !conflictItems.value.length)
 const draftStatus = computed(() => ({
   DRAFT: { label: '编辑中', type: 'info' },
   CALCULATED: { label: '校验通过', type: 'success' },
@@ -195,6 +202,7 @@ async function loadPendingOrders() {
 }
 
 async function loadDraft({ open = false } = {}) {
+  if (!canCreateSchedule.value) return
   loading.value = true
   try {
     const seed = open || !draft.value ? await openManualScheduleDraft() : { data: draft.value }
@@ -215,7 +223,7 @@ async function refreshWorkbench() {
 }
 
 async function openCandidates(order) {
-  if (!draft.value || !isEditable.value) return
+  if (!canCreateSchedule.value || !draft.value || !isEditable.value) return
   const requestSequence = ++candidateRequestSequence
   selectedOrder.value = order
   candidates.value = []
@@ -235,7 +243,7 @@ async function openCandidates(order) {
 }
 
 async function addToLine(candidate) {
-  if (!draft.value || !selectedOrder.value || addingLineId.value !== null) return
+  if (!canCreateSchedule.value || !draft.value || !selectedOrder.value || addingLineId.value !== null) return
   addingLineId.value = candidate.lineId
   try {
     await addManualScheduleItem(draft.value.scenarioId, {
@@ -264,7 +272,7 @@ function currentLineCandidate(item) {
 }
 
 async function openAdvice(order) {
-  if (!draft.value) return
+  if (!canRequestAdvice.value || !draft.value) return
   selectedOrder.value = order
   adviceLoading.value = true
   advice.value = null
@@ -277,7 +285,7 @@ async function openAdvice(order) {
 }
 
 async function openPlacement(item) {
-  if (!draft.value || !isEditable.value) return
+  if (!canUpdateSchedule.value || !draft.value || !isEditable.value) return
   selectedItem.value = item
   placementForm.lineId = String(item.lineId)
   placementForm.timeRange = [item.plannedStartTime, item.plannedEndTime]
@@ -298,7 +306,7 @@ async function openPlacement(item) {
 }
 
 async function savePlacement() {
-  if (!draft.value || !selectedItem.value || !placementForm.lineId || placementForm.timeRange.length !== 2) return
+  if (!canUpdateSchedule.value || !draft.value || !selectedItem.value || !placementForm.lineId || placementForm.timeRange.length !== 2) return
   savingPlacement.value = true
   try {
     await updateManualSchedulePlacement(draft.value.scenarioId, selectedItem.value.scheduleItemId, {
@@ -319,7 +327,7 @@ async function savePlacement() {
 }
 
 async function removeItem(item) {
-  if (!draft.value || !isEditable.value || removingItem.value) return
+  if (!canDeleteSchedule.value || !draft.value || !isEditable.value || removingItem.value) return
   try {
     await ElMessageBox.confirm('移出草案后，订单会回到待排列表。', '移出订单', { type: 'warning', confirmButtonText: '移出', cancelButtonText: '取消' })
   } catch {
@@ -348,7 +356,7 @@ function addVisibleLine() {
 }
 
 async function validateDraft() {
-  if (!draft.value || !isEditable.value) return
+  if (!canValidateSchedule.value || !draft.value || !isEditable.value) return
   validating.value = true
   try {
     await validateManualScheduleDraft(draft.value.scenarioId, { scenarioVersion: draft.value.version })
@@ -366,7 +374,7 @@ function openConfirmDialog() {
 }
 
 async function confirmDraft() {
-  if (!draft.value) return
+  if (!canConfirmSchedule.value || !draft.value) return
   confirming.value = true
   try {
     await confirmScheduleScenario(draft.value.scenarioId, { version: draft.value.version, remark: confirmForm.remark.trim() || undefined })
@@ -417,7 +425,7 @@ onMounted(() => {
           <el-table-column label="订单 / 型号" min-width="160"><template #default="{ row }"><strong>{{ row.productionOrderNo }}</strong><small>{{ productLabel(row.productId) }}</small></template></el-table-column>
           <el-table-column label="数量" width="86" align="right"><template #default="{ row }">{{ formatNumber(row.orderQuantity, 4) }}</template></el-table-column>
           <el-table-column label="交期" width="94"><template #default="{ row }">{{ row.deliveryDate || '--' }}</template></el-table-column>
-          <el-table-column label="操作" width="112" fixed="right"><template #default="{ row }"><el-tooltip content="添加到产线" placement="top"><el-button link type="primary" aria-label="添加到产线" :disabled="!isEditable" @click="openCandidates(row)"><AppIcon name="plus" :size="16" /></el-button></el-tooltip><el-tooltip content="查看 AI 建议" placement="top"><el-button link aria-label="查看 AI 建议" :disabled="!draft" @click="openAdvice(row)"><AppIcon name="bot" :size="16" /></el-button></el-tooltip></template></el-table-column>
+          <el-table-column label="操作" width="112" fixed="right"><template #default="{ row }"><el-tooltip v-if="canCreateSchedule" content="添加到产线" placement="top"><el-button link type="primary" aria-label="添加到产线" :disabled="!isEditable" @click="openCandidates(row)"><AppIcon name="plus" :size="16" /></el-button></el-tooltip><el-tooltip v-if="canRequestAdvice" content="查看 AI 建议" placement="top"><el-button link aria-label="查看 AI 建议" :disabled="!draft" @click="openAdvice(row)"><AppIcon name="bot" :size="16" /></el-button></el-tooltip></template></el-table-column>
           <template #empty><el-empty description="暂无待排订单" :image-size="54" /></template>
         </el-table>
       </section>
@@ -427,25 +435,25 @@ onMounted(() => {
         <div v-if="adviceLoading" class="panel-loading"><el-skeleton :rows="4" animated /></div>
         <div v-else-if="advice" class="advice-content"><p>{{ advice.answer }}</p><ul v-if="advice.suggestions?.length"><li v-for="item in advice.suggestions" :key="item">{{ item }}</li></ul><small>{{ advice.disclaimer }}</small></div>
         <el-empty v-else description="点击订单的建议按钮查看产线安排建议" :image-size="48" />
-        <div class="risk-footer"><div><strong>{{ conflictItems.length ? `${conflictItems.length} 项阻断风险` : isCalculated ? '草案已通过校验' : '请完成时间安排后校验草案' }}</strong><span>{{ isCalculated ? '可人工确认并生成生产计划' : '校验会复核产线能力、周历与时间冲突' }}</span></div><div class="risk-actions"><el-button :loading="validating" :disabled="!isEditable || !scheduleItems.length" @click="validateDraft"><AppIcon name="shield-check" :size="15" />校验草案</el-button><el-button type="success" :disabled="!canConfirm" @click="openConfirmDialog"><AppIcon name="check" :size="15" />确认</el-button></div></div>
+        <div class="risk-footer"><div><strong>{{ conflictItems.length ? `${conflictItems.length} 项阻断风险` : isCalculated ? '草案已通过校验' : '请完成时间安排后校验草案' }}</strong><span>{{ isCalculated ? '可人工确认并生成生产计划' : '校验会复核产线能力、周历与时间冲突' }}</span></div><div class="risk-actions"><el-button v-if="canValidateSchedule" :loading="validating" :disabled="!isEditable || !scheduleItems.length" @click="validateDraft"><AppIcon name="shield-check" :size="15" />校验草案</el-button><el-button v-if="canConfirmSchedule" type="success" :disabled="!canConfirm" @click="openConfirmDialog"><AppIcon name="check" :size="15" />确认</el-button></div></div>
       </section>
     </section>
 
     <section class="mes-panel timeline-panel">
-      <div class="mes-panel-header"><div><h2 class="mes-panel-title">手工时间安排</h2><span>{{ draft ? `${formatDateTime(draft.horizonStart)} 至 ${formatDateTime(draft.horizonEnd)}` : '加载中' }}</span></div><div class="timeline-actions"><el-button :disabled="!isEditable" @click="addLineOpen = true"><AppIcon name="plus" :size="15" />添加产线</el-button><el-button :disabled="!isEditable" @click="validateDraft"><AppIcon name="shield-check" :size="15" />编辑完成并校验</el-button></div></div>
+      <div class="mes-panel-header"><div><h2 class="mes-panel-title">手工时间安排</h2><span>{{ draft ? `${formatDateTime(draft.horizonStart)} 至 ${formatDateTime(draft.horizonEnd)}` : '加载中' }}</span></div><div class="timeline-actions"><el-button v-if="canUpdateSchedule" :disabled="!isEditable" @click="addLineOpen = true"><AppIcon name="plus" :size="15" />添加产线</el-button><el-button v-if="canValidateSchedule" :disabled="!isEditable" @click="validateDraft"><AppIcon name="shield-check" :size="15" />编辑完成并校验</el-button></div></div>
       <div class="timeline-toolbar"><span>点击订单块可编辑产线与生产时间</span><div><el-button circle size="small" aria-label="缩小时间轴" :disabled="timelineZoom <= .75" @click="timelineZoom = Number(Math.max(.75, timelineZoom - .25).toFixed(2))"><AppIcon name="zoom-out" :size="14" /></el-button><el-slider v-model="timelineZoom" :min=".75" :max="3" :step=".25" :show-tooltip="false" /><el-button circle size="small" aria-label="放大时间轴" :disabled="timelineZoom >= 3" @click="timelineZoom = Number(Math.min(3, timelineZoom + .25).toFixed(2))"><AppIcon name="zoom-in" :size="14" /></el-button></div></div>
-      <div v-if="lineGroups.length" class="timeline-board"><div class="timeline-inner" :style="{ '--timeline-width': `${timelineCanvasWidth}px` }"><div class="timeline-head"><div class="timeline-corner">产线</div><div class="timeline-axis"><span v-for="tick in timelineTicks" :key="tick.key" class="axis-tick" :style="{ left: tick.left }"><b>{{ tick.date }}</b><small>{{ tick.detail }}</small></span></div></div><div v-for="group in lineGroups" :key="group.lineId" class="timeline-row"><div class="line-label"><strong>{{ group.label }}</strong><small>{{ group.items.length }} 个订单</small></div><div class="timeline-lane" :style="{ '--tracks': group.trackCount }"><i v-for="tick in timelineTicks" :key="tick.key" :style="{ left: tick.left }" /><button v-for="item in group.items" :key="item.scheduleItemId" type="button" class="timeline-block" :class="{ conflict: item.status === 'CONFLICT', late: Number(item.tardinessMinutes || 0) > 0 }" :style="timelineBlockStyle(item)" :disabled="!isEditable" @click="openPlacement(item)"><strong>{{ scheduledOrderLabel(item) }}</strong><span>{{ scheduledProductLabel(item) }} · {{ formatDateTime(item.plannedStartTime) }}</span></button></div></div></div></div>
+      <div v-if="lineGroups.length" class="timeline-board"><div class="timeline-inner" :style="{ '--timeline-width': `${timelineCanvasWidth}px` }"><div class="timeline-head"><div class="timeline-corner">产线</div><div class="timeline-axis"><span v-for="tick in timelineTicks" :key="tick.key" class="axis-tick" :style="{ left: tick.left }"><b>{{ tick.date }}</b><small>{{ tick.detail }}</small></span></div></div><div v-for="group in lineGroups" :key="group.lineId" class="timeline-row"><div class="line-label"><strong>{{ group.label }}</strong><small>{{ group.items.length }} 个订单</small></div><div class="timeline-lane" :style="{ '--tracks': group.trackCount }"><i v-for="tick in timelineTicks" :key="tick.key" :style="{ left: tick.left }" /><button v-for="item in group.items" :key="item.scheduleItemId" type="button" class="timeline-block" :class="{ conflict: item.status === 'CONFLICT', late: Number(item.tardinessMinutes || 0) > 0 }" :style="timelineBlockStyle(item)" :disabled="!isEditable || !canUpdateSchedule" @click="openPlacement(item)"><strong>{{ scheduledOrderLabel(item) }}</strong><span>{{ scheduledProductLabel(item) }} · {{ formatDateTime(item.plannedStartTime) }}</span></button></div></div></div></div>
       <el-empty v-else description="从待排订单选择产线后，订单会显示在这里" :image-size="62" />
       <div v-if="conflictItems.length" class="conflict-strip"><AppIcon name="alert" :size="16" /><span v-for="item in conflictItems" :key="item.scheduleItemId">订单 #{{ item.productionOrderId }}：{{ item.conflictReason || '存在排程冲突' }}</span></div>
     </section>
 
-    <el-dialog v-model="candidateOpen" title="选择生产产线" width="min(720px, calc(100vw - 32px))" destroy-on-close><p class="dialog-tip">{{ selectedOrder?.productionOrderNo }} · {{ productLabel(selectedOrder?.productId) }}。选择后会自动加入时间轴；未显示的产线会自动新增到左侧。</p><el-table v-loading="candidateLoading" element-loading-text="正在匹配可生产产线..." :data="candidates" size="small"><el-table-column label="产线" min-width="170"><template #default="{ row }"><strong>{{ row.lineCode || row.lineName }}</strong><small>{{ row.lineName }}</small></template></el-table-column><el-table-column label="车间" width="94"><template #default="{ row }">#{{ row.workshopId }}</template></el-table-column><el-table-column label="最早可用" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestStartTime) }}</template></el-table-column><el-table-column label="预计结束" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestEndTime) }}</template></el-table-column><el-table-column label="操作" width="82"><template #default="{ row }"><el-button link type="primary" :loading="String(addingLineId) === String(row.lineId)" :disabled="addingLineId !== null" @click="addToLine(row)">添加</el-button></template></el-table-column><template #empty><el-empty :description="candidateError || '没有符合能力和周历条件的产线'" :image-size="50" /></template></el-table></el-dialog>
+    <el-dialog v-model="candidateOpen" title="选择生产产线" width="min(720px, calc(100vw - 32px))" destroy-on-close><p class="dialog-tip">{{ selectedOrder?.productionOrderNo }} · {{ productLabel(selectedOrder?.productId) }}。选择后会自动加入时间轴；未显示的产线会自动新增到左侧。</p><el-table v-loading="candidateLoading" element-loading-text="正在匹配可生产产线..." :data="candidates" size="small"><el-table-column label="产线" min-width="170"><template #default="{ row }"><strong>{{ row.lineCode || row.lineName }}</strong><small>{{ row.lineName }}</small></template></el-table-column><el-table-column label="车间" width="94"><template #default="{ row }">#{{ row.workshopId }}</template></el-table-column><el-table-column label="最早可用" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestStartTime) }}</template></el-table-column><el-table-column label="预计结束" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestEndTime) }}</template></el-table-column><el-table-column label="操作" width="82"><template #default="{ row }"><el-button v-if="canCreateSchedule" link type="primary" :loading="String(addingLineId) === String(row.lineId)" :disabled="addingLineId !== null" @click="addToLine(row)">添加</el-button></template></el-table-column><template #empty><el-empty :description="candidateError || '没有符合能力和周历条件的产线'" :image-size="50" /></template></el-table></el-dialog>
 
-    <el-drawer v-model="placementOpen" title="编辑订单时间安排" size="min(440px, 100vw)" destroy-on-close><el-form label-position="top"><el-form-item label="订单"><el-input :model-value="selectedItem ? `${scheduledOrderLabel(selectedItem)} · ${scheduledProductLabel(selectedItem)}` : ''" disabled /></el-form-item><el-form-item label="生产产线"><el-select v-model="placementForm.lineId" class="full-width" :loading="candidateLoading" loading-text="正在加载候选产线"><el-option v-for="line in candidates" :key="line.lineId" :label="`${line.lineCode || line.lineName} · 车间 #${line.workshopId || '--'}`" :value="String(line.lineId)" /></el-select></el-form-item><el-form-item label="所属车间"><el-input :model-value="placementLine?.workshopId ? `车间 #${placementLine.workshopId}` : '--'" disabled /></el-form-item><el-form-item label="生产时间"><el-date-picker v-model="placementForm.timeRange" class="full-width" type="datetimerange" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm" start-placeholder="开始" end-placeholder="结束" /></el-form-item><el-form-item label="备注"><el-input v-model="placementForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item></el-form><template #footer><el-button type="danger" plain :loading="removingItem" :disabled="savingPlacement" @click="removeItem(selectedItem)"><AppIcon name="trash" :size="15" />移出草案</el-button><el-button :disabled="removingItem" @click="placementOpen = false">取消</el-button><el-button type="primary" :loading="savingPlacement" :disabled="removingItem" @click="savePlacement">保存安排</el-button></template></el-drawer>
+    <el-drawer v-model="placementOpen" title="编辑订单时间安排" size="min(440px, 100vw)" destroy-on-close><el-form label-position="top"><el-form-item label="订单"><el-input :model-value="selectedItem ? `${scheduledOrderLabel(selectedItem)} · ${scheduledProductLabel(selectedItem)}` : ''" disabled /></el-form-item><el-form-item label="生产产线"><el-select v-model="placementForm.lineId" class="full-width" :loading="candidateLoading" loading-text="正在加载候选产线"><el-option v-for="line in candidates" :key="line.lineId" :label="`${line.lineCode || line.lineName} · 车间 #${line.workshopId || '--'}`" :value="String(line.lineId)" /></el-select></el-form-item><el-form-item label="所属车间"><el-input :model-value="placementLine?.workshopId ? `车间 #${placementLine.workshopId}` : '--'" disabled /></el-form-item><el-form-item label="生产时间"><el-date-picker v-model="placementForm.timeRange" class="full-width" type="datetimerange" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm" start-placeholder="开始" end-placeholder="结束" /></el-form-item><el-form-item label="备注"><el-input v-model="placementForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item></el-form><template #footer><el-button v-if="canDeleteSchedule" type="danger" plain :loading="removingItem" :disabled="savingPlacement" @click="removeItem(selectedItem)"><AppIcon name="trash" :size="15" />移出草案</el-button><el-button :disabled="removingItem" @click="placementOpen = false">取消</el-button><el-button v-if="canUpdateSchedule" type="primary" :loading="savingPlacement" :disabled="removingItem" @click="savePlacement">保存安排</el-button></template></el-drawer>
 
     <el-dialog v-model="addLineOpen" title="添加时间轴产线" width="min(420px, calc(100vw - 32px))" destroy-on-close><p class="dialog-tip">仅改变当前时间轴显示，不创建产线主数据。</p><el-select v-model="lineToAdd" class="full-width" filterable placeholder="选择现有产线"><el-option v-for="line in lineOptions" :key="line.value" :label="line.label" :value="String(line.value)" /></el-select><template #footer><el-button @click="addLineOpen = false">取消</el-button><el-button type="primary" @click="addVisibleLine">添加</el-button></template></el-dialog>
 
-    <el-dialog v-model="confirmOpen" title="确认手工排程草案" width="min(460px, calc(100vw - 32px))" destroy-on-close><p class="confirm-copy">确认后将为所有已排订单创建生产计划，并把生产订单下达为 `RELEASED`。</p><el-form label-position="top"><el-form-item label="确认备注"><el-input v-model="confirmForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item></el-form><template #footer><el-button @click="confirmOpen = false">取消</el-button><el-button type="success" :loading="confirming" @click="confirmDraft">确认并生成计划</el-button></template></el-dialog>
+    <el-dialog v-model="confirmOpen" title="确认手工排程草案" width="min(460px, calc(100vw - 32px))" destroy-on-close><p class="confirm-copy">确认后将为所有已排订单创建生产计划，并把生产订单下达为 `RELEASED`。</p><el-form label-position="top"><el-form-item label="确认备注"><el-input v-model="confirmForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item></el-form><template #footer><el-button @click="confirmOpen = false">取消</el-button><el-button v-if="canConfirmSchedule" type="success" :loading="confirming" @click="confirmDraft">确认并生成计划</el-button></template></el-dialog>
   </div>
 </template>
 

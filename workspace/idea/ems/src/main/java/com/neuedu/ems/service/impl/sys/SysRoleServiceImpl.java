@@ -19,6 +19,8 @@ import java.util.List;
 @Service
 public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> implements SysRoleService {
 
+    private static final String SUPER_ADMIN_ROLE = "SUPER_ADMIN";
+
     @Autowired
     private PermissionService permissionService;
 
@@ -38,6 +40,9 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
 
     @Override
     public boolean saveRole(SysRole role) {
+        if (SUPER_ADMIN_ROLE.equals(role.getRoleCode())) {
+            return false;
+        }
         if (role.getDeletedFlag() == null) {
             role.setDeletedFlag(0);
         }
@@ -53,6 +58,20 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         if (role.getRoleId() == null) {
             return false;
         }
+        SysRole existing = getRoleById(role.getRoleId());
+        if (existing == null) {
+            return false;
+        }
+        if (SUPER_ADMIN_ROLE.equals(existing.getRoleCode())) {
+            if ((StringUtils.hasText(role.getRoleCode()) && !SUPER_ADMIN_ROLE.equals(role.getRoleCode()))
+                    || (StringUtils.hasText(role.getStatus()) && !"ENABLE".equals(role.getStatus()))
+                    || (StringUtils.hasText(role.getDataScope()) && !"ALL".equals(role.getDataScope()))) {
+                return false;
+            }
+            role.setRoleCode(SUPER_ADMIN_ROLE);
+            role.setStatus("ENABLE");
+            role.setDataScope("ALL");
+        }
         role.setDeletedFlag(null);
         boolean updated = baseMapper.updateById(role) > 0;
         if (updated) {
@@ -63,6 +82,10 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
 
     @Override
     public boolean removeRoleById(Long roleId) {
+        SysRole existing = getRoleById(roleId);
+        if (existing == null || SUPER_ADMIN_ROLE.equals(existing.getRoleCode())) {
+            return false;
+        }
         SysRole role = new SysRole();
         role.setRoleId(roleId);
         role.setDeletedFlag(1);

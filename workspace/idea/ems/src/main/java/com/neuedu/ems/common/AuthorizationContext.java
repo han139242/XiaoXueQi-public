@@ -14,6 +14,8 @@ public record AuthorizationContext(
         Set<String> permissions,
         Set<Long> teamIds
 ) {
+    public static final String SUPER_ADMIN_ROLE = "SUPER_ADMIN";
+
     public AuthorizationContext {
         roles = roles == null ? Set.of() : Set.copyOf(roles);
         permissions = permissions == null ? Set.of() : Set.copyOf(permissions);
@@ -21,6 +23,10 @@ public record AuthorizationContext(
     }
 
     public boolean hasPermission(String permissionCode) {
-        return permissionCode != null && permissions.contains(permissionCode);
+        return permissionCode != null && (isSuperAdmin() || permissions.contains(permissionCode));
+    }
+
+    public boolean isSuperAdmin() {
+        return roles.contains(SUPER_ADMIN_ROLE);
     }
 }

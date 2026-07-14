@@ -52,6 +52,19 @@ class DataScopeServiceTest {
     }
 
     @Test
+    void appliesDepartmentRestrictionInsteadOfTreatingItAsAllData() {
+        DataScopeService service = serviceWithContext("DEPARTMENT", 31L);
+        LambdaQueryWrapper<MfgTask> taskQuery = new LambdaQueryWrapper<>();
+        LambdaQueryWrapper<MfgWorkReport> reportQuery = new LambdaQueryWrapper<>();
+
+        service.applyTaskScope(taskQuery);
+        service.applyWorkReportScope(reportQuery);
+
+        assertTrue(taskQuery.getCustomSqlSegment().contains("department_id"));
+        assertTrue(reportQuery.getCustomSqlSegment().contains("department_id"));
+    }
+
+    @Test
     void selfReporterCannotImpersonateAnotherEmployee() {
         DataScopeService service = serviceWithContext("SELF", 21L);
         MfgWorkReport report = new MfgWorkReport();

@@ -1,30 +1,36 @@
 <view class="page workbench-page">
   <view class="section-heading action-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="layout-grid" size="34"></app-icon></view><text class="section-heading__title">快捷入口</text></view><text class="section-heading__meta">常用操作</text></view>
   <view class="action-grid">
-    <view class="action-item" data-url="/pages/dashboard/index" bindtap="openPage"><view class="action-symbol"><app-icon name="factory" size="38"></app-icon></view><text>生产看板</text></view>
-    <view class="action-item" data-url="/pages/work-order/index/index" bindtap="openTab"><view class="action-symbol"><app-icon name="clipboard-list" size="38"></app-icon></view><text>生产工单</text></view>
-    <view class="action-item" data-url="/pages/task/index/index" bindtap="openTab"><view class="action-symbol"><app-icon name="list-checks" size="38"></app-icon></view><text>生产任务</text></view>
-    <view class="action-item" data-url="/pages/report/index/index" bindtap="openTab"><view class="action-symbol"><app-icon name="file-text" size="38"></app-icon></view><text>报工记录</text></view>
-    <view class="action-item" bindtap="startScan"><view class="action-symbol"><app-icon name="scan-line" size="38"></app-icon></view><text>扫码追溯</text></view>
+    <view wx:if="{{canDashboard}}" class="action-item" data-url="/pages/dashboard/index" bindtap="openPage"><view class="action-symbol"><app-icon name="factory" size="38"></app-icon></view><text>生产看板</text></view>
+    <view wx:if="{{canWorkOrder}}" class="action-item" data-url="/pages/work-order/index/index" bindtap="openTab"><view class="action-symbol"><app-icon name="clipboard-list" size="38"></app-icon></view><text>生产工单</text></view>
+    <view wx:if="{{canTask}}" class="action-item" data-url="/pages/task/index/index" bindtap="openTab"><view class="action-symbol"><app-icon name="list-checks" size="38"></app-icon></view><text>生产任务</text></view>
+    <view wx:if="{{canReport}}" class="action-item" data-url="/pages/report/index/index" bindtap="openTab"><view class="action-symbol"><app-icon name="file-text" size="38"></app-icon></view><text>报工记录</text></view>
+    <view wx:if="{{canTrace}}" class="action-item" bindtap="startScan"><view class="action-symbol"><app-icon name="scan-line" size="38"></app-icon></view><text>扫码追溯</text></view>
   </view>
 
-  <view class="section-heading business-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="badge-check" size="34"></app-icon></view><text class="section-heading__title">质检业务</text></view><text class="section-heading__meta">现场质检</text></view>
-  <view class="business-grid business-grid--three">
-    <view class="business-item business-item--third" data-url="/pages/quality/pending/index" bindtap="openPage"><view class="business-symbol"><app-icon name="clipboard-check" size="38"></app-icon></view><text>待检任务</text></view>
-    <view class="business-item business-item--third" data-url="/pages/quality/records/index" bindtap="openPage"><view class="business-symbol"><app-icon name="shield-check" size="38"></app-icon></view><text>质检记录</text></view>
-    <view class="business-item business-item--third" data-url="/pages/quality/defect/index" bindtap="openPage"><view class="business-symbol business-symbol--danger"><app-icon name="triangle-alert" size="38"></app-icon></view><text>不良品项</text></view>
-  </view>
+  <block wx:if="{{showQuality}}">
+    <view class="section-heading business-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="badge-check" size="34"></app-icon></view><text class="section-heading__title">质检业务</text></view><text class="section-heading__meta">现场质检</text></view>
+    <view class="business-grid business-grid--three">
+      <view wx:if="{{canQualityInspection}}" class="business-item business-item--third" data-url="/pages/quality/pending/index" bindtap="openPage"><view class="business-symbol"><app-icon name="clipboard-check" size="38"></app-icon></view><text>待检任务</text></view>
+      <view wx:if="{{canQualityInspection}}" class="business-item business-item--third" data-url="/pages/quality/records/index" bindtap="openPage"><view class="business-symbol"><app-icon name="shield-check" size="38"></app-icon></view><text>质检记录</text></view>
+      <view wx:if="{{canQualityDefect}}" class="business-item business-item--third" data-url="/pages/quality/defect/index" bindtap="openPage"><view class="business-symbol business-symbol--danger"><app-icon name="triangle-alert" size="38"></app-icon></view><text>不良品项</text></view>
+    </view>
+  </block>
 
-  <view class="section-heading business-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="warehouse" size="34"></app-icon></view><text class="section-heading__title">仓库管理</text></view><text class="section-heading__meta">出入库与库存</text></view>
-  <view class="business-grid business-grid--three">
-    <view class="business-item business-item--third" data-url="/pages/warehouse/inbound/index" bindtap="openPage"><view class="business-symbol"><app-icon name="inbox" size="38"></app-icon></view><text>入库单</text></view>
-    <view class="business-item business-item--third" data-url="/pages/warehouse/outbound/index" bindtap="openPage"><view class="business-symbol"><app-icon name="package" size="38"></app-icon></view><text>出库单</text></view>
-    <view class="business-item business-item--third" data-url="/pages/warehouse/inventory/index" bindtap="openPage"><view class="business-symbol business-symbol--warning"><app-icon name="boxes" size="38"></app-icon></view><text>库存余额</text></view>
-  </view>
+  <block wx:if="{{showWarehouse}}">
+    <view class="section-heading business-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="warehouse" size="34"></app-icon></view><text class="section-heading__title">仓库管理</text></view><text class="section-heading__meta">出入库与库存</text></view>
+    <view class="business-grid business-grid--three">
+      <view wx:if="{{canInbound}}" class="business-item business-item--third" data-url="/pages/warehouse/inbound/index" bindtap="openPage"><view class="business-symbol"><app-icon name="inbox" size="38"></app-icon></view><text>入库单</text></view>
+      <view wx:if="{{canOutbound}}" class="business-item business-item--third" data-url="/pages/warehouse/outbound/index" bindtap="openPage"><view class="business-symbol"><app-icon name="package" size="38"></app-icon></view><text>出库单</text></view>
+      <view wx:if="{{canInventory}}" class="business-item business-item--third" data-url="/pages/warehouse/inventory/index" bindtap="openPage"><view class="business-symbol business-symbol--warning"><app-icon name="boxes" size="38"></app-icon></view><text>库存余额</text></view>
+    </view>
+  </block>
 
-  <view class="section-heading business-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="wrench" size="34"></app-icon></view><text class="section-heading__title">设备管理</text></view><text class="section-heading__meta">台账与维修</text></view>
-  <view class="business-grid">
-    <view class="business-item" data-url="/pages/equipment/list/index" bindtap="openPage"><view class="business-symbol"><app-icon name="server" size="38"></app-icon></view><text>设备台账</text></view>
-    <view class="business-item" data-url="/pages/equipment/repair/index" bindtap="openPage"><view class="business-symbol business-symbol--danger"><app-icon name="notebook-pen" size="38"></app-icon></view><text>维修单</text></view>
-  </view>
+  <block wx:if="{{showEquipment}}">
+    <view class="section-heading business-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="wrench" size="34"></app-icon></view><text class="section-heading__title">设备管理</text></view><text class="section-heading__meta">台账与维修</text></view>
+    <view class="business-grid">
+      <view wx:if="{{canEquipment}}" class="business-item" data-url="/pages/equipment/list/index" bindtap="openPage"><view class="business-symbol"><app-icon name="server" size="38"></app-icon></view><text>设备台账</text></view>
+      <view wx:if="{{canRepair}}" class="business-item" data-url="/pages/equipment/repair/index" bindtap="openPage"><view class="business-symbol business-symbol--danger"><app-icon name="notebook-pen" size="38"></app-icon></view><text>维修单</text></view>
+    </view>
+  </block>
 </view>

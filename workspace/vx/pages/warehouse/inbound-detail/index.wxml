@@ -26,6 +26,6 @@
       <view class="section-title">备注</view>
       <view class="remark-text">{{detail.remarkText}}</view>
     </view>
-    <button wx:if="{{detail.auditStatus === 'SUBMITTED'}}" class="primary-button" bindtap="confirmOrder">确认入库</button>
+    <button wx:if="{{canConfirm && detail.auditStatus === 'SUBMITTED'}}" class="primary-button" bindtap="confirmOrder">确认入库</button>
   </view>
 </view>

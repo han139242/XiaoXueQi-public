@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.sys.SysUser;
 import com.neuedu.ems.entity.sys.SysUserRole;
+import com.neuedu.ems.entity.sys.SysRole;
+import com.neuedu.ems.mapper.sys.SysRoleMapper;
 import com.neuedu.ems.mapper.sys.SysUserMapper;
 import com.neuedu.ems.mapper.sys.SysUserRoleMapper;
 import com.neuedu.ems.service.sys.SysUserService;
@@ -30,6 +32,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Autowired
     private SysUserRoleMapper sysUserRoleMapper;
+
+    @Autowired
+    private SysRoleMapper sysRoleMapper;
 
     @Autowired
     private PasswordHasher passwordHasher;
@@ -74,6 +79,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user.getUserId() == null) {
             return false;
         }
+        SysUser existing = getUserById(user.getUserId());
+        if (existing == null || (isSuperAdminUser(user.getUserId())
+                && StringUtils.hasText(user.getStatus()) && !"ENABLE".equals(user.getStatus()))) {
+            return false;
+        }
         user.setDeletedFlag(null);
         user.setPasswordHash(null);
         if ("ENABLE".equals(user.getStatus())) {
@@ -97,7 +107,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Override
     public boolean removeUserById(Long userId) {
         SysUser existing = getUserById(userId);
-        if (existing == null) {
+        if (existing == null || isSuperAdminUser(userId)) {
             return false;
         }
         SysUser user = new SysUser();
@@ -147,6 +157,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         Set<Long> targetRoleIds = roleIds == null ? new LinkedHashSet<>() : roleIds.stream()
                 .filter(roleId -> roleId != null)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+        boolean superAdminUser = isSuperAdminUser(userId);
+        boolean assignsSuperAdminRole = containsSuperAdminRole(targetRoleIds);
+        if (superAdminUser != assignsSuperAdminRole) {
+            return false;
+        }
 
         QueryWrapper<SysUserRole> wrapper = new QueryWrapper<>();
         wrapper.eq("user_id", userId);
@@ -188,6 +203,22 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Override
     public SysUser getByUserName(String username) {
         return baseMapper.getByUserName(username);
+    }
+
+    private boolean isSuperAdminUser(Long userId) {
+        return baseMapper.listRoleCodes(userId).contains("SUPER_ADMIN");
+    }
+
+    private boolean containsSuperAdminRole(Set<Long> roleIds) {
+        if (roleIds.isEmpty()) {
+            return false;
+        }
+        QueryWrapper<SysRole> wrapper = new QueryWrapper<>();
+        wrapper.in("role_id", roleIds)
+                .eq("role_code", "SUPER_ADMIN")
+                .eq("status", "ENABLE")
+                .eq("deleted_flag", 0);
+        return sysRoleMapper.selectCount(wrapper) > 0;
     }
 
     private QueryWrapper<SysUser> buildUserQuery(String keyword, String status) {
