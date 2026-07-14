@@ -1,0 +1,27 @@
+<view class="page inventory-page">
+  <loading-state wx:if="{{loading && list.length === 0}}"></loading-state>
+  <empty-state wx:elif="{{error && list.length === 0}}" title="库存余额加载失败" description="{{error}}" action-text="重试" bind:action="loadPage"></empty-state>
+  <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无库存余额"></empty-state>
+  <view wx:else class="record-list">
+    <view wx:for="{{list}}" wx:key="inventoryId" class="record-card">
+      <view class="record-header">
+        <view class="record-identity"><view class="record-icon"><app-icon name="boxes" size="34"></app-icon></view><view><text class="record-number" selectable>{{item.materialLabel}}</text><text class="record-subline">{{item.batchNo || ('批次 ID ' + item.batchId)}}</text></view></view>
+        <status-tag text="{{item.statusText}}" tone="{{item.statusTone}}"></status-tag>
+      </view>
+      <view class="stat-grid">
+        <view class="stat-cell"><text class="stat-value">{{item.quantity}}</text><text class="stat-label">库存数量</text></view>
+        <view class="stat-cell"><text class="stat-value {{item.statusTone === 'warning' ? 'stat-value--danger' : ''}}">{{item.availableQuantity}}</text><text class="stat-label">可用数量</text></view>
+      </view>
+      <view class="inventory-fields">
+        <view><text>所在仓库</text><text>{{item.warehouseLabel}}</text></view>
+        <view><text>所在库位</text><text>{{item.locationLabel}}</text></view>
+        <view><text>锁定数量</text><text>{{item.lockedQuantity}}</text></view>
+        <view><text>预警数量</text><text>{{item.warningQuantity}}</text></view>
+        <view><text>更新时间</text><text>{{item.updatedTimeText}}</text></view>
+      </view>
+    </view>
+    <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>
+    <view wx:elif="{{loading}}" class="list-footer">加载中</view>
+    <view wx:elif="{{finished}}" class="list-footer">已加载全部</view>
+  </view>
+</view>

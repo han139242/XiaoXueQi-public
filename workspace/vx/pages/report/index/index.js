@@ -55,7 +55,8 @@ Page({
   },
 
   onShow() {
-    guard.requireAuth()
+    if (!guard.requireAuth()) return
+    if (!this.data.loading) this.loadPage(true)
   },
 
   onPullDownRefresh() {

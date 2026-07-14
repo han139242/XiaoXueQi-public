@@ -22,10 +22,12 @@ public interface MfgTaskService extends IService<MfgTask> {
      * @param workOrderId 工单ID
      * @param operationId 工序ID
      * @param stationId 工位ID
+     * @param employeeId 已分配员工ID
+     * @param sort 创建时间排序
      * @return 分页结果
      */
     Page<MfgTask> pageTasks(Integer current, Integer size, String keyword, String status,
-                            Long dispatchId, Long workOrderId, Long operationId, Long stationId);
+                            Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort);
 
     /**
      * 查询生产任务列表，支持任务编号、状态、派工单、工单、工序和工位筛选。
@@ -35,9 +37,11 @@ public interface MfgTaskService extends IService<MfgTask> {
      * @param workOrderId 工单ID
      * @param operationId 工序ID
      * @param stationId 工位ID
+     * @param employeeId 已分配员工ID
+     * @param sort 创建时间排序
      * @return 生产任务列表
      */
-    List<MfgTask> listTasks(String keyword, String status, Long dispatchId, Long workOrderId, Long operationId, Long stationId);
+    List<MfgTask> listTasks(String keyword, String status, Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort);
 
     /**
      * 根据生产任务ID查询生产任务信息。

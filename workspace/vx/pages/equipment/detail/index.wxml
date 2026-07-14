@@ -1,0 +1,28 @@
+<view class="page detail-page">
+  <loading-state wx:if="{{loading && !detail}}"></loading-state>
+  <empty-state wx:elif="{{error && !detail}}" title="设备详情加载失败" description="{{error}}" action-text="重试" bind:action="loadDetail"></empty-state>
+  <view wx:elif="{{detail}}" class="detail-stack">
+    <view class="detail-hero">
+      <view class="detail-hero__header">
+        <view class="detail-hero__identity"><view class="detail-hero__icon"><app-icon name="wrench" size="38"></app-icon></view><view><text class="detail-hero__number" selectable>{{detail.equipmentName}}</text><text class="subline">{{detail.equipmentCode}}</text></view></view>
+        <status-tag text="{{detail.statusText}}" tone="{{detail.statusTone}}"></status-tag>
+      </view>
+      <view class="detail-fields">
+        <view><text>规格型号</text><text>{{detail.model || '-'}}</text></view>
+        <view><text>生产厂家</text><text>{{detail.manufacturer || '-'}}</text></view>
+        <view><text>购置日期</text><text>{{detail.purchaseDate || '-'}}</text></view>
+        <view><text>所在工位</text><text>{{detail.stationLabel}}</text></view>
+        <view><text>更新时间</text><text>{{detail.updatedTimeText}}</text></view>
+      </view>
+    </view>
+    <view class="detail-card">
+      <view class="section-title">备注</view>
+      <view class="remark-text">{{detail.remarkText}}</view>
+    </view>
+    <view class="detail-actions">
+      <button wx:if="{{detail.status !== 'RUNNING'}}" class="primary-button" data-status="RUNNING" bindtap="updateStatus">标记运行</button>
+      <button wx:if="{{detail.status !== 'IDLE'}}" class="idle-button" data-status="IDLE" bindtap="updateStatus">标记空闲</button>
+      <button wx:if="{{detail.status !== 'FAULT'}}" class="danger-button" data-status="FAULT" bindtap="updateStatus">标记故障</button>
+    </view>
+  </view>
+</view>

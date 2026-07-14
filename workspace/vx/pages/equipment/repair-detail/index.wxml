@@ -1,0 +1,26 @@
+<view class="page detail-page">
+  <loading-state wx:if="{{loading && !detail}}"></loading-state>
+  <empty-state wx:elif="{{error && !detail}}" title="维修详情加载失败" description="{{error}}" action-text="重试" bind:action="loadDetail"></empty-state>
+  <view wx:elif="{{detail}}" class="detail-stack">
+    <view class="detail-hero">
+      <view class="detail-hero__header">
+        <view class="detail-hero__identity"><view class="detail-hero__icon"><app-icon name="notebook-pen" size="38"></app-icon></view><text class="detail-hero__number" selectable>{{detail.repairNo || ('维修单 ' + detail.repairId)}}</text></view>
+        <status-tag text="{{detail.statusText}}" tone="{{detail.statusTone}}"></status-tag>
+      </view>
+      <view class="detail-fields">
+        <view><text>设备</text><text>{{detail.equipmentLabel}}</text></view>
+        <view><text>报修人</text><text>{{detail.applicantLabel}}</text></view>
+        <view><text>维修人</text><text>{{detail.repairerLabel}}</text></view>
+        <view><text>报修时间</text><text>{{detail.reportedTimeText}}</text></view>
+        <view><text>派工时间</text><text>{{detail.assignedTimeText}}</text></view>
+        <view><text>关闭时间</text><text>{{detail.closedTimeText}}</text></view>
+      </view>
+    </view>
+    <view class="detail-card"><view class="section-title">故障描述</view><view class="remark-text">{{detail.faultText}}</view></view>
+    <view class="detail-card"><view class="section-title">维修结果</view><view class="remark-text">{{detail.resultText}}</view></view>
+    <view class="detail-actions">
+      <button wx:if="{{detail.status === 'SUBMITTED'}}" class="primary-button" bindtap="assignRepair">派工</button>
+      <button wx:if="{{detail.status === 'ASSIGNED' || detail.status === 'PROCESSING'}}" class="primary-button" bindtap="closeRepair">关闭维修单</button>
+    </view>
+  </view>
+</view>

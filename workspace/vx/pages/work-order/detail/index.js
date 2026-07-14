@@ -25,15 +25,16 @@ Page({
   },
 
   onShow() {
-    guard.requireAuth()
+    if (!guard.requireAuth()) return
+    if (this.data.id && !this.data.loading) this.loadData()
+  },
+
+  onPullDownRefresh() {
+    this.loadData().finally(() => wx.stopPullDownRefresh())
   },
 
   openTask(event) {
     wx.navigateTo({ url: '/pages/task/detail/index?id=' + encodeURIComponent(event.currentTarget.dataset.id) })
-  },
-
-  openReportForm(event) {
-    wx.navigateTo({ url: '/pages/report/form/index?taskId=' + encodeURIComponent(event.currentTarget.dataset.id) })
   },
 
   async loadData() {

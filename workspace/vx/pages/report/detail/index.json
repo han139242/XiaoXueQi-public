@@ -1,5 +1,7 @@
 {
   "navigationBarTitleText": "报工详情",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
   "usingComponents": {
     "empty-state": "/components/empty-state/index",
     "loading-state": "/components/loading-state/index",

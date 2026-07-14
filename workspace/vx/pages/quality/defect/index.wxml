@@ -1,0 +1,33 @@
+<view class="page defect-page">
+  <loading-state wx:if="{{loading && list.length === 0}}"></loading-state>
+  <empty-state wx:elif="{{error && list.length === 0}}" title="不良品项加载失败" description="{{error}}" action-text="重试" bind:action="loadPage"></empty-state>
+  <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无不良品项" description="点击右下角新增不良记录"></empty-state>
+
+  <view wx:else class="defect-list">
+    <view wx:for="{{list}}" wx:key="ncrId" class="defect-block" data-id="{{item.ncrId}}" bindtap="openDetail">
+      <view class="defect-name"><view class="defect-marker"></view><text>{{item.displayName}}</text></view>
+      <view class="defect-card">
+        <view class="defect-row"><text>不良品项编号</text><text>{{item.displayNo}}</text></view>
+        <view class="defect-media-row">
+          <view class="media-labels">
+            <text>图片</text>
+          </view>
+          <image wx:if="{{item.imageUrl}}" class="defect-image" src="{{item.imageUrl}}" mode="aspectFill"></image>
+          <view wx:else class="defect-image defect-image--empty"></view>
+        </view>
+        <view class="defect-row"><text>创建时间</text><text>{{item.createdTimeText}}</text></view>
+        <view class="defect-row"><text>创建人</text><text>{{item.createdByText}}</text></view>
+      </view>
+    </view>
+    <view wx:if="{{error}}" class="append-error" bindtap="refreshList">{{error}}，点击重试</view>
+    <view wx:elif="{{loading}}" class="list-footer">加载中</view>
+    <view wx:elif="{{finished}}" class="list-footer">已加载全部</view>
+  </view>
+
+  <view class="defect-tools">
+    <view class="tool-button tool-button--light" bindtap="showSearchTip"><app-icon name="search" size="30"></app-icon></view>
+    <view class="tool-button tool-button--light" bindtap="refreshList"><app-icon name="refresh-cw" size="30"></app-icon></view>
+    <view class="tool-button tool-button--light" bindtap="openForm"><app-icon name="notebook-pen" size="34"></app-icon></view>
+    <view class="tool-button tool-button--primary" bindtap="refreshList"><app-icon name="list-checks" size="34" inverse></app-icon></view>
+  </view>
+</view>

@@ -1,0 +1,43 @@
+<view class="page defect-form-page">
+  <view class="form-title"><text>编辑</text><text class="form-cancel" bindtap="cancel">取消</text></view>
+  <view class="form-section">
+    <view wx:if="{{mode === 'detail'}}" class="form-field">
+      <text>不良品项编号</text>
+      <input value="{{form.ncrNo}}" disabled />
+    </view>
+    <view wx:else class="form-field">
+      <text>检验单 ID</text>
+      <input value="{{form.inspectionId}}" data-field="inspectionId" type="number" placeholder="请输入检验单 ID" bindinput="handleInput" />
+    </view>
+    <view class="form-field">
+      <text>产品批次 ID</text>
+      <input value="{{form.productLotId}}" data-field="productLotId" type="number" placeholder="可选" bindinput="handleInput" />
+    </view>
+    <view class="form-field">
+      <text><text class="required-star">*</text>不良品项名称</text>
+      <input value="{{form.defectReason}}" data-field="defectReason" placeholder="例如：涂胶不均匀" bindinput="handleInput" />
+    </view>
+    <picker range="{{dispositionOptions}}" range-key="label" value="{{dispositionIndex}}" bindchange="handleDisposition">
+      <view class="picker-field"><text>处理方式</text><view><text>{{dispositionOptions[dispositionIndex].label}}</text><app-icon name="chevron-right" size="28" muted></app-icon></view></view>
+    </picker>
+  </view>
+
+  <view class="form-section image-section">
+    <view class="image-title">图片</view>
+    <image wx:if="{{form.imageUrl}}" class="image-placeholder" src="{{form.imageUrl}}" mode="aspectFill"></image>
+    <view wx:else class="image-placeholder"><app-icon name="camera" size="42" muted></app-icon></view>
+  </view>
+
+  <view class="form-section">
+    <view class="form-field form-field--textarea">
+      <text>备注</text>
+      <textarea value="{{form.remark}}" data-field="remark" maxlength="200" placeholder="填写不良说明或现场处理建议" bindinput="handleInput"></textarea>
+    </view>
+  </view>
+
+  <view class="fixed-actions defect-form-actions">
+    <button class="danger-button form-action-button" disabled="{{submitting}}" bindtap="removeDraft"><app-icon name="trash-2" size="30" inverse></app-icon><text>删除</text></button>
+    <button class="reset-button form-action-button" disabled="{{submitting}}" bindtap="resetForm"><app-icon name="refresh-cw" size="30" inverse></app-icon><text>重置</text></button>
+    <button class="primary-button form-action-button" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit"><app-icon name="circle-check-big" size="30" inverse></app-icon><text>{{submitting ? '提交中' : '提交'}}</text></button>
+  </view>
+</view>

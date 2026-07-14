@@ -1,0 +1,10 @@
+.detail-page { padding-top: 22rpx; background: #f4f6f8; }
+.detail-stack { display: flex; flex-direction: column; gap: 18rpx; }
+.detail-card { padding: 22rpx; background: #ffffff; border: 1rpx solid #e2e8ee; border-radius: 8rpx; }
+.detail-fields > view { display: flex; justify-content: space-between; gap: 22rpx; padding: 9rpx 0; color: #7a848e; font-size: 26rpx; line-height: 1.45; }
+.detail-fields > view text:last-child { min-width: 0; color: #202a36; text-align: right; overflow-wrap: anywhere; }
+.line-item { padding: 16rpx 0; border-top: 1rpx solid #edf0f3; }
+.line-item:first-of-type { border-top: 0; }
+.line-title { display: flex; justify-content: space-between; gap: 18rpx; color: #202a36; font-size: 27rpx; font-weight: 600; line-height: 1.4; }
+.line-title text { min-width: 0; overflow-wrap: anywhere; }
+.line-sub, .line-empty, .remark-text { margin-top: 8rpx; color: #7a848e; font-size: 25rpx; line-height: 1.5; overflow-wrap: anywhere; }

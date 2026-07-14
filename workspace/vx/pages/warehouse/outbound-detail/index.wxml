@@ -1,0 +1,31 @@
+<view class="page detail-page">
+  <loading-state wx:if="{{loading && !detail}}"></loading-state>
+  <empty-state wx:elif="{{error && !detail}}" title="出库详情加载失败" description="{{error}}" action-text="重试" bind:action="loadDetail"></empty-state>
+  <view wx:elif="{{detail}}" class="detail-stack">
+    <view class="detail-hero">
+      <view class="detail-hero__header">
+        <view class="detail-hero__identity"><view class="detail-hero__icon"><app-icon name="package" size="38"></app-icon></view><text class="detail-hero__number" selectable>{{detail.outboundNo || ('出库单 ' + detail.outboundId)}}</text></view>
+        <status-tag text="{{detail.statusText}}" tone="{{detail.statusTone}}"></status-tag>
+      </view>
+      <view class="detail-fields">
+        <view><text>出库仓库</text><text>{{detail.warehouseLabel}}</text></view>
+        <view><text>生产工单</text><text>{{detail.workOrderLabel}}</text></view>
+        <view><text>出库时间</text><text>{{detail.outboundTimeText}}</text></view>
+        <view><text>创建时间</text><text>{{detail.createdTimeText}}</text></view>
+      </view>
+    </view>
+    <view class="detail-card">
+      <view class="section-title">出库明细</view>
+      <view wx:for="{{lines}}" wx:key="detailId" class="line-item">
+        <view class="line-title"><text>{{item.materialLabel}}</text><text>{{item.outboundQuantity}}</text></view>
+        <view class="line-sub">{{item.batchNo || ('批次 ID ' + item.batchId)}} · {{item.locationLabel}}</view>
+      </view>
+      <view wx:if="{{lines.length === 0}}" class="line-empty">暂无明细</view>
+    </view>
+    <view class="detail-card">
+      <view class="section-title">备注</view>
+      <view class="remark-text">{{detail.remarkText}}</view>
+    </view>
+    <button wx:if="{{detail.auditStatus === 'SUBMITTED'}}" class="primary-button" bindtap="confirmOrder">确认出库</button>
+  </view>
+</view>

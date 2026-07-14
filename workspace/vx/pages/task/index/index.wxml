@@ -1,26 +1,29 @@
-<view class="filter-shell">
+<view class="filter-shell task-filter-shell">
   <view class="reference-filter-bar">
-    <view class="reference-filter {{filters.status ? 'reference-filter--active' : ''}}" data-field="status" bindtap="toggleDropdown"><text>状态</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
-    <view class="reference-filter {{sortIndex ? 'reference-filter--active' : ''}}" data-field="sort" bindtap="toggleDropdown"><text>排序</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
-    <view class="reference-filter {{filters.operationId ? 'reference-filter--active' : ''}}" data-field="operation" bindtap="toggleDropdown"><text>选择工序</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="reference-filter {{employeeIndex ? 'reference-filter--active' : ''}}" data-field="employee" bindtap="toggleDropdown"><text>{{employeeIndex ? employeeOptions[employeeIndex].label : '人员筛选'}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="reference-filter {{sortIndex ? 'reference-filter--active' : ''}}" data-field="sort" bindtap="toggleDropdown"><text>{{sortIndex ? sortOptions[sortIndex].label : '排序'}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="reference-filter {{operationIndex ? 'reference-filter--active' : ''}}" data-field="operation" bindtap="toggleDropdown"><text>{{operationIndex ? operationOptions[operationIndex].label : '选择工序'}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
   </view>
   <view wx:if="{{activeDropdown}}" class="reference-dropdown">
     <view wx:for="{{dropdownOptions}}" wx:key="index" class="dropdown-option {{item.selected ? 'dropdown-option--active' : ''}}" data-field="{{activeDropdown}}" data-index="{{item.index}}" bindtap="selectDropdown">
-      <text>{{item.label}}</text>
-      <app-icon wx:if="{{item.selected}}" name="circle-check-big" size="30"></app-icon>
+      <text>{{item.label}}</text><app-icon wx:if="{{item.selected}}" name="circle-check-big" size="30"></app-icon>
     </view>
   </view>
 </view>
 
-<view class="page list-page">
+<view class="page task-list-page" bindtap="closeDropdown">
   <loading-state wx:if="{{loading && list.length === 0}}"></loading-state>
-  <empty-state wx:elif="{{error && list.length === 0}}" title="任务加载失败" description="{{error}}" action-text="重试" bind:action="handleSearch"></empty-state>
+  <empty-state wx:elif="{{error && list.length === 0}}" title="任务加载失败" description="{{error}}" action-text="重试" bind:action="loadPage"></empty-state>
   <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无任务" description="当前筛选条件下没有记录"></empty-state>
-  <view wx:else class="record-list">
-    <view wx:for="{{list}}" wx:key="taskId" class="record-card" data-id="{{item.taskId}}" bindtap="openDetail">
-      <view class="record-header"><text class="record-number" selectable>{{item.taskNo || ('任务 ID ' + item.taskId)}}｜{{item.operationLabel}}</text><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
-      <view class="task-fields"><view><text>工单编号</text><text>{{item.workOrderLabel}}</text></view><view><text>计划数量</text><text>{{item.plannedQuantity == null ? '-' : item.plannedQuantity}}</text></view><view><text>完成数量</text><text>{{item.completedQuantity == null ? '-' : item.completedQuantity}}</text></view><view><text>工位</text><text>{{item.stationLabel}}</text></view></view>
-      <view class="record-footer"><text>执行详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view>
+  <view wx:else class="task-list">
+    <view wx:for="{{list}}" wx:key="taskId" class="task-card" data-id="{{item.taskId}}" catchtap="openDetail">
+      <view class="task-card__header"><text class="task-card__title" selectable>{{item.taskNo || ('任务 ID ' + item.taskId)}}｜{{item.operationLabel}}</text><text class="task-status task-status--{{item.statusView.tone}}">{{item.statusView.text}}</text></view>
+      <view class="task-card__fields">
+        <view><text>计划时间:</text><text>{{item.planTimeText}}</text></view>
+        <view><text>产品编号:</text><text selectable>{{item.productCode}}</text></view>
+        <view><text>产品名称:</text><text>{{item.productName}}</text></view>
+      </view>
+      <view class="task-card__footer" aria-label="查看任务详情"><text>•••</text></view>
     </view>
     <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>
     <view wx:elif="{{loading}}" class="list-footer">加载中</view>

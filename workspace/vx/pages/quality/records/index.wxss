@@ -1,0 +1,143 @@
+.quality-filter-shell {
+  z-index: 12;
+}
+
+.quality-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 90rpx;
+}
+
+.quality-filter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 90rpx;
+  gap: 6rpx;
+  padding: 0 12rpx;
+  color: #69747f;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.quality-filter--active {
+  color: #149ed9;
+}
+
+.quality-filter text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quality-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 13;
+  background: #ffffff;
+  border-top: 1rpx solid #edf0f3;
+  box-shadow: 0 12rpx 28rpx rgba(32, 42, 54, 0.12);
+}
+
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 84rpx;
+  padding: 0 32rpx;
+  color: #4d5c6c;
+  border-bottom: 1rpx solid #edf0f3;
+  font-size: 29rpx;
+}
+
+.dropdown-option--active {
+  color: #149ed9;
+}
+
+.keyword-dropdown {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 22rpx 24rpx;
+}
+
+.keyword-input {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 72rpx;
+  flex: 1;
+  gap: 12rpx;
+  padding: 0 18rpx;
+  background: #f5f7f9;
+  border: 1rpx solid #e2e8ee;
+  border-radius: 8rpx;
+}
+
+.keyword-input input {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  font-size: 27rpx;
+}
+
+.keyword-clear {
+  color: #8a96a3;
+  font-size: 25rpx;
+}
+
+.keyword-submit {
+  width: 104rpx;
+  height: 72rpx;
+  min-height: 72rpx;
+  margin: 0;
+  padding: 0;
+  color: #ffffff;
+  background: #20a8e8;
+  border-radius: 8rpx;
+  font-size: 27rpx;
+  line-height: 72rpx;
+}
+
+.quality-record-page {
+  padding-top: 20rpx;
+}
+
+.record-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 12rpx;
+}
+
+.title-marker {
+  width: 8rpx;
+  height: 34rpx;
+  flex: 0 0 8rpx;
+  background: #20a8e8;
+}
+
+.quality-record-fields > view {
+  display: flex;
+  justify-content: space-between;
+  gap: 22rpx;
+  padding: 8rpx 0;
+  color: #7a848e;
+  font-size: 25rpx;
+  line-height: 1.45;
+}
+
+.quality-record-fields > view text:last-child {
+  min-width: 0;
+  color: #202a36;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.quality-record-fields .result-text--success { color: #2f8b70; font-weight: 650; }
+.quality-record-fields .result-text--danger { color: #bf433e; font-weight: 650; }
+.quality-record-fields .result-text--warning { color: #a76b00; font-weight: 650; }
