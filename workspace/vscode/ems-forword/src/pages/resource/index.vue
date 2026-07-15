@@ -39,6 +39,7 @@ const rows = ref([])
 const total = ref(0)
 const mainTableRef = ref()
 const selectedRow = ref(null)
+const activeDetailKey = ref('')
 const detailRows = ref([])
 const detailLoading = ref(false)
 const detailError = ref('')
@@ -109,7 +110,15 @@ const alertRules = computed(() => config.value.alerts || [])
 const activeAlerts = computed(() => alertRules.value
   .map((item) => ({ ...item, count: Number(alertCounts[item.key] || 0) }))
   .filter((item) => item.count > 0))
-const detailConfig = computed(() => config.value.masterDetail || null)
+const detailConfigs = computed(() => {
+  const configured = config.value.masterDetails || (config.value.masterDetail ? [config.value.masterDetail] : [])
+  return configured
+    .map((item, index) => ({ ...item, key: item.key || item.resource || String(index) }))
+    .filter((item) => hasPermission(resourcePermission(item.resource, 'view')))
+})
+const detailConfig = computed(() => detailConfigs.value.find((item) => item.key === activeDetailKey.value)
+  || detailConfigs.value[0]
+  || null)
 const detailResourceConfig = computed(() => detailConfig.value ? getResourceConfig(detailConfig.value.resource) : null)
 const detailTableFields = computed(() => {
   if (!detailResourceConfig.value) return []
@@ -118,8 +127,14 @@ const detailTableFields = computed(() => {
     && item.prop !== detailConfig.value.parentField
     && (!configuredFields || configuredFields.includes(item.prop)))
 })
-const detailViewAllowed = computed(() => detailConfig.value
-  && hasPermission(resourcePermission(detailConfig.value.resource, 'view')))
+const detailReferenceFields = computed(() => detailConfigs.value.flatMap((item) => {
+  const resource = getResourceConfig(item.resource)
+  const configuredFields = item.fields
+  return resource.fields.filter((fieldItem) => fieldItem.table !== false
+    && fieldItem.prop !== item.parentField
+    && (!configuredFields || configuredFields.includes(fieldItem.prop)))
+}))
+const detailViewAllowed = computed(() => Boolean(detailConfig.value))
 const selectedRowLabel = computed(() => {
   if (!selectedRow.value || !detailConfig.value) return ''
   if (detailConfig.value.label) return detailConfig.value.label(selectedRow.value)
@@ -252,8 +267,14 @@ function initForm(row = {}) {
 
 function collectReferenceFields() {
   const actionFields = [...(config.value.actions || []), ...(config.value.globalActions || [])].flatMap((item) => item.fields || [])
-  return [...config.value.fields, ...config.value.filters, ...actionFields, ...childFields.value, ...detailTableFields.value]
+  return [...config.value.fields, ...config.value.filters, ...actionFields, ...childFields.value, ...detailReferenceFields.value]
     .filter((item) => item.type === 'reference' && item.reference)
+}
+
+function syncActiveDetailConfig() {
+  if (!detailConfigs.value.some((item) => item.key === activeDetailKey.value)) {
+    activeDetailKey.value = detailConfigs.value[0]?.key || ''
+  }
 }
 
 function clearMasterDetail() {
@@ -303,6 +324,15 @@ function handleCurrentRowChange(row) {
     return
   }
   loadMasterDetail(row)
+}
+
+function handleDetailTabChange(key) {
+  activeDetailKey.value = key
+  detailRequestId += 1
+  detailRows.value = []
+  detailError.value = ''
+  detailLoading.value = false
+  if (selectedRow.value) loadMasterDetail(selectedRow.value)
 }
 
 async function restoreMasterSelection(selectedId) {
@@ -772,6 +802,7 @@ function handleSizeChange(value) {
 }
 
 async function initialize() {
+  syncActiveDetailConfig()
   clearMasterDetail()
   initFilters()
   initColumns()
@@ -958,7 +989,15 @@ onMounted(initialize)
           <div>
             <span class="master-detail-icon"><AppIcon name="link" :size="16" /></span>
             <div>
-              <strong>{{ detailConfig.title }}</strong>
+              <el-tabs
+                v-if="detailConfigs.length > 1"
+                v-model="activeDetailKey"
+                class="master-detail-tabs"
+                @tab-change="handleDetailTabChange"
+              >
+                <el-tab-pane v-for="item in detailConfigs" :key="item.key" :label="item.title" :name="item.key" />
+              </el-tabs>
+              <strong v-else>{{ detailConfig.title }}</strong>
               <small v-if="selectedRow">{{ selectedRowLabel }} · {{ detailRows.length }} 条</small>
               <small v-else>点击上方一条记录查看对应明细</small>
             </div>
@@ -1144,6 +1183,11 @@ onMounted(initialize)
 .master-detail-head>div>div { display:flex; min-width:0; flex-direction:column; }
 .master-detail-head strong { color:var(--mes-text); font-size:13px; }
 .master-detail-head small { overflow:hidden; margin-top:2px; color:var(--mes-text-muted); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.master-detail-tabs { min-width:0; }
+.master-detail-tabs :deep(.el-tabs__header) { margin:0; }
+.master-detail-tabs :deep(.el-tabs__nav-wrap::after) { height:1px; }
+.master-detail-tabs :deep(.el-tabs__item) { height:28px; padding:0 14px; font-size:12px; }
+.master-detail-tabs :deep(.el-tabs__content) { display:none; }
 .master-detail-icon { display:inline-flex; width:29px; height:29px; flex:none; align-items:center; justify-content:center; color:var(--mes-primary); border:1px solid var(--mes-primary-border); border-radius:4px; background:var(--mes-primary-soft); }
 .master-detail-error { min-height:44px; justify-content:space-between; gap:12px; padding:6px 12px; color:#8f3029; border-bottom:1px solid #edb7b1; background:#fff2f0; }
 .master-detail-error>div { min-width:0; gap:8px; }

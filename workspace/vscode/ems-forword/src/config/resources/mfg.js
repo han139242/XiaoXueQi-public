@@ -64,12 +64,25 @@ export default [
     fields: ['workOrderNo', 'planId', 'productId', 'bomId', 'routeId', 'plannedQuantity', 'completedQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'planId', 'productId'], defaults: { status: 'DRAFT', completedQuantity: 0 },
     overrides: { workOrderNo: { required: true }, planId: { reference: 'mfg-production-plan', required: true }, productId: { required: true }, bomId: { required: true }, routeId: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, completedQuantity: { type: 'number', min: 0, create: false, edit: false }, status: { type: 'select', options: optionSets.workOrder, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'DRAFT', canDelete: (row) => row.status === 'DRAFT', lockedReason: '只有草稿生产工单可以编辑或删除',
-    masterDetail: {
-      title: '工单生产任务', resource: 'mfg-task', parentField: 'workOrderId',
-      endpoint: () => '/api/mfg/task/page',
-      params: (row) => ({ current: 1, size: 100, workOrderId: row.workOrderId, sort: 'oldest' }),
-      label: (row) => row.workOrderNo || `生产工单 #${row.workOrderId}`
-    },
+    masterDetails: [
+      {
+        key: 'tasks', title: '生产任务', resource: 'mfg-task', parentField: 'workOrderId',
+        endpoint: () => '/api/mfg/task/page',
+        params: (row) => ({ current: 1, size: 100, workOrderId: row.workOrderId, sort: 'oldest' }),
+        label: (row) => row.workOrderNo || `生产工单 #${row.workOrderId}`
+      },
+      {
+        key: 'dispatches', title: '派工记录', resource: 'mfg-dispatch-order', parentField: 'workOrderId',
+        endpoint: () => '/api/mfg/dispatch-order/page',
+        params: (row) => ({ current: 1, size: 100, workOrderId: row.workOrderId }),
+        label: (row) => row.workOrderNo || `生产工单 #${row.workOrderId}`
+      },
+      {
+        key: 'materials', title: '用料需求', resource: 'mfg-work-order-material', parentField: 'workOrderId',
+        endpoint: (row) => `/api/mfg/work-order-material/work-order/${row.workOrderId}`,
+        label: (row) => row.workOrderNo || `生产工单 #${row.workOrderId}`
+      }
+    ],
     actions: [{ key: 'release', label: '下达工单', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-order/${row.workOrderId}/release`, visible: (row) => ['DRAFT', 'APPROVED'].includes(row.status), fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) }],
     relations: [{ key: 'materials', title: '工单用料需求', resource: 'mfg-work-order-material', parentField: 'workOrderId', endpoint: (row) => `/api/mfg/work-order-material/work-order/${row.workOrderId}` }]
   }),
@@ -88,12 +101,19 @@ export default [
     fields: ['taskNo', 'dispatchId', 'workOrderId', 'operationId', 'stationId', 'plannedQuantity', 'completedQuantity', 'defectQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'dispatchId', 'workOrderId', 'operationId', 'stationId'], defaults: { status: 'WAIT_START', completedQuantity: 0, defectQuantity: 0 },
     overrides: { taskNo: { required: true }, dispatchId: { required: true }, workOrderId: { required: true }, operationId: { required: true }, stationId: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, completedQuantity: { type: 'number', min: 0, create: false, edit: false }, defectQuantity: { type: 'number', min: 0, create: false, edit: false }, status: { type: 'select', options: optionSets.task, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'WAIT_START', canDelete: (row) => row.status === 'WAIT_START', lockedReason: '已开工或已结束的生产任务不可普通修改或删除',
-    masterDetail: {
-      title: '任务报工记录', resource: 'mfg-work-report', parentField: 'taskId',
-      endpoint: () => '/api/mfg/work-report/page',
-      params: (row) => ({ current: 1, size: 100, taskId: row.taskId }),
-      label: (row) => row.taskNo || `生产任务 #${row.taskId}`
-    },
+    masterDetails: [
+      {
+        key: 'reports', title: '报工记录', resource: 'mfg-work-report', parentField: 'taskId',
+        endpoint: () => '/api/mfg/work-report/page',
+        params: (row) => ({ current: 1, size: 100, taskId: row.taskId }),
+        label: (row) => row.taskNo || `生产任务 #${row.taskId}`
+      },
+      {
+        key: 'operators', title: '任务人员', resource: 'mfg-task-operator', parentField: 'taskId',
+        endpoint: (row) => `/api/mfg/task-operator/task/${row.taskId}`,
+        label: (row) => row.taskNo || `生产任务 #${row.taskId}`
+      }
+    ],
     actions: [
       { key: 'start', label: '开始任务', icon: 'play', method: 'put', type: 'primary', path: (row) => `/api/mfg/task/${row.taskId}/start`, visible: (row) => row.status === 'WAIT_START', fields: [field('stationId', { label: '实际工位', type: 'reference', reference: 'factory-station' })], previewPatch: (values) => ({ status: 'RUNNING', ...(values.stationId ? { stationId: values.stationId } : {}) }) },
       { key: 'finish', label: '完成任务', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/task/${row.taskId}/finish`, visible: (row) => ['RUNNING', 'PAUSED'].includes(row.status), fields: [field('completedQuantity', { required: true, type: 'number', min: 0 }), field('defectQuantity', { required: true, type: 'number', min: 0 }), field('remark', { type: 'textarea' })], previewPatch: (values) => ({ completedQuantity: values.completedQuantity, defectQuantity: values.defectQuantity, ...(values.remark ? { remark: values.remark } : {}), status: 'FINISHED' }) }
@@ -105,6 +125,11 @@ export default [
     key: 'mfg-work-report', domain: 'mfg', route: 'mfg/work-reports', title: '生产报工', icon: 'clipboard', baseUrl: '/api/mfg/work-report', idField: 'reportId',
     fields: ['reportNo', 'taskId', 'operatorId', 'stationId', 'qualifiedQuantity', 'defectQuantity', 'actualWorkHours', 'reportTime', 'auditStatus', 'remark', 'createdTime'], filters: ['keyword', 'taskId', 'operatorId', 'stationId', 'auditStatus'], defaults: { auditStatus: 'SUBMITTED', qualifiedQuantity: 0, defectQuantity: 0 },
     overrides: { reportNo: { required: true }, taskId: { required: true }, operatorId: { required: true }, stationId: { required: true }, qualifiedQuantity: { required: true, type: 'number', min: 0 }, defectQuantity: { required: true, type: 'number', min: 0 }, actualWorkHours: { type: 'number', min: 0 }, reportTime: { required: true }, auditStatus: { type: 'select', options: optionSets.audit, create: false, edit: false }, createdTime: { form: false, width: 170 } },
+    masterDetail: {
+      title: '报工用料', resource: 'mfg-report-material', parentField: 'reportId',
+      endpoint: (row) => `/api/mfg/report-material/report/${row.reportId}`,
+      label: (row) => row.reportNo || `报工单 #${row.reportId}`
+    },
     fullChild: { property: 'materials', title: '报工用料', resource: 'mfg-report-material', parentField: 'reportId', endpoint: (row) => `/api/mfg/report-material/report/${row.reportId}` },
     createPath: '/full', updatePath: '/full',
     canEdit: (row) => row.auditStatus !== 'APPROVED', canDelete: (row) => row.auditStatus !== 'APPROVED', lockedReason: '已审核通过的报工单不可修改或删除',
