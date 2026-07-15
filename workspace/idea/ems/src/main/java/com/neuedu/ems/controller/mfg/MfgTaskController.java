@@ -141,6 +141,14 @@ public class MfgTaskController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PutMapping("/{taskId}/withdraw")
+    public ResultData withdraw(@PathVariable Long taskId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        mfgTaskService.withdrawTaskStart(taskId, userId, getString(request, "remark"));
+        return ResultData.success(ResultCode.SUCCESS);
+    }
+
     /**
      * 删除生产任务（软删除，将删除标志设为1）。
      * @param taskId 生产任务ID

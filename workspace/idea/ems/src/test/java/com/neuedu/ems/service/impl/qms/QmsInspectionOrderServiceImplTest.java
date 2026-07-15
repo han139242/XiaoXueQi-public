@@ -39,6 +39,7 @@ class QmsInspectionOrderServiceImplTest {
     private WmsMaterialBatchMapper batchMapper;
     private SysStatusChangeLogMapper statusLogMapper;
     private SysOperationLogMapper operationLogMapper;
+    private QmsInspectionResultMapper resultMapper;
 
     @BeforeEach
     void setUp() {
@@ -48,7 +49,8 @@ class QmsInspectionOrderServiceImplTest {
         statusLogMapper = mock(SysStatusChangeLogMapper.class);
         operationLogMapper = mock(SysOperationLogMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", orderMapper);
-        ReflectionTestUtils.setField(service, "qmsInspectionResultMapper", mock(QmsInspectionResultMapper.class));
+        resultMapper = mock(QmsInspectionResultMapper.class);
+        ReflectionTestUtils.setField(service, "qmsInspectionResultMapper", resultMapper);
         ReflectionTestUtils.setField(service, "mfgWorkReportMapper", mock(MfgWorkReportMapper.class));
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
@@ -217,6 +219,32 @@ class QmsInspectionOrderServiceImplTest {
 
         assertFalse(service.submitInspectionOrder(1L, "PASS", null, 9L,
                 new BigDecimal("11"), new BigDecimal("11"), BigDecimal.ZERO));
+        verify(orderMapper, never()).updateById(any(QmsInspectionOrder.class));
+    }
+
+    @Test
+    void withdrawDraftInspectionWithoutResultsClosesAndAudits() {
+        when(orderMapper.selectOne(any())).thenReturn(existingOrder());
+        when(resultMapper.selectCount(any())).thenReturn(0L);
+        when(orderMapper.updateById(any(QmsInspectionOrder.class))).thenReturn(1);
+
+        service.withdrawInspectionOrder(1L, 9L, "来源报工撤回");
+
+        ArgumentCaptor<QmsInspectionOrder> update = ArgumentCaptor.forClass(QmsInspectionOrder.class);
+        verify(orderMapper).updateById(update.capture());
+        assertEquals(BusinessStatus.Document.CLOSED, update.getValue().getStatus());
+        verify(statusLogMapper).insert(any(SysStatusChangeLog.class));
+        verify(operationLogMapper).insert(any(SysOperationLog.class));
+    }
+
+    @Test
+    void withdrawInspectionRejectsExistingResultBeforeMutation() {
+        when(orderMapper.selectOne(any())).thenReturn(existingOrder());
+        when(resultMapper.selectCount(any())).thenReturn(1L);
+
+        assertThrows(BusinessException.class,
+                () -> service.withdrawInspectionOrder(1L, 9L, "误建检验单"));
+
         verify(orderMapper, never()).updateById(any(QmsInspectionOrder.class));
     }
 

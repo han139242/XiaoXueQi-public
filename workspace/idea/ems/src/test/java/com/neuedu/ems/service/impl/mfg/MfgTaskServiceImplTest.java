@@ -5,9 +5,11 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +23,7 @@ import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -34,6 +37,7 @@ class MfgTaskServiceImplTest {
     private MfgTaskMapper taskMapper;
     private SysStatusChangeLogMapper statusLogMapper;
     private SysOperationLogMapper operationLogMapper;
+    private MfgWorkReportMapper workReportMapper;
 
     @BeforeEach
     void setUp() {
@@ -41,11 +45,14 @@ class MfgTaskServiceImplTest {
         taskMapper = mock(MfgTaskMapper.class);
         statusLogMapper = mock(SysStatusChangeLogMapper.class);
         operationLogMapper = mock(SysOperationLogMapper.class);
+        workReportMapper = mock(MfgWorkReportMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", taskMapper);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
+        ReflectionTestUtils.setField(service, "workReportMapper", workReportMapper);
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
         when(operationLogMapper.insert(any(SysOperationLog.class))).thenReturn(1);
+        when(workReportMapper.selectCount(any())).thenReturn(0L);
     }
 
     @Test
@@ -67,6 +74,24 @@ class MfgTaskServiceImplTest {
 
         assertFalse(service.startTask(1L, 2L, 9L));
         verify(taskMapper, never()).update(any(MfgTask.class), any());
+    }
+
+    @Test
+    void detachedTaskCreationIsRejected() {
+        assertThrows(BusinessException.class, () -> service.saveTask(new MfgTask()));
+        verify(taskMapper, never()).insert(any(MfgTask.class));
+    }
+
+    @Test
+    void withdrawStartReturnsUnreportedTaskToWaitStart() {
+        when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.RUNNING));
+        when(taskMapper.update(any(MfgTask.class), any())).thenReturn(1);
+
+        service.withdrawTaskStart(1L, 9L, "误点开工");
+
+        ArgumentCaptor<MfgTask> update = ArgumentCaptor.forClass(MfgTask.class);
+        verify(taskMapper).update(update.capture(), any());
+        assertEquals(BusinessStatus.Production.WAIT_START, update.getValue().getStatus());
     }
 
     @Test

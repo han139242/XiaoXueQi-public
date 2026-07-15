@@ -1,5 +1,6 @@
 package com.neuedu.ems.service.impl.mfg;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.neuedu.ems.entity.factory.FactoryLine;
 import com.neuedu.ems.entity.mfg.MfgLineCalendarRule;
 import com.neuedu.ems.entity.mfg.MfgLineProductCapability;
@@ -13,6 +14,7 @@ import com.neuedu.ems.mapper.factory.FactoryLineMapper;
 import com.neuedu.ems.mapper.mfg.MfgLineCalendarRuleMapper;
 import com.neuedu.ems.mapper.mfg.MfgLineProductCapabilityMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgScheduleItemMapper;
 import com.neuedu.ems.mapper.mfg.MfgScheduleScenarioMapper;
 import com.neuedu.ems.mapper.org.OrgShiftMapper;
@@ -46,6 +48,7 @@ class MfgScheduleScenarioServiceImplTest {
     private MfgScheduleScenarioMapper scenarioMapper;
     private MfgScheduleItemMapper itemMapper;
     private MfgProductionOrderMapper orderMapper;
+    private MfgProductionPlanMapper planMapper;
     private MfgLineProductCapabilityMapper capabilityMapper;
     private MfgLineCalendarRuleMapper calendarRuleMapper;
     private FactoryLineMapper lineMapper;
@@ -59,6 +62,7 @@ class MfgScheduleScenarioServiceImplTest {
         scenarioMapper = mock(MfgScheduleScenarioMapper.class);
         itemMapper = mock(MfgScheduleItemMapper.class);
         orderMapper = mock(MfgProductionOrderMapper.class);
+        planMapper = mock(MfgProductionPlanMapper.class);
         capabilityMapper = mock(MfgLineProductCapabilityMapper.class);
         calendarRuleMapper = mock(MfgLineCalendarRuleMapper.class);
         lineMapper = mock(FactoryLineMapper.class);
@@ -69,6 +73,7 @@ class MfgScheduleScenarioServiceImplTest {
         ReflectionTestUtils.setField(service, "baseMapper", scenarioMapper);
         ReflectionTestUtils.setField(service, "mfgScheduleItemMapper", itemMapper);
         ReflectionTestUtils.setField(service, "mfgProductionOrderMapper", orderMapper);
+        ReflectionTestUtils.setField(service, "mfgProductionPlanMapper", planMapper);
         ReflectionTestUtils.setField(service, "mfgLineProductCapabilityMapper", capabilityMapper);
         ReflectionTestUtils.setField(service, "mfgLineCalendarRuleMapper", calendarRuleMapper);
         ReflectionTestUtils.setField(service, "factoryLineMapper", lineMapper);
@@ -85,6 +90,20 @@ class MfgScheduleScenarioServiceImplTest {
         }).when(scenarioMapper).insert(any(MfgScheduleScenario.class));
         when(scenarioMapper.updateById(any(MfgScheduleScenario.class))).thenReturn(1);
         when(itemMapper.insert(any(MfgScheduleItem.class))).thenReturn(1);
+    }
+
+    @Test
+    void closedPlanDoesNotBlockOrderFromBeingScheduledAgain() {
+        when(planMapper.selectCount(any())).thenReturn(0L);
+
+        Boolean hasActivePlan = ReflectionTestUtils.invokeMethod(service, "hasActivePlan", 1L);
+
+        assertEquals(Boolean.FALSE, hasActivePlan);
+        @SuppressWarnings("rawtypes")
+        ArgumentCaptor<QueryWrapper> queryCaptor = ArgumentCaptor.forClass(QueryWrapper.class);
+        verify(planMapper).selectCount(queryCaptor.capture());
+        assertTrue(queryCaptor.getValue().getSqlSegment().contains("status <>"));
+        assertTrue(queryCaptor.getValue().getParamNameValuePairs().containsValue("CLOSED"));
     }
 
     @Test

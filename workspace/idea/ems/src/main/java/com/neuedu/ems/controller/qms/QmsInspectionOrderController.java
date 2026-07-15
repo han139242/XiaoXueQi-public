@@ -148,6 +148,14 @@ public class QmsInspectionOrderController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PutMapping("/{inspectionId}/withdraw")
+    public ResultData withdraw(@PathVariable Long inspectionId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        qmsInspectionOrderService.withdrawInspectionOrder(inspectionId, userId, getString(request, "remark"));
+        return ResultData.success(ResultCode.SUCCESS);
+    }
+
     /**
      * 软删除检验单和检验结果明细。
      * @param inspectionId 检验单ID

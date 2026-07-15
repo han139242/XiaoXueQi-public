@@ -11,6 +11,7 @@ import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgTaskService;
@@ -42,6 +43,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired
+    private MfgWorkReportMapper workReportMapper;
 
     /**
      * 分页查询生产任务列表，支持任务编号、状态、派工单、工单、工序和工位筛选。
@@ -108,16 +112,8 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      */
     @Override
     public boolean saveTask(MfgTask task) {
-        if (dataScopeService != null) {
-            dataScopeService.assertCanCreateTask(task);
-        }
-        if (task.getDeletedFlag() == null) {
-            task.setDeletedFlag(0);
-        }
-        task.setStatus(BusinessStatus.Production.WAIT_START);
-        task.setCompletedQuantity(BigDecimal.ZERO);
-        task.setDefectQuantity(BigDecimal.ZERO);
-        return baseMapper.insert(task) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "生产任务必须由派工单按工艺路线生成，不能脱离来源手工新增");
     }
 
     /**
@@ -138,6 +134,11 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         task.setStatus(null);
         task.setCompletedQuantity(null);
         task.setDefectQuantity(null);
+        task.setTaskNo(null);
+        task.setDispatchId(null);
+        task.setWorkOrderId(null);
+        task.setOperationId(null);
+        task.setPlannedQuantity(null);
         if (task.getVersion() == null) {
             task.setVersion(existing.getVersion());
         }
@@ -233,6 +234,44 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             }
         }
         return updated;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawTaskStart(Long taskId, Long operatorId, String remark) {
+        if (taskId == null || operatorId == null || !StringUtils.hasText(remark)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(), "生产任务、操作人和撤回原因不能为空");
+        }
+        MfgTask existing = getTaskById(taskId);
+        boolean started = existing != null && (BusinessStatus.Production.RUNNING.equals(existing.getStatus())
+                || BusinessStatus.Production.PAUSED.equals(existing.getStatus()));
+        if (!started || positive(existing.getCompletedQuantity()) || positive(existing.getDefectQuantity())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "只有未产生数量的已开工任务可以撤回");
+        }
+        long reports = workReportMapper.selectCount(new LambdaQueryWrapper<com.neuedu.ems.entity.mfg.MfgWorkReport>()
+                .eq(com.neuedu.ems.entity.mfg.MfgWorkReport::getTaskId, taskId)
+                .eq(com.neuedu.ems.entity.mfg.MfgWorkReport::getDeletedFlag, 0)
+                .ne(com.neuedu.ems.entity.mfg.MfgWorkReport::getAuditStatus, BusinessStatus.Document.WITHDRAWN));
+        if (reports > 0) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "任务已有有效报工，不能撤回开工");
+        }
+        MfgTask update = new MfgTask();
+        update.setTaskId(taskId);
+        update.setVersion(existing.getVersion());
+        update.setStatus(BusinessStatus.Production.WAIT_START);
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(LocalDateTime.now());
+        if (baseMapper.update(update, taskInState(taskId, existing.getStatus())) == 0) {
+            throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(), "生产任务已被其他用户修改，请刷新后重试");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        insertStatusLog(taskId, existing.getStatus(), BusinessStatus.Production.WAIT_START,
+                "WITHDRAW_TASK_START", operatorId, remark, now);
+        insertOperationLog(taskId, "WITHDRAW_TASK_START", operatorId, remark, now);
+    }
+
+    private boolean positive(BigDecimal value) {
+        return value != null && value.signum() > 0;
     }
 
     /**

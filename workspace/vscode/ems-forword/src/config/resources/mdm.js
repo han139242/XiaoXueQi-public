@@ -26,14 +26,14 @@ export default [
     overrides: { productCode: { required: true }, productName: { required: true }, materialId: { required: true }, status: enable, createdTime: { form: false, width: 170 } }
   }),
   defineResource({
-    key: 'mdm-bom', domain: 'mdm', route: 'mdm/boms', title: '产品 BOM', icon: 'route', baseUrl: '/api/mdm/bom', idField: 'bomId',
+    key: 'mdm-bom', domain: 'mdm', route: 'mdm/boms', title: '产品物料清单', icon: 'route', baseUrl: '/api/mdm/bom', idField: 'bomId',
     fields: ['bomCode', 'productId', 'bomVersion', 'effectiveDate', 'status', 'remark', 'createdTime'], filters: ['bomCode', 'productId', 'status'], defaults: { status: 'DRAFT' },
     overrides: { bomCode: { required: true }, productId: { required: true }, bomVersion: { required: true }, status: { type: 'select', options: optionSets.release }, createdTime: { form: false, width: 170 } },
-    relations: [{ key: 'items', title: 'BOM 物料明细', resource: 'mdm-bom-item', parentField: 'bomId', endpoint: (row) => `/api/mdm/bom-item/page?current=1&size=200&bomId=${row.bomId}` }]
+    relations: [{ key: 'items', title: '物料清单明细', resource: 'mdm-bom-item', parentField: 'bomId', endpoint: (row) => `/api/mdm/bom-item/page?current=1&size=200&bomId=${row.bomId}` }]
   }),
   defineResource({
-    key: 'mdm-bom-item', domain: 'mdm', route: 'mdm/bom-items', title: 'BOM 物料明细', baseUrl: '/api/mdm/bom-item', idField: 'bomItemId', menu: false,
+    key: 'mdm-bom-item', domain: 'mdm', route: 'mdm/bom-items', title: '物料清单明细', baseUrl: '/api/mdm/bom-item', idField: 'bomItemId', menu: false,
     fields: ['bomId', 'materialId', 'quantity', 'lossRate', 'sequenceNo', 'remark'], filters: ['bomId', 'materialId'],
-    overrides: { bomId: { required: true }, materialId: { required: true }, quantity: { required: true, type: 'number', min: 0 }, lossRate: { type: 'number', min: 0, max: 100 }, sequenceNo: { type: 'number', min: 1 } }
+    overrides: { bomId: { required: true }, materialId: { required: true }, quantity: { required: true, type: 'number', min: 0 }, lossRate: { type: 'number', min: 0, max: 1, precision: 4, step: 0.005 }, sequenceNo: { type: 'number', min: 1 } }
   })
 ]

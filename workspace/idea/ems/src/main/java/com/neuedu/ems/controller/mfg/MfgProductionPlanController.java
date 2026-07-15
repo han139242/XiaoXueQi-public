@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 生产计划管理控制器。
@@ -95,6 +96,23 @@ public class MfgProductionPlanController {
     public ResultData update(@RequestBody MfgProductionPlan plan) {
         boolean flag = mfgProductionPlanService.updatePlan(plan);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
+    }
+
+    @PutMapping("/{planId}/release")
+    public ResultData release(@PathVariable Long planId,
+                              @RequestAttribute("userId") Long userId,
+                              @RequestBody(required = false) Map<String, Object> request) {
+        return ResultData.success(ResultCode.SUCCESS, mfgProductionPlanService.releasePlan(planId, userId,
+                request == null || request.get("remark") == null ? null : request.get("remark").toString()));
+    }
+
+    @PutMapping("/{planId}/withdraw")
+    public ResultData withdraw(@PathVariable Long planId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        mfgProductionPlanService.withdrawPlan(planId, userId,
+                request == null || request.get("remark") == null ? null : request.get("remark").toString());
+        return ResultData.success(ResultCode.SUCCESS);
     }
 
     /**

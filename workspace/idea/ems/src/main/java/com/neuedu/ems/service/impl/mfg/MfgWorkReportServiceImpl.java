@@ -9,6 +9,7 @@ import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgTaskOperator;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
 import com.neuedu.ems.entity.sys.SysOperationLog;
@@ -17,10 +18,13 @@ import com.neuedu.ems.mapper.mfg.MfgReportMaterialMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskOperatorMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.sys.SysUserMapper;
+import com.neuedu.ems.entity.sys.SysUser;
 import com.neuedu.ems.service.mfg.MfgWorkReportService;
 import com.neuedu.ems.service.sys.DataScopeService;
 import com.neuedu.ems.exception.DataScopeAccessDeniedException;
@@ -54,6 +58,12 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
 
     @Autowired
     private MfgTaskMapper mfgTaskMapper;
+
+    @Autowired
+    private MfgTaskOperatorMapper mfgTaskOperatorMapper;
+
+    @Autowired
+    private SysUserMapper sysUserMapper;
 
     @Autowired
     private MfgWorkOrderMapper mfgWorkOrderMapper;
@@ -165,12 +175,18 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
             return false;
         }
         MfgWorkReport existing = getWorkReportById(workReport.getReportId());
-        if (existing == null || APPROVED_STATUS.equals(existing.getAuditStatus())) {
+        if (existing == null || !(SUBMITTED_STATUS.equals(existing.getAuditStatus())
+                || BusinessStatus.Document.REJECTED.equals(existing.getAuditStatus()))) {
             return false;
         }
         fillMissingQuantities(workReport, existing);
         workReport.setDeletedFlag(null);
         workReport.setAuditStatus(null);
+        workReport.setReportNo(null);
+        workReport.setTaskId(null);
+        workReport.setOperatorId(null);
+        workReport.setStationId(null);
+        workReport.setReportTime(null);
         if (workReport.getVersion() == null) {
             workReport.setVersion(existing.getVersion());
         }
@@ -205,7 +221,8 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
     @Transactional
     public boolean removeWorkReportById(Long reportId) {
         MfgWorkReport existing = getWorkReportById(reportId);
-        if (existing == null || APPROVED_STATUS.equals(existing.getAuditStatus())) {
+        if (existing == null || !(SUBMITTED_STATUS.equals(existing.getAuditStatus())
+                || BusinessStatus.Document.REJECTED.equals(existing.getAuditStatus()))) {
             return false;
         }
         MfgWorkReport workReport = new MfgWorkReport();
@@ -225,11 +242,12 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
      */
     @Override
     @Transactional
-    public Long submitWorkReport(MfgWorkReport workReport, List<MfgReportMaterial> materials) {
+    public Long submitWorkReport(MfgWorkReport workReport, List<MfgReportMaterial> materials, Long userId) {
+        bindCurrentOperator(workReport, userId);
         workReport.setAuditStatus(SUBMITTED_STATUS);
         Long reportId = saveWorkReportFull(workReport, materials);
         LocalDateTime now = LocalDateTime.now();
-        Long currentUserId = currentUserId(workReport.getCreatedBy());
+        Long currentUserId = userId;
         insertStatusChangeLog(reportId, null, SUBMITTED_STATUS, "MFG_WORK_REPORT", "SUBMIT_WORK_REPORT",
                 currentUserId, workReport.getRemark(), now);
         insertOperationLog(reportId, "SUBMIT_WORK_REPORT", "mfg_work_report", currentUserId, workReport.getRemark(), now);
@@ -237,6 +255,41 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
             responsibilityNotificationService.publishWorkReportSubmitted(workReport, currentUserId);
         }
         return reportId;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawWorkReport(Long reportId, Long userId, String remark) {
+        if (reportId == null || userId == null || !StringUtils.hasText(remark)) {
+            throw business(ResultCode.PARAM_ERROR, "报工单、操作人和撤回原因不能为空");
+        }
+        MfgWorkReport existing = getWorkReportById(reportId);
+        if (existing == null) {
+            throw business(ResultCode.NOT_FOUND, "生产报工不存在或已删除");
+        }
+        if (!SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有待审核报工可以撤回修改");
+        }
+        SysUser user = activeUser(userId);
+        if (user.getEmployeeId() == null || !user.getEmployeeId().equals(existing.getOperatorId())) {
+            throw business(ResultCode.FORBIDDEN, "只能撤回本人提交的生产报工");
+        }
+        MfgWorkReport update = new MfgWorkReport();
+        update.setReportId(reportId);
+        update.setVersion(existing.getVersion());
+        update.setAuditStatus(BusinessStatus.Document.WITHDRAWN);
+        update.setUpdatedBy(userId);
+        update.setUpdatedTime(LocalDateTime.now());
+        if (baseMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产报工已被其他用户修改，请刷新后重试");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        insertStatusChangeLog(reportId, existing.getAuditStatus(), BusinessStatus.Document.WITHDRAWN,
+                "MFG_WORK_REPORT", "WITHDRAW_WORK_REPORT", userId, remark, now);
+        insertOperationLog(reportId, "WITHDRAW_WORK_REPORT", "mfg_work_report", userId, remark, now);
+        if (responsibilityNotificationService != null) {
+            responsibilityNotificationService.cancelWorkReportSubmitted(reportId, userId);
+        }
     }
 
     /**
@@ -467,9 +520,49 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
     }
 
-    private Long currentUserId(Long fallbackUserId) {
-        Long currentUserId = dataScopeService == null ? null : dataScopeService.currentUserId();
-        return currentUserId == null ? fallbackUserId : currentUserId;
+    private void bindCurrentOperator(MfgWorkReport report, Long userId) {
+        if (report == null || userId == null || report.getTaskId() == null) {
+            throw business(ResultCode.PARAM_ERROR, "生产任务和当前用户不能为空");
+        }
+        SysUser user = activeUser(userId);
+        if (user.getEmployeeId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "当前账号未关联员工，不能提交报工");
+        }
+        MfgTask task = activeTask(report.getTaskId());
+        if (task == null || !(BusinessStatus.Production.RUNNING.equals(task.getStatus())
+                || BusinessStatus.Production.PAUSED.equals(task.getStatus()))) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有已开工任务可以提交报工");
+        }
+        long assigned = mfgTaskOperatorMapper.selectCount(new LambdaQueryWrapper<MfgTaskOperator>()
+                .eq(MfgTaskOperator::getTaskId, task.getTaskId())
+                .eq(MfgTaskOperator::getEmployeeId, user.getEmployeeId())
+                .eq(MfgTaskOperator::getDeletedFlag, 0));
+        if (assigned == 0) {
+            throw business(ResultCode.FORBIDDEN, "当前员工未分配到该生产任务");
+        }
+        if (task.getStationId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产任务尚未确定工位，不能提交报工");
+        }
+        report.setReportId(null);
+        report.setReportNo(null);
+        report.setOperatorId(user.getEmployeeId());
+        report.setStationId(task.getStationId());
+        report.setReportTime(null);
+        report.setVersion(0);
+        report.setDeletedFlag(0);
+        report.setCreatedBy(userId);
+        report.setUpdatedBy(userId);
+    }
+
+    private SysUser activeUser(Long userId) {
+        SysUser user = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUserId, userId)
+                .eq(SysUser::getDeletedFlag, 0)
+                .eq(SysUser::getStatus, BusinessStatus.Common.ENABLE));
+        if (user == null) {
+            throw business(ResultCode.UNAUTHORIZED, "当前账号不存在或已停用");
+        }
+        return user;
     }
 
     /**

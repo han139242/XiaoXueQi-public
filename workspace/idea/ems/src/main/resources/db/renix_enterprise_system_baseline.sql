@@ -383,22 +383,35 @@ INSERT INTO `tmp_renix_special_permission` VALUES
   ('mfg-andon-alert','mfg:andon-alert:close','关闭安灯告警'),
   ('mfg-exception','mfg:exception:handle','处理生产异常'),
   ('mfg-production-order','mfg:production-order:release','下达生产订单'),
+  ('mfg-production-order','mfg:production-order:withdraw','撤回生产订单修改'),
   ('mfg-production-plan','mfg:production-plan:generate','生成生产计划'),
+  ('mfg-production-plan','mfg:production-plan:release','生效生产计划'),
+  ('mfg-production-plan','mfg:production-plan:withdraw','撤回生产计划修改'),
   ('mfg-work-order','mfg:work-order:generate','生成生产工单'),
   ('mfg-work-order','mfg:work-order:release','下达生产工单'),
+  ('mfg-work-order','mfg:work-order:withdraw','撤回生产工单修改'),
+  ('mfg-dispatch-order','mfg:dispatch-order:generate','从生产工单生成派工单'),
+  ('mfg-dispatch-order','mfg:dispatch-order:release','派发并生成生产任务'),
+  ('mfg-dispatch-order','mfg:dispatch-order:withdraw','撤回派工'),
   ('mfg-task','mfg:task:start','开始生产任务'),
+  ('mfg-task','mfg:task:withdraw','撤回任务开工'),
   ('mfg-task','mfg:task:finish','完成生产任务'),
   ('mfg-work-report','mfg:work-report:submit','提交生产报工'),
   ('mfg-work-report','mfg:work-report:audit','审核生产报工'),
+  ('mfg-work-report','mfg:work-report:withdraw','撤回本人生产报工'),
   ('mfg-schedule-scenario','mfg:schedule-scenario:validate','校验排产草案'),
   ('mfg-schedule-scenario','mfg:schedule-scenario:ai-advice','生成排产 AI 建议'),
   ('mfg-schedule-scenario','mfg:schedule-scenario:confirm','确认排产并生成生产计划'),
   ('wms-inbound-order','wms:inbound-order:confirm','确认入库'),
+  ('wms-inbound-order','wms:inbound-order:withdraw','撤回未确认入库单'),
   ('wms-outbound-order','wms:outbound-order:confirm','确认出库'),
+  ('wms-outbound-order','wms:outbound-order:withdraw','撤回未确认出库单'),
   ('wms-return-order','wms:return-order:confirm','确认退料'),
+  ('wms-return-order','wms:return-order:withdraw','撤回未确认退料单'),
   ('wms-stocktake-order','wms:stocktake-order:finish','完成盘点'),
   ('wms-replenishment','wms:replenishment:generate','生成补货建议'),
   ('qms-inspection-order','qms:inspection-order:submit','提交检验'),
+  ('qms-inspection-order','qms:inspection-order:withdraw','撤回未检验检验单'),
   ('qms-inspection-result','qms:inspection-result:batch-save','批量保存检验结果'),
   ('qms-nonconforming-order','qms:nonconforming-order:approve','审批不合格品'),
   ('eam-repair-order','eam:repair-order:assign','维修派工'),
@@ -536,6 +549,23 @@ FROM `tmp_renix_role_pattern` pattern
 JOIN `sys_role` role ON role.`role_code` = pattern.`role_code` AND role.`deleted_flag` = 0
 JOIN `sys_menu` menu ON menu.`permission_code` LIKE pattern.`permission_pattern` AND menu.`deleted_flag` = 0
 ON DUPLICATE KEY UPDATE `deleted_flag` = 0;
+
+-- 生产下游只允许从上游上下文生成；Service 层对所有角色阻断通用新增。
+UPDATE `sys_role_menu` relation
+JOIN `sys_role` role
+  ON role.`role_id` = relation.`role_id`
+ AND role.`deleted_flag` = 0
+JOIN `sys_menu` menu
+  ON menu.`menu_id` = relation.`menu_id`
+ AND menu.`deleted_flag` = 0
+SET relation.`deleted_flag` = 1
+WHERE menu.`permission_code` IN (
+    'mfg:production-plan:create',
+    'mfg:work-order:create',
+    'mfg:dispatch-order:create',
+    'mfg:task:create'
+  )
+  AND relation.`deleted_flag` = 0;
 
 -- 6. 企业状态字典。所有业务值使用英文编码，中文只保存为显示标签。
 DROP TEMPORARY TABLE IF EXISTS `tmp_renix_dict`;

@@ -1,22 +1,36 @@
 package com.neuedu.ems.service.impl.mfg;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
+import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
+import com.neuedu.ems.entity.mfg.MfgLineProductCapability;
+import com.neuedu.ems.entity.mdm.MdmBom;
+import com.neuedu.ems.entity.mdm.MdmBomItem;
+import com.neuedu.ems.entity.process.ProcessRoute;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.entity.wms.WmsInventory;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
+import com.neuedu.ems.mapper.mfg.MfgLineProductCapabilityMapper;
+import com.neuedu.ems.mapper.mdm.MdmBomMapper;
+import com.neuedu.ems.mapper.mdm.MdmBomItemMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.wms.WmsInventoryMapper;
 import com.neuedu.ems.service.mfg.MfgWorkOrderService;
+import com.neuedu.ems.service.mfg.MfgProductionOrderService;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,14 +38,21 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * 生产工单管理 Service 实现类。
  */
 @Service
 public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, MfgWorkOrder> implements MfgWorkOrderService {
+
+    @Autowired
+    private MfgProductionOrderService productionOrderService;
 
     private static final DateTimeFormatter NUMBER_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
@@ -40,6 +61,24 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
 
     @Autowired
     private MfgProductionOrderMapper productionOrderMapper;
+
+    @Autowired
+    private MdmBomMapper bomMapper;
+
+    @Autowired
+    private MdmBomItemMapper bomItemMapper;
+
+    @Autowired
+    private MfgWorkOrderMaterialMapper workOrderMaterialMapper;
+
+    @Autowired
+    private WmsInventoryMapper inventoryMapper;
+
+    @Autowired
+    private MfgLineProductCapabilityMapper lineProductCapabilityMapper;
+
+    @Autowired
+    private ProcessRouteMapper routeMapper;
 
     @Autowired
     private SysStatusChangeLogMapper sysStatusChangeLogMapper;
@@ -83,17 +122,7 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
      */
     @Override
     public boolean saveWorkOrder(MfgWorkOrder workOrder) {
-        if (workOrder == null || !StringUtils.hasText(workOrder.getWorkOrderNo()) || workOrder.getPlanId() == null
-                || workOrder.getProductId() == null || workOrder.getBomId() == null || workOrder.getRouteId() == null
-                || workOrder.getPlannedQuantity() == null || workOrder.getPlannedQuantity().compareTo(BigDecimal.ZERO) <= 0) {
-            return false;
-        }
-        workOrder.setStatus(BusinessStatus.Document.DRAFT);
-        workOrder.setCompletedQuantity(BigDecimal.ZERO);
-        if (workOrder.getDeletedFlag() == null) {
-            workOrder.setDeletedFlag(0);
-        }
-        return baseMapper.insert(workOrder) > 0;
+        throw business(ResultCode.BUSINESS_ERROR, "生产工单必须从已生效生产计划生成，不能脱离来源手工新增");
     }
 
     /**
@@ -113,6 +142,11 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
         workOrder.setDeletedFlag(null);
         workOrder.setStatus(null);
         workOrder.setCompletedQuantity(null);
+        workOrder.setPlanId(null);
+        workOrder.setProductId(null);
+        workOrder.setBomId(null);
+        workOrder.setRouteId(null);
+        workOrder.setPlannedQuantity(null);
         if (workOrder.getVersion() == null) {
             workOrder.setVersion(existing.getVersion());
         }
@@ -140,10 +174,10 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
     @Override
     @Transactional(rollbackFor = Exception.class)
     public MfgWorkOrder generateWorkOrder(Long planId, MfgWorkOrder request, Long operatorId) {
-        if (planId == null || request == null || operatorId == null || request.getBomId() == null
-                || request.getRouteId() == null) {
-            throw business(ResultCode.PARAM_ERROR, "生产计划、BOM、工艺路线和操作人不能为空");
+        if (planId == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "生产计划和操作人不能为空");
         }
+        MfgWorkOrder command = request == null ? new MfgWorkOrder() : request;
         MfgProductionPlan plan = activePlan(planId);
         if (plan == null) {
             throw business(ResultCode.NOT_FOUND, "生产计划不存在或已删除");
@@ -158,24 +192,25 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
         if (order == null || order.getProductId() == null) {
             throw business(ResultCode.BUSINESS_ERROR, "生产计划未关联有效产品订单");
         }
-        if (request.getProductId() != null && !request.getProductId().equals(order.getProductId())) {
-            throw business(ResultCode.BUSINESS_ERROR, "工单产品必须与生产订单产品一致");
+        if (plan.getLineId() == null || plan.getPlannedQuantity() == null
+                || plan.getPlannedQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产计划缺少有效产线或计划数量");
         }
-        BigDecimal quantity = request.getPlannedQuantity() == null ? plan.getPlannedQuantity() : request.getPlannedQuantity();
-        if (quantity == null || plan.getPlannedQuantity() == null || quantity.compareTo(plan.getPlannedQuantity()) != 0) {
-            throw business(ResultCode.BUSINESS_ERROR, "单工单生成模式下，工单数量必须等于计划数量");
-        }
+        MdmBom bom = resolveReleasedBom(order.getProductId(), plan);
+        ProcessRoute route = resolveReleasedRoute(order.getProductId(), plan.getLineId());
+        List<MfgWorkOrderMaterial> materialRequirements = buildMaterialRequirements(
+                bom, plan.getPlannedQuantity());
         LocalDateTime now = LocalDateTime.now();
         MfgWorkOrder workOrder = new MfgWorkOrder();
         workOrder.setWorkOrderNo("WO-" + planId + "-" + now.format(NUMBER_TIME));
         workOrder.setPlanId(planId);
         workOrder.setProductId(order.getProductId());
-        workOrder.setBomId(request.getBomId());
-        workOrder.setRouteId(request.getRouteId());
-        workOrder.setPlannedQuantity(quantity);
+        workOrder.setBomId(bom.getBomId());
+        workOrder.setRouteId(route.getRouteId());
+        workOrder.setPlannedQuantity(plan.getPlannedQuantity());
         workOrder.setCompletedQuantity(BigDecimal.ZERO);
         workOrder.setStatus(BusinessStatus.Document.DRAFT);
-        workOrder.setRemark(request.getRemark());
+        workOrder.setRemark(command.getRemark());
         workOrder.setVersion(0);
         workOrder.setCreatedBy(operatorId);
         workOrder.setCreatedTime(now);
@@ -185,10 +220,86 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
         if (baseMapper.insert(workOrder) == 0 || workOrder.getWorkOrderId() == null) {
             throw new BusinessException(ResultCode.FAILED);
         }
+        saveMaterialRequirements(workOrder, bom, materialRequirements, operatorId, now);
         insertStatusLog(workOrder.getWorkOrderId(), null, BusinessStatus.Document.DRAFT,
-                "GENERATE_WORK_ORDER", operatorId, request.getRemark(), now);
-        insertOperationLog(workOrder.getWorkOrderId(), "GENERATE_WORK_ORDER", operatorId, request.getRemark(), now);
+                "GENERATE_WORK_ORDER", operatorId, command.getRemark(), now);
+        insertOperationLog(workOrder.getWorkOrderId(), "GENERATE_WORK_ORDER", operatorId, command.getRemark(), now);
         return workOrder;
+    }
+
+    private List<MfgWorkOrderMaterial> buildMaterialRequirements(MdmBom bom, BigDecimal plannedQuantity) {
+        List<MdmBomItem> items = bomItemMapper.selectList(new LambdaQueryWrapper<MdmBomItem>()
+                .eq(MdmBomItem::getBomId, bom.getBomId())
+                .eq(MdmBomItem::getDeletedFlag, 0)
+                .orderByAsc(MdmBomItem::getSequenceNo, MdmBomItem::getBomItemId));
+        if (items == null || items.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "已发布物料清单没有有效明细，不能生成生产工单");
+        }
+
+        Map<Long, BigDecimal> requiredByMaterial = new LinkedHashMap<>();
+        for (MdmBomItem item : items) {
+            if (item.getMaterialId() == null || item.getQuantity() == null
+                    || item.getQuantity().compareTo(BigDecimal.ZERO) <= 0
+                    || (item.getLossRate() != null && item.getLossRate().compareTo(BigDecimal.ZERO) < 0)) {
+                throw business(ResultCode.BUSINESS_ERROR, "物料清单存在无效物料、用量或损耗率，不能生成生产工单");
+            }
+            BigDecimal lossRate = item.getLossRate() == null ? BigDecimal.ZERO : item.getLossRate();
+            BigDecimal required = plannedQuantity
+                    .multiply(item.getQuantity())
+                    .multiply(BigDecimal.ONE.add(lossRate))
+                    .setScale(4, RoundingMode.HALF_UP);
+            requiredByMaterial.merge(item.getMaterialId(), required, BigDecimal::add);
+        }
+
+        List<WmsInventory> inventories = inventoryMapper.selectList(new LambdaQueryWrapper<WmsInventory>()
+                .in(WmsInventory::getMaterialId, requiredByMaterial.keySet())
+                .eq(WmsInventory::getDeletedFlag, 0));
+        Map<Long, BigDecimal> availableByMaterial = new LinkedHashMap<>();
+        if (inventories != null) {
+            for (WmsInventory inventory : inventories) {
+                if (inventory.getMaterialId() != null && inventory.getAvailableQuantity() != null) {
+                    availableByMaterial.merge(inventory.getMaterialId(), inventory.getAvailableQuantity(), BigDecimal::add);
+                }
+            }
+        }
+
+        List<MfgWorkOrderMaterial> requirements = new java.util.ArrayList<>(requiredByMaterial.size());
+        for (Map.Entry<Long, BigDecimal> entry : requiredByMaterial.entrySet()) {
+            BigDecimal required = entry.getValue().setScale(4, RoundingMode.HALF_UP);
+            BigDecimal available = availableByMaterial.getOrDefault(entry.getKey(), BigDecimal.ZERO)
+                    .max(BigDecimal.ZERO);
+            BigDecimal shortage = required.subtract(available).max(BigDecimal.ZERO)
+                    .setScale(4, RoundingMode.HALF_UP);
+            String readiness = shortage.signum() == 0
+                    ? "READY" : available.signum() > 0 ? "PARTIAL_READY" : "WAIT_READY";
+
+            MfgWorkOrderMaterial requirement = new MfgWorkOrderMaterial();
+            requirement.setMaterialId(entry.getKey());
+            requirement.setRequiredQuantity(required);
+            requirement.setIssuedQuantity(BigDecimal.ZERO.setScale(4));
+            requirement.setShortageQuantity(shortage);
+            requirement.setStatus(readiness);
+            requirements.add(requirement);
+        }
+        return requirements;
+    }
+
+    private void saveMaterialRequirements(MfgWorkOrder workOrder, MdmBom bom,
+                                          List<MfgWorkOrderMaterial> requirements,
+                                          Long operatorId, LocalDateTime now) {
+        for (MfgWorkOrderMaterial requirement : requirements) {
+            requirement.setWorkOrderId(workOrder.getWorkOrderId());
+            requirement.setRemark("由物料清单 " + bom.getBomId() + " 自动生成");
+            requirement.setVersion(0);
+            requirement.setCreatedBy(operatorId);
+            requirement.setCreatedTime(now);
+            requirement.setUpdatedBy(operatorId);
+            requirement.setUpdatedTime(now);
+            requirement.setDeletedFlag(0);
+            if (workOrderMaterialMapper.insert(requirement) == 0) {
+                throw business(ResultCode.FAILED, "工单用料需求生成失败");
+            }
+        }
     }
 
     @Override
@@ -219,6 +330,11 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
                 "RELEASE_WORK_ORDER", operatorId, remark, now);
         insertOperationLog(workOrderId, "RELEASE_WORK_ORDER", operatorId, remark, now);
         return getWorkOrderById(workOrderId);
+    }
+
+    @Override
+    public void withdrawWorkOrder(Long workOrderId, Long operatorId, String remark) {
+        productionOrderService.withdrawUnexecutedWorkOrderChain(workOrderId, operatorId, remark);
     }
 
     /**
@@ -279,6 +395,77 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
         QueryWrapper<MfgWorkOrder> query = new QueryWrapper<>();
         query.eq("plan_id", planId).eq("deleted_flag", 0).ne("status", BusinessStatus.Document.CLOSED);
         return baseMapper.selectCount(query) > 0;
+    }
+
+    private MdmBom resolveReleasedBom(Long productId, MfgProductionPlan plan) {
+        LambdaQueryWrapper<MdmBom> query = new LambdaQueryWrapper<MdmBom>()
+                .eq(MdmBom::getProductId, productId)
+                .eq(MdmBom::getStatus, BusinessStatus.Document.RELEASED)
+                .eq(MdmBom::getDeletedFlag, 0)
+                .isNotNull(MdmBom::getEffectiveDate)
+                .orderByDesc(MdmBom::getEffectiveDate)
+                .orderByDesc(MdmBom::getBomId);
+        if (plan.getPlannedStartTime() != null) {
+            query.le(MdmBom::getEffectiveDate, plan.getPlannedStartTime().toLocalDate());
+        }
+        List<MdmBom> candidates = bomMapper.selectList(query);
+        if (candidates.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "订单产品在计划日期没有已发布的有效物料清单");
+        }
+        if (candidates.size() > 1
+                && Objects.equals(candidates.get(0).getEffectiveDate(), candidates.get(1).getEffectiveDate())) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "订单产品存在多个同日生效的已发布物料清单，请先清理版本有效性");
+        }
+        return candidates.get(0);
+    }
+
+    private ProcessRoute resolveReleasedRoute(Long productId, Long lineId) {
+        List<MfgLineProductCapability> capabilities = lineProductCapabilityMapper.selectList(
+                new LambdaQueryWrapper<MfgLineProductCapability>()
+                        .eq(MfgLineProductCapability::getLineId, lineId)
+                        .eq(MfgLineProductCapability::getProductId, productId)
+                        .eq(MfgLineProductCapability::getStatus, BusinessStatus.Common.ENABLE)
+                        .eq(MfgLineProductCapability::getDeletedFlag, 0)
+                        .orderByAsc(MfgLineProductCapability::getPriorityLevel)
+                        .orderByAsc(MfgLineProductCapability::getCapabilityId));
+        ProcessRoute selectedRoute = null;
+        Integer selectedPriority = null;
+        for (MfgLineProductCapability capability : capabilities) {
+            ProcessRoute route = routeMapper.selectOne(new LambdaQueryWrapper<ProcessRoute>()
+                    .eq(ProcessRoute::getRouteId, capability.getRouteId())
+                    .eq(ProcessRoute::getProductId, productId)
+                    .eq(ProcessRoute::getStatus, BusinessStatus.Document.RELEASED)
+                    .eq(ProcessRoute::getDeletedFlag, 0));
+            if (route != null) {
+                if (selectedRoute == null) {
+                    selectedRoute = route;
+                    selectedPriority = capability.getPriorityLevel();
+                } else if (Objects.equals(selectedPriority, capability.getPriorityLevel())
+                        && !Objects.equals(selectedRoute.getRouteId(), route.getRouteId())) {
+                    throw business(ResultCode.BUSINESS_ERROR,
+                            "计划产线存在多个同优先级产品路线，请先明确产线产品能力优先级");
+                } else {
+                    break;
+                }
+            }
+        }
+        if (selectedRoute != null) {
+            return selectedRoute;
+        }
+        List<ProcessRoute> releasedRoutes = routeMapper.selectList(new LambdaQueryWrapper<ProcessRoute>()
+                .eq(ProcessRoute::getProductId, productId)
+                .eq(ProcessRoute::getStatus, BusinessStatus.Document.RELEASED)
+                .eq(ProcessRoute::getDeletedFlag, 0)
+                .orderByAsc(ProcessRoute::getRouteId));
+        if (releasedRoutes.size() == 1) {
+            return releasedRoutes.get(0);
+        }
+        if (releasedRoutes.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "订单产品没有已发布的工艺路线");
+        }
+        throw business(ResultCode.BUSINESS_ERROR,
+                "计划产线未配置产品路线且产品存在多个已发布路线，请先维护产线产品能力");
     }
 
     private void insertStatusLog(Long bizId, String oldStatus, String newStatus, String reason,

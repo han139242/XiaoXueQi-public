@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.entity.wms.WmsInventory;
@@ -152,7 +154,7 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
             return false;
         }
         WmsReturnOrder existing = getReturnOrderById(returnOrder.getReturnId());
-        if (existing == null || APPROVED_STATUS.equals(existing.getAuditStatus())) {
+        if (existing == null || !SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
             return false;
         }
         returnOrder.setDeletedFlag(null);
@@ -199,7 +201,7 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
     @Transactional
     public boolean removeReturnOrderById(Long returnId) {
         WmsReturnOrder existing = getReturnOrderById(returnId);
-        if (existing == null || APPROVED_STATUS.equals(existing.getAuditStatus())) {
+        if (existing == null || !SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
             return false;
         }
         WmsReturnOrder returnOrder = new WmsReturnOrder();
@@ -212,6 +214,27 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
             responsibilityNotificationService.cancelReturnPending(returnId, existing.getUpdatedBy());
         }
         return orderRemoved;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawReturnOrder(Long returnId, Long operatorId, String remark) {
+        WmsReturnOrder existing = getReturnOrderById(returnId);
+        if (existing == null || operatorId == null || !StringUtils.hasText(remark)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(), "退料单、操作人和撤回原因不能为空");
+        }
+        if (!SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "只有未确认退料单可以撤回");
+        }
+        WmsReturnOrder update = new WmsReturnOrder();
+        update.setReturnId(returnId); update.setVersion(existing.getVersion());
+        update.setAuditStatus(BusinessStatus.Document.CLOSED); update.setUpdatedBy(operatorId); update.setUpdatedTime(LocalDateTime.now());
+        if (baseMapper.updateById(update) == 0) throw new BusinessException(ResultCode.DATA_CONFLICT);
+        LocalDateTime now = LocalDateTime.now();
+        insertStatusChangeLog(returnId, existing.getAuditStatus(), BusinessStatus.Document.CLOSED,
+                "WMS_RETURN_ORDER", "WITHDRAW_RETURN", operatorId, remark, now);
+        insertOperationLog(returnId, "WITHDRAW_RETURN", "wms_return_order", operatorId, remark, now);
+        responsibilityNotificationService.cancelReturnPending(returnId, operatorId);
     }
 
     /**

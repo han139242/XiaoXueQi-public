@@ -88,4 +88,6 @@ public interface MfgTaskService extends IService<MfgTask> {
      * @return 是否成功
      */
     boolean finishTask(Long taskId, BigDecimal completedQuantity, BigDecimal defectQuantity, String remark, Long operatorId);
+
+    void withdrawTaskStart(Long taskId, Long operatorId, String remark);
 }

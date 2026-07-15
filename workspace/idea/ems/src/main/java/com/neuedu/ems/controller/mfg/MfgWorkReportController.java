@@ -76,8 +76,9 @@ public class MfgWorkReportController {
      * @return 操作结果或报工ID
      */
     @PostMapping
-    public ResultData save(@RequestBody WorkReportFullRequest request) {
-        Long reportId = mfgWorkReportService.submitWorkReport(request, request.getMaterials());
+    public ResultData save(@RequestBody WorkReportFullRequest request,
+                           @RequestAttribute("userId") Long userId) {
+        Long reportId = mfgWorkReportService.submitWorkReport(request, request.getMaterials(), userId);
         return ResultData.success(ResultCode.SUCCESS, Map.of("reportId", reportId));
     }
 
@@ -87,8 +88,9 @@ public class MfgWorkReportController {
      * @return 报工ID
      */
     @PostMapping("/full")
-    public ResultData saveFull(@RequestBody WorkReportFullRequest request) {
-        Long reportId = mfgWorkReportService.submitWorkReport(request, request.getMaterials());
+    public ResultData saveFull(@RequestBody WorkReportFullRequest request,
+                               @RequestAttribute("userId") Long userId) {
+        Long reportId = mfgWorkReportService.submitWorkReport(request, request.getMaterials(), userId);
         return ResultData.success(ResultCode.SUCCESS, Map.of("reportId", reportId));
     }
 
@@ -98,8 +100,9 @@ public class MfgWorkReportController {
      * @return 报工ID
      */
     @PostMapping("/submit")
-    public ResultData submit(@RequestBody WorkReportFullRequest request) {
-        Long reportId = mfgWorkReportService.submitWorkReport(request, request.getMaterials());
+    public ResultData submit(@RequestBody WorkReportFullRequest request,
+                             @RequestAttribute("userId") Long userId) {
+        Long reportId = mfgWorkReportService.submitWorkReport(request, request.getMaterials(), userId);
         return ResultData.success(ResultCode.SUCCESS, Map.of("reportId", reportId));
     }
 
@@ -139,6 +142,14 @@ public class MfgWorkReportController {
         boolean flag = mfgWorkReportService.auditWorkReport(reportId, getString(request, "auditResult"),
                 getString(request, "auditComment"), userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
+    }
+
+    @PutMapping("/{reportId}/withdraw")
+    public ResultData withdraw(@PathVariable Long reportId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        mfgWorkReportService.withdrawWorkReport(reportId, userId, getString(request, "remark"));
+        return ResultData.success(ResultCode.SUCCESS);
     }
 
     /**

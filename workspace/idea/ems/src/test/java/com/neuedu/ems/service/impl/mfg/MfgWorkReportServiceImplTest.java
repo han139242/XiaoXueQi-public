@@ -13,10 +13,13 @@ import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgReportMaterialMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskOperatorMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.sys.SysUserMapper;
+import com.neuedu.ems.entity.sys.SysUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,6 +29,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -41,6 +45,8 @@ class MfgWorkReportServiceImplTest {
     private MfgWorkOrderMapper workOrderMapper;
     private MfgProductionPlanMapper planMapper;
     private MfgProductionOrderMapper orderMapper;
+    private MfgTaskOperatorMapper taskOperatorMapper;
+    private SysUserMapper userMapper;
 
     @BeforeEach
     void setUp() {
@@ -53,6 +59,10 @@ class MfgWorkReportServiceImplTest {
         ReflectionTestUtils.setField(service, "baseMapper", reportMapper);
         ReflectionTestUtils.setField(service, "mfgReportMaterialMapper", mock(MfgReportMaterialMapper.class));
         ReflectionTestUtils.setField(service, "mfgTaskMapper", taskMapper);
+        taskOperatorMapper = mock(MfgTaskOperatorMapper.class);
+        userMapper = mock(SysUserMapper.class);
+        ReflectionTestUtils.setField(service, "mfgTaskOperatorMapper", taskOperatorMapper);
+        ReflectionTestUtils.setField(service, "sysUserMapper", userMapper);
         ReflectionTestUtils.setField(service, "mfgWorkOrderMapper", workOrderMapper);
         ReflectionTestUtils.setField(service, "mfgProductionPlanMapper", planMapper);
         ReflectionTestUtils.setField(service, "mfgProductionOrderMapper", orderMapper);
@@ -62,6 +72,11 @@ class MfgWorkReportServiceImplTest {
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
         when(operationLogMapper.insert(any(SysOperationLog.class))).thenReturn(1);
+        SysUser user = new SysUser();
+        user.setUserId(9L);
+        user.setEmployeeId(3L);
+        when(userMapper.selectOne(any())).thenReturn(user);
+        when(taskOperatorMapper.selectCount(any())).thenReturn(1L);
     }
 
     @Test
@@ -158,9 +173,76 @@ class MfgWorkReportServiceImplTest {
         request.setDefectQuantity(BigDecimal.ZERO);
         request.setActualWorkHours(BigDecimal.ONE);
 
-        assertThrows(BusinessException.class, () -> service.submitWorkReport(request, List.of()));
+        MfgTask runningTask = task();
+        runningTask.setStatus(BusinessStatus.Production.RUNNING);
+        runningTask.setStationId(4L);
+        when(taskMapper.selectOne(any())).thenReturn(runningTask);
+
+        assertThrows(BusinessException.class, () -> service.submitWorkReport(request, List.of(), 9L));
 
         verify(reportMapper, never()).insert(any(MfgWorkReport.class));
+    }
+
+    @Test
+    void submitUsesJwtEmployeeTaskStationAndBackendReportNumber() {
+        MfgTask runningTask = task();
+        runningTask.setStatus(BusinessStatus.Production.RUNNING);
+        runningTask.setStationId(4L);
+        when(taskMapper.selectOne(any())).thenReturn(runningTask);
+        when(reportMapper.insert(any(MfgWorkReport.class))).thenAnswer(invocation -> {
+            invocation.<MfgWorkReport>getArgument(0).setReportId(10L);
+            return 1;
+        });
+        MfgWorkReport request = new MfgWorkReport();
+        request.setReportId(999L);
+        request.setReportNo("FORGED-REPORT-NO");
+        request.setTaskId(2L);
+        request.setOperatorId(999L);
+        request.setStationId(999L);
+        request.setQualifiedQuantity(BigDecimal.ONE);
+        request.setDefectQuantity(BigDecimal.ZERO);
+        request.setActualWorkHours(BigDecimal.ONE);
+
+        service.submitWorkReport(request, List.of(), 9L);
+
+        ArgumentCaptor<MfgWorkReport> inserted = ArgumentCaptor.forClass(MfgWorkReport.class);
+        verify(reportMapper).insert(inserted.capture());
+        assertEquals(3L, inserted.getValue().getOperatorId());
+        assertEquals(4L, inserted.getValue().getStationId());
+        assertNotEquals("FORGED-REPORT-NO", inserted.getValue().getReportNo());
+        assertEquals(10L, inserted.getValue().getReportId());
+        assertEquals(9L, inserted.getValue().getCreatedBy());
+    }
+
+    @Test
+    void submitRejectsJwtEmployeeNotAssignedToTask() {
+        MfgTask runningTask = task();
+        runningTask.setStatus(BusinessStatus.Production.RUNNING);
+        runningTask.setStationId(4L);
+        when(taskMapper.selectOne(any())).thenReturn(runningTask);
+        when(taskOperatorMapper.selectCount(any())).thenReturn(0L);
+        MfgWorkReport request = new MfgWorkReport();
+        request.setTaskId(2L);
+        request.setQualifiedQuantity(BigDecimal.ONE);
+        request.setDefectQuantity(BigDecimal.ZERO);
+        request.setActualWorkHours(BigDecimal.ONE);
+
+        assertThrows(BusinessException.class,
+                () -> service.submitWorkReport(request, List.of(), 9L));
+
+        verify(reportMapper, never()).insert(any(MfgWorkReport.class));
+    }
+
+    @Test
+    void withdrawRejectsAnotherEmployeesSubmittedReport() {
+        MfgWorkReport submitted = report("1");
+        submitted.setOperatorId(99L);
+        when(reportMapper.selectOne(any())).thenReturn(submitted);
+
+        assertThrows(BusinessException.class,
+                () -> service.withdrawWorkReport(1L, 9L, "不是本人报工"));
+
+        verify(reportMapper, never()).updateById(any(MfgWorkReport.class));
     }
 
     private MfgWorkReport report(String quantity) {

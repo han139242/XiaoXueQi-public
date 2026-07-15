@@ -76,6 +76,7 @@ public class MfgScheduleScenarioServiceImpl
     private static final String STATUS_CALCULATED = "CALCULATED";
     private static final String STATUS_CONFIRMED = "CONFIRMED";
     private static final String STATUS_RELEASED = "RELEASED";
+    private static final String STATUS_CLOSED = "CLOSED";
     private static final String STATUS_ENABLE = "ENABLE";
     private static final String STATUS_RUNNING = "RUNNING";
     private static final String ITEM_STATUS_SCHEDULED = "SCHEDULED";
@@ -689,6 +690,7 @@ public class MfgScheduleScenarioServiceImpl
         QueryWrapper<MfgProductionPlan> wrapper = new QueryWrapper<>();
         wrapper.eq("production_order_id", productionOrderId);
         wrapper.eq("deleted_flag", 0);
+        wrapper.ne("status", STATUS_CLOSED);
         return mfgProductionPlanMapper.selectCount(wrapper) > 0;
     }
 

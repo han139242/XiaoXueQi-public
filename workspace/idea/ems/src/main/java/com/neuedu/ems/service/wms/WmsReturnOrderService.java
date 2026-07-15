@@ -81,6 +81,8 @@ public interface WmsReturnOrderService extends IService<WmsReturnOrder> {
      */
     boolean removeReturnOrderById(Long returnId);
 
+    void withdrawReturnOrder(Long returnId, Long operatorId, String remark);
+
     /**
      * 确认退料入库，回加库存并写入库存流水。
      * @param returnId 退料单ID

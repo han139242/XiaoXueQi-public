@@ -172,7 +172,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
             return false;
         }
         WmsOutboundOrder existing = getOutboundOrderById(outboundOrder.getOutboundId());
-        if (existing == null || APPROVED_STATUS.equals(existing.getAuditStatus())) {
+        if (existing == null || !SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
             return false;
         }
         outboundOrder.setDeletedFlag(null);
@@ -227,7 +227,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
     @Transactional
     public boolean removeOutboundOrderById(Long outboundId) {
         WmsOutboundOrder existing = getOutboundOrderById(outboundId);
-        if (existing == null || APPROVED_STATUS.equals(existing.getAuditStatus())) {
+        if (existing == null || !SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
             return false;
         }
         WmsOutboundOrder outboundOrder = new WmsOutboundOrder();
@@ -240,6 +240,27 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         softDeleteDetails(outboundId);
         responsibilityNotificationService.cancelOutboundPending(outboundId, existing.getUpdatedBy());
         return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawOutboundOrder(Long outboundId, Long operatorId, String remark) {
+        WmsOutboundOrder existing = getOutboundOrderById(outboundId);
+        if (existing == null || operatorId == null || !StringUtils.hasText(remark)) {
+            throw business(ResultCode.PARAM_ERROR, "出库单、操作人和撤回原因不能为空");
+        }
+        if (!SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有未确认出库单可以撤回");
+        }
+        WmsOutboundOrder update = new WmsOutboundOrder();
+        update.setOutboundId(outboundId); update.setVersion(existing.getVersion());
+        update.setAuditStatus(BusinessStatus.Document.CLOSED); update.setUpdatedBy(operatorId); update.setUpdatedTime(LocalDateTime.now());
+        if (baseMapper.updateById(update) == 0) throw business(ResultCode.DATA_CONFLICT, "出库单已被并发修改");
+        LocalDateTime now = LocalDateTime.now();
+        insertStatusChangeLog(outboundId, existing.getAuditStatus(), BusinessStatus.Document.CLOSED,
+                "WMS_OUTBOUND_ORDER", "WITHDRAW_OUTBOUND", operatorId, remark, now);
+        insertOperationLog(outboundId, "WITHDRAW_OUTBOUND", "wms_outbound_order", operatorId, remark, now);
+        responsibilityNotificationService.cancelOutboundPending(outboundId, operatorId);
     }
 
     /**

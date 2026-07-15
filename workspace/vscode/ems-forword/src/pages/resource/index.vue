@@ -336,7 +336,6 @@ function handleDetailTabChange(key) {
 }
 
 async function restoreMasterSelection(selectedId) {
-  if (!detailConfig.value || !detailViewAllowed.value) return
   const matched = selectedId === null || selectedId === undefined
     ? null
     : rows.value.find((row) => String(row[config.value.idField]) === String(selectedId))
@@ -349,7 +348,7 @@ async function restoreMasterSelection(selectedId) {
   syncingCurrentRow = true
   mainTableRef.value?.setCurrentRow(matched)
   syncingCurrentRow = false
-  await loadMasterDetail(matched)
+  if (detailConfig.value && detailViewAllowed.value) await loadMasterDetail(matched)
 }
 
 async function loadReferences() {
@@ -362,7 +361,7 @@ async function loadReferences() {
 }
 
 async function loadData() {
-  const selectedId = selectedRow.value?.[config.value.idField]
+  const selectedId = selectedRow.value?.[config.value.idField] ?? route.query.focus
   loading.value = true
   loadError.value = ''
   dataMode.value = previewMode ? 'preview' : 'live'
@@ -455,9 +454,9 @@ function resetSearch() {
   loadData()
 }
 
-async function openCreate() {
+async function openCreate(prefill = {}) {
   formMode.value = 'create'
-  initForm()
+  initForm(prefill)
   childRows.value = []
   formOpen.value = true
   await nextTick()
@@ -652,6 +651,9 @@ function visibleRelations(row) {
 }
 
 function canUseAction(action, row = null) {
+  if (action.kind === 'navigate') {
+    return hasPermission(resourcePermission(action.targetResource, action.permissionAction || 'view'))
+  }
   const url = action.url || (typeof action.path === 'function' ? action.path(row) : action.path)
   const method = action.method || (action.kind === 'upload' ? 'post' : 'get')
   return Boolean(url) && hasRequestPermission(method, url)
@@ -673,6 +675,11 @@ function rowLockReason(row, action) {
 async function openAction(action, row = null) {
   if (!canUseAction(action, row)) {
     ElMessage.warning('当前账号没有执行该操作的权限')
+    return
+  }
+  if (action.kind === 'navigate') {
+    const target = getResourceConfig(action.targetResource)
+    router.push({ path: target.routePath, query: action.query ? action.query(row) : {} })
     return
   }
   if (action.kind === 'download') {
@@ -790,6 +797,18 @@ function openRelation(relation, row) {
   router.push({ path: target.routePath, query: { [relation.parentField]: row[config.value.idField], from: config.value.title } })
 }
 
+function openMasterDetailRow(row) {
+  if (!row || !detailConfig.value || !detailResourceConfig.value || !selectedRow.value) return
+  router.push({
+    path: detailResourceConfig.value.routePath,
+    query: {
+      [detailConfig.value.parentField]: selectedRow.value[config.value.idField],
+      focus: row[detailResourceConfig.value.idField],
+      from: selectedRowLabel.value
+    }
+  })
+}
+
 function handlePageChange(value) {
   pagination.current = value
   loadData()
@@ -808,6 +827,12 @@ async function initialize() {
   initColumns()
   pagination.current = 1
   await Promise.all([loadReferences(), refreshData()])
+  if (route.query.create === '1' && permissions.value.create) {
+    const prefill = Object.fromEntries(config.value.fields
+      .filter((field) => route.query[field.prop] !== undefined)
+      .map((field) => [field.prop, route.query[field.prop]]))
+    await openCreate(prefill)
+  }
 }
 
 watch(() => route.fullPath, initialize)
@@ -828,7 +853,7 @@ onMounted(initialize)
         </div>
         <div class="resource-toolbar">
           <div class="toolbar-primary">
-            <el-button v-if="permissions.create" type="primary" @click="openCreate"><AppIcon name="plus" :size="16" />新增</el-button>
+            <el-button v-if="permissions.create && !config.contextCreateOnly" type="primary" @click="openCreate()"><AppIcon name="plus" :size="16" />新增</el-button>
             <el-button
               v-for="action in visibleGlobalActions"
               :key="action.key"
@@ -1019,6 +1044,7 @@ onMounted(initialize)
           height="min(32vh, 360px)"
           class="resource-table master-detail-table"
           :empty-text="selectedRow ? '当前记录暂无明细' : '请选择一条主记录'"
+          @row-dblclick="openMasterDetailRow"
         >
           <el-table-column type="index" label="#" width="54" align="center" />
           <el-table-column

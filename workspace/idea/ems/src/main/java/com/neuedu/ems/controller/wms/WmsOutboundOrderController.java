@@ -136,6 +136,13 @@ public class WmsOutboundOrderController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PutMapping("/{outboundId}/withdraw")
+    public ResultData withdraw(@PathVariable Long outboundId, @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        wmsOutboundOrderService.withdrawOutboundOrder(outboundId, userId, getString(request, "remark"));
+        return ResultData.success(ResultCode.SUCCESS);
+    }
+
     /**
      * 软删除出库单和出库明细，已确认出库单不允许删除。
      * @param outboundId 出库单ID

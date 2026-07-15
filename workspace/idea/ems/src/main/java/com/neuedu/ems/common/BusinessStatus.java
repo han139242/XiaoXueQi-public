@@ -34,6 +34,7 @@ public final class BusinessStatus {
         public static final String REJECTED = "REJECTED";
         public static final String RELEASED = "RELEASED";
         public static final String CLOSED = "CLOSED";
+        public static final String WITHDRAWN = "WITHDRAWN";
 
         private Document() {
         }
@@ -54,6 +55,13 @@ public final class BusinessStatus {
         public static final String FINISHED = "FINISHED";
 
         private Production() {
+        }
+    }
+
+    public static final class Factory {
+        public static final String RUNNING = "RUNNING";
+
+        private Factory() {
         }
     }
 

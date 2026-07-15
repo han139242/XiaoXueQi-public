@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 生产工单管理控制器。
@@ -81,7 +82,7 @@ public class MfgWorkOrderController {
     @PostMapping("/generate/{planId}")
     public ResultData generate(@PathVariable Long planId,
                                @RequestAttribute("userId") Long userId,
-                               @RequestBody MfgWorkOrder request) {
+                               @RequestBody(required = false) MfgWorkOrder request) {
         return ResultData.success(ResultCode.SUCCESS,
                 mfgWorkOrderService.generateWorkOrder(planId, request, userId));
     }
@@ -103,6 +104,15 @@ public class MfgWorkOrderController {
                               @RequestBody(required = false) ReleaseRequest request) {
         return ResultData.success(ResultCode.SUCCESS, mfgWorkOrderService.releaseWorkOrder(
                 workOrderId, userId, request == null ? null : request.getRemark()));
+    }
+
+    @PutMapping("/{workOrderId}/withdraw")
+    public ResultData withdraw(@PathVariable Long workOrderId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        mfgWorkOrderService.withdrawWorkOrder(workOrderId, userId,
+                request == null || request.get("remark") == null ? null : request.get("remark").toString());
+        return ResultData.success(ResultCode.SUCCESS);
     }
 
     /**

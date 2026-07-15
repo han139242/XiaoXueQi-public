@@ -33,7 +33,7 @@ export default [
     key: 'mfg-production-order', domain: 'mfg', route: 'mfg/production-orders', title: '生产订单', icon: 'clipboard', baseUrl: '/api/mfg/production-order', idField: 'productionOrderId',
     description: '管理客户生产需求、交付日期和订单执行状态',
     fields: ['productionOrderNo', 'customerId', 'productId', 'orderQuantity', 'deliveryDate', 'sourceType', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'customerId', 'productId'], defaults: { sourceType: 'MANUAL', status: 'DRAFT' },
-    overrides: { productionOrderNo: { required: true }, customerId: { required: true }, productId: { required: true }, orderQuantity: { required: true, type: 'number', min: 0 }, deliveryDate: { required: true }, sourceType: { type: 'select', options: sourceTypes }, status: { type: 'select', options: optionSets.productionOrder, create: false, edit: false }, createdTime: { form: false, width: 170 } },
+    overrides: { productionOrderNo: { create: false, edit: false }, customerId: { required: true }, productId: { required: true }, orderQuantity: { required: true, type: 'number', min: 0 }, deliveryDate: { required: true }, sourceType: { type: 'select', options: sourceTypes }, status: { type: 'select', options: optionSets.productionOrder, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'DRAFT', canDelete: (row) => row.status === 'DRAFT', lockedReason: '只有草稿生产订单可以编辑或删除',
     masterDetail: {
       title: '订单关联生产计划', resource: 'mfg-production-plan', parentField: 'productionOrderId',
@@ -43,13 +43,16 @@ export default [
     },
     actions: [
       { key: 'release', label: '下达订单', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/production-order/${row.productionOrderId}/release`, visible: (row) => row.status === 'DRAFT', fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) },
-      { key: 'generate-plan', label: '生成计划', icon: 'calendar', method: 'post', type: 'primary', path: (row) => `/api/mfg/production-plan/generate/${row.productionOrderId}`, visible: (row) => row.status === 'RELEASED', fields: [field('lineId', { required: true, type: 'reference', reference: 'factory-line' }), field('plannedStartTime', { required: true, type: 'datetime' }), field('plannedEndTime', { required: true, type: 'datetime' }), field('plannedQuantity', { required: true, type: 'number', min: 0.0001, defaultValue: (row) => row.orderQuantity }), field('remark', { type: 'textarea' })] }
+      { key: 'generate-plan', label: '生成计划', icon: 'calendar', method: 'post', type: 'primary', path: (row) => `/api/mfg/production-plan/generate/${row.productionOrderId}`, visible: (row) => row.status === 'RELEASED', fields: [field('lineId', { required: true, type: 'reference', reference: 'factory-line' }), field('plannedStartTime', { required: true, type: 'datetime' }), field('plannedEndTime', { required: true, type: 'datetime' }), field('plannedQuantity', { required: true, type: 'number', min: 0.0001, defaultValue: (row) => row.orderQuantity }), field('remark', { type: 'textarea' })] },
+      { key: 'view-plans', label: '生产计划详情', icon: 'arrow', kind: 'navigate', targetResource: 'mfg-production-plan', query: (row) => ({ productionOrderId: row.productionOrderId, from: row.productionOrderNo }) },
+      { key: 'withdraw', label: '撤回修改', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/production-order/${row.productionOrderId}/withdraw`, visible: (row) => row.status === 'RELEASED', fields: [field('remark', { label: '撤回原因', type: 'textarea', required: true })], previewPatch: () => ({ status: 'DRAFT' }) }
     ]
   }),
   defineResource({
     key: 'mfg-production-plan', domain: 'mfg', route: 'mfg/production-plans', title: '生产计划', icon: 'calendar', baseUrl: '/api/mfg/production-plan', idField: 'planId',
+    contextCreateOnly: true,
     fields: ['planNo', 'productionOrderId', 'lineId', 'plannedStartTime', 'plannedEndTime', 'plannedQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'productionOrderId', 'lineId'], defaults: { status: 'DRAFT' },
-    overrides: { planNo: { required: true }, productionOrderId: { required: true }, lineId: { required: true }, plannedStartTime: { required: true }, plannedEndTime: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, status: { type: 'select', options: optionSets.productionPlan, create: false, edit: false }, createdTime: { form: false, width: 170 } },
+    overrides: { planNo: { create: false, edit: false }, productionOrderId: { create: false, edit: false }, lineId: { required: true }, plannedStartTime: { required: true }, plannedEndTime: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, status: { type: 'select', options: optionSets.productionPlan, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'DRAFT', canDelete: (row) => row.status === 'DRAFT', lockedReason: '只有草稿生产计划可以编辑或删除',
     masterDetail: {
       title: '计划关联生产工单', resource: 'mfg-work-order', parentField: 'planId',
@@ -57,12 +60,18 @@ export default [
       params: (row) => ({ current: 1, size: 100, planId: row.planId }),
       label: (row) => row.planNo || `生产计划 #${row.planId}`
     },
-    actions: [{ key: 'generate-work-order', label: '生成工单', icon: 'package', method: 'post', type: 'primary', path: (row) => `/api/mfg/work-order/generate/${row.planId}`, visible: (row) => row.status === 'RELEASED', fields: [field('bomId', { required: true, type: 'reference', reference: 'mdm-bom' }), field('routeId', { required: true, type: 'reference', reference: 'process-route' }), field('plannedQuantity', { required: true, type: 'number', min: 0.0001, defaultValue: (row) => row.plannedQuantity }), field('remark', { type: 'textarea' })] }]
+    actions: [
+      { key: 'release', label: '生效计划', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/production-plan/${row.planId}/release`, visible: (row) => row.status === 'DRAFT', fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) },
+      { key: 'generate-work-order', label: '生成工单', icon: 'package', method: 'post', type: 'primary', path: (row) => `/api/mfg/work-order/generate/${row.planId}`, visible: (row) => row.status === 'RELEASED', fields: [field('remark', { type: 'textarea' })] },
+      { key: 'view-work-orders', label: '生产工单详情', icon: 'arrow', kind: 'navigate', targetResource: 'mfg-work-order', query: (row) => ({ planId: row.planId, from: row.planNo }) },
+      { key: 'withdraw', label: '撤回修改', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/production-plan/${row.planId}/withdraw`, visible: (row) => row.status === 'RELEASED', fields: [field('remark', { label: '撤回原因', type: 'textarea', required: true })], previewPatch: () => ({ status: 'DRAFT' }) }
+    ]
   }),
   defineResource({
     key: 'mfg-work-order', domain: 'mfg', route: 'mfg/work-orders', title: '生产工单', icon: 'package', baseUrl: '/api/mfg/work-order', idField: 'workOrderId',
+    contextCreateOnly: true,
     fields: ['workOrderNo', 'planId', 'productId', 'bomId', 'routeId', 'plannedQuantity', 'completedQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'planId', 'productId'], defaults: { status: 'DRAFT', completedQuantity: 0 },
-    overrides: { workOrderNo: { required: true }, planId: { reference: 'mfg-production-plan', required: true }, productId: { required: true }, bomId: { required: true }, routeId: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, completedQuantity: { type: 'number', min: 0, create: false, edit: false }, status: { type: 'select', options: optionSets.workOrder, create: false, edit: false }, createdTime: { form: false, width: 170 } },
+    overrides: { workOrderNo: { create: false, edit: false }, planId: { reference: 'mfg-production-plan', create: false, edit: false }, productId: { create: false, edit: false }, bomId: { create: false, edit: false }, routeId: { create: false, edit: false }, plannedQuantity: { type: 'number', min: 0, create: false, edit: false }, completedQuantity: { type: 'number', min: 0, create: false, edit: false }, status: { type: 'select', options: optionSets.workOrder, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'DRAFT', canDelete: (row) => row.status === 'DRAFT', lockedReason: '只有草稿生产工单可以编辑或删除',
     masterDetails: [
       {
@@ -83,23 +92,45 @@ export default [
         label: (row) => row.workOrderNo || `生产工单 #${row.workOrderId}`
       }
     ],
-    actions: [{ key: 'release', label: '下达工单', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-order/${row.workOrderId}/release`, visible: (row) => ['DRAFT', 'APPROVED'].includes(row.status), fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) }],
+    actions: [
+      { key: 'release', label: '下达工单', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-order/${row.workOrderId}/release`, visible: (row) => ['DRAFT', 'APPROVED'].includes(row.status), fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) },
+      { key: 'generate-dispatch', label: '生成派工单', icon: 'users', method: 'post', type: 'primary', path: (row) => `/api/mfg/dispatch-order/generate/${row.workOrderId}`, visible: (row) => row.status === 'RELEASED', fields: [field('teamId', { required: true, type: 'reference', reference: 'org-team' }), field('dueTime', { required: true, type: 'datetime' }), field('remark', { type: 'textarea' })] },
+      { key: 'view-dispatches', label: '派工详情', icon: 'arrow', kind: 'navigate', targetResource: 'mfg-dispatch-order', query: (row) => ({ workOrderId: row.workOrderId, from: row.workOrderNo }) },
+      { key: 'view-tasks', label: '生产任务详情', icon: 'arrow', kind: 'navigate', targetResource: 'mfg-task', query: (row) => ({ workOrderId: row.workOrderId, from: row.workOrderNo }) },
+      { key: 'withdraw', label: '撤回修改', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/work-order/${row.workOrderId}/withdraw`, visible: (row) => row.status === 'RELEASED', fields: [field('remark', { label: '撤回原因', type: 'textarea', required: true })], previewPatch: () => ({ status: 'DRAFT' }) }
+    ],
     relations: [{ key: 'materials', title: '工单用料需求', resource: 'mfg-work-order-material', parentField: 'workOrderId', endpoint: (row) => `/api/mfg/work-order-material/work-order/${row.workOrderId}` }]
   }),
   defineResource({
     key: 'mfg-work-order-material', domain: 'mfg', route: 'mfg/work-order-materials', title: '工单用料需求', baseUrl: '/api/mfg/work-order-material', idField: 'requirementId', menu: false,
+    contextCreateOnly: true,
+    permissions: { create: false, update: false, delete: false },
     fields: ['workOrderId', 'materialId', 'requiredQuantity', 'issuedQuantity', 'shortageQuantity', 'status', 'remark'], filters: ['workOrderId', 'materialId', 'status'], defaults: { status: 'WAIT_READY', issuedQuantity: 0, shortageQuantity: 0 },
-    overrides: { workOrderId: { required: true }, materialId: { required: true }, requiredQuantity: { required: true, type: 'number', min: 0 }, issuedQuantity: { type: 'number', min: 0 }, shortageQuantity: { type: 'number', min: 0 }, status: { type: 'select', options: optionSets.readiness } }
+    overrides: { workOrderId: { form: false }, materialId: { form: false }, requiredQuantity: { type: 'number', min: 0, form: false }, issuedQuantity: { type: 'number', min: 0, form: false }, shortageQuantity: { type: 'number', min: 0, form: false }, status: { type: 'select', options: optionSets.readiness, form: false }, remark: { form: false } }
   }),
   defineResource({
     key: 'mfg-dispatch-order', domain: 'mfg', route: 'mfg/dispatch-orders', title: '派工管理', icon: 'users', baseUrl: '/api/mfg/dispatch-order', idField: 'dispatchId',
+    contextCreateOnly: true,
     fields: ['dispatchNo', 'workOrderId', 'teamId', 'plannedQuantity', 'dueTime', 'materialReadyStatus', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'workOrderId', 'teamId'], defaults: { materialReadyStatus: 'WAIT_READY', status: 'WAIT_DISPATCH' },
-    overrides: { dispatchNo: { required: true }, workOrderId: { required: true }, teamId: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, dueTime: { required: true }, materialReadyStatus: { type: 'select', options: optionSets.readiness }, status: { type: 'select', options: optionSets.dispatch }, createdTime: { form: false, width: 170 } }
+    overrides: { dispatchNo: { create: false, edit: false }, workOrderId: { create: false, edit: false }, teamId: { required: true }, plannedQuantity: { type: 'number', min: 0, create: false, edit: false }, dueTime: { required: true }, materialReadyStatus: { type: 'select', options: optionSets.readiness, create: false, edit: false }, status: { type: 'select', options: optionSets.dispatch, create: false, edit: false }, createdTime: { form: false, width: 170 } },
+    masterDetail: {
+      title: '派工关联生产任务', resource: 'mfg-task', parentField: 'dispatchId',
+      endpoint: () => '/api/mfg/task/page',
+      params: (row) => ({ current: 1, size: 100, dispatchId: row.dispatchId, sort: 'oldest' }),
+      label: (row) => row.dispatchNo || `派工单 #${row.dispatchId}`
+    },
+    canEdit: (row) => row.status === 'WAIT_DISPATCH', canDelete: (row) => row.status === 'WAIT_DISPATCH', lockedReason: '只有待派发派工单可以编辑或删除',
+    actions: [
+      { key: 'release', label: '派发并生成任务', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/dispatch-order/${row.dispatchId}/release`, visible: (row) => row.status === 'WAIT_DISPATCH', fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) },
+      { key: 'view-tasks', label: '生产任务详情', icon: 'arrow', kind: 'navigate', targetResource: 'mfg-task', query: (row) => ({ dispatchId: row.dispatchId, from: row.dispatchNo }) },
+      { key: 'withdraw', label: '撤回派工', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/dispatch-order/${row.dispatchId}/withdraw`, visible: (row) => ['RELEASED', 'ACCEPTED'].includes(row.status), fields: [field('remark', { label: '撤回原因', type: 'textarea', required: true })], previewPatch: () => ({ status: 'WAIT_DISPATCH' }) }
+    ]
   }),
   defineResource({
     key: 'mfg-task', domain: 'mfg', route: 'mfg/tasks', title: '生产任务', icon: 'activity', baseUrl: '/api/mfg/task', idField: 'taskId',
+    contextCreateOnly: true,
     fields: ['taskNo', 'dispatchId', 'workOrderId', 'operationId', 'stationId', 'plannedQuantity', 'completedQuantity', 'defectQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'dispatchId', 'workOrderId', 'operationId', 'stationId'], defaults: { status: 'WAIT_START', completedQuantity: 0, defectQuantity: 0 },
-    overrides: { taskNo: { required: true }, dispatchId: { required: true }, workOrderId: { required: true }, operationId: { required: true }, stationId: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, completedQuantity: { type: 'number', min: 0, create: false, edit: false }, defectQuantity: { type: 'number', min: 0, create: false, edit: false }, status: { type: 'select', options: optionSets.task, create: false, edit: false }, createdTime: { form: false, width: 170 } },
+    overrides: { taskNo: { create: false, edit: false }, dispatchId: { create: false, edit: false }, workOrderId: { create: false, edit: false }, operationId: { create: false, edit: false }, stationId: { required: true }, plannedQuantity: { type: 'number', min: 0, create: false, edit: false }, completedQuantity: { type: 'number', min: 0, create: false, edit: false }, defectQuantity: { type: 'number', min: 0, create: false, edit: false }, status: { type: 'select', options: optionSets.task, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'WAIT_START', canDelete: (row) => row.status === 'WAIT_START', lockedReason: '已开工或已结束的生产任务不可普通修改或删除',
     masterDetails: [
       {
@@ -116,6 +147,8 @@ export default [
     ],
     actions: [
       { key: 'start', label: '开始任务', icon: 'play', method: 'put', type: 'primary', path: (row) => `/api/mfg/task/${row.taskId}/start`, visible: (row) => row.status === 'WAIT_START', fields: [field('stationId', { label: '实际工位', type: 'reference', reference: 'factory-station' })], previewPatch: (values) => ({ status: 'RUNNING', ...(values.stationId ? { stationId: values.stationId } : {}) }) },
+      { key: 'report', label: '去报工', icon: 'arrow', kind: 'navigate', targetResource: 'mfg-work-report', permissionAction: 'submit', visible: (row) => ['RUNNING', 'PAUSED'].includes(row.status), query: (row) => ({ taskId: row.taskId, create: '1', from: row.taskNo }) },
+      { key: 'withdraw', label: '撤回开工', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/task/${row.taskId}/withdraw`, visible: (row) => ['RUNNING', 'PAUSED'].includes(row.status), fields: [field('remark', { label: '撤回原因', type: 'textarea', required: true })], previewPatch: () => ({ status: 'WAIT_START' }) },
       { key: 'finish', label: '完成任务', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/task/${row.taskId}/finish`, visible: (row) => ['RUNNING', 'PAUSED'].includes(row.status), fields: [field('completedQuantity', { required: true, type: 'number', min: 0 }), field('defectQuantity', { required: true, type: 'number', min: 0 }), field('remark', { type: 'textarea' })], previewPatch: (values) => ({ completedQuantity: values.completedQuantity, defectQuantity: values.defectQuantity, ...(values.remark ? { remark: values.remark } : {}), status: 'FINISHED' }) }
     ],
     relations: [{ key: 'operators', title: '任务人员', resource: 'mfg-task-operator', parentField: 'taskId', endpoint: (row) => `/api/mfg/task-operator/task/${row.taskId}` }]
@@ -123,8 +156,9 @@ export default [
   defineResource({ key: 'mfg-task-operator', domain: 'mfg', route: 'mfg/task-operators', title: '任务人员', baseUrl: '/api/mfg/task-operator', idField: 'id', menu: false, fields: ['taskId', 'employeeId', 'roleInTask', 'assignedTime'], filters: ['taskId', 'employeeId', 'roleInTask'], overrides: { taskId: { required: true }, employeeId: { required: true }, roleInTask: { required: true }, assignedTime: { required: true } } }),
   defineResource({
     key: 'mfg-work-report', domain: 'mfg', route: 'mfg/work-reports', title: '生产报工', icon: 'clipboard', baseUrl: '/api/mfg/work-report', idField: 'reportId',
+    contextCreateOnly: true,
     fields: ['reportNo', 'taskId', 'operatorId', 'stationId', 'qualifiedQuantity', 'defectQuantity', 'actualWorkHours', 'reportTime', 'auditStatus', 'remark', 'createdTime'], filters: ['keyword', 'taskId', 'operatorId', 'stationId', 'auditStatus'], defaults: { auditStatus: 'SUBMITTED', qualifiedQuantity: 0, defectQuantity: 0 },
-    overrides: { reportNo: { required: true }, taskId: { required: true }, operatorId: { required: true }, stationId: { required: true }, qualifiedQuantity: { required: true, type: 'number', min: 0 }, defectQuantity: { required: true, type: 'number', min: 0 }, actualWorkHours: { type: 'number', min: 0 }, reportTime: { required: true }, auditStatus: { type: 'select', options: optionSets.audit, create: false, edit: false }, createdTime: { form: false, width: 170 } },
+    overrides: { reportNo: { form: false }, taskId: { required: true, form: false }, operatorId: { form: false }, stationId: { form: false }, qualifiedQuantity: { required: true, type: 'number', min: 0 }, defectQuantity: { required: true, type: 'number', min: 0 }, actualWorkHours: { type: 'number', min: 0 }, reportTime: { form: false }, auditStatus: { type: 'select', options: optionSets.audit, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     masterDetail: {
       title: '报工用料', resource: 'mfg-report-material', parentField: 'reportId',
       endpoint: (row) => `/api/mfg/report-material/report/${row.reportId}`,
@@ -132,8 +166,11 @@ export default [
     },
     fullChild: { property: 'materials', title: '报工用料', resource: 'mfg-report-material', parentField: 'reportId', endpoint: (row) => `/api/mfg/report-material/report/${row.reportId}` },
     createPath: '/full', updatePath: '/full',
-    canEdit: (row) => row.auditStatus !== 'APPROVED', canDelete: (row) => row.auditStatus !== 'APPROVED', lockedReason: '已审核通过的报工单不可修改或删除',
-    actions: [{ key: 'audit', label: '审核报工', icon: 'shield-check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-report/${row.reportId}/audit`, visible: (row) => row.auditStatus === 'SUBMITTED', fields: [field('auditResult', { label: '审核结果', type: 'select', options: optionSets.audit.filter((item) => item.value !== 'SUBMITTED'), required: true }), field('auditComment', { label: '审核意见', type: 'textarea' })], previewPatch: (values) => ({ auditStatus: values.auditResult }) }]
+    canEdit: (row) => ['SUBMITTED', 'REJECTED'].includes(row.auditStatus), canDelete: (row) => ['SUBMITTED', 'REJECTED'].includes(row.auditStatus), lockedReason: '已审核或已撤回的报工单不可修改或删除',
+    actions: [
+      { key: 'withdraw', label: '撤回修改', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/work-report/${row.reportId}/withdraw`, visible: (row) => row.auditStatus === 'SUBMITTED', fields: [field('remark', { label: '撤回原因', type: 'textarea', required: true })], previewPatch: () => ({ auditStatus: 'WITHDRAWN' }) },
+      { key: 'audit', label: '审核报工', icon: 'shield-check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-report/${row.reportId}/audit`, visible: (row) => row.auditStatus === 'SUBMITTED', fields: [field('auditResult', { label: '审核结果', type: 'select', options: optionSets.audit.filter((item) => !['SUBMITTED', 'WITHDRAWN'].includes(item.value)), required: true }), field('auditComment', { label: '审核意见', type: 'textarea' })], previewPatch: (values) => ({ auditStatus: values.auditResult }) }
+    ]
   }),
   defineResource({ key: 'mfg-report-material', domain: 'mfg', route: 'mfg/report-materials', title: '报工用料', baseUrl: '/api/mfg/report-material', idField: 'id', menu: false, fields: ['reportId', 'materialId', 'batchId', 'usedQuantity', 'scrapQuantity', 'remark'], filters: ['reportId', 'materialId', 'batchId'], overrides: { reportId: { required: true }, materialId: { required: true }, batchId: { required: true }, usedQuantity: { required: true, type: 'number', min: 0 }, scrapQuantity: { type: 'number', min: 0 } } }),
   defineResource({

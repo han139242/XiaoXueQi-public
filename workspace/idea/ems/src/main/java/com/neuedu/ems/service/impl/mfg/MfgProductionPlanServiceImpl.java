@@ -15,6 +15,7 @@ import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgProductionPlanService;
+import com.neuedu.ems.service.mfg.MfgProductionOrderService;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,9 @@ import java.time.format.DateTimeFormatter;
  */
 @Service
 public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanMapper, MfgProductionPlan> implements MfgProductionPlanService {
+
+    @Autowired
+    private MfgProductionOrderService productionOrderService;
 
     private static final DateTimeFormatter NUMBER_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
@@ -78,16 +82,7 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
      */
     @Override
     public boolean savePlan(MfgProductionPlan plan) {
-        if (plan == null || !StringUtils.hasText(plan.getPlanNo()) || plan.getProductionOrderId() == null
-                || plan.getLineId() == null || !validTimeWindow(plan)
-                || plan.getPlannedQuantity() == null || plan.getPlannedQuantity().compareTo(BigDecimal.ZERO) <= 0) {
-            return false;
-        }
-        plan.setStatus(BusinessStatus.Document.DRAFT);
-        if (plan.getDeletedFlag() == null) {
-            plan.setDeletedFlag(0);
-        }
-        return baseMapper.insert(plan) > 0;
+        throw business(ResultCode.BUSINESS_ERROR, "生产计划必须从已下达生产订单生成，不能脱离来源手工新增");
     }
 
     /**
@@ -106,6 +101,8 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
         }
         plan.setDeletedFlag(null);
         plan.setStatus(null);
+        plan.setPlanNo(null);
+        plan.setProductionOrderId(null);
         if (plan.getVersion() == null) {
             plan.setVersion(existing.getVersion());
         }
@@ -172,6 +169,55 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
                 "GENERATE_PRODUCTION_PLAN", operatorId, request.getRemark(), now);
         insertOperationLog(plan.getPlanId(), "GENERATE_PRODUCTION_PLAN", operatorId, request.getRemark(), now);
         return plan;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MfgProductionPlan releasePlan(Long planId, Long operatorId, String remark) {
+        if (planId == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "生产计划和操作人不能为空");
+        }
+        MfgProductionPlan plan = baseMapper.selectOne(new QueryWrapper<MfgProductionPlan>()
+                .eq("plan_id", planId)
+                .eq("deleted_flag", 0)
+                .last("FOR UPDATE"));
+        if (plan == null) {
+            throw business(ResultCode.NOT_FOUND, "生产计划不存在或已删除");
+        }
+        if (!BusinessStatus.Document.DRAFT.equals(plan.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有草稿生产计划可以重新生效");
+        }
+        if (plan.getLineId() == null || !validTimeWindow(plan) || plan.getPlannedQuantity() == null
+                || plan.getPlannedQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产计划缺少有效产线、时间或计划数量");
+        }
+        MfgProductionOrder order = activeOrder(plan.getProductionOrderId());
+        if (order == null || !BusinessStatus.Document.RELEASED.equals(order.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产计划的来源订单未处于已下达状态");
+        }
+        if (existingPlannedQuantity(plan.getProductionOrderId()).compareTo(order.getOrderQuantity()) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "累计计划数量不能超过生产订单数量");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        MfgProductionPlan update = new MfgProductionPlan();
+        update.setPlanId(planId);
+        update.setVersion(plan.getVersion());
+        update.setStatus(BusinessStatus.Document.RELEASED);
+        update.setRemark(StringUtils.hasText(remark) ? remark : plan.getRemark());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (baseMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产计划已被其他用户修改，请刷新后重试");
+        }
+        insertStatusLog(planId, plan.getStatus(), BusinessStatus.Document.RELEASED,
+                "RELEASE_PRODUCTION_PLAN", operatorId, remark, now);
+        insertOperationLog(planId, "RELEASE_PRODUCTION_PLAN", operatorId, remark, now);
+        return getPlanById(planId);
+    }
+
+    @Override
+    public void withdrawPlan(Long planId, Long operatorId, String remark) {
+        productionOrderService.withdrawUnexecutedPlanChain(planId, operatorId, remark);
     }
 
     /**

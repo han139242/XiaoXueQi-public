@@ -84,6 +84,8 @@ public interface WmsInboundOrderService extends IService<WmsInboundOrder> {
      */
     boolean removeInboundOrderById(Long inboundId);
 
+    void withdrawInboundOrder(Long inboundId, Long operatorId, String remark);
+
     /**
      * 确认入库，更新库存余额并写入库存流水。
      * @param inboundId 入库单ID

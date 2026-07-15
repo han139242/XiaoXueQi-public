@@ -4,19 +4,35 @@ import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
+import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
+import com.neuedu.ems.entity.mfg.MfgLineProductCapability;
+import com.neuedu.ems.entity.mdm.MdmBom;
+import com.neuedu.ems.entity.mdm.MdmBomItem;
+import com.neuedu.ems.entity.process.ProcessRoute;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.entity.wms.WmsInventory;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
+import com.neuedu.ems.mapper.mfg.MfgLineProductCapabilityMapper;
+import com.neuedu.ems.mapper.mdm.MdmBomMapper;
+import com.neuedu.ems.mapper.mdm.MdmBomItemMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.wms.WmsInventoryMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -33,6 +49,12 @@ class MfgWorkOrderServiceImplTest {
     private MfgWorkOrderMapper workOrderMapper;
     private MfgProductionPlanMapper planMapper;
     private MfgProductionOrderMapper orderMapper;
+    private MdmBomMapper bomMapper;
+    private MdmBomItemMapper bomItemMapper;
+    private MfgWorkOrderMaterialMapper materialMapper;
+    private WmsInventoryMapper inventoryMapper;
+    private MfgLineProductCapabilityMapper capabilityMapper;
+    private ProcessRouteMapper routeMapper;
 
     @BeforeEach
     void setUp() {
@@ -40,22 +62,42 @@ class MfgWorkOrderServiceImplTest {
         workOrderMapper = mock(MfgWorkOrderMapper.class);
         planMapper = mock(MfgProductionPlanMapper.class);
         orderMapper = mock(MfgProductionOrderMapper.class);
+        bomMapper = mock(MdmBomMapper.class);
+        bomItemMapper = mock(MdmBomItemMapper.class);
+        materialMapper = mock(MfgWorkOrderMaterialMapper.class);
+        inventoryMapper = mock(WmsInventoryMapper.class);
+        capabilityMapper = mock(MfgLineProductCapabilityMapper.class);
+        routeMapper = mock(ProcessRouteMapper.class);
         SysStatusChangeLogMapper statusLogMapper = mock(SysStatusChangeLogMapper.class);
         SysOperationLogMapper operationLogMapper = mock(SysOperationLogMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", workOrderMapper);
         ReflectionTestUtils.setField(service, "productionPlanMapper", planMapper);
         ReflectionTestUtils.setField(service, "productionOrderMapper", orderMapper);
+        ReflectionTestUtils.setField(service, "bomMapper", bomMapper);
+        ReflectionTestUtils.setField(service, "bomItemMapper", bomItemMapper);
+        ReflectionTestUtils.setField(service, "workOrderMaterialMapper", materialMapper);
+        ReflectionTestUtils.setField(service, "inventoryMapper", inventoryMapper);
+        ReflectionTestUtils.setField(service, "lineProductCapabilityMapper", capabilityMapper);
+        ReflectionTestUtils.setField(service, "routeMapper", routeMapper);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
         when(operationLogMapper.insert(any(SysOperationLog.class))).thenReturn(1);
+        when(bomItemMapper.selectList(any())).thenReturn(List.of(bomItem()));
+        when(inventoryMapper.selectList(any())).thenReturn(List.of());
+        when(materialMapper.insert(any(MfgWorkOrderMaterial.class))).thenReturn(1);
     }
 
     @Test
     void generateCreatesOneDraftWorkOrderForFullPlanQuantity() {
+        stubProductionDefinition();
         when(planMapper.selectOne(any())).thenReturn(plan());
         when(workOrderMapper.selectCount(any())).thenReturn(0L);
         when(orderMapper.selectOne(any())).thenReturn(order());
+        WmsInventory inventory = new WmsInventory();
+        inventory.setMaterialId(21L);
+        inventory.setAvailableQuantity(new BigDecimal("150"));
+        when(inventoryMapper.selectList(any())).thenReturn(List.of(inventory));
         when(workOrderMapper.insert(any(MfgWorkOrder.class))).thenAnswer(invocation -> {
             invocation.<MfgWorkOrder>getArgument(0).setWorkOrderId(5L);
             return 1;
@@ -66,17 +108,96 @@ class MfgWorkOrderServiceImplTest {
         assertEquals(5L, result.getWorkOrderId());
         assertEquals(BusinessStatus.Document.DRAFT, result.getStatus());
         assertEquals(11L, result.getProductId());
+        assertEquals(12L, result.getBomId());
+        assertEquals(13L, result.getRouteId());
+        assertEquals(new BigDecimal("100"), result.getPlannedQuantity());
         assertTrue(result.getWorkOrderNo().startsWith("WO-2-"));
+        ArgumentCaptor<MfgWorkOrderMaterial> requirement = ArgumentCaptor.forClass(MfgWorkOrderMaterial.class);
+        verify(materialMapper).insert(requirement.capture());
+        assertEquals(5L, requirement.getValue().getWorkOrderId());
+        assertEquals(21L, requirement.getValue().getMaterialId());
+        assertEquals(new BigDecimal("206.0000"), requirement.getValue().getRequiredQuantity());
+        assertEquals(new BigDecimal("56.0000"), requirement.getValue().getShortageQuantity());
+        assertEquals("PARTIAL_READY", requirement.getValue().getStatus());
     }
 
     @Test
-    void generateRejectsPartialQuantityInSingleWorkOrderMode() {
+    void generateIgnoresClientBomRouteAndQuantityOverrides() {
+        stubProductionDefinition();
+        when(planMapper.selectOne(any())).thenReturn(plan());
+        when(workOrderMapper.selectCount(any())).thenReturn(0L);
+        when(orderMapper.selectOne(any())).thenReturn(order());
+        when(workOrderMapper.insert(any(MfgWorkOrder.class))).thenAnswer(invocation -> {
+            invocation.<MfgWorkOrder>getArgument(0).setWorkOrderId(5L);
+            return 1;
+        });
+        MfgWorkOrder forged = request("99");
+        forged.setBomId(999L);
+        forged.setRouteId(998L);
+
+        MfgWorkOrder result = service.generateWorkOrder(2L, forged, 9L);
+
+        assertEquals(12L, result.getBomId());
+        assertEquals(13L, result.getRouteId());
+        assertEquals(new BigDecimal("100"), result.getPlannedQuantity());
+    }
+
+    @Test
+    void generateRejectsProductWithoutEffectiveReleasedMaterialList() {
+        when(planMapper.selectOne(any())).thenReturn(plan());
+        when(workOrderMapper.selectCount(any())).thenReturn(0L);
+        when(orderMapper.selectOne(any())).thenReturn(order());
+        when(bomMapper.selectList(any())).thenReturn(List.of());
+
+        assertThrows(BusinessException.class,
+                () -> service.generateWorkOrder(2L, new MfgWorkOrder(), 9L));
+
+        verify(workOrderMapper, never()).insert(any(MfgWorkOrder.class));
+    }
+
+    @Test
+    void generateRejectsReleasedMaterialListWithoutValidItemsBeforeCreatingWorkOrder() {
+        stubProductionDefinition();
+        when(bomItemMapper.selectList(any())).thenReturn(List.of());
         when(planMapper.selectOne(any())).thenReturn(plan());
         when(workOrderMapper.selectCount(any())).thenReturn(0L);
         when(orderMapper.selectOne(any())).thenReturn(order());
 
-        assertThrows(BusinessException.class, () -> service.generateWorkOrder(2L, request("99"), 9L));
+        assertThrows(BusinessException.class,
+                () -> service.generateWorkOrder(2L, new MfgWorkOrder(), 9L));
+
         verify(workOrderMapper, never()).insert(any(MfgWorkOrder.class));
+        verify(materialMapper, never()).insert(any(MfgWorkOrderMaterial.class));
+    }
+
+    @Test
+    void detachedWorkOrderCreationIsRejected() {
+        assertThrows(BusinessException.class, () -> service.saveWorkOrder(new MfgWorkOrder()));
+        verify(workOrderMapper, never()).insert(any(MfgWorkOrder.class));
+    }
+
+    @Test
+    void generateFallsBackToOnlyReleasedProductRouteWhenLineCapabilityIsMissing() {
+        MdmBom bom = new MdmBom();
+        bom.setBomId(12L);
+        when(bomMapper.selectList(any())).thenReturn(List.of(bom));
+        when(capabilityMapper.selectList(any())).thenReturn(List.of());
+        ProcessRoute route = new ProcessRoute();
+        route.setRouteId(13L);
+        route.setProductId(11L);
+        route.setStatus(BusinessStatus.Document.RELEASED);
+        when(routeMapper.selectList(any())).thenReturn(List.of(route));
+        when(planMapper.selectOne(any())).thenReturn(plan());
+        when(workOrderMapper.selectCount(any())).thenReturn(0L);
+        when(orderMapper.selectOne(any())).thenReturn(order());
+        when(workOrderMapper.insert(any(MfgWorkOrder.class))).thenAnswer(invocation -> {
+            invocation.<MfgWorkOrder>getArgument(0).setWorkOrderId(5L);
+            return 1;
+        });
+
+        MfgWorkOrder result = service.generateWorkOrder(2L, new MfgWorkOrder(), 9L);
+
+        assertEquals(13L, result.getRouteId());
     }
 
     @Test
@@ -100,6 +221,8 @@ class MfgWorkOrderServiceImplTest {
         MfgProductionPlan plan = new MfgProductionPlan();
         plan.setPlanId(2L);
         plan.setProductionOrderId(1L);
+        plan.setLineId(8L);
+        plan.setPlannedStartTime(LocalDateTime.of(2026, 7, 16, 8, 0));
         plan.setPlannedQuantity(new BigDecimal("100"));
         plan.setStatus(BusinessStatus.Document.RELEASED);
         return plan;
@@ -118,5 +241,39 @@ class MfgWorkOrderServiceImplTest {
         request.setRouteId(13L);
         request.setPlannedQuantity(new BigDecimal(quantity));
         return request;
+    }
+
+    private MdmBomItem bomItem() {
+        MdmBomItem item = new MdmBomItem();
+        item.setBomItemId(31L);
+        item.setBomId(12L);
+        item.setMaterialId(21L);
+        item.setQuantity(new BigDecimal("2"));
+        item.setLossRate(new BigDecimal("0.03"));
+        item.setSequenceNo(1);
+        return item;
+    }
+
+    private void stubProductionDefinition() {
+        MdmBom bom = new MdmBom();
+        bom.setBomId(12L);
+        bom.setProductId(11L);
+        bom.setEffectiveDate(LocalDate.of(2026, 1, 1));
+        bom.setStatus(BusinessStatus.Document.RELEASED);
+        when(bomMapper.selectList(any())).thenReturn(List.of(bom));
+
+        MfgLineProductCapability capability = new MfgLineProductCapability();
+        capability.setCapabilityId(1L);
+        capability.setLineId(8L);
+        capability.setProductId(11L);
+        capability.setRouteId(13L);
+        capability.setPriorityLevel(1);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(capability));
+
+        ProcessRoute route = new ProcessRoute();
+        route.setRouteId(13L);
+        route.setProductId(11L);
+        route.setStatus(BusinessStatus.Document.RELEASED);
+        when(routeMapper.selectOne(any())).thenReturn(route);
     }
 }

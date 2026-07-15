@@ -4,12 +4,40 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgDispatchOrder;
+import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.mfg.MfgProductionPlan;
+import com.neuedu.ems.entity.mfg.MfgWorkOrder;
+import com.neuedu.ems.entity.factory.FactoryStation;
+import com.neuedu.ems.entity.factory.FactoryStationOperation;
+import com.neuedu.ems.entity.org.OrgTeam;
+import com.neuedu.ems.entity.process.ProcessRouteItem;
+import com.neuedu.ems.entity.sys.SysOperationLog;
+import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgDispatchOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
+import com.neuedu.ems.mapper.factory.FactoryStationMapper;
+import com.neuedu.ems.mapper.factory.FactoryStationOperationMapper;
+import com.neuedu.ems.mapper.org.OrgTeamMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
+import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
+import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgDispatchOrderService;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 
 /**
  * 派工单业务逻辑实现类。
@@ -17,6 +45,21 @@ import java.util.List;
  */
 @Service
 public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMapper, MfgDispatchOrder> implements MfgDispatchOrderService {
+
+    private static final String WAIT_DISPATCH = "WAIT_DISPATCH";
+    private static final DateTimeFormatter NUMBER_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+
+    @Autowired private MfgTaskMapper taskMapper;
+    @Autowired private MfgWorkReportMapper workReportMapper;
+    @Autowired private MfgWorkOrderMapper workOrderMapper;
+    @Autowired private MfgProductionPlanMapper productionPlanMapper;
+    @Autowired private ProcessRouteItemMapper routeItemMapper;
+    @Autowired private FactoryStationOperationMapper stationOperationMapper;
+    @Autowired private FactoryStationMapper stationMapper;
+    @Autowired private OrgTeamMapper teamMapper;
+    @Autowired private SysStatusChangeLogMapper statusLogMapper;
+    @Autowired private SysOperationLogMapper operationLogMapper;
+    @Autowired(required = false) private MfgResponsibilityNotificationService notificationService;
 
     /**
      * 分页查询派工单，支持关键字、状态、工单ID和班组ID筛选。
@@ -81,7 +124,7 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
      */
     @Override
     public boolean saveDispatchOrder(MfgDispatchOrder dispatchOrder) {
-        return this.save(dispatchOrder);
+        throw business(ResultCode.BUSINESS_ERROR, "派工单必须从已下达生产工单生成，不能脱离来源手工新增");
     }
 
     /**
@@ -91,6 +134,22 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
      */
     @Override
     public boolean updateDispatchOrder(MfgDispatchOrder dispatchOrder) {
+        if (dispatchOrder == null || dispatchOrder.getDispatchId() == null) {
+            return false;
+        }
+        MfgDispatchOrder existing = getDispatchOrderById(dispatchOrder.getDispatchId());
+        if (existing == null || !WAIT_DISPATCH.equals(existing.getStatus())) {
+            return false;
+        }
+        dispatchOrder.setDispatchNo(null);
+        dispatchOrder.setWorkOrderId(null);
+        dispatchOrder.setPlannedQuantity(null);
+        dispatchOrder.setMaterialReadyStatus(null);
+        dispatchOrder.setStatus(null);
+        dispatchOrder.setDeletedFlag(null);
+        if (dispatchOrder.getVersion() == null) {
+            dispatchOrder.setVersion(existing.getVersion());
+        }
         return this.updateById(dispatchOrder);
     }
 
@@ -101,9 +160,267 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
      */
     @Override
     public boolean removeDispatchOrderById(Long dispatchId) {
+        MfgDispatchOrder existing = getDispatchOrderById(dispatchId);
+        if (existing == null || !WAIT_DISPATCH.equals(existing.getStatus())) {
+            return false;
+        }
         MfgDispatchOrder dispatchOrder = new MfgDispatchOrder();
         dispatchOrder.setDispatchId(dispatchId);
+        dispatchOrder.setVersion(existing.getVersion());
         dispatchOrder.setDeletedFlag(1);
         return this.updateById(dispatchOrder);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MfgDispatchOrder generateDispatchOrder(Long workOrderId, MfgDispatchOrder request, Long operatorId) {
+        if (workOrderId == null || request == null || request.getTeamId() == null
+                || request.getDueTime() == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "生产工单、派工班组、要求完成时间和操作人不能为空");
+        }
+        MfgWorkOrder workOrder = workOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, workOrderId)
+                .eq(MfgWorkOrder::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (workOrder == null) {
+            throw business(ResultCode.NOT_FOUND, "生产工单不存在或已删除");
+        }
+        if (!BusinessStatus.Document.RELEASED.equals(workOrder.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有已下达生产工单可以生成派工单");
+        }
+        OrgTeam team = activeTeam(request.getTeamId());
+        if (team == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "派工班组不存在或已停用");
+        }
+        long activeDispatches = baseMapper.selectCount(new LambdaQueryWrapper<MfgDispatchOrder>()
+                .eq(MfgDispatchOrder::getWorkOrderId, workOrderId)
+                .eq(MfgDispatchOrder::getDeletedFlag, 0)
+                .notIn(MfgDispatchOrder::getStatus, BusinessStatus.Document.REJECTED, BusinessStatus.Document.CLOSED));
+        if (activeDispatches > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "该生产工单已有有效派工单，不能重复生成");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        MfgDispatchOrder dispatch = new MfgDispatchOrder();
+        dispatch.setDispatchNo("DO-" + workOrderId + "-" + now.format(NUMBER_TIME));
+        dispatch.setWorkOrderId(workOrderId);
+        dispatch.setTeamId(team.getTeamId());
+        dispatch.setPlannedQuantity(workOrder.getPlannedQuantity());
+        dispatch.setDueTime(request.getDueTime());
+        dispatch.setMaterialReadyStatus("WAIT_READY");
+        dispatch.setStatus(WAIT_DISPATCH);
+        dispatch.setRemark(request.getRemark());
+        dispatch.setVersion(0);
+        dispatch.setCreatedBy(operatorId);
+        dispatch.setCreatedTime(now);
+        dispatch.setUpdatedBy(operatorId);
+        dispatch.setUpdatedTime(now);
+        dispatch.setDeletedFlag(0);
+        if (baseMapper.insert(dispatch) == 0 || dispatch.getDispatchId() == null) {
+            throw business(ResultCode.FAILED, "派工单生成失败");
+        }
+        audit("MFG_DISPATCH_ORDER", "mfg_dispatch_order", dispatch.getDispatchId(), null, WAIT_DISPATCH,
+                "GENERATE_DISPATCH_ORDER", operatorId, request.getRemark(), now);
+        return dispatch;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<MfgTask> releaseDispatchOrder(Long dispatchId, Long operatorId, String remark) {
+        if (dispatchId == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "派工单和操作人不能为空");
+        }
+        MfgDispatchOrder dispatch = baseMapper.selectOne(new LambdaQueryWrapper<MfgDispatchOrder>()
+                .eq(MfgDispatchOrder::getDispatchId, dispatchId)
+                .eq(MfgDispatchOrder::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (dispatch == null) {
+            throw business(ResultCode.NOT_FOUND, "派工单不存在或已删除");
+        }
+        if (!WAIT_DISPATCH.equals(dispatch.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有待派发派工单可以派发并生成任务");
+        }
+        MfgWorkOrder workOrder = activeReleasedWorkOrder(dispatch.getWorkOrderId());
+        MfgProductionPlan plan = activePlan(workOrder.getPlanId());
+        List<ProcessRouteItem> routeItems = routeItemMapper.selectList(new LambdaQueryWrapper<ProcessRouteItem>()
+                .eq(ProcessRouteItem::getRouteId, workOrder.getRouteId())
+                .eq(ProcessRouteItem::getDeletedFlag, 0)
+                .orderByAsc(ProcessRouteItem::getSequenceNo, ProcessRouteItem::getRouteItemId));
+        if (routeItems.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单的工艺路线没有有效工序，不能派发");
+        }
+        long activeTasks = taskMapper.selectCount(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getDispatchId, dispatchId)
+                .eq(MfgTask::getDeletedFlag, 0)
+                .ne(MfgTask::getStatus, BusinessStatus.Document.CLOSED));
+        if (activeTasks > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "派工单已有有效生产任务，不能重复生成");
+        }
+        OrgTeam team = activeTeam(dispatch.getTeamId());
+        if (team == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "派工班组不存在或已停用");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        List<MfgTask> tasks = new ArrayList<>(routeItems.size());
+        for (ProcessRouteItem routeItem : routeItems) {
+            if (routeItem.getOperationId() == null) {
+                throw business(ResultCode.BUSINESS_ERROR, "工艺路线存在未关联工序的明细，不能派发");
+            }
+            Long stationId = resolveDefaultStation(routeItem.getOperationId(), plan.getLineId());
+            MfgTask task = new MfgTask();
+            task.setTaskNo("TASK-" + dispatchId + "-" + routeItem.getRouteItemId() + "-" + now.format(NUMBER_TIME));
+            task.setDispatchId(dispatchId);
+            task.setWorkOrderId(workOrder.getWorkOrderId());
+            task.setOperationId(routeItem.getOperationId());
+            task.setStationId(stationId);
+            task.setPlannedQuantity(dispatch.getPlannedQuantity());
+            task.setCompletedQuantity(java.math.BigDecimal.ZERO);
+            task.setDefectQuantity(java.math.BigDecimal.ZERO);
+            task.setStatus(BusinessStatus.Production.WAIT_START);
+            task.setRemark(routeItem.getRemark());
+            task.setVersion(0);
+            task.setCreatedBy(operatorId);
+            task.setCreatedTime(now);
+            task.setUpdatedBy(operatorId);
+            task.setUpdatedTime(now);
+            task.setDeletedFlag(0);
+            if (taskMapper.insert(task) == 0 || task.getTaskId() == null) {
+                throw business(ResultCode.FAILED, "生产任务生成失败");
+            }
+            audit("MFG_TASK", "mfg_task", task.getTaskId(), null, BusinessStatus.Production.WAIT_START,
+                    "GENERATE_TASK_FROM_DISPATCH", operatorId, remark, now);
+            if (notificationService != null) {
+                notificationService.publishTaskUnassigned(task, team.getTeamId(), team.getLeaderId());
+            }
+            tasks.add(task);
+        }
+        MfgDispatchOrder update = new MfgDispatchOrder();
+        update.setDispatchId(dispatchId);
+        update.setVersion(dispatch.getVersion());
+        update.setStatus(BusinessStatus.Document.RELEASED);
+        update.setRemark(StringUtils.hasText(remark) ? remark : dispatch.getRemark());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (baseMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "派工单已被并发修改");
+        }
+        audit("MFG_DISPATCH_ORDER", "mfg_dispatch_order", dispatchId, WAIT_DISPATCH,
+                BusinessStatus.Document.RELEASED, "RELEASE_DISPATCH_ORDER", operatorId, remark, now);
+        return tasks;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawDispatchOrder(Long dispatchId, Long operatorId, String remark) {
+        if (dispatchId == null || operatorId == null || !StringUtils.hasText(remark)) {
+            throw business(ResultCode.PARAM_ERROR, "派工单、操作人和撤回原因不能为空");
+        }
+        MfgDispatchOrder dispatch = baseMapper.selectOne(new LambdaQueryWrapper<MfgDispatchOrder>()
+                .eq(MfgDispatchOrder::getDispatchId, dispatchId)
+                .eq(MfgDispatchOrder::getDeletedFlag, 0).last("FOR UPDATE"));
+        if (dispatch == null || !(BusinessStatus.Document.RELEASED.equals(dispatch.getStatus())
+                || "ACCEPTED".equals(dispatch.getStatus()))) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有已派发或已接受且尚未执行的派工单可以撤回");
+        }
+        List<MfgTask> tasks = taskMapper.selectList(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getDispatchId, dispatchId).eq(MfgTask::getDeletedFlag, 0).last("FOR UPDATE"));
+        for (MfgTask task : tasks) {
+            if (!(BusinessStatus.Production.WAIT_START.equals(task.getStatus())
+                    || BusinessStatus.Document.CLOSED.equals(task.getStatus()))
+                    || positive(task.getCompletedQuantity()) || positive(task.getDefectQuantity())) {
+                throw business(ResultCode.BUSINESS_ERROR, "派工任务已经开工或产生数量，不能撤回派工");
+            }
+        }
+        List<Long> taskIds = tasks.stream().map(MfgTask::getTaskId).toList();
+        if (!taskIds.isEmpty() && workReportMapper.selectCount(new LambdaQueryWrapper<MfgWorkReport>()
+                .in(MfgWorkReport::getTaskId, taskIds).eq(MfgWorkReport::getDeletedFlag, 0)
+                .ne(MfgWorkReport::getAuditStatus, BusinessStatus.Document.WITHDRAWN)) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "派工任务已有有效报工，不能撤回派工");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        for (MfgTask task : tasks) {
+            if (BusinessStatus.Document.CLOSED.equals(task.getStatus())) continue;
+            MfgTask update = new MfgTask();
+            update.setTaskId(task.getTaskId()); update.setVersion(task.getVersion());
+            update.setStatus(BusinessStatus.Document.CLOSED); update.setUpdatedBy(operatorId); update.setUpdatedTime(now);
+            if (taskMapper.updateById(update) == 0) throw business(ResultCode.DATA_CONFLICT, "生产任务已被并发修改");
+            audit("MFG_TASK", "mfg_task", task.getTaskId(), task.getStatus(), BusinessStatus.Document.CLOSED,
+                    "WITHDRAW_DISPATCH_ORDER", operatorId, remark, now);
+            if (notificationService != null) notificationService.cancelOpenTaskNotifications(task.getTaskId(), operatorId);
+        }
+        MfgDispatchOrder update = new MfgDispatchOrder();
+        update.setDispatchId(dispatchId); update.setVersion(dispatch.getVersion()); update.setStatus(WAIT_DISPATCH);
+        update.setUpdatedBy(operatorId); update.setUpdatedTime(now);
+        if (baseMapper.updateById(update) == 0) throw business(ResultCode.DATA_CONFLICT, "派工单已被并发修改");
+        audit("MFG_DISPATCH_ORDER", "mfg_dispatch_order", dispatchId, dispatch.getStatus(), WAIT_DISPATCH,
+                "WITHDRAW_DISPATCH_ORDER", operatorId, remark, now);
+    }
+
+    private MfgWorkOrder activeReleasedWorkOrder(Long workOrderId) {
+        MfgWorkOrder workOrder = workOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, workOrderId)
+                .eq(MfgWorkOrder::getDeletedFlag, 0));
+        if (workOrder == null || !BusinessStatus.Document.RELEASED.equals(workOrder.getStatus())
+                || workOrder.getRouteId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "派工单未关联有效的已下达生产工单和工艺路线");
+        }
+        return workOrder;
+    }
+
+    private MfgProductionPlan activePlan(Long planId) {
+        MfgProductionPlan plan = productionPlanMapper.selectOne(new LambdaQueryWrapper<MfgProductionPlan>()
+                .eq(MfgProductionPlan::getPlanId, planId)
+                .eq(MfgProductionPlan::getDeletedFlag, 0));
+        if (plan == null || plan.getLineId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单未关联有效产线计划");
+        }
+        return plan;
+    }
+
+    private OrgTeam activeTeam(Long teamId) {
+        return teamId == null ? null : teamMapper.selectOne(new LambdaQueryWrapper<OrgTeam>()
+                .eq(OrgTeam::getTeamId, teamId)
+                .eq(OrgTeam::getDeletedFlag, 0));
+    }
+
+    private Long resolveDefaultStation(Long operationId, Long lineId) {
+        List<FactoryStationOperation> candidates = stationOperationMapper.selectList(
+                new LambdaQueryWrapper<FactoryStationOperation>()
+                        .eq(FactoryStationOperation::getOperationId, operationId)
+                        .eq(FactoryStationOperation::getStatus, BusinessStatus.Common.ENABLE)
+                        .eq(FactoryStationOperation::getDeletedFlag, 0)
+                        .orderByDesc(FactoryStationOperation::getIsDefault)
+                        .orderByAsc(FactoryStationOperation::getId));
+        for (FactoryStationOperation candidate : candidates) {
+            FactoryStation station = stationMapper.selectOne(new LambdaQueryWrapper<FactoryStation>()
+                    .eq(FactoryStation::getStationId, candidate.getStationId())
+                    .eq(FactoryStation::getLineId, lineId)
+                    .eq(FactoryStation::getStatus, BusinessStatus.Factory.RUNNING)
+                    .eq(FactoryStation::getDeletedFlag, 0));
+            if (station != null) {
+                return station.getStationId();
+            }
+        }
+        throw business(ResultCode.BUSINESS_ERROR,
+                "工序 " + operationId + " 未配置当前计划产线的可用工位，不能生成任务");
+    }
+
+    private boolean positive(java.math.BigDecimal value) { return value != null && value.signum() > 0; }
+
+    private void audit(String bizType, String module, Long id, String oldStatus, String newStatus, String reason,
+                       Long operatorId, String remark, LocalDateTime now) {
+        SysStatusChangeLog status = new SysStatusChangeLog();
+        status.setBizType(bizType); status.setBizId(id); status.setOldStatus(oldStatus); status.setNewStatus(newStatus);
+        status.setChangeReason(reason); status.setChangedBy(operatorId); status.setChangedTime(now);
+        status.setRemark(remark); status.setCreatedBy(operatorId); status.setCreatedTime(now); status.setDeletedFlag(0);
+        if (statusLogMapper.insert(status) == 0) throw new BusinessException(ResultCode.FAILED);
+        SysOperationLog operation = new SysOperationLog();
+        operation.setUserId(operatorId); operation.setModuleCode(module); operation.setBizId(id);
+        operation.setOperationType(reason); operation.setOperationTime(now); operation.setRemark(remark);
+        operation.setCreatedBy(operatorId); operation.setCreatedTime(now); operation.setDeletedFlag(0);
+        if (operationLogMapper.insert(operation) == 0) throw new BusinessException(ResultCode.FAILED);
+    }
+
+    private BusinessException business(ResultCode code, String message) {
+        return new BusinessException(code.getCode(), message);
     }
 }

@@ -108,6 +108,15 @@ public class MfgProductionOrderController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PutMapping("/{productionOrderId}/withdraw")
+    public ResultData withdrawUnexecutedChain(@PathVariable Long productionOrderId,
+                                              @RequestAttribute("userId") Long userId,
+                                              @RequestBody(required = false) WithdrawRequest request) {
+        mfgProductionOrderService.withdrawUnexecutedOrderChain(
+                productionOrderId, userId, request == null ? null : request.getRemark());
+        return ResultData.success(ResultCode.SUCCESS);
+    }
+
     /**
      * 导出生产订单列表为Excel文件。
      * @param response HTTP响应对象
@@ -128,6 +137,11 @@ public class MfgProductionOrderController {
 
     @lombok.Data
     public static class ReleaseRequest {
+        private String remark;
+    }
+
+    @lombok.Data
+    public static class WithdrawRequest {
         private String remark;
     }
 }

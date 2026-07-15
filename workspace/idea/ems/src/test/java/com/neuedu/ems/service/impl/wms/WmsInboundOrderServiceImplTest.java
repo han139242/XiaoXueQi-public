@@ -41,6 +41,7 @@ class WmsInboundOrderServiceImplTest {
     private WmsInventoryMapper inventoryMapper;
     private WmsStockMovementMapper movementMapper;
     private WmsMaterialBatchMapper batchMapper;
+    private WmsResponsibilityNotificationService notificationService;
 
     @BeforeEach
     void setUp() {
@@ -60,8 +61,8 @@ class WmsInboundOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "wmsMaterialBatchMapper", batchMapper);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
-        ReflectionTestUtils.setField(service, "responsibilityNotificationService",
-                mock(WmsResponsibilityNotificationService.class));
+        notificationService = mock(WmsResponsibilityNotificationService.class);
+        ReflectionTestUtils.setField(service, "responsibilityNotificationService", notificationService);
 
         when(detailMapper.selectList(any())).thenReturn(List.of(detail()));
         when(inventoryMapper.insert(any(WmsInventory.class))).thenReturn(1);
@@ -117,6 +118,22 @@ class WmsInboundOrderServiceImplTest {
         verify(inventoryMapper, never()).updateById(any(WmsInventory.class));
         verify(movementMapper, never()).insert(any(WmsStockMovement.class));
         verify(orderMapper, never()).updateById(any(WmsInboundOrder.class));
+    }
+
+    @Test
+    void withdrawSubmittedInboundClosesWithoutInventoryMovement() {
+        when(orderMapper.selectOne(any())).thenReturn(order());
+        when(orderMapper.updateById(any(WmsInboundOrder.class))).thenReturn(1);
+
+        service.withdrawInboundOrder(1L, 9L, "来源单据调整");
+
+        ArgumentCaptor<WmsInboundOrder> update = ArgumentCaptor.forClass(WmsInboundOrder.class);
+        verify(orderMapper).updateById(update.capture());
+        assertEquals(BusinessStatus.Document.CLOSED, update.getValue().getAuditStatus());
+        verify(inventoryMapper, never()).insert(any(WmsInventory.class));
+        verify(inventoryMapper, never()).updateById(any(WmsInventory.class));
+        verify(movementMapper, never()).insert(any(WmsStockMovement.class));
+        verify(notificationService).cancelInboundPending(1L, 9L);
     }
 
     @Test

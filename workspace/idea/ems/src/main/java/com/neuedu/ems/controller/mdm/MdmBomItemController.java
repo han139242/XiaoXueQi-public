@@ -31,7 +31,7 @@ public class MdmBomItemController {
     private ExcelExportUtil excelExportUtil;
 
     /**
-     * 分页查询 BOM 明细列表。
+     * 分页查询物料清单明细列表。
      */
     @GetMapping("/page")
     public ResultData list(@RequestParam(defaultValue = "1") Integer current,
@@ -43,7 +43,7 @@ public class MdmBomItemController {
     }
 
     /**
-     * 根据 ID 查询 BOM 明细。
+     * 根据 ID 查询物料清单明细。
      */
     @GetMapping("/{bomItemId}")
     public ResultData getBomItem(@PathVariable("bomItemId") Long id) {
@@ -52,7 +52,7 @@ public class MdmBomItemController {
     }
 
     /**
-     * 新增 BOM 明细。
+     * 新增物料清单明细。
      */
     @PostMapping
     public ResultData save(@RequestBody MdmBomItem item) {
@@ -61,7 +61,7 @@ public class MdmBomItemController {
     }
 
     /**
-     * 更新 BOM 明细。
+     * 更新物料清单明细。
      */
     @PutMapping
     public ResultData update(@RequestBody MdmBomItem item) {
@@ -70,7 +70,7 @@ public class MdmBomItemController {
     }
 
     /**
-     * 删除 BOM 明细，统一做软删除。
+     * 删除物料清单明细，统一做软删除。
      */
     @DeleteMapping("/{id}")
     public ResultData delete(@PathVariable("id") Long id) {
@@ -79,13 +79,13 @@ public class MdmBomItemController {
     }
 
     /**
-     * 导出 BOM 明细 Excel。
+     * 导出物料清单明细 Excel。
      */
     @GetMapping("/excel")
     public void excel(HttpServletResponse response,
                       @RequestParam(required = false) Long bomId,
                       @RequestParam(required = false) Long materialId) {
         List<MdmBomItem> items = mdmBomItemService.listBomItems(bomId, materialId);
-        excelExportUtil.exportExcel(response, items, MdmBomItem.class, "BOM明细列表", "BOM明细列表");
+        excelExportUtil.exportExcel(response, items, MdmBomItem.class, "物料清单明细列表", "物料清单明细列表");
     }
 }

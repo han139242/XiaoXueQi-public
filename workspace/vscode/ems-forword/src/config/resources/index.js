@@ -17,7 +17,7 @@ export const domainDefinitions = {
   mfg: { title: '生产制造', icon: 'clipboard', tone: 'blue', description: '订单、计划、工单、派工、任务与报工' },
   wms: { title: '仓储库存', icon: 'warehouse', tone: 'blue', description: '仓库、库存、出入库、盘点与补货' },
   qms: { title: '质量管理', icon: 'shield-check', tone: 'teal', description: '检验标准、检验方案、质检与不合格品闭环' },
-  mdm: { title: '主数据', icon: 'database', tone: 'blue', description: '单位、供应商、客户、物料、产品与 BOM' },
+  mdm: { title: '主数据', icon: 'database', tone: 'blue', description: '单位、供应商、客户、物料、产品与物料清单' },
   process: { title: '工艺管理', icon: 'route', tone: 'amber', description: '工序、参数、工艺路线与作业指导书' },
   factory: { title: '工厂建模', icon: 'factory', tone: 'teal', description: '车间、产线、工位及工序能力' },
   eam: { title: '设备运维', icon: 'wrench', tone: 'amber', description: '设备台账、状态、保养、点检与维修' },

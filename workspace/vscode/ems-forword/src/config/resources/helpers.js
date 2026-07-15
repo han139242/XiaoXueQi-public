@@ -61,7 +61,9 @@ export const optionSets = {
   audit: [
     option('SUBMITTED', '待审核', 'warning'),
     option('APPROVED', '已通过', 'success'),
-    option('REJECTED', '已驳回', 'danger')
+    option('REJECTED', '已驳回', 'danger'),
+    option('WITHDRAWN', '已撤回', 'info'),
+    option('CLOSED', '已关闭', 'info')
   ],
   approval: [
     option('SUBMITTED', '待审批', 'warning'),
@@ -112,7 +114,8 @@ export const optionSets = {
   inspectionOrder: [
     option('DRAFT', '待检', 'info'),
     option('RUNNING', '检验中', 'warning'),
-    option('FINISHED', '已完成', 'success')
+    option('FINISHED', '已完成', 'success'),
+    option('CLOSED', '已撤回', 'info')
   ],
   ncrStatus: [
     option('SUBMITTED', '待处理', 'warning'),
@@ -167,7 +170,7 @@ const labels = {
   contactName: '联系人', contactPhone: '联系电话', categoryCode: '分类编码', categoryName: '分类名称', categoryId: '所属分类',
   materialCode: '物料编码', materialName: '物料名称', specModel: '规格型号', unitId: '计量单位', materialType: '物料类型',
   productCode: '产品编码', productName: '产品名称', productModel: '产品型号', materialId: '物料',
-  bomCode: 'BOM 编码', bomVersion: 'BOM 版本', effectiveDate: '生效日期', bomId: 'BOM', quantity: '数量', lossRate: '损耗率', sequenceNo: '顺序号',
+  bomCode: '物料清单编码', bomVersion: '物料清单版本', effectiveDate: '生效日期', bomId: '物料清单', quantity: '数量', lossRate: '损耗率', sequenceNo: '顺序号',
   operationCode: '工序编码', operationName: '工序名称', operationId: '工序', standardTime: '标准工时',
   parameterName: '参数名称', standardValue: '标准值', upperLimit: '上限', lowerLimit: '下限',
   routeCode: '路线编码', routeName: '路线名称', routeId: '工艺路线', version: '版本', qcRequired: '需要质检',

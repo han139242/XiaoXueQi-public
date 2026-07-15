@@ -77,6 +77,34 @@ class MfgProductionPlanServiceImplTest {
         verify(planMapper, never()).insert(any(MfgProductionPlan.class));
     }
 
+    @Test
+    void detachedPlanCreationIsRejected() {
+        assertThrows(BusinessException.class, () -> service.savePlan(new MfgProductionPlan()));
+        verify(planMapper, never()).insert(any(MfgProductionPlan.class));
+    }
+
+    @Test
+    void releaseMovesWithdrawnDraftPlanBackToReleased() {
+        MfgProductionPlan draft = request("60");
+        draft.setPlanId(3L);
+        draft.setProductionOrderId(1L);
+        draft.setStatus(BusinessStatus.Document.DRAFT);
+        draft.setVersion(2);
+        MfgProductionPlan total = new MfgProductionPlan();
+        total.setPlannedQuantity(new BigDecimal("60"));
+        when(planMapper.selectOne(any())).thenReturn(draft, total, draft);
+        when(orderMapper.selectOne(any())).thenReturn(order("100"));
+        when(planMapper.updateById(any(MfgProductionPlan.class))).thenReturn(1);
+
+        service.releasePlan(3L, 9L, "修改后重新生效");
+
+        org.mockito.ArgumentCaptor<MfgProductionPlan> update =
+                org.mockito.ArgumentCaptor.forClass(MfgProductionPlan.class);
+        verify(planMapper).updateById(update.capture());
+        assertEquals(BusinessStatus.Document.RELEASED, update.getValue().getStatus());
+        assertEquals(2, update.getValue().getVersion());
+    }
+
     private MfgProductionOrder order(String quantity) {
         MfgProductionOrder order = new MfgProductionOrder();
         order.setProductionOrderId(1L);

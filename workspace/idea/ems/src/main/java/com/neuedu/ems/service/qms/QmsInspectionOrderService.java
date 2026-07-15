@@ -95,6 +95,8 @@ public interface QmsInspectionOrderService extends IService<QmsInspectionOrder> 
      */
     boolean removeInspectionOrderById(Long inspectionId);
 
+    void withdrawInspectionOrder(Long inspectionId, Long operatorId, String remark);
+
     /**
      * 提交检验单结果并结束检验单。
      * @param inspectionId 检验单ID

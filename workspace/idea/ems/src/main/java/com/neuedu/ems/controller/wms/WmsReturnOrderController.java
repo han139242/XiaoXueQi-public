@@ -134,6 +134,13 @@ public class WmsReturnOrderController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PutMapping("/{returnId}/withdraw")
+    public ResultData withdraw(@PathVariable Long returnId, @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        wmsReturnOrderService.withdrawReturnOrder(returnId, userId, getString(request, "remark"));
+        return ResultData.success(ResultCode.SUCCESS);
+    }
+
     /**
      * 软删除退料单和退料明细，已确认退料单不允许删除。
      * @param returnId 退料单ID

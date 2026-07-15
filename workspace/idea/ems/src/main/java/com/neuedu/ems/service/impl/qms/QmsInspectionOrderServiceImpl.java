@@ -161,7 +161,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
             return false;
         }
         QmsInspectionOrder existing = getInspectionOrderById(inspectionOrder.getInspectionId());
-        if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
+        if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
             return false;
         }
         inspectionOrder.setStatus(null);
@@ -171,6 +171,12 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         inspectionOrder.setUnqualifiedQuantity(null);
         inspectionOrder.setInspectionTime(null);
         inspectionOrder.setDeletedFlag(null);
+        inspectionOrder.setInspectionNo(null);
+        inspectionOrder.setInspectionType(null);
+        inspectionOrder.setWorkOrderId(null);
+        inspectionOrder.setTaskId(null);
+        inspectionOrder.setReportId(null);
+        inspectionOrder.setBatchId(null);
         if (inspectionOrder.getVersion() == null) {
             inspectionOrder.setVersion(existing.getVersion());
         }
@@ -212,7 +218,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     @Transactional
     public boolean removeInspectionOrderById(Long inspectionId) {
         QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
-        if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
+        if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
             return false;
         }
         QmsInspectionOrder inspectionOrder = new QmsInspectionOrder();
@@ -225,6 +231,31 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
             responsibilityNotificationService.cancelOpenInspection(inspectionId, existing.getUpdatedBy());
         }
         return removed;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawInspectionOrder(Long inspectionId, Long operatorId, String remark) {
+        QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
+        if (existing == null || operatorId == null || !StringUtils.hasText(remark)) {
+            throw business(ResultCode.PARAM_ERROR, "检验单、操作人和撤回原因不能为空");
+        }
+        if (!BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有尚未开始检验的检验单可以撤回");
+        }
+        if (qmsInspectionResultMapper.selectCount(new LambdaQueryWrapper<QmsInspectionResult>()
+                .eq(QmsInspectionResult::getInspectionId, inspectionId)
+                .eq(QmsInspectionResult::getDeletedFlag, 0)) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "检验单已有检验结果，不能撤回");
+        }
+        QmsInspectionOrder update = new QmsInspectionOrder();
+        update.setInspectionId(inspectionId); update.setVersion(existing.getVersion());
+        update.setStatus(BusinessStatus.Document.CLOSED); update.setUpdatedBy(operatorId); update.setUpdatedTime(LocalDateTime.now());
+        if (baseMapper.updateById(update) == 0) throw business(ResultCode.DATA_CONFLICT, "检验单已被并发修改");
+        LocalDateTime now = LocalDateTime.now();
+        insertStatusChangeLog(inspectionId, existing.getStatus(), BusinessStatus.Document.CLOSED,
+                "QMS_INSPECTION_ORDER", "WITHDRAW_INSPECTION", operatorId, remark, now);
+        insertOperationLog(inspectionId, "WITHDRAW_INSPECTION", "qms_inspection_order", operatorId, remark, now);
     }
 
     /**
@@ -257,7 +288,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
             return false;
         }
         QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
-        if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
+        if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
             return false;
         }
         if (quantitiesProvided && !validInspectionQuantities(existing, sampleQuantity, qualifiedQuantity, unqualifiedQuantity)) {

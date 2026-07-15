@@ -104,6 +104,18 @@ class WmsOutboundOrderServiceImplTest {
     }
 
     @Test
+    void withdrawSubmittedOutboundClosesWithoutInventoryMovement() {
+        service.withdrawOutboundOrder(1L, 9L, "销售计划调整");
+
+        ArgumentCaptor<WmsOutboundOrder> update = ArgumentCaptor.forClass(WmsOutboundOrder.class);
+        verify(orderMapper).updateById(update.capture());
+        assertEquals(BusinessStatus.Document.CLOSED, update.getValue().getAuditStatus());
+        verify(inventoryMapper, never()).updateById(any(WmsInventory.class));
+        verify(movementMapper, never()).insert(any(WmsStockMovement.class));
+        verify(notificationService).cancelOutboundPending(1L, 9L);
+    }
+
+    @Test
     void confirmOutboundAggregatesSameInventoryAndWritesOneDeductionWithDetailMovements() {
         when(detailMapper.selectList(any())).thenReturn(List.of(detail(4L, "6.0000"), detail(5L, "5.0000")));
         when(inventoryMapper.selectOne(any())).thenReturn(inventory("12.0000"));
