@@ -4,18 +4,43 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
+import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.entity.mfg.MfgProductionOrder;
+import com.neuedu.ems.entity.sys.SysOperationLog;
+import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
+import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
+import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
+import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgProductionPlanService;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * 生产计划管理 Service 实现类。
  */
 @Service
 public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanMapper, MfgProductionPlan> implements MfgProductionPlanService {
+
+    private static final DateTimeFormatter NUMBER_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+
+    @Autowired
+    private MfgProductionOrderMapper productionOrderMapper;
+
+    @Autowired
+    private SysStatusChangeLogMapper sysStatusChangeLogMapper;
+
+    @Autowired
+    private SysOperationLogMapper sysOperationLogMapper;
 
     /**
      * 分页查询生产计划列表，支持关键字搜索、状态筛选、生产订单筛选和产线筛选。
@@ -53,6 +78,12 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
      */
     @Override
     public boolean savePlan(MfgProductionPlan plan) {
+        if (plan == null || !StringUtils.hasText(plan.getPlanNo()) || plan.getProductionOrderId() == null
+                || plan.getLineId() == null || !validTimeWindow(plan)
+                || plan.getPlannedQuantity() == null || plan.getPlannedQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            return false;
+        }
+        plan.setStatus(BusinessStatus.Document.DRAFT);
         if (plan.getDeletedFlag() == null) {
             plan.setDeletedFlag(0);
         }
@@ -69,7 +100,15 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
         if (plan.getPlanId() == null) {
             return false;
         }
+        MfgProductionPlan existing = getPlanById(plan.getPlanId());
+        if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
+            return false;
+        }
         plan.setDeletedFlag(null);
+        plan.setStatus(null);
+        if (plan.getVersion() == null) {
+            plan.setVersion(existing.getVersion());
+        }
         return baseMapper.updateById(plan) > 0;
     }
 
@@ -80,10 +119,59 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
      */
     @Override
     public boolean removePlanById(Long planId) {
+        MfgProductionPlan existing = getPlanById(planId);
+        if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
+            return false;
+        }
         MfgProductionPlan plan = new MfgProductionPlan();
         plan.setPlanId(planId);
+        plan.setVersion(existing.getVersion());
         plan.setDeletedFlag(1);
         return baseMapper.updateById(plan) > 0;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MfgProductionPlan generatePlan(Long productionOrderId, MfgProductionPlan request, Long operatorId) {
+        if (productionOrderId == null || request == null || operatorId == null || request.getLineId() == null
+                || !validTimeWindow(request) || request.getPlannedQuantity() == null
+                || request.getPlannedQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw business(ResultCode.PARAM_ERROR, "产线、计划时间、计划数量和操作人不能为空");
+        }
+        MfgProductionOrder order = activeOrder(productionOrderId);
+        if (order == null) {
+            throw business(ResultCode.NOT_FOUND, "生产订单不存在或已删除");
+        }
+        if (!BusinessStatus.Document.RELEASED.equals(order.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有 RELEASED 状态的生产订单可以生成计划");
+        }
+        BigDecimal planned = existingPlannedQuantity(productionOrderId);
+        if (planned.add(request.getPlannedQuantity()).compareTo(order.getOrderQuantity()) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "累计计划数量不能超过生产订单数量");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        MfgProductionPlan plan = new MfgProductionPlan();
+        plan.setPlanNo("PLN-" + productionOrderId + "-" + now.format(NUMBER_TIME));
+        plan.setProductionOrderId(productionOrderId);
+        plan.setLineId(request.getLineId());
+        plan.setPlannedStartTime(request.getPlannedStartTime());
+        plan.setPlannedEndTime(request.getPlannedEndTime());
+        plan.setPlannedQuantity(request.getPlannedQuantity());
+        plan.setStatus(BusinessStatus.Document.RELEASED);
+        plan.setRemark(request.getRemark());
+        plan.setVersion(0);
+        plan.setCreatedBy(operatorId);
+        plan.setCreatedTime(now);
+        plan.setUpdatedBy(operatorId);
+        plan.setUpdatedTime(now);
+        plan.setDeletedFlag(0);
+        if (baseMapper.insert(plan) == 0 || plan.getPlanId() == null) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
+        insertStatusLog(plan.getPlanId(), null, BusinessStatus.Document.RELEASED,
+                "GENERATE_PRODUCTION_PLAN", operatorId, request.getRemark(), now);
+        insertOperationLog(plan.getPlanId(), "GENERATE_PRODUCTION_PLAN", operatorId, request.getRemark(), now);
+        return plan;
     }
 
     /**
@@ -124,5 +212,67 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
         }
         wrapper.orderByDesc("plan_id");
         return wrapper;
+    }
+
+    private boolean validTimeWindow(MfgProductionPlan plan) {
+        return plan.getPlannedStartTime() != null && plan.getPlannedEndTime() != null
+                && plan.getPlannedEndTime().isAfter(plan.getPlannedStartTime());
+    }
+
+    private MfgProductionOrder activeOrder(Long productionOrderId) {
+        QueryWrapper<MfgProductionOrder> query = new QueryWrapper<>();
+        query.eq("production_order_id", productionOrderId)
+                .eq("deleted_flag", 0)
+                .last("FOR UPDATE");
+        return productionOrderMapper.selectOne(query);
+    }
+
+    private BigDecimal existingPlannedQuantity(Long productionOrderId) {
+        QueryWrapper<MfgProductionPlan> query = new QueryWrapper<>();
+        query.select("COALESCE(SUM(planned_quantity), 0) AS planned_quantity")
+                .eq("production_order_id", productionOrderId)
+                .eq("deleted_flag", 0)
+                .ne("status", BusinessStatus.Document.CLOSED);
+        MfgProductionPlan total = baseMapper.selectOne(query);
+        return total == null || total.getPlannedQuantity() == null ? BigDecimal.ZERO : total.getPlannedQuantity();
+    }
+
+    private void insertStatusLog(Long bizId, String oldStatus, String newStatus, String reason,
+                                 Long operatorId, String remark, LocalDateTime now) {
+        SysStatusChangeLog log = new SysStatusChangeLog();
+        log.setBizType("MFG_PRODUCTION_PLAN");
+        log.setBizId(bizId);
+        log.setOldStatus(oldStatus);
+        log.setNewStatus(newStatus);
+        log.setChangeReason(reason);
+        log.setChangedBy(operatorId);
+        log.setChangedTime(now);
+        log.setRemark(remark);
+        log.setCreatedBy(operatorId);
+        log.setCreatedTime(now);
+        log.setUpdatedBy(operatorId);
+        log.setUpdatedTime(now);
+        log.setDeletedFlag(0);
+        if (sysStatusChangeLogMapper.insert(log) == 0) throw new BusinessException(ResultCode.FAILED);
+    }
+
+    private void insertOperationLog(Long bizId, String type, Long operatorId, String remark, LocalDateTime now) {
+        SysOperationLog log = new SysOperationLog();
+        log.setUserId(operatorId);
+        log.setOperationType(type);
+        log.setModuleCode("mfg_production_plan");
+        log.setBizId(bizId);
+        log.setOperationTime(now);
+        log.setRemark(remark);
+        log.setCreatedBy(operatorId);
+        log.setCreatedTime(now);
+        log.setUpdatedBy(operatorId);
+        log.setUpdatedTime(now);
+        log.setDeletedFlag(0);
+        if (sysOperationLogMapper.insert(log) == 0) throw new BusinessException(ResultCode.FAILED);
+    }
+
+    private BusinessException business(ResultCode code, String message) {
+        return new BusinessException(code.getCode(), message);
     }
 }

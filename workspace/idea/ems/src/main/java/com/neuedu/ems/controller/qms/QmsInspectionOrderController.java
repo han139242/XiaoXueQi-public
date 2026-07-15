@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -132,13 +133,16 @@ public class QmsInspectionOrderController {
     /**
      * 提交检验单结果并结束检验单。
      * @param inspectionId 检验单ID
-     * @param request 请求体，支持inspectionResult、remark、operatorId及检验数量参数
+     * @param request 请求体，支持inspectionResult、remark及检验数量参数
+     * @param userId JWT 中的当前用户ID
      * @return 操作结果
      */
     @PutMapping("/{inspectionId}/submit")
-    public ResultData submit(@PathVariable("inspectionId") Long inspectionId, @RequestBody Map<String, Object> request) {
+    public ResultData submit(@PathVariable("inspectionId") Long inspectionId,
+                             @RequestAttribute("userId") Long userId,
+                             @RequestBody Map<String, Object> request) {
         boolean flag = qmsInspectionOrderService.submitInspectionOrder(inspectionId, getString(request, "inspectionResult"),
-                getString(request, "remark"), getLong(request, "operatorId"),
+                getString(request, "remark"), userId,
                 getBigDecimal(request, "sampleQuantity"), getBigDecimal(request, "qualifiedQuantity"),
                 getBigDecimal(request, "unqualifiedQuantity"));
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
@@ -187,24 +191,12 @@ public class QmsInspectionOrderController {
     }
 
     /**
-     * 从请求体中读取Long类型参数。
-     * @param request 请求体Map
-     * @param key 参数名
-     * @return Long类型参数值
-     */
-    private Long getLong(Map<String, Object> request, String key) {
-        Object value = request == null ? null : request.get(key);
-        return value == null ? null : Long.valueOf(value.toString());
-    }
-
-    /**
      * 从请求体中读取BigDecimal类型参数。
      */
     private BigDecimal getBigDecimal(Map<String, Object> request, String key) {
         Object value = request == null ? null : request.get(key);
         return value == null ? null : new BigDecimal(value.toString());
     }
-
     /**
      * 从请求体中读取String类型参数。
      * @param request 请求体Map

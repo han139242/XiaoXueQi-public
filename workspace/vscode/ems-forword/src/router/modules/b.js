@@ -9,6 +9,6 @@ export default [
     path: 'mfg/schedule-workbench',
     name: 'MfgScheduleWorkbench',
     component: () => import('@/pages/mfg/scheduling-workbench.vue'),
-    meta: { title: '智能排产工作台', icon: 'route', permission: 'mfg:schedule-scenario:create' }
+    meta: { title: '智能排产工作台', icon: 'route', permission: 'mfg:schedule-scenario:view' }
   }
 ]

@@ -51,6 +51,8 @@ public interface MfgProductionOrderService extends IService<MfgProductionOrder> 
      */
     boolean removeOrderById(Long productionOrderId);
 
+    MfgProductionOrder releaseOrder(Long productionOrderId, Long operatorId, String remark);
+
     /**
      * 查询生产订单列表，支持关键字搜索、状态筛选、客户筛选和产品筛选。
      * @param keyword 关键字（匹配订单编号）

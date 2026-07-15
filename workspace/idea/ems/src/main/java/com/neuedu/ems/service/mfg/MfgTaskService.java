@@ -77,7 +77,7 @@ public interface MfgTaskService extends IService<MfgTask> {
      * @param stationId 工位ID，可选
      * @return 是否成功
      */
-    boolean startTask(Long taskId, Long stationId);
+    boolean startTask(Long taskId, Long stationId, Long operatorId);
 
     /**
      * 完成生产任务，记录完成数量和不良数量并将状态改为FINISHED。
@@ -87,5 +87,5 @@ public interface MfgTaskService extends IService<MfgTask> {
      * @param remark 备注
      * @return 是否成功
      */
-    boolean finishTask(Long taskId, BigDecimal completedQuantity, BigDecimal defectQuantity, String remark);
+    boolean finishTask(Long taskId, BigDecimal completedQuantity, BigDecimal defectQuantity, String remark, Long operatorId);
 }

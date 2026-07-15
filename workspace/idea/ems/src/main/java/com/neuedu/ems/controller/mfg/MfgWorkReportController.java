@@ -77,12 +77,8 @@ public class MfgWorkReportController {
      */
     @PostMapping
     public ResultData save(@RequestBody WorkReportFullRequest request) {
-        if (request.getMaterials() != null) {
-            Long reportId = mfgWorkReportService.saveWorkReportFull(request, request.getMaterials());
-            return ResultData.success(ResultCode.SUCCESS, Map.of("reportId", reportId));
-        }
-        boolean flag = mfgWorkReportService.saveWorkReport(request);
-        return flag ? ResultData.success(ResultCode.SUCCESS, Map.of("reportId", request.getReportId())) : ResultData.fail(ResultCode.FAILED);
+        Long reportId = mfgWorkReportService.submitWorkReport(request, request.getMaterials());
+        return ResultData.success(ResultCode.SUCCESS, Map.of("reportId", reportId));
     }
 
     /**
@@ -92,7 +88,7 @@ public class MfgWorkReportController {
      */
     @PostMapping("/full")
     public ResultData saveFull(@RequestBody WorkReportFullRequest request) {
-        Long reportId = mfgWorkReportService.saveWorkReportFull(request, request.getMaterials());
+        Long reportId = mfgWorkReportService.submitWorkReport(request, request.getMaterials());
         return ResultData.success(ResultCode.SUCCESS, Map.of("reportId", reportId));
     }
 
@@ -132,7 +128,8 @@ public class MfgWorkReportController {
     /**
      * 审核生产报工。
      * @param reportId 报工ID
-     * @param request 请求体，支持auditResult、auditComment、operatorId参数
+     * @param request 请求体，支持auditResult、auditComment参数
+     * @param userId JWT 中的当前用户ID
      * @return 操作结果
      */
     @PutMapping("/{reportId}/audit")
@@ -173,17 +170,6 @@ public class MfgWorkReportController {
                       @RequestParam(required = false) String auditStatus) {
         List<MfgWorkReport> reports = mfgWorkReportService.listWorkReports(keyword, taskId, operatorId, stationId, auditStatus);
         excelExportUtil.exportExcel(response, reports, MfgWorkReport.class, "生产报工列表", "生产报工列表");
-    }
-
-    /**
-     * 从请求体中读取Long类型参数。
-     * @param request 请求体Map
-     * @param key 参数名
-     * @return Long类型参数值
-     */
-    private Long getLong(Map<String, Object> request, String key) {
-        Object value = request == null ? null : request.get(key);
-        return value == null ? null : Long.valueOf(value.toString());
     }
 
     /**

@@ -29,8 +29,10 @@ FROM (
                WHERE `password_hash` LIKE 'pbkdf2-sha256$210000$%$%' AND `deleted_flag` = 0) AS CHAR)
   UNION ALL SELECT 'account', 'placeholder or invalid seeded accounts', '0',
          CAST((SELECT COUNT(*) FROM `sys_user`
-               WHERE `username` IN ('pmc001','mfg001','mfg101','mfg102','mfg111','mfg112','mfg113',
-                                    'mfg114','mfg115','mfg116','qms001','wms001','eam001')
+               WHERE `username` IN ('shengchanjihua001','shengchanjingli001','banzuzhang001','banzuzhang002',
+                                    'caozuogong001','caozuogong002','caozuogong003','caozuogong004',
+                                    'caozuogong005','caozuogong006','zhijianyuan001',
+                                    'cangkuguanliyuan001','shebeiguanliyuan001')
                  AND (`password_hash` = '!' OR `status` <> 'ENABLE' OR `deleted_flag` <> 0)) AS CHAR)
 
   UNION ALL SELECT 'rbac', 'enabled enterprise roles', '8',
@@ -56,10 +58,10 @@ FROM (
            GROUP BY user.`user_id`
            HAVING COUNT(relation.`id`) <> 1
          ) invalid_user_role) AS CHAR)
-  UNION ALL SELECT 'rbac', 'permission nodes', '414',
+  UNION ALL SELECT 'rbac', 'permission nodes', '435',
          CAST((SELECT COUNT(*) FROM `sys_menu`
-               WHERE `remark` LIKE 'RENIX_RBAC_V1%' AND `deleted_flag` = 0) AS CHAR)
-  UNION ALL SELECT 'rbac', 'directory/resource/hidden/special/button shape', '414',
+               WHERE `deleted_flag` = 0) AS CHAR)
+  UNION ALL SELECT 'rbac', 'directory/resource/hidden/special/button shape', '435',
          CAST((SELECT
            (SELECT COUNT(*) FROM `sys_menu`
             WHERE `menu_type` = 'DIRECTORY' AND `remark` = 'RENIX_RBAC_V1: 业务域目录' AND `deleted_flag` = 0)
@@ -72,8 +74,12 @@ FROM (
                     ('dashboard:summary:view','dashboard:big-screen:view','ai:assistant:use')
                 AND `deleted_flag` = 0)
            + (SELECT COUNT(*) FROM `sys_menu`
-              WHERE `menu_type` = 'BUTTON' AND `remark` LIKE 'RENIX_RBAC_V1%' AND `deleted_flag` = 0)) AS CHAR)
-  UNION ALL SELECT 'rbac', 'active role-permission relations', '1166',
+              WHERE `menu_type` = 'BUTTON' AND `remark` LIKE 'RENIX_RBAC_V1%' AND `deleted_flag` = 0)
+           + (SELECT COUNT(*) FROM `sys_menu`
+              WHERE `remark` LIKE 'RBAC_PERMISSION_V2:%' AND `deleted_flag` = 0)
+           + (SELECT COUNT(*) FROM `sys_menu`
+              WHERE `remark` LIKE 'P0_PRODUCTION_FLOW_PERMISSION_V1:%' AND `deleted_flag` = 0)) AS CHAR)
+  UNION ALL SELECT 'rbac', 'active role-permission relations', '1227',
          CAST((SELECT COUNT(*) FROM `sys_role_menu` relation
                JOIN `sys_role` role ON role.`role_id` = relation.`role_id` AND role.`deleted_flag` = 0
                JOIN `sys_menu` menu ON menu.`menu_id` = relation.`menu_id` AND menu.`deleted_flag` = 0

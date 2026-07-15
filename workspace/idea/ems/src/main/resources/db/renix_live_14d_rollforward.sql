@@ -15,11 +15,11 @@ SET @live_marker_exists = (
 );
 
 SET @admin_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'admin' AND `deleted_flag` = 0 LIMIT 1);
-SET @planner_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'pmc001' AND `deleted_flag` = 0 LIMIT 1);
-SET @manager_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'mfg001' AND `deleted_flag` = 0 LIMIT 1);
-SET @quality_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'qms001' AND `deleted_flag` = 0 LIMIT 1);
-SET @warehouse_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'wms001' AND `deleted_flag` = 0 LIMIT 1);
-SET @equipment_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'eam001' AND `deleted_flag` = 0 LIMIT 1);
+SET @planner_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'shengchanjihua001' AND `deleted_flag` = 0 LIMIT 1);
+SET @manager_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'shengchanjingli001' AND `deleted_flag` = 0 LIMIT 1);
+SET @quality_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'zhijianyuan001' AND `deleted_flag` = 0 LIMIT 1);
+SET @warehouse_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'cangkuguanliyuan001' AND `deleted_flag` = 0 LIMIT 1);
+SET @equipment_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'shebeiguanliyuan001' AND `deleted_flag` = 0 LIMIT 1);
 SET @quality_employee_id = (SELECT `employee_id` FROM `org_employee` WHERE `employee_no` = 'EMP-QMS-001' AND `deleted_flag` = 0 LIMIT 1);
 SET @warehouse_employee_id = (SELECT `employee_id` FROM `org_employee` WHERE `employee_no` = 'EMP-WMS-001' AND `deleted_flag` = 0 LIMIT 1);
 SET @equipment_employee_id = (SELECT `employee_id` FROM `org_employee` WHERE `employee_no` = 'EMP-EAM-001' AND `deleted_flag` = 0 LIMIT 1);
@@ -675,7 +675,7 @@ INSERT INTO `wms_material_batch`
 SELECT CONCAT('FG-', product_lot.`lot_no`), product.`material_id`,
        IF(work_order.`work_order_no` = 'WO-20260713-013-1', '2026-07-13', '2026-07-14'),
        IF(work_order.`work_order_no` = 'WO-20260713-013-1', '2026-07-13', '2026-07-14'),
-       'PASS', 'ENABLE', 'PRODUCTION', work_order.`work_order_id`, product_lot.`product_lot_id`,
+       'PASS', 'AVAILABLE', 'PRODUCTION', work_order.`work_order_id`, product_lot.`product_lot_id`,
        CONCAT(@live_marker, ': 最终检验合格成品批次'), 0, @warehouse_user_id,
        IF(work_order.`work_order_no` = 'WO-20260713-013-1', '2026-07-13 16:35:00', '2026-07-14 10:25:00'),
        @warehouse_user_id,

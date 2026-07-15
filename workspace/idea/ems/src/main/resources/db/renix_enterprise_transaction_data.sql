@@ -151,7 +151,7 @@ INSERT INTO `wms_material_batch`
    `created_by`, `created_time`, `updated_by`, `updated_time`)
 SELECT seed.`batch_no`, seed.`material_id`, seed.`supplier_id`,
        CONCAT('SUP-', seed.`short_code`, '-', DATE_FORMAT(seed.`received_date`, '%y%m%d'), '-', seed.`wave_no`),
-       DATE_SUB(seed.`received_date`, INTERVAL 5 DAY), seed.`received_date`, 'PASS', 'ENABLE',
+       DATE_SUB(seed.`received_date`, INTERVAL 5 DAY), seed.`received_date`, 'PASS', 'AVAILABLE',
        'PURCHASE_RECEIPT', seed.`inbound_id`,
        CONCAT(@transaction_marker, ': ', IF(seed.`received_quantity` = seed.`accepted_quantity`, '来料检验合格', '分选剔除2000根后复检合格')),
        @transaction_operator_id, TIMESTAMP(seed.`received_date`, '08:20:00'),
@@ -835,7 +835,7 @@ INSERT INTO `wms_material_batch`
    `source_order_type`, `source_order_id`, `source_product_lot_id`, `remark`,
    `created_by`, `created_time`, `updated_by`, `updated_time`)
 SELECT CONCAT('FG-', product_lot.`lot_no`), product.`material_id`, context.`work_date`, context.`work_date`,
-       'PASS', 'ENABLE', 'PRODUCTION', context.`work_order_id`, product_lot.`product_lot_id`,
+       'PASS', 'AVAILABLE', 'PRODUCTION', context.`work_order_id`, product_lot.`product_lot_id`,
        CONCAT(@transaction_marker, ': 最终检验合格成品批次'), @transaction_operator_id,
        TIMESTAMP(context.`work_date`, '16:35:00'), @transaction_operator_id, TIMESTAMP(context.`work_date`, '17:20:00')
 FROM `trace_product_lot` product_lot

@@ -3,19 +3,24 @@ package com.neuedu.ems.service.impl.wms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.wms.WmsInboundDetail;
 import com.neuedu.ems.entity.wms.WmsInboundOrder;
 import com.neuedu.ems.entity.wms.WmsInventory;
+import com.neuedu.ems.entity.wms.WmsMaterialBatch;
 import com.neuedu.ems.entity.wms.WmsStockMovement;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.wms.WmsInboundDetailMapper;
 import com.neuedu.ems.mapper.wms.WmsInboundOrderMapper;
 import com.neuedu.ems.mapper.wms.WmsInventoryMapper;
+import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.mapper.wms.WmsStockMovementMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.wms.WmsInboundOrderService;
+import com.neuedu.ems.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +29,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 入库单管理 Service 实现类。
@@ -31,7 +37,11 @@ import java.util.List;
 @Service
 public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMapper, WmsInboundOrder> implements WmsInboundOrderService {
 
-    private static final String APPROVED_STATUS = "APPROVED";
+    private static final String SUBMITTED_STATUS = BusinessStatus.Document.SUBMITTED;
+    private static final String APPROVED_STATUS = BusinessStatus.Document.APPROVED;
+    private static final Set<String> RELEASED_QUALITY_STATUSES = Set.of(
+            BusinessStatus.Quality.PASS, BusinessStatus.Quality.CONCESSION);
+    private static final Set<String> STORABLE_BATCH_STATUSES = Set.of("AVAILABLE", "ENABLE");
 
     @Autowired
     private WmsInboundDetailMapper wmsInboundDetailMapper;
@@ -41,6 +51,9 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
 
     @Autowired
     private WmsStockMovementMapper wmsStockMovementMapper;
+
+    @Autowired
+    private WmsMaterialBatchMapper wmsMaterialBatchMapper;
 
     @Autowired
     private SysStatusChangeLogMapper sysStatusChangeLogMapper;
@@ -103,6 +116,11 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
      */
     @Override
     public boolean saveInboundOrder(WmsInboundOrder inboundOrder) {
+        if (inboundOrder == null || inboundOrder.getWarehouseId() == null) {
+            return false;
+        }
+        inboundOrder.setAuditStatus(SUBMITTED_STATUS);
+        inboundOrder.setInboundTime(null);
         if (inboundOrder.getDeletedFlag() == null) {
             inboundOrder.setDeletedFlag(0);
         }
@@ -118,7 +136,9 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
     @Override
     @Transactional
     public Long saveInboundOrderFull(WmsInboundOrder inboundOrder, List<WmsInboundDetail> details) {
-        saveInboundOrder(inboundOrder);
+        if (!saveInboundOrder(inboundOrder)) {
+            throw business(ResultCode.PARAM_ERROR, "入库单和入库仓库不能为空");
+        }
         if (details != null) {
             for (WmsInboundDetail detail : details) {
                 detail.setInboundId(inboundOrder.getInboundId());
@@ -146,6 +166,8 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
             return false;
         }
         inboundOrder.setDeletedFlag(null);
+        inboundOrder.setAuditStatus(null);
+        inboundOrder.setInboundTime(null);
         if (inboundOrder.getVersion() == null) {
             inboundOrder.setVersion(existing.getVersion());
         }
@@ -209,17 +231,24 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
     @Override
     @Transactional
     public boolean confirmInboundOrder(Long inboundId, Long operatorId, String remark) {
+        if (operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "当前登录用户不能为空");
+        }
         WmsInboundOrder inboundOrder = getInboundOrderById(inboundId);
         if (inboundOrder == null) {
-            return false;
+            throw business(ResultCode.NOT_FOUND, "入库单不存在或已删除");
         }
-        if (APPROVED_STATUS.equals(inboundOrder.getAuditStatus())) {
-            return false;
+        if (!SUBMITTED_STATUS.equals(inboundOrder.getAuditStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有 SUBMITTED 状态的入库单可以确认");
+        }
+        if (inboundOrder.getWarehouseId() == null) {
+            throw business(ResultCode.PARAM_ERROR, "入库仓库不能为空");
         }
         List<WmsInboundDetail> details = listActiveDetails(inboundId);
         if (details.isEmpty()) {
-            return false;
+            throw business(ResultCode.BUSINESS_ERROR, "入库单至少需要一条有效明细");
         }
+        validateInboundDetails(details);
         LocalDateTime now = LocalDateTime.now();
         for (WmsInboundDetail detail : details) {
             increaseInventory(inboundOrder, detail);
@@ -231,12 +260,41 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         update.setAuditStatus(APPROVED_STATUS);
         update.setInboundTime(now);
         update.setRemark(StringUtils.hasText(remark) ? remark : inboundOrder.getRemark());
-        boolean updated = baseMapper.updateById(update) > 0;
-        if (updated) {
-            insertStatusChangeLog(inboundOrder, operatorId, remark, now);
-            insertOperationLog(inboundOrder, operatorId, remark, now);
+        if (baseMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "入库单已被其他用户修改，请刷新后重试");
         }
-        return updated;
+        insertStatusChangeLog(inboundOrder, operatorId, remark, now);
+        insertOperationLog(inboundOrder, operatorId, remark, now);
+        return true;
+    }
+
+    private void validateInboundDetails(List<WmsInboundDetail> details) {
+        for (WmsInboundDetail detail : details) {
+            if (detail.getMaterialId() == null || detail.getBatchId() == null || detail.getLocationId() == null
+                    || detail.getInboundQuantity() == null || detail.getInboundQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+                throw business(ResultCode.PARAM_ERROR, "入库明细的物料、批次、库位和正数数量不能为空");
+            }
+            WmsMaterialBatch batch = getActiveBatch(detail.getBatchId());
+            if (batch == null) {
+                throw business(ResultCode.NOT_FOUND, "入库明细关联的物料批次不存在或已删除");
+            }
+            if (!detail.getMaterialId().equals(batch.getMaterialId())) {
+                throw business(ResultCode.BUSINESS_ERROR, "入库明细物料与批次物料不一致");
+            }
+            if (!RELEASED_QUALITY_STATUSES.contains(batch.getQualityStatus())) {
+                throw business(ResultCode.BUSINESS_ERROR, "批次未质检放行，禁止进入可用库存");
+            }
+            if (!STORABLE_BATCH_STATUSES.contains(batch.getStatus())) {
+                throw business(ResultCode.BUSINESS_ERROR, "批次当前状态不可入库");
+            }
+        }
+    }
+
+    private WmsMaterialBatch getActiveBatch(Long batchId) {
+        LambdaQueryWrapper<WmsMaterialBatch> query = new LambdaQueryWrapper<>();
+        query.eq(WmsMaterialBatch::getBatchId, batchId)
+                .eq(WmsMaterialBatch::getDeletedFlag, 0);
+        return wmsMaterialBatchMapper.selectOne(query);
     }
 
     /**
@@ -314,14 +372,18 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
             inventory.setLockedQuantity(BigDecimal.ZERO);
             inventory.setInspectionQuantity(BigDecimal.ZERO);
             inventory.setDeletedFlag(0);
-            wmsInventoryMapper.insert(inventory);
+            if (wmsInventoryMapper.insert(inventory) == 0) {
+                throw new BusinessException(ResultCode.FAILED);
+            }
         } else {
             WmsInventory update = new WmsInventory();
             update.setInventoryId(inventory.getInventoryId());
             update.setVersion(inventory.getVersion());
             BigDecimal currentAvailable = inventory.getAvailableQuantity() == null ? BigDecimal.ZERO : inventory.getAvailableQuantity();
             update.setAvailableQuantity(currentAvailable.add(inboundQuantity));
-            wmsInventoryMapper.updateById(update);
+            if (wmsInventoryMapper.updateById(update) == 0) {
+                throw business(ResultCode.DATA_CONFLICT, "库存余额已被其他请求修改，请刷新后重试");
+            }
         }
     }
 
@@ -348,7 +410,9 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         movement.setCreatedBy(operatorId);
         movement.setRemark(remark);
         movement.setDeletedFlag(0);
-        wmsStockMovementMapper.insert(movement);
+        if (wmsStockMovementMapper.insert(movement) == 0) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
     }
 
     /**
@@ -371,7 +435,9 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         statusLog.setCreatedTime(changedTime);
         statusLog.setRemark(remark);
         statusLog.setDeletedFlag(0);
-        sysStatusChangeLogMapper.insert(statusLog);
+        if (sysStatusChangeLogMapper.insert(statusLog) == 0) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
     }
 
     /**
@@ -392,6 +458,12 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         operationLog.setCreatedTime(operationTime);
         operationLog.setRemark(remark);
         operationLog.setDeletedFlag(0);
-        sysOperationLogMapper.insert(operationLog);
+        if (sysOperationLogMapper.insert(operationLog) == 0) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
+    }
+
+    private BusinessException business(ResultCode code, String message) {
+        return new BusinessException(code.getCode(), message);
     }
 }

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -77,6 +78,14 @@ public class MfgWorkOrderController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PostMapping("/generate/{planId}")
+    public ResultData generate(@PathVariable Long planId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody MfgWorkOrder request) {
+        return ResultData.success(ResultCode.SUCCESS,
+                mfgWorkOrderService.generateWorkOrder(planId, request, userId));
+    }
+
     /**
      * 更新生产工单信息。
      * @param workOrder 生产工单实体（JSON格式，必须包含workOrderId）
@@ -86,6 +95,14 @@ public class MfgWorkOrderController {
     public ResultData update(@RequestBody MfgWorkOrder workOrder) {
         boolean flag = mfgWorkOrderService.updateWorkOrder(workOrder);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
+    }
+
+    @PutMapping("/{workOrderId}/release")
+    public ResultData release(@PathVariable Long workOrderId,
+                              @RequestAttribute("userId") Long userId,
+                              @RequestBody(required = false) ReleaseRequest request) {
+        return ResultData.success(ResultCode.SUCCESS, mfgWorkOrderService.releaseWorkOrder(
+                workOrderId, userId, request == null ? null : request.getRemark()));
     }
 
     /**
@@ -115,5 +132,10 @@ public class MfgWorkOrderController {
                       @RequestParam(required = false) Long productId) {
         List<MfgWorkOrder> workOrders = mfgWorkOrderService.listWorkOrders(keyword, status, planId, productId);
         excelExportUtil.exportExcel(response, workOrders, MfgWorkOrder.class, "生产工单列表", "生产工单列表");
+    }
+
+    @lombok.Data
+    public static class ReleaseRequest {
+        private String remark;
     }
 }

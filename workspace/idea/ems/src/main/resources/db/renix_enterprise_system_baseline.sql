@@ -142,19 +142,32 @@ CREATE TEMPORARY TABLE `tmp_renix_user` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 INSERT INTO `tmp_renix_user` VALUES
   ('admin', 'EMP-IT-001', 'SUPER_ADMIN'),
-  ('pmc001', 'EMP-PMC-001', 'PLAN_SCHEDULER'),
-  ('mfg001', 'EMP-MFG-001', 'MES_MANAGER'),
-  ('mfg101', 'EMP-MFG-101', 'PRODUCTION_SUPERVISOR'),
-  ('mfg102', 'EMP-MFG-102', 'PRODUCTION_SUPERVISOR'),
-  ('mfg111', 'EMP-MFG-111', 'PRODUCTION_OPERATOR'),
-  ('mfg112', 'EMP-MFG-112', 'PRODUCTION_OPERATOR'),
-  ('mfg113', 'EMP-MFG-113', 'PRODUCTION_OPERATOR'),
-  ('mfg114', 'EMP-MFG-114', 'PRODUCTION_OPERATOR'),
-  ('mfg115', 'EMP-MFG-115', 'PRODUCTION_OPERATOR'),
-  ('mfg116', 'EMP-MFG-116', 'PRODUCTION_OPERATOR'),
-  ('qms001', 'EMP-QMS-001', 'QUALITY_ENGINEER'),
-  ('wms001', 'EMP-WMS-001', 'WAREHOUSE_MANAGER'),
-  ('eam001', 'EMP-EAM-001', 'EQUIPMENT_ENGINEER');
+  ('shengchanjihua001', 'EMP-PMC-001', 'PLAN_SCHEDULER'),
+  ('shengchanjingli001', 'EMP-MFG-001', 'MES_MANAGER'),
+  ('banzuzhang001', 'EMP-MFG-101', 'PRODUCTION_SUPERVISOR'),
+  ('banzuzhang002', 'EMP-MFG-102', 'PRODUCTION_SUPERVISOR'),
+  ('caozuogong001', 'EMP-MFG-111', 'PRODUCTION_OPERATOR'),
+  ('caozuogong002', 'EMP-MFG-112', 'PRODUCTION_OPERATOR'),
+  ('caozuogong003', 'EMP-MFG-113', 'PRODUCTION_OPERATOR'),
+  ('caozuogong004', 'EMP-MFG-114', 'PRODUCTION_OPERATOR'),
+  ('caozuogong005', 'EMP-MFG-115', 'PRODUCTION_OPERATOR'),
+  ('caozuogong006', 'EMP-MFG-116', 'PRODUCTION_OPERATOR'),
+  ('zhijianyuan001', 'EMP-QMS-001', 'QUALITY_ENGINEER'),
+  ('cangkuguanliyuan001', 'EMP-WMS-001', 'WAREHOUSE_MANAGER'),
+  ('shebeiguanliyuan001', 'EMP-EAM-001', 'EQUIPMENT_ENGINEER');
+
+-- 已有环境先按员工编号原位改名，避免新版基线为同一员工重复创建账号。
+UPDATE `sys_user` user
+JOIN `org_employee` employee
+  ON employee.`employee_id` = user.`employee_id` AND employee.`deleted_flag` = 0
+JOIN `tmp_renix_user` seed
+  ON seed.`employee_no` = employee.`employee_no`
+SET user.`username` = seed.`username`,
+    user.`updated_by` = @admin_user_id,
+    user.`updated_time` = @system_time
+WHERE seed.`username` <> 'admin'
+  AND user.`deleted_flag` = 0
+  AND user.`username` <> seed.`username`;
 
 INSERT INTO `sys_user`
   (`username`, `password_hash`, `employee_id`, `status`, `login_fail_count`, `locked_time`, `last_login_time`,
@@ -365,6 +378,10 @@ INSERT INTO `tmp_renix_special_permission` VALUES
   ('mfg-andon-alert','mfg:andon-alert:trigger','触发安灯告警'),
   ('mfg-andon-alert','mfg:andon-alert:close','关闭安灯告警'),
   ('mfg-exception','mfg:exception:handle','处理生产异常'),
+  ('mfg-production-order','mfg:production-order:release','下达生产订单'),
+  ('mfg-production-plan','mfg:production-plan:generate','生成生产计划'),
+  ('mfg-work-order','mfg:work-order:generate','生成生产工单'),
+  ('mfg-work-order','mfg:work-order:release','下达生产工单'),
   ('mfg-task','mfg:task:start','开始生产任务'),
   ('mfg-task','mfg:task:finish','完成生产任务'),
   ('mfg-work-report','mfg:work-report:submit','提交生产报工'),

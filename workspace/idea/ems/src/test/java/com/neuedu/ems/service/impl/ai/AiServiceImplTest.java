@@ -53,6 +53,19 @@ class AiServiceImplTest {
     }
 
     @Test
+    void defaultPropertiesRequireApiKeyFromEnvironment() {
+        AiProperties properties = new AiProperties();
+        properties.setEnabled(true);
+        AiServiceImpl service = createService(properties, new OkHttpClient(), mock(DashboardService.class));
+
+        Map<String, Object> status = service.getStatus();
+
+        assertEquals(false, status.get("configured"));
+        assertEquals(false, status.get("available"));
+        assertEquals("MISCONFIGURED", status.get("state"));
+    }
+
+    @Test
     void disabledServiceRejectsChatWithoutCallingUpstream() {
         AiProperties properties = enabledProperties();
         properties.setEnabled(false);

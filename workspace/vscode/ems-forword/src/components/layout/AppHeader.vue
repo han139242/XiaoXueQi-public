@@ -10,7 +10,7 @@ import { getModuleDefinition, getNavigationItems } from '@/config/navigation'
 import { openAiAssistant } from '@/utils/app-events'
 import { activeTheme } from '@/utils/theme'
 import { getCurrentUserInfo, logout } from '@/api/auth'
-import { getResourcePage } from '@/api/resource'
+import { getTaskReminderSummary } from '@/api/mfg/task'
 import { setCurrentUser } from '@/utils/auth'
 import { hasPermission } from '@/utils/permission'
 
@@ -27,7 +27,7 @@ const themeOpen = ref(false)
 const notificationOpen = ref(false)
 const now = ref(dayjs())
 const currentUser = ref(getCurrentUser())
-const taskReminder = ref({ waiting: 0, running: 0, paused: 0 })
+const taskReminder = ref({ enabled: false, audience: 'NONE', total: 0, taskTotal: 0, waiting: 0, unassigned: 0, paused: 0, overdue: 0, auditPending: 0, signature: 'NONE' })
 const taskReminderLoading = ref(false)
 let clockTimer
 let taskTimer
@@ -43,9 +43,7 @@ const timeText = computed(() => now.value.format('HH:mm'))
 const previewMode = isFrameworkPreview()
 const canUseAi = computed(() => hasPermission('ai:assistant:use'))
 const canViewTasks = computed(() => hasPermission('mfg:task:view'))
-const pendingTaskCount = computed(() => (
-  taskReminder.value.waiting + taskReminder.value.running + taskReminder.value.paused
-))
+const pendingTaskCount = computed(() => taskReminder.value.total)
 
 const breadcrumbTitle = computed(() => {
   if (route.name === 'ModuleHub') {
@@ -96,6 +94,44 @@ async function openTaskPage() {
   await router.push('/mfg/tasks')
 }
 
+async function openWorkReportPage() {
+  notificationOpen.value = false
+  closeTaskNotification()
+  await router.push('/mfg/work-reports')
+}
+
+function taskReminderMessage() {
+  return [
+    taskReminder.value.waiting && `待开工 ${taskReminder.value.waiting} 项`,
+    taskReminder.value.unassigned && `待分配 ${taskReminder.value.unassigned} 项`,
+    taskReminder.value.paused && `已暂停 ${taskReminder.value.paused} 项`,
+    taskReminder.value.overdue && `已逾期 ${taskReminder.value.overdue} 项`,
+    taskReminder.value.auditPending && `报工待审核 ${taskReminder.value.auditPending} 项`
+  ].filter(Boolean).join('，')
+}
+
+function reminderStorageKey() {
+  const identity = currentUser.value.userId || currentUser.value.username || 'unknown'
+  return `mes:task-reminder:${identity}`
+}
+
+function storedTaskSignature() {
+  try {
+    return window.localStorage.getItem(reminderStorageKey()) || ''
+  } catch {
+    return lastTaskSignature
+  }
+}
+
+function rememberTaskSignature(signature) {
+  lastTaskSignature = signature
+  try {
+    window.localStorage.setItem(reminderStorageKey(), signature)
+  } catch {
+    // 浏览器禁用持久化时退回当前标签页内存签名。
+  }
+}
+
 function showTaskNotification() {
   if (!pendingTaskCount.value || route.path === '/mfg/tasks') {
     return
@@ -103,12 +139,12 @@ function showTaskNotification() {
   closeTaskNotification()
   taskNotification = ElNotification({
     title: `待处理生产任务 ${pendingTaskCount.value} 项`,
-    message: `待开工 ${taskReminder.value.waiting} 项，进行中 ${taskReminder.value.running} 项，已暂停 ${taskReminder.value.paused} 项`,
+    message: taskReminderMessage(),
     type: 'warning',
     position: 'bottom-right',
     duration: 0,
     offset: 18,
-    onClick: openTaskPage
+    onClick: taskReminder.value.taskTotal ? openTaskPage : openWorkReportPage
   })
 }
 
@@ -118,23 +154,27 @@ async function loadTaskReminder({ notify = false } = {}) {
   }
   taskReminderLoading.value = true
   try {
-    const [waitingResult, runningResult, pausedResult] = await Promise.all([
-      getResourcePage('/api/mfg/task', { current: 1, size: 1, status: 'WAIT_START' }),
-      getResourcePage('/api/mfg/task', { current: 1, size: 1, status: 'RUNNING' }),
-      getResourcePage('/api/mfg/task', { current: 1, size: 1, status: 'PAUSED' })
-    ])
+    const result = await getTaskReminderSummary()
+    const summary = result?.data || {}
     taskReminder.value = {
-      waiting: Number(waitingResult?.data?.total || 0),
-      running: Number(runningResult?.data?.total || 0),
-      paused: Number(pausedResult?.data?.total || 0)
+      enabled: Boolean(summary.enabled),
+      audience: summary.audience || 'NONE',
+      total: Number(summary.total || 0),
+      taskTotal: Number(summary.taskTotal || 0),
+      waiting: Number(summary.waiting || 0),
+      unassigned: Number(summary.unassigned || 0),
+      paused: Number(summary.paused || 0),
+      overdue: Number(summary.overdue || 0),
+      auditPending: Number(summary.auditPending || 0),
+      signature: summary.signature || 'NONE'
     }
-    const signature = `${taskReminder.value.waiting}:${taskReminder.value.running}:${taskReminder.value.paused}`
+    const signature = taskReminder.value.signature
     if (!pendingTaskCount.value) {
       closeTaskNotification()
-    } else if (notify && signature !== lastTaskSignature) {
+    } else if (notify && signature !== storedTaskSignature()) {
       showTaskNotification()
     }
-    lastTaskSignature = signature
+    rememberTaskSignature(signature)
   } catch {
     // 请求层统一展示错误，保留上一次成功的任务数量。
   } finally {
@@ -176,7 +216,7 @@ onMounted(async () => {
   clockTimer = window.setInterval(() => {
     now.value = dayjs()
   }, 30000)
-  if (!previewMode && canViewTasks.value) {
+  if (!previewMode && canViewTasks.value && taskReminder.value.enabled) {
     taskTimer = window.setInterval(() => loadTaskReminder({ notify: true }), TASK_REMINDER_INTERVAL)
   }
   window.addEventListener('keydown', handleShortcut)
@@ -230,6 +270,7 @@ onBeforeUnmount(() => {
       </el-tooltip>
 
       <el-popover
+        v-if="taskReminder.enabled"
         v-model:visible="notificationOpen"
         placement="bottom"
         :width="300"
@@ -249,28 +290,42 @@ onBeforeUnmount(() => {
           </el-badge>
         </template>
         <div class="notification-head">
-          <strong>生产任务</strong>
+          <strong>生产待办</strong>
           <span>{{ pendingTaskCount ? `${pendingTaskCount} 项待处理` : '暂无待办' }}</span>
         </div>
         <div v-if="taskReminderLoading" class="notification-empty">正在刷新任务</div>
         <div v-else-if="pendingTaskCount" class="task-reminder-list">
-          <div class="task-reminder-row">
+          <div v-if="taskReminder.waiting" class="task-reminder-row">
             <span class="task-reminder-icon is-waiting"><AppIcon name="clipboard" :size="16" /></span>
             <span>待开工任务</span>
             <strong>{{ taskReminder.waiting }}</strong>
           </div>
-          <div class="task-reminder-row">
+          <div v-if="taskReminder.unassigned" class="task-reminder-row">
             <span class="task-reminder-icon is-running"><AppIcon name="activity" :size="16" /></span>
-            <span>进行中任务</span>
-            <strong>{{ taskReminder.running }}</strong>
+            <span>班组待分配</span>
+            <strong>{{ taskReminder.unassigned }}</strong>
           </div>
           <div v-if="taskReminder.paused" class="task-reminder-row">
             <span class="task-reminder-icon is-paused"><AppIcon name="alert" :size="16" /></span>
             <span>已暂停任务</span>
             <strong>{{ taskReminder.paused }}</strong>
           </div>
-          <el-button class="task-reminder-action" type="primary" @click="openTaskPage">
+          <div v-if="taskReminder.overdue" class="task-reminder-row">
+            <span class="task-reminder-icon is-paused"><AppIcon name="alert" :size="16" /></span>
+            <span>已逾期任务</span>
+            <strong>{{ taskReminder.overdue }}</strong>
+          </div>
+          <div v-if="taskReminder.auditPending" class="task-reminder-row">
+            <span class="task-reminder-icon is-waiting"><AppIcon name="shield-check" :size="16" /></span>
+            <span>报工待审核</span>
+            <strong>{{ taskReminder.auditPending }}</strong>
+          </div>
+          <el-button v-if="taskReminder.taskTotal" class="task-reminder-action" type="primary" @click="openTaskPage">
             查看生产任务
+            <AppIcon name="right" :size="14" />
+          </el-button>
+          <el-button v-if="taskReminder.auditPending" class="task-reminder-action" :type="taskReminder.taskTotal ? 'default' : 'primary'" @click="openWorkReportPage">
+            查看报工审核
             <AppIcon name="right" :size="14" />
           </el-button>
         </div>

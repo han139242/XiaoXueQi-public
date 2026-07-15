@@ -7,7 +7,9 @@ const confirmAction = (kind, idField, label = '确认') => ({
   key: `confirm-${kind}`, label, icon: 'check', method: 'put', type: 'success',
   path: (row) => `/api/wms/${kind}-order/${row[idField]}/confirm`,
   visible: (row) => row.auditStatus === 'SUBMITTED',
-  fields: [field('operatorId', { label: '操作人', type: 'reference', reference: 'org-employee' }), field('remark', { type: 'textarea' })],
+  fields: kind === 'inbound'
+    ? [field('remark', { type: 'textarea' })]
+    : [field('operatorId', { label: '操作人', type: 'reference', reference: 'org-employee' }), field('remark', { type: 'textarea' })],
   previewPatch: () => ({ auditStatus: 'APPROVED' })
 })
 
@@ -16,8 +18,8 @@ export default [
   defineResource({ key: 'wms-location', domain: 'wms', route: 'wms/locations', title: '库位管理', icon: 'warehouse', baseUrl: '/api/wms/location', idField: 'locationId', fields: ['locationCode', 'locationName', 'warehouseId', 'locationType', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status'], defaults: { status: 'IDLE' }, overrides: { locationCode: { required: true }, locationName: { required: true }, warehouseId: { required: true }, locationType: { required: true, type: 'select', options: locationTypes }, status: { type: 'select', options: optionSets.location }, createdTime: { form: false, width: 170 } } }),
   defineResource({
     key: 'wms-material-batch', domain: 'wms', route: 'wms/material-batches', title: '物料批次', icon: 'package', baseUrl: '/api/wms/material-batch', idField: 'batchId',
-    fields: ['batchNo', 'materialId', 'supplierId', 'supplierBatchNo', 'productionDate', 'receivedDate', 'qualityStatus', 'status', 'sourceOrderType', 'sourceOrderId', 'sourceProductLotId', 'remark', 'createdTime'], filters: ['keyword', 'materialId', 'supplierId', 'qualityStatus', 'status'], defaults: { qualityStatus: 'WAIT_INSPECTION', status: 'AVAILABLE' },
-    overrides: { batchNo: { required: true }, materialId: { required: true }, productionDate: { required: true }, receivedDate: { required: true }, qualityStatus: { type: 'select', options: optionSets.batchQuality }, status: { type: 'select', options: optionSets.batchStatus }, sourceOrderId: { type: 'number', min: 1 }, sourceProductLotId: { type: 'reference', reference: 'trace-product-lot' }, createdTime: { form: false, width: 170 } }
+    fields: ['batchNo', 'materialId', 'supplierId', 'supplierBatchNo', 'productionDate', 'receivedDate', 'qualityStatus', 'status', 'sourceOrderType', 'sourceOrderId', 'sourceProductLotId', 'remark', 'createdTime'], filters: ['keyword', 'materialId', 'supplierId', 'qualityStatus', 'status'], defaults: { qualityStatus: 'WAIT_INSPECTION', status: 'FROZEN' },
+    overrides: { batchNo: { required: true }, materialId: { required: true }, productionDate: { required: true }, receivedDate: { required: true }, qualityStatus: { type: 'select', options: optionSets.batchQuality, create: false, edit: false }, status: { type: 'select', options: optionSets.batchStatus, create: false, edit: false }, sourceOrderId: { type: 'number', min: 1 }, sourceProductLotId: { type: 'reference', reference: 'trace-product-lot' }, createdTime: { form: false, width: 170 } }
   }),
   defineResource({
     key: 'wms-inventory', domain: 'wms', route: 'wms/inventory', title: '库存余额', icon: 'database', baseUrl: '/api/wms/inventory', idField: 'inventoryId',
