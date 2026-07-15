@@ -8,7 +8,15 @@ function detail(workOrderId) {
   return request({ url: '/api/mfg/work-order/' + encodeURIComponent(workOrderId) })
 }
 
+function start(workOrderId) {
+  return request({
+    url: '/api/mfg/work-order/' + encodeURIComponent(workOrderId) + '/start',
+    method: 'PUT'
+  })
+}
+
 module.exports = {
   page,
-  detail
+  detail,
+  start
 }

@@ -1,5 +1,6 @@
 <view class="filter-shell task-filter-shell">
   <view class="reference-filter-bar">
+    <view class="reference-filter {{statusIndex ? 'reference-filter--active' : ''}}" data-field="status" bindtap="toggleDropdown"><text>{{statusIndex ? statusOptions[statusIndex].label : '任务状态'}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
     <view class="reference-filter {{employeeIndex ? 'reference-filter--active' : ''}}" data-field="employee" bindtap="toggleDropdown"><text>{{employeeIndex ? employeeOptions[employeeIndex].label : '人员筛选'}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
     <view class="reference-filter {{sortIndex ? 'reference-filter--active' : ''}}" data-field="sort" bindtap="toggleDropdown"><text>{{sortIndex ? sortOptions[sortIndex].label : '排序'}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
     <view class="reference-filter {{operationIndex ? 'reference-filter--active' : ''}}" data-field="operation" bindtap="toggleDropdown"><text>{{operationIndex ? operationOptions[operationIndex].label : '选择工序'}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>

@@ -105,6 +105,13 @@ public class MfgWorkOrderController {
                 workOrderId, userId, request == null ? null : request.getRemark()));
     }
 
+    @PutMapping("/{workOrderId}/start")
+    public ResultData start(@PathVariable Long workOrderId,
+                            @RequestAttribute("userId") Long userId) {
+        return ResultData.success(ResultCode.SUCCESS,
+                mfgWorkOrderService.startWorkOrder(workOrderId, userId));
+    }
+
     /**
      * 删除生产工单（软删除，将删除标志设为1）。
      * @param workOrderId 生产工单ID

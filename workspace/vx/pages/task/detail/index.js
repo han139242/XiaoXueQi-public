@@ -24,6 +24,15 @@ function dateRange(start, end) {
   return startText === '-' ? '-' : startText + '~' + endText
 }
 
+function compareTasks(left, right) {
+  const leftMatch = String(left.taskNo || '').match(/-(\d{3})$/)
+  const rightMatch = String(right.taskNo || '').match(/-(\d{3})$/)
+  const leftSequence = leftMatch ? Number(leftMatch[1]) : Number(left.operationId || Number.MAX_SAFE_INTEGER)
+  const rightSequence = rightMatch ? Number(rightMatch[1]) : Number(right.operationId || Number.MAX_SAFE_INTEGER)
+  if (leftSequence !== rightSequence) return leftSequence - rightSequence
+  return Number(left.taskId || 0) - Number(right.taskId || 0)
+}
+
 Page({
   data: {
     id: null,
@@ -121,8 +130,8 @@ Page({
   },
 
   decorateTask(item, lookups) {
-    const completed = Number(item.completedQuantity || 0)
-    const defects = Number(item.defectQuantity || 0)
+    const completed = Math.max(Number(item.completedQuantity || 0), Number(item.reportedQualifiedQuantity || 0))
+    const defects = Math.max(Number(item.defectQuantity || 0), Number(item.reportedDefectQuantity || 0))
     return {
       ...item,
       statusView: statusUtil.getStatus('task', item.status),
@@ -164,7 +173,7 @@ Page({
         },
         workOrder,
         product: product || { productCode: '-', productName: '-' },
-        progressTasks: relatedTasks.map((item) => this.decorateTask(item, lookups)),
+        progressTasks: relatedTasks.slice().sort(compareTasks).map((item) => this.decorateTask(item, lookups)),
         reports: reports.map((item) => ({
           ...item,
           statusView: statusUtil.getStatus('audit', item.auditStatus),

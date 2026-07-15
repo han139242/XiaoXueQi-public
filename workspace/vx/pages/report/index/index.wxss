@@ -1,3 +1,9 @@
+.report-search { position: sticky; top: 0; z-index: 14; display: flex; align-items: center; gap: 14rpx; padding: 18rpx 24rpx; background: rgba(244, 246, 248, 0.98); border-bottom: 1rpx solid #e2e8ee; }
+.filter-shell { top: 113rpx; z-index: 13; }
+.search-shell { display: flex; align-items: center; min-width: 0; height: 76rpx; flex: 1; gap: 12rpx; padding: 0 18rpx; background: #ffffff; border: 1rpx solid #dfe4e9; border-radius: 8rpx; }
+.search-shell input { min-width: 0; height: 100%; flex: 1; color: #202a36; font-size: 27rpx; }
+.search-clear { display: flex; align-items: center; justify-content: center; width: 52rpx; height: 52rpx; flex: 0 0 52rpx; }
+.search-button { display: flex; align-items: center; justify-content: center; width: 108rpx; height: 76rpx; min-height: 76rpx; margin: 0; padding: 0; color: #ffffff; background: #2d8cf0; border-radius: 8rpx; font-size: 27rpx; line-height: 76rpx; }
 .list-page { padding-top: 18rpx; }
 .reference-filter-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); min-height: 90rpx; }
 .reference-filter { display: flex; align-items: center; justify-content: center; min-width: 0; height: 90rpx; gap: 6rpx; color: #69747f; font-size: 28rpx; font-weight: 600; line-height: 1.2; }

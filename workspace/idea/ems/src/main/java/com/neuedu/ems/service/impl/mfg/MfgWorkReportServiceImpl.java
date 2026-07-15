@@ -74,7 +74,7 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
      * 分页查询生产报工，支持编号、任务、人员、工位和审核状态筛选。
      * @param current 当前页码
      * @param size 每页记录数
-     * @param keyword 报工编号关键字
+     * @param keyword 报工编号或任务编号关键字
      * @param taskId 任务ID
      * @param operatorId 操作工ID
      * @param stationId 工位ID
@@ -450,13 +450,18 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
                                                                    Long stationId, String auditStatus) {
         LambdaQueryWrapper<MfgWorkReport> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(MfgWorkReport::getDeletedFlag, 0)
-                .like(StringUtils.hasText(keyword), MfgWorkReport::getReportNo, keyword)
                 .eq(taskId != null, MfgWorkReport::getTaskId, taskId)
                 .eq(operatorId != null, MfgWorkReport::getOperatorId, operatorId)
                 .eq(stationId != null, MfgWorkReport::getStationId, stationId)
                 .eq(StringUtils.hasText(auditStatus), MfgWorkReport::getAuditStatus, auditStatus)
                 .orderByDesc(MfgWorkReport::getReportTime)
                 .orderByDesc(MfgWorkReport::getCreatedTime);
+        if (StringUtils.hasText(keyword)) {
+            queryWrapper.and(search -> search.like(MfgWorkReport::getReportNo, keyword)
+                    .or()
+                    .apply("task_id IN (SELECT task_id FROM mfg_task WHERE deleted_flag = 0 "
+                            + "AND task_no LIKE CONCAT('%', {0}, '%'))", keyword));
+        }
         applyDataScope(queryWrapper);
         return queryWrapper;
     }

@@ -19,7 +19,8 @@ INSERT INTO `tmp_p0_production_permission` VALUES
   ('mfg:production-order:view','mfg:production-order:release','下达生产订单'),
   ('mfg:production-plan:view','mfg:production-plan:generate','生成生产计划'),
   ('mfg:work-order:view','mfg:work-order:generate','生成生产工单'),
-  ('mfg:work-order:view','mfg:work-order:release','下达生产工单');
+  ('mfg:work-order:view','mfg:work-order:release','下达生产工单'),
+  ('mfg:work-order:view','mfg:work-order:start','开始生产工单');
 
 INSERT INTO `sys_menu`
   (`parent_id`, `menu_name`, `menu_type`, `permission_code`, `route_path`, `remark`,
@@ -48,10 +49,13 @@ INSERT INTO `tmp_p0_production_role_permission` VALUES
   ('SUPER_ADMIN','mfg:production-plan:generate'),
   ('SUPER_ADMIN','mfg:work-order:generate'),
   ('SUPER_ADMIN','mfg:work-order:release'),
+  ('SUPER_ADMIN','mfg:work-order:start'),
   ('MES_MANAGER','mfg:production-order:release'),
   ('MES_MANAGER','mfg:production-plan:generate'),
   ('MES_MANAGER','mfg:work-order:generate'),
   ('MES_MANAGER','mfg:work-order:release'),
+  ('MES_MANAGER','mfg:work-order:start'),
+  ('PRODUCTION_SUPERVISOR','mfg:work-order:start'),
   ('PLAN_SCHEDULER','mfg:production-order:release'),
   ('PLAN_SCHEDULER','mfg:production-plan:generate');
 
@@ -98,7 +102,8 @@ WHERE permission.`permission_code` IN (
   'mfg:production-order:release',
   'mfg:production-plan:generate',
   'mfg:work-order:generate',
-  'mfg:work-order:release'
+  'mfg:work-order:release',
+  'mfg:work-order:start'
 ) AND permission.`deleted_flag` = 0
 GROUP BY permission.`permission_code`
 ORDER BY permission.`permission_code`;

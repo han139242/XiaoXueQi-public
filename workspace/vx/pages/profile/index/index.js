@@ -13,6 +13,8 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null
+    if (tabBar) tabBar.setData({ currentPath: '/pages/profile/index/index' })
     this.loadUser()
   },
 

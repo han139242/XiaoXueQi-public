@@ -386,6 +386,7 @@ INSERT INTO `tmp_renix_special_permission` VALUES
   ('mfg-production-plan','mfg:production-plan:generate','生成生产计划'),
   ('mfg-work-order','mfg:work-order:generate','生成生产工单'),
   ('mfg-work-order','mfg:work-order:release','下达生产工单'),
+  ('mfg-work-order','mfg:work-order:start','开始生产工单'),
   ('mfg-task','mfg:task:start','开始生产任务'),
   ('mfg-task','mfg:task:finish','完成生产任务'),
   ('mfg-work-report','mfg:work-report:submit','提交生产报工'),
@@ -472,6 +473,7 @@ INSERT INTO `tmp_renix_role_pattern` VALUES
   ('PRODUCTION_SUPERVISOR','wms:%:view'),('PRODUCTION_SUPERVISOR','qms:%:view'),
   ('PRODUCTION_SUPERVISOR','eam:%:view'),('PRODUCTION_SUPERVISOR','trace:%:view'),
   ('PRODUCTION_SUPERVISOR','mfg:dispatch-order:%'),('PRODUCTION_SUPERVISOR','mfg:task:%'),
+  ('PRODUCTION_SUPERVISOR','mfg:work-order:start'),
   ('PRODUCTION_SUPERVISOR','mfg:task-operator:%'),('PRODUCTION_SUPERVISOR','mfg:work-report:%'),
   ('PRODUCTION_SUPERVISOR','mfg:report-material:%'),('PRODUCTION_SUPERVISOR','mfg:exception:%'),
   ('PRODUCTION_SUPERVISOR','mfg:andon-alert:%'),('PRODUCTION_SUPERVISOR','dashboard:%'),
@@ -528,6 +530,21 @@ CROSS JOIN (
   UNION ALL SELECT 'sys:notification:ack'
 ) permission_seed
 ON DUPLICATE KEY UPDATE `permission_pattern` = VALUES(`permission_pattern`);
+
+-- Mini program cross-domain read access and lookup dependencies.
+INSERT INTO `tmp_renix_role_pattern` VALUES
+  ('PRODUCTION_OPERATOR','mfg:production-plan:view'),('PRODUCTION_OPERATOR','mfg:work-order:view'),
+  ('PRODUCTION_OPERATOR','mdm:product:view'),('PRODUCTION_OPERATOR','process:operation:view'),
+  ('PRODUCTION_OPERATOR','factory:station:view'),
+  ('QUALITY_ENGINEER','trace:barcode:scan'),
+  ('WAREHOUSE_MANAGER','trace:barcode:scan'),('WAREHOUSE_MANAGER','eam:equipment:view'),
+  ('WAREHOUSE_MANAGER','eam:repair-order:view'),('WAREHOUSE_MANAGER','factory:station:view'),
+  ('WAREHOUSE_MANAGER','org:employee:view'),
+  ('EQUIPMENT_ENGINEER','trace:barcode:scan'),('EQUIPMENT_ENGINEER','wms:inbound-order:view'),
+  ('EQUIPMENT_ENGINEER','wms:inbound-detail:view'),('EQUIPMENT_ENGINEER','wms:outbound-order:view'),
+  ('EQUIPMENT_ENGINEER','wms:outbound-detail:view'),('EQUIPMENT_ENGINEER','wms:inventory:view'),
+  ('EQUIPMENT_ENGINEER','wms:warehouse:view'),('EQUIPMENT_ENGINEER','wms:location:view'),
+  ('EQUIPMENT_ENGINEER','wms:material-batch:view');
 
 INSERT INTO `sys_role_menu`
   (`role_id`, `menu_id`, `created_by`, `created_time`, `deleted_flag`)

@@ -12,6 +12,13 @@ const sortOptions = [
   { value: 'oldest', label: '最早创建' }
 ]
 
+const statusOptions = [
+  { value: '', label: '全部状态' },
+  { value: 'WAIT_START', label: '待开工' },
+  { value: 'RUNNING', label: '生产中' },
+  { value: 'FINISHED', label: '已完工' }
+]
+
 function findItem(lookup, id) {
   return lookup && Array.isArray(lookup.items)
     ? lookup.items.find((item) => String(item.id) === String(id))
@@ -38,7 +45,9 @@ Page({
     loading: false,
     finished: false,
     error: '',
-    filters: { employeeId: '', operationId: '', sort: '' },
+    filters: { employeeId: '', operationId: '', status: '', sort: '' },
+    statusOptions,
+    statusIndex: 0,
     employeeOptions: [{ id: '', label: '全部人员' }],
     employeeIndex: 0,
     sortOptions,
@@ -56,6 +65,8 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null
+    if (tabBar) tabBar.setData({ currentPath: '/pages/task/index/index' })
     if (this.data.list.length && !this.data.loading) this.loadPage(true)
   },
 
@@ -81,8 +92,8 @@ Page({
   },
 
   buildDropdownOptions(field) {
-    const indexMap = { employee: 'employeeIndex', sort: 'sortIndex', operation: 'operationIndex' }
-    const optionsMap = { employee: this.data.employeeOptions, sort: this.data.sortOptions, operation: this.data.operationOptions }
+    const indexMap = { status: 'statusIndex', employee: 'employeeIndex', sort: 'sortIndex', operation: 'operationIndex' }
+    const optionsMap = { status: this.data.statusOptions, employee: this.data.employeeOptions, sort: this.data.sortOptions, operation: this.data.operationOptions }
     const selectedIndex = this.data[indexMap[field]]
     return (optionsMap[field] || []).map((item, index) => ({ ...item, index, selected: index === selectedIndex }))
   },
@@ -91,6 +102,11 @@ Page({
     const field = event.currentTarget.dataset.field
     const index = Number(event.currentTarget.dataset.index)
     this.closeDropdown()
+    if (field === 'status') {
+      this.setData({ statusIndex: index, 'filters.status': statusOptions[index].value })
+      this.loadPage(true)
+      return
+    }
     if (field === 'employee') {
       const option = this.data.employeeOptions[index]
       this.setData({ employeeIndex: index, 'filters.employeeId': option.id })
@@ -116,7 +132,7 @@ Page({
   async ensureLookups() {
     const [lookups, planPage] = await Promise.all([
       lookupApi.load(['workOrder', 'operation', 'station', 'employee', 'product']),
-      productionPlanApi.page({ current: 1, size: 500 })
+      productionPlanApi.page({ current: 1, size: 500 }).catch(() => ({ records: [] }))
     ])
     const plans = planPage && Array.isArray(planPage.records) ? planPage.records : []
     lookups.productionPlan = { items: plans.map((item) => ({ id: item.planId, ...item })) }

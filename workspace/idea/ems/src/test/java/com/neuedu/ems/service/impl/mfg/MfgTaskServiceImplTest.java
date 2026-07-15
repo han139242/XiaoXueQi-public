@@ -5,9 +5,11 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgWorkReport;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,6 +37,7 @@ class MfgTaskServiceImplTest {
     private MfgTaskMapper taskMapper;
     private SysStatusChangeLogMapper statusLogMapper;
     private SysOperationLogMapper operationLogMapper;
+    private MfgWorkReportMapper workReportMapper;
 
     @BeforeEach
     void setUp() {
@@ -41,9 +45,11 @@ class MfgTaskServiceImplTest {
         taskMapper = mock(MfgTaskMapper.class);
         statusLogMapper = mock(SysStatusChangeLogMapper.class);
         operationLogMapper = mock(SysOperationLogMapper.class);
+        workReportMapper = mock(MfgWorkReportMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", taskMapper);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
+        ReflectionTestUtils.setField(service, "mfgWorkReportMapper", workReportMapper);
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
         when(operationLogMapper.insert(any(SysOperationLog.class))).thenReturn(1);
     }
@@ -113,7 +119,32 @@ class MfgTaskServiceImplTest {
         assertTrue(sql.contains("mfg_task_operator"));
         assertTrue(sql.contains("employee_id = 1001"));
         assertTrue(sql.contains("deleted_flag = 0"));
+        assertTrue(sql.contains("mfg_work_order"));
+        assertTrue(sql.contains("'RUNNING', 'FINISHED', 'CLOSED'"));
         assertTrue(sql.contains("ORDER BY created_time ASC"));
+    }
+
+    @Test
+    void workOrderDetailQueryKeepsPreProductionTasksVisible() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"), MfgTask.class);
+        LambdaQueryWrapper<MfgTask> query = ReflectionTestUtils.invokeMethod(
+                service, "buildTaskQuery", null, null, null, 66L, null, null, null, "oldest");
+
+        assertFalse(query.getSqlSegment().contains("mfg_work_order"));
+    }
+
+    @Test
+    void detailIncludesSubmittedAndApprovedReportTotals() {
+        MfgTask task = task(BusinessStatus.Production.RUNNING);
+        MfgWorkReport submitted = report("12", "1", "SUBMITTED");
+        MfgWorkReport approved = report("8", "2", "APPROVED");
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        when(workReportMapper.selectList(any())).thenReturn(List.of(submitted, approved));
+
+        MfgTask result = service.getTaskById(1L);
+
+        assertEquals(new BigDecimal("20"), result.getReportedQualifiedQuantity());
+        assertEquals(new BigDecimal("3"), result.getReportedDefectQuantity());
     }
 
     private MfgTask task(String status) {
@@ -121,5 +152,14 @@ class MfgTaskServiceImplTest {
         task.setTaskId(1L);
         task.setStatus(status);
         return task;
+    }
+
+    private MfgWorkReport report(String qualified, String defect, String auditStatus) {
+        MfgWorkReport report = new MfgWorkReport();
+        report.setTaskId(1L);
+        report.setQualifiedQuantity(new BigDecimal(qualified));
+        report.setDefectQuantity(new BigDecimal(defect));
+        report.setAuditStatus(auditStatus);
+        return report;
     }
 }

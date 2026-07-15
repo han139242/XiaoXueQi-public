@@ -13,6 +13,7 @@
 }
 
 .tab-item {
+  position: relative;
   display: flex;
   min-width: 0;
   flex: 1;
@@ -26,6 +27,17 @@
 
 .tab-item.is-active {
   color: #2d8cf0;
+  font-weight: 600;
+}
+
+.tab-item.is-active::before {
+  position: absolute;
+  top: 0;
+  width: 36rpx;
+  height: 5rpx;
+  border-radius: 0 0 4rpx 4rpx;
+  background: #2d8cf0;
+  content: '';
 }
 
 .tab-icon {

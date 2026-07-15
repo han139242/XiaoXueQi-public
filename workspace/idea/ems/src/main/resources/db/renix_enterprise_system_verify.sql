@@ -57,10 +57,10 @@ FROM (
            GROUP BY user.`user_id`
            HAVING COUNT(relation.`id`) <> 1
          ) invalid_user_role) AS CHAR)
-  UNION ALL SELECT 'rbac', 'permission nodes', '435',
+  UNION ALL SELECT 'rbac', 'permission nodes', '436',
          CAST((SELECT COUNT(*) FROM `sys_menu`
                WHERE `deleted_flag` = 0) AS CHAR)
-  UNION ALL SELECT 'rbac', 'directory/resource/hidden/special/button shape', '435',
+  UNION ALL SELECT 'rbac', 'directory/resource/hidden/special/button shape', '436',
          CAST((SELECT
            (SELECT COUNT(*) FROM `sys_menu`
             WHERE `menu_type` = 'DIRECTORY' AND `remark` = 'RENIX_RBAC_V1: 业务域目录' AND `deleted_flag` = 0)
@@ -78,7 +78,7 @@ FROM (
               WHERE `remark` LIKE 'RBAC_PERMISSION_V2:%' AND `deleted_flag` = 0)
            + (SELECT COUNT(*) FROM `sys_menu`
               WHERE `remark` LIKE 'P0_PRODUCTION_FLOW_PERMISSION_V1:%' AND `deleted_flag` = 0)) AS CHAR)
-  UNION ALL SELECT 'rbac', 'active role-permission relations', '1227',
+  UNION ALL SELECT 'rbac', 'active role-permission relations', '1250',
          CAST((SELECT COUNT(*) FROM `sys_role_menu` relation
                JOIN `sys_role` role ON role.`role_id` = relation.`role_id` AND role.`deleted_flag` = 0
                JOIN `sys_menu` menu ON menu.`menu_id` = relation.`menu_id` AND menu.`deleted_flag` = 0
@@ -102,7 +102,7 @@ FROM (
               LEFT JOIN `sys_menu` parent ON parent.`menu_id` = child.`parent_id` AND parent.`deleted_flag` = 0
               WHERE child.`deleted_flag` = 0 AND child.`parent_id` IS NOT NULL AND parent.`menu_id` IS NULL)) AS CHAR)
 
-  UNION ALL SELECT 'permission', 'required allows', '5',
+  UNION ALL SELECT 'permission', 'required allows', '6',
          CAST((SELECT COUNT(*) FROM `sys_role` role
                JOIN `sys_role_menu` relation
                  ON relation.`role_id` = role.`role_id` AND relation.`deleted_flag` = 0
@@ -113,7 +113,36 @@ FROM (
                  ROW('WAREHOUSE_MANAGER','wms:outbound-order:confirm'),
                  ROW('QUALITY_ENGINEER','qms:nonconforming-order:approve'),
                  ROW('EQUIPMENT_ENGINEER','eam:repair-order:close'),
-                 ROW('PLAN_SCHEDULER','mfg:production-order:create')
+                 ROW('PLAN_SCHEDULER','mfg:production-order:create'),
+                 ROW('PRODUCTION_SUPERVISOR','mfg:work-order:start')
+                )) AS CHAR)
+  UNION ALL SELECT 'permission', 'miniprogram role access allows', '20',
+         CAST((SELECT COUNT(*) FROM `sys_role` role
+               JOIN `sys_role_menu` relation
+                 ON relation.`role_id` = role.`role_id` AND relation.`deleted_flag` = 0
+               JOIN `sys_menu` menu
+                 ON menu.`menu_id` = relation.`menu_id` AND menu.`deleted_flag` = 0
+               WHERE (role.`role_code`, menu.`permission_code`) IN (
+                 ROW('PRODUCTION_OPERATOR','mfg:production-plan:view'),
+                 ROW('PRODUCTION_OPERATOR','mfg:work-order:view'),
+                 ROW('PRODUCTION_OPERATOR','mdm:product:view'),
+                 ROW('PRODUCTION_OPERATOR','process:operation:view'),
+                 ROW('PRODUCTION_OPERATOR','factory:station:view'),
+                 ROW('QUALITY_ENGINEER','trace:barcode:scan'),
+                 ROW('WAREHOUSE_MANAGER','trace:barcode:scan'),
+                 ROW('WAREHOUSE_MANAGER','eam:equipment:view'),
+                 ROW('WAREHOUSE_MANAGER','eam:repair-order:view'),
+                 ROW('WAREHOUSE_MANAGER','factory:station:view'),
+                 ROW('WAREHOUSE_MANAGER','org:employee:view'),
+                 ROW('EQUIPMENT_ENGINEER','trace:barcode:scan'),
+                 ROW('EQUIPMENT_ENGINEER','wms:inbound-order:view'),
+                 ROW('EQUIPMENT_ENGINEER','wms:inbound-detail:view'),
+                 ROW('EQUIPMENT_ENGINEER','wms:outbound-order:view'),
+                 ROW('EQUIPMENT_ENGINEER','wms:outbound-detail:view'),
+                 ROW('EQUIPMENT_ENGINEER','wms:inventory:view'),
+                 ROW('EQUIPMENT_ENGINEER','wms:warehouse:view'),
+                 ROW('EQUIPMENT_ENGINEER','wms:location:view'),
+                 ROW('EQUIPMENT_ENGINEER','wms:material-batch:view')
                )) AS CHAR)
   UNION ALL SELECT 'permission', 'required denials', '0',
          CAST((SELECT COUNT(*) FROM `sys_role` role
@@ -127,9 +156,14 @@ FROM (
                  ROW('PRODUCTION_OPERATOR','qms:nonconforming-order:approve'),
                  ROW('PRODUCTION_OPERATOR','eam:repair-order:close'),
                  ROW('WAREHOUSE_MANAGER','qms:nonconforming-order:approve'),
-                 ROW('QUALITY_ENGINEER','sys:user:reset-password'),
-                 ROW('EQUIPMENT_ENGINEER','wms:outbound-order:confirm'),
-                 ROW('PLAN_SCHEDULER','sys:role:assign-menu')
+                  ROW('QUALITY_ENGINEER','sys:user:reset-password'),
+                  ROW('EQUIPMENT_ENGINEER','wms:outbound-order:confirm'),
+                  ROW('EQUIPMENT_ENGINEER','wms:inbound-order:confirm'),
+                  ROW('WAREHOUSE_MANAGER','eam:equipment:update'),
+                  ROW('WAREHOUSE_MANAGER','eam:repair-order:assign'),
+                  ROW('WAREHOUSE_MANAGER','eam:repair-order:close'),
+                  ROW('PRODUCTION_OPERATOR','mfg:work-order:start'),
+                  ROW('PLAN_SCHEDULER','sys:role:assign-menu')
                )) AS CHAR)
 
   UNION ALL SELECT 'dictionary', 'enabled dictionary types', '45',

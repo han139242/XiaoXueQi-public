@@ -5,7 +5,7 @@
 
 .reference-filter-bar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   min-height: 90rpx;
 }
 
@@ -15,10 +15,10 @@
   justify-content: center;
   min-width: 0;
   height: 90rpx;
-  gap: 7rpx;
-  padding: 0 8rpx;
+  gap: 4rpx;
+  padding: 0 4rpx;
   color: #59636e;
-  font-size: 29rpx;
+  font-size: 27rpx;
   line-height: 1.2;
 }
 

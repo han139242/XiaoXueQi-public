@@ -1,6 +1,7 @@
 package com.neuedu.ems.service.impl.mfg;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
@@ -8,12 +9,14 @@ import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
+import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgWorkOrderService;
@@ -40,6 +43,9 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
 
     @Autowired
     private MfgProductionOrderMapper productionOrderMapper;
+
+    @Autowired
+    private MfgTaskMapper mfgTaskMapper;
 
     @Autowired
     private SysStatusChangeLogMapper sysStatusChangeLogMapper;
@@ -221,6 +227,48 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
         return getWorkOrderById(workOrderId);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MfgWorkOrder startWorkOrder(Long workOrderId, Long operatorId) {
+        MfgWorkOrder existing = getWorkOrderById(workOrderId);
+        if (existing == null) {
+            throw business(ResultCode.NOT_FOUND, "生产工单不存在或已删除");
+        }
+        if (!BusinessStatus.Document.RELEASED.equals(existing.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有待开始的已下达工单可以开始生产");
+        }
+        if (operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "操作人不能为空");
+        }
+        long taskCount = mfgTaskMapper.selectCount(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getWorkOrderId, workOrderId)
+                .eq(MfgTask::getDeletedFlag, 0));
+        if (taskCount == 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "工单尚未生成工序任务，不能开始生产");
+        }
+        long nonWaitingTaskCount = mfgTaskMapper.selectCount(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getWorkOrderId, workOrderId)
+                .eq(MfgTask::getDeletedFlag, 0)
+                .ne(MfgTask::getStatus, BusinessStatus.Production.WAIT_START));
+        if (nonWaitingTaskCount > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "工单存在非待开始工序任务，请先修正任务状态");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        MfgWorkOrder update = new MfgWorkOrder();
+        update.setWorkOrderId(workOrderId);
+        update.setStatus(BusinessStatus.Production.RUNNING);
+        update.setVersion(existing.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (baseMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产工单已被其他用户修改，请刷新后重试");
+        }
+        insertStatusLog(workOrderId, existing.getStatus(), BusinessStatus.Production.RUNNING,
+                "START_WORK_ORDER", operatorId, null, now);
+        insertOperationLog(workOrderId, "START_WORK_ORDER", operatorId, null, now);
+        return getWorkOrderById(workOrderId);
+    }
+
     /**
      * 查询生产工单列表，支持关键字搜索、状态筛选、生产计划筛选和产品筛选。
      * @param keyword 关键字（匹配工单编号）
@@ -249,7 +297,12 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
             wrapper.like("work_order_no", keyword);
         }
         if (StringUtils.hasText(status)) {
-            wrapper.eq("status", status);
+            if (BusinessStatus.Production.WAIT_START.equals(status)) {
+                wrapper.in("status", BusinessStatus.Document.DRAFT, BusinessStatus.Document.APPROVED,
+                        BusinessStatus.Document.RELEASED, BusinessStatus.Production.WAIT_START);
+            } else {
+                wrapper.eq("status", status);
+            }
         }
         if (planId != null) {
             wrapper.eq("plan_id", planId);
