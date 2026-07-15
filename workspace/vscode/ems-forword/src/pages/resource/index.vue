@@ -37,6 +37,11 @@ const submitting = ref(false)
 const exporting = ref(false)
 const rows = ref([])
 const total = ref(0)
+const mainTableRef = ref()
+const selectedRow = ref(null)
+const detailRows = ref([])
+const detailLoading = ref(false)
+const detailError = ref('')
 const dataMode = ref(previewMode ? 'preview' : 'live')
 const filters = reactive({})
 const columnVisibility = reactive({})
@@ -59,6 +64,7 @@ const traceData = ref(null)
 const uploadOpen = ref(false)
 const uploadFile = ref(null)
 const uploadMeta = reactive({ bizType: '', bizId: null })
+const alertCounts = reactive({})
 
 const permissions = computed(() => {
   const configured = { create: true, edit: true, delete: true, export: true, ...config.value.permissions }
@@ -93,40 +99,34 @@ const traceEntries = computed(() => {
   if (!traceData.value || typeof traceData.value !== 'object') return []
   return Object.entries(traceData.value)
 })
-const stateField = computed(() => {
-  const priorities = ['auditStatus', 'stocktakeStatus', 'approvalStatus', 'qualityStatus', 'runningStatus', 'inspectionResult', 'status']
-  return priorities.map((prop) => tableFields.value.find((item) => item.prop === prop && item.options?.length)).find(Boolean)
-})
 const localDataMode = computed(() => dataMode.value !== 'live')
 const dataSourceLabel = computed(() => {
   if (dataMode.value === 'preview') return '开发预览'
   if (dataMode.value === 'mock') return '本地测试数据'
   return '实时接口'
 })
-const pulseRows = computed(() => config.value.treeEndpoint ? flattenTree(rows.value) : rows.value)
-const pagePulse = computed(() => {
-  const metrics = [{
-    key: 'records',
-    label: config.value.treeEndpoint ? '全部节点' : '当前页',
-    value: pulseRows.value.length,
-    type: 'primary'
-  }]
-  if (stateField.value) {
-    return metrics.concat(stateField.value.options.map((item) => ({
-      key: `${stateField.value.prop}-${item.value}`,
-      label: item.label,
-      value: pulseRows.value.filter((row) => String(row[stateField.value.prop]) === String(item.value)).length,
-      type: item.type || 'info'
-    })))
-  }
-  const quantityFields = tableFields.value.filter((item) => item.type === 'number' && /(Quantity|Hours|Cost)$/.test(item.prop)).slice(0, 3)
-  return metrics.concat(quantityFields.map((item) => ({
-    key: item.prop,
-    label: item.label,
-    value: pulseRows.value.reduce((sum, row) => sum + Number(row[item.prop] || 0), 0),
-    type: 'info'
-  })))
+const alertRules = computed(() => config.value.alerts || [])
+const activeAlerts = computed(() => alertRules.value
+  .map((item) => ({ ...item, count: Number(alertCounts[item.key] || 0) }))
+  .filter((item) => item.count > 0))
+const detailConfig = computed(() => config.value.masterDetail || null)
+const detailResourceConfig = computed(() => detailConfig.value ? getResourceConfig(detailConfig.value.resource) : null)
+const detailTableFields = computed(() => {
+  if (!detailResourceConfig.value) return []
+  const configuredFields = detailConfig.value.fields
+  return detailResourceConfig.value.fields.filter((item) => item.table !== false
+    && item.prop !== detailConfig.value.parentField
+    && (!configuredFields || configuredFields.includes(item.prop)))
 })
+const detailViewAllowed = computed(() => detailConfig.value
+  && hasPermission(resourcePermission(detailConfig.value.resource, 'view')))
+const selectedRowLabel = computed(() => {
+  if (!selectedRow.value || !detailConfig.value) return ''
+  if (detailConfig.value.label) return detailConfig.value.label(selectedRow.value)
+  return String(selectedRow.value[config.value.idField] ?? '')
+})
+let detailRequestId = 0
+let syncingCurrentRow = false
 
 function rulesFor(fields, mode) {
   return Object.fromEntries(fields.map((item) => {
@@ -159,10 +159,6 @@ function formatValue(field, value, row) {
   return String(value)
 }
 
-function formatMetric(value) {
-  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(Number(value || 0))
-}
-
 function cleanParams(source) {
   return Object.fromEntries(Object.entries(source).filter(([, value]) => value !== '' && value !== null && value !== undefined))
 }
@@ -170,6 +166,28 @@ function cleanParams(source) {
 function resourceUrl(path = '') {
   if (!path) return config.value.baseUrl
   return `${config.value.baseUrl}${String(path).startsWith('/') ? path : `/${path}`}`
+}
+
+function tableColumnWidth(field) {
+  if (field.width) return field.width
+  if (field.type === 'datetime') return 168
+  if (field.type === 'date') return 126
+  if (field.type === 'number') return 112
+  if (field.type === 'reference') return 158
+  if (field.options?.length) return 108
+  if (field.type === 'textarea') return 240
+  if (/(Code|No)$/.test(field.prop)) return 184
+  if (/(Name|Title)$/.test(field.prop)) return 152
+  return 136
+}
+
+function isMultilineField(field) {
+  return field.cellLines === 2 || field.type === 'textarea'
+}
+
+function tableRowClassName({ row }) {
+  const tone = config.value.rowTone?.(row)
+  return tone ? `is-${tone}-row` : ''
 }
 
 function applyLocalRows(mode = 'mock') {
@@ -207,7 +225,9 @@ function initColumns() {
     stored = {}
   }
   tableFields.value.forEach((item) => {
-    columnVisibility[item.prop] = stored[item.prop] !== false
+    columnVisibility[item.prop] = Object.prototype.hasOwnProperty.call(stored, item.prop)
+      ? stored[item.prop] !== false
+      : item.defaultVisible !== false
   })
 }
 
@@ -217,7 +237,7 @@ function saveColumns() {
 
 function resetColumns() {
   tableFields.value.forEach((item) => {
-    columnVisibility[item.prop] = true
+    columnVisibility[item.prop] = item.defaultVisible !== false
   })
   saveColumns()
 }
@@ -232,8 +252,74 @@ function initForm(row = {}) {
 
 function collectReferenceFields() {
   const actionFields = [...(config.value.actions || []), ...(config.value.globalActions || [])].flatMap((item) => item.fields || [])
-  return [...config.value.fields, ...config.value.filters, ...actionFields, ...childFields.value]
+  return [...config.value.fields, ...config.value.filters, ...actionFields, ...childFields.value, ...detailTableFields.value]
     .filter((item) => item.type === 'reference' && item.reference)
+}
+
+function clearMasterDetail() {
+  detailRequestId += 1
+  selectedRow.value = null
+  detailRows.value = []
+  detailError.value = ''
+  detailLoading.value = false
+  mainTableRef.value?.setCurrentRow()
+}
+
+async function loadMasterDetail(row) {
+  if (!detailConfig.value || !detailViewAllowed.value || !row) return
+  const url = detailConfig.value.endpoint(row)
+  if (!hasRequestPermission('get', url)) return
+
+  const requestId = ++detailRequestId
+  detailLoading.value = true
+  detailError.value = ''
+  try {
+    if (localDataMode.value) {
+      detailRows.value = createPreviewRows(detailResourceConfig.value, 4).map((item) => ({
+        ...item,
+        [detailConfig.value.parentField]: row[config.value.idField]
+      }))
+      return
+    }
+    const result = await getResourceList(url, detailConfig.value.params?.(row))
+    if (requestId !== detailRequestId) return
+    const data = result?.data
+    detailRows.value = Array.isArray(data) ? data : data?.records || []
+  } catch (error) {
+    if (requestId !== detailRequestId) return
+    detailRows.value = []
+    detailError.value = error?.displayMessage || error?.message || '明细加载失败'
+  } finally {
+    if (requestId === detailRequestId) detailLoading.value = false
+  }
+}
+
+function handleCurrentRowChange(row) {
+  if (!detailConfig.value || !detailViewAllowed.value || syncingCurrentRow) return
+  selectedRow.value = row || null
+  if (!row) {
+    detailRows.value = []
+    detailError.value = ''
+    return
+  }
+  loadMasterDetail(row)
+}
+
+async function restoreMasterSelection(selectedId) {
+  if (!detailConfig.value || !detailViewAllowed.value) return
+  const matched = selectedId === null || selectedId === undefined
+    ? null
+    : rows.value.find((row) => String(row[config.value.idField]) === String(selectedId))
+  if (!matched) {
+    clearMasterDetail()
+    return
+  }
+  selectedRow.value = matched
+  await nextTick()
+  syncingCurrentRow = true
+  mainTableRef.value?.setCurrentRow(matched)
+  syncingCurrentRow = false
+  await loadMasterDetail(matched)
 }
 
 async function loadReferences() {
@@ -246,12 +332,14 @@ async function loadReferences() {
 }
 
 async function loadData() {
+  const selectedId = selectedRow.value?.[config.value.idField]
   loading.value = true
   loadError.value = ''
   dataMode.value = previewMode ? 'preview' : 'live'
   try {
     if (previewMode) {
       applyLocalRows('preview')
+      await restoreMasterSelection(selectedId)
       return
     }
     const params = cleanParams({ current: pagination.current, size: pagination.size, ...filters })
@@ -271,17 +359,59 @@ async function loadData() {
     if (total.value === 0 && mockFallbackEnabled) {
       applyLocalRows('mock')
     }
+    await restoreMasterSelection(selectedId)
   } catch (error) {
     if (mockFallbackEnabled) {
       applyLocalRows('mock')
+      await restoreMasterSelection(selectedId)
       return
     }
     rows.value = []
     total.value = 0
+    clearMasterDetail()
     loadError.value = error?.displayMessage || error?.message || '数据加载失败'
   } finally {
     loading.value = false
   }
+}
+
+async function loadAlerts() {
+  Object.keys(alertCounts).forEach((key) => delete alertCounts[key])
+  if (!alertRules.value.length) return
+
+  if (localDataMode.value) {
+    alertRules.value.forEach((rule) => {
+      alertCounts[rule.key] = rows.value.filter((row) => Object.entries(rule.filters || {})
+        .every(([key, value]) => String(row[key]) === String(value))).length
+    })
+    return
+  }
+
+  const results = await Promise.allSettled(alertRules.value.map(async (rule) => {
+    const result = await getResourcePage(
+      config.value.baseUrl,
+      { current: 1, size: 1, ...(rule.filters || {}) },
+      { suppressErrorMessage: true }
+    )
+    return [rule.key, Number(result?.data?.total || 0)]
+  }))
+  results.forEach((result) => {
+    if (result.status === 'fulfilled') alertCounts[result.value[0]] = result.value[1]
+  })
+}
+
+async function refreshData() {
+  await loadData()
+  await loadAlerts()
+}
+
+function applyAlertFilter(rule) {
+  config.value.filters.forEach((item) => {
+    filters[item.prop] = ''
+  })
+  Object.assign(filters, rule.filters || {})
+  pagination.current = 1
+  loadData()
 }
 
 function handleSearch() {
@@ -421,7 +551,7 @@ async function submitForm() {
     clearReferenceOptions(config.value.key)
     ElMessage.success(`${formMode.value === 'create' ? '新增' : '保存'}成功`)
     formOpen.value = false
-    if (!localDataMode.value) await loadData()
+    if (!localDataMode.value) await refreshData()
   } catch {
     // 请求层已经给出具体错误提示。
   } finally {
@@ -444,7 +574,7 @@ async function handleDelete(row) {
     }
     clearReferenceOptions(config.value.key)
     ElMessage.success('删除成功')
-    if (!localDataMode.value) await loadData()
+    if (!localDataMode.value) await refreshData()
   } catch {
     // 请求层已经给出具体错误提示。
   }
@@ -596,7 +726,7 @@ async function submitAction() {
     }
     ElMessage.success(`${currentAction.value.label}成功`)
     actionOpen.value = false
-    if (!localDataMode.value) await loadData()
+    if (!localDataMode.value) await refreshData()
   } catch {
     // 请求层已经给出具体错误提示。
   } finally {
@@ -617,7 +747,7 @@ async function submitUpload() {
     }
     ElMessage.success('文件上传成功')
     uploadOpen.value = false
-    await loadData()
+    await refreshData()
   } catch {
     // 请求层已经给出具体错误提示。
   } finally {
@@ -642,10 +772,11 @@ function handleSizeChange(value) {
 }
 
 async function initialize() {
+  clearMasterDetail()
   initFilters()
   initColumns()
   pagination.current = 1
-  await Promise.all([loadReferences(), loadData()])
+  await Promise.all([loadReferences(), refreshData()])
 }
 
 watch(() => route.fullPath, initialize)
@@ -654,104 +785,106 @@ onMounted(initialize)
 
 <template>
   <div v-if="config" class="mes-page resource-page">
-    <header class="resource-heading">
-      <div class="resource-title-group">
-        <span class="resource-title-icon"><AppIcon :name="config.icon" :size="22" /></span>
-        <div>
+    <section class="resource-workspace">
+      <header class="resource-commandbar">
+        <div class="resource-context">
+          <span class="resource-title-icon"><AppIcon :name="config.icon" :size="18" /></span>
           <div class="resource-title-line">
-            <h1 class="mes-page-title">{{ config.title }}</h1>
+            <h1>{{ config.title }}</h1>
+            <span class="resource-count">共 {{ total }} 条</span>
             <el-tag v-if="previewMode" size="small" type="warning" effect="plain">预览数据</el-tag>
           </div>
-          <p class="mes-page-subtitle">{{ config.description }}</p>
         </div>
-      </div>
-      <div class="resource-summary">
-        <span>当前结果</span><strong>{{ total }}</strong><small>条</small>
-      </div>
-    </header>
-
-    <section class="resource-pulse" aria-label="当前页数据态势">
-      <div class="pulse-caption">
-        <span>当前页态势</span>
-        <small>{{ config.treeEndpoint ? '树形数据' : `第 ${pagination.current} 页 · ${pagination.size} 条/页` }}</small>
-      </div>
-      <div class="pulse-metrics">
-        <div v-for="metric in pagePulse" :key="metric.key" class="pulse-metric" :class="`tone-${metric.type}`">
-          <i />
-          <span>{{ metric.label }}</span>
-          <strong>{{ formatMetric(metric.value) }}</strong>
+        <div class="resource-toolbar">
+          <div class="toolbar-primary">
+            <el-button v-if="permissions.create" type="primary" @click="openCreate"><AppIcon name="plus" :size="16" />新增</el-button>
+            <el-button
+              v-for="action in visibleGlobalActions"
+              :key="action.key"
+              :type="action.type || 'default'"
+              :plain="action.type !== 'primary'"
+              @click="openAction(action)"
+            >
+              <AppIcon :name="action.icon || 'plus'" :size="16" />{{ action.label }}
+            </el-button>
+          </div>
+          <div class="toolbar-secondary">
+            <span class="data-source" :class="{ 'is-local': localDataMode }"><i />{{ dataSourceLabel }}</span>
+            <el-tooltip content="导出 Excel" placement="top">
+              <el-button v-if="permissions.export" class="mes-icon-button" :loading="exporting" aria-label="导出 Excel" @click="handleExport"><AppIcon name="download" :size="16" /></el-button>
+            </el-tooltip>
+            <el-popover placement="bottom-end" :width="270" trigger="click">
+              <template #reference>
+                <el-button class="mes-icon-button" aria-label="设置显示字段"><AppIcon name="columns" :size="16" /></el-button>
+              </template>
+              <div class="column-settings">
+                <header><strong>显示字段</strong><el-button link type="primary" @click="resetColumns">恢复默认</el-button></header>
+                <div>
+                  <el-checkbox
+                    v-for="item in tableFields"
+                    :key="item.prop"
+                    v-model="columnVisibility[item.prop]"
+                    :disabled="visibleTableFields.length === 1 && columnVisibility[item.prop]"
+                    @change="saveColumns"
+                  >{{ item.label }}</el-checkbox>
+                </div>
+              </div>
+            </el-popover>
+            <el-tooltip content="刷新数据" placement="top">
+              <el-button class="mes-icon-button" aria-label="刷新数据" @click="refreshData"><AppIcon name="refresh" :size="16" /></el-button>
+            </el-tooltip>
+          </div>
         </div>
-      </div>
-    </section>
+      </header>
 
-    <section class="resource-search-band">
-      <div class="filter-grid">
-        <div v-for="item in visibleFilters" :key="item.prop" class="filter-item">
-          <label>{{ item.label }}</label>
-          <ResourceField v-model="filters[item.prop]" :field="item" :options="optionsFor(item)" compact @keyup.enter="handleSearch" />
+      <div class="resource-querybar">
+        <div class="filter-grid">
+          <div v-for="item in visibleFilters" :key="item.prop" class="filter-item">
+            <label>{{ item.label }}</label>
+            <ResourceField v-model="filters[item.prop]" :field="item" :options="optionsFor(item)" compact @keyup.enter="handleSearch" />
+          </div>
         </div>
-      </div>
-      <div class="filter-actions">
-        <el-button type="primary" @click="handleSearch"><AppIcon name="search" :size="15" />查询</el-button>
-        <el-button @click="resetSearch"><AppIcon name="refresh" :size="15" />重置</el-button>
-        <el-button v-if="hasExtraFilters" text @click="filterExpanded = !filterExpanded">
-          <AppIcon name="filter" :size="15" />{{ filterExpanded ? '收起条件' : `更多条件${activeFilterCount ? ` (${activeFilterCount})` : ''}` }}
-        </el-button>
-      </div>
-    </section>
-
-    <section class="resource-workspace">
-      <div class="resource-toolbar">
-        <div class="toolbar-primary">
-          <el-button v-if="permissions.create" type="primary" @click="openCreate"><AppIcon name="plus" :size="16" />新增</el-button>
-          <el-button
-            v-for="action in visibleGlobalActions"
-            :key="action.key"
-            :type="action.type || 'default'"
-            :plain="action.type !== 'primary'"
-            @click="openAction(action)"
-          >
-            <AppIcon :name="action.icon || 'plus'" :size="16" />{{ action.label }}
+        <div class="filter-actions">
+          <el-button type="primary" @click="handleSearch"><AppIcon name="search" :size="15" />查询</el-button>
+          <el-button @click="resetSearch"><AppIcon name="refresh" :size="15" />重置</el-button>
+          <el-button v-if="hasExtraFilters" text @click="filterExpanded = !filterExpanded">
+            <AppIcon name="filter" :size="15" />{{ filterExpanded ? '收起条件' : `高级查询${activeFilterCount ? ` (${activeFilterCount})` : ''}` }}
           </el-button>
         </div>
-        <div class="toolbar-secondary">
-          <span class="data-source" :class="{ 'is-local': localDataMode }"><i />{{ dataSourceLabel }}</span>
-          <el-tooltip content="导出 Excel" placement="top">
-            <el-button v-if="permissions.export" class="mes-icon-button" :loading="exporting" aria-label="导出 Excel" @click="handleExport"><AppIcon name="download" :size="16" /></el-button>
-          </el-tooltip>
-          <el-popover placement="bottom-end" :width="250" trigger="click">
-            <template #reference>
-              <el-button class="mes-icon-button" aria-label="设置显示字段"><AppIcon name="columns" :size="16" /></el-button>
-            </template>
-            <div class="column-settings">
-              <header><strong>显示字段</strong><el-button link type="primary" @click="resetColumns">重置</el-button></header>
-              <div>
-                <el-checkbox
-                  v-for="item in tableFields"
-                  :key="item.prop"
-                  v-model="columnVisibility[item.prop]"
-                  :disabled="visibleTableFields.length === 1 && columnVisibility[item.prop]"
-                  @change="saveColumns"
-                >{{ item.label }}</el-checkbox>
-              </div>
-            </div>
-          </el-popover>
-          <el-tooltip content="刷新数据" placement="top">
-            <el-button class="mes-icon-button" aria-label="刷新数据" @click="loadData"><AppIcon name="refresh" :size="16" /></el-button>
-          </el-tooltip>
+      </div>
+
+      <div v-if="activeAlerts.length" class="resource-business-alert" role="status">
+        <div class="business-alert-copy">
+          <span class="business-alert-icon"><AppIcon name="alert" :size="17" /></span>
+          <strong>需要处理</strong>
+          <span v-for="item in activeAlerts" :key="item.key">{{ item.count }} {{ item.label }}</span>
         </div>
+        <div class="business-alert-actions">
+          <el-button v-for="item in activeAlerts" :key="item.key" link type="danger" @click="applyAlertFilter(item)">
+            {{ item.actionLabel || `只看${item.shortLabel || item.label}` }}
+          </el-button>
+        </div>
+      </div>
+
+      <div v-if="loadError" class="resource-load-error" role="alert">
+        <div><AppIcon name="alert" :size="17" /><span><strong>数据加载失败</strong>{{ loadError }}</span></div>
+        <el-button type="danger" plain size="small" @click="refreshData"><AppIcon name="refresh" :size="14" />重新加载</el-button>
       </div>
 
       <el-table
+        ref="mainTableRef"
         v-loading="loading"
         :data="rows"
         :row-key="config.idField"
         :tree-props="{ children: 'children' }"
+        :row-class-name="tableRowClassName"
+        :height="detailConfig && detailViewAllowed ? 'min(38vh, 420px)' : 'min(66vh, 700px)'"
+        highlight-current-row
         default-expand-all
         stripe
         border
-        height="min(58vh, 620px)"
         class="resource-table"
+        @current-change="handleCurrentRowChange"
       >
         <el-table-column type="index" label="#" width="54" align="center" />
         <el-table-column
@@ -759,19 +892,19 @@ onMounted(initialize)
           :key="item.prop"
           :prop="item.prop"
           :label="item.label"
-          :min-width="item.width || (item.type === 'textarea' ? 190 : item.type === 'datetime' ? 168 : 128)"
+          :min-width="tableColumnWidth(item)"
           :sortable="['text', 'number', 'date', 'datetime'].includes(item.type)"
-          show-overflow-tooltip
+          :show-overflow-tooltip="!isMultilineField(item)"
         >
           <template #default="scope">
             <button v-if="index === 0" class="primary-cell" type="button" @click="openDetail(scope.row)">{{ formatValue(item, scope.row[item.prop], scope.row) }}</button>
             <el-tag v-else-if="item.options?.length" :type="optionFor(item, scope.row[item.prop])?.type || 'info'" size="small" effect="light">
               {{ formatValue(item, scope.row[item.prop], scope.row) }}
             </el-tag>
-            <span v-else :class="{ 'reference-cell': item.type === 'reference' }">{{ formatValue(item, scope.row[item.prop], scope.row) }}</span>
+            <span v-else class="cell-value" :class="{ 'reference-cell': item.type === 'reference', 'is-multiline': isMultilineField(item) }">{{ formatValue(item, scope.row[item.prop], scope.row) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="218" fixed="right" align="center">
+        <el-table-column label="操作" width="154" fixed="right" align="center">
           <template #default="scope">
             <div class="row-actions">
               <el-tooltip content="查看详情" placement="top"><el-button link type="primary" aria-label="查看详情" @click="openDetail(scope.row)"><AppIcon name="eye" :size="16" /></el-button></el-tooltip>
@@ -799,8 +932,8 @@ onMounted(initialize)
         </el-table-column>
         <template #empty>
           <div class="table-empty">
-            <el-empty :description="loadError || '暂无符合条件的数据'" :image-size="70">
-              <el-button v-if="loadError" type="primary" plain @click="loadData"><AppIcon name="refresh" :size="15" />重新加载</el-button>
+            <el-empty :description="loadError ? '数据暂不可用' : '暂无符合条件的数据'" :image-size="70">
+              <el-button v-if="loadError" type="primary" plain @click="refreshData"><AppIcon name="refresh" :size="15" />重新加载</el-button>
             </el-empty>
           </div>
         </template>
@@ -819,6 +952,53 @@ onMounted(initialize)
           @size-change="handleSizeChange"
         />
       </div>
+
+      <section v-if="detailConfig && detailViewAllowed" class="master-detail-panel">
+        <header class="master-detail-head">
+          <div>
+            <span class="master-detail-icon"><AppIcon name="link" :size="16" /></span>
+            <div>
+              <strong>{{ detailConfig.title }}</strong>
+              <small v-if="selectedRow">{{ selectedRowLabel }} · {{ detailRows.length }} 条</small>
+              <small v-else>点击上方一条记录查看对应明细</small>
+            </div>
+          </div>
+          <el-tooltip v-if="selectedRow" content="刷新明细" placement="top">
+            <el-button class="mes-icon-button" aria-label="刷新明细" :loading="detailLoading" @click="loadMasterDetail(selectedRow)"><AppIcon name="refresh" :size="15" /></el-button>
+          </el-tooltip>
+        </header>
+        <div v-if="detailError" class="master-detail-error" role="alert">
+          <div><AppIcon name="alert" :size="16" /><span><strong>明细加载失败</strong>{{ detailError }}</span></div>
+          <el-button type="danger" plain size="small" @click="loadMasterDetail(selectedRow)"><AppIcon name="refresh" :size="14" />重新加载</el-button>
+        </div>
+        <el-table
+          v-loading="detailLoading"
+          :data="detailRows"
+          :row-key="detailResourceConfig.idField"
+          border
+          stripe
+          height="min(32vh, 360px)"
+          class="resource-table master-detail-table"
+          :empty-text="selectedRow ? '当前记录暂无明细' : '请选择一条主记录'"
+        >
+          <el-table-column type="index" label="#" width="54" align="center" />
+          <el-table-column
+            v-for="item in detailTableFields"
+            :key="item.prop"
+            :prop="item.prop"
+            :label="item.label"
+            :min-width="tableColumnWidth(item)"
+            :show-overflow-tooltip="!isMultilineField(item)"
+          >
+            <template #default="scope">
+              <el-tag v-if="item.options?.length" :type="optionFor(item, scope.row[item.prop])?.type || 'info'" size="small" effect="light">
+                {{ formatValue(item, scope.row[item.prop], scope.row) }}
+              </el-tag>
+              <span v-else class="cell-value" :class="{ 'reference-cell': item.type === 'reference', 'is-multiline': isMultilineField(item) }">{{ formatValue(item, scope.row[item.prop], scope.row) }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </section>
     </section>
 
     <el-drawer v-model="formOpen" class="resource-drawer" :size="formMode === 'view' ? 'min(720px, 100vw)' : 'min(820px, 100vw)'" :with-header="false" append-to-body>
@@ -897,41 +1077,38 @@ onMounted(initialize)
 
 <style scoped>
 .resource-page { min-width: 0; }
-.resource-heading { display:flex; min-height:72px; align-items:center; justify-content:space-between; gap:20px; margin-bottom:12px; padding:0 4px; }
-.resource-title-group,.resource-title-line,.resource-summary,.resource-toolbar,.toolbar-primary,.toolbar-secondary,.filter-actions,.row-actions,.drawer-header>div,.child-editor-head,.child-editor-head>div,.data-source { display:flex; align-items:center; }
-.resource-title-group { gap:13px; }
-.resource-title-icon { display:inline-flex; width:44px; height:44px; flex:none; align-items:center; justify-content:center; color:var(--mes-primary); border:1px solid var(--mes-primary-border); border-radius:var(--mes-radius); background:var(--mes-primary-soft); }
-.resource-title-line { gap:10px; }
-.resource-summary { min-width:128px; justify-content:flex-end; gap:6px; color:var(--mes-text-muted); }
-.resource-summary strong { color:var(--mes-text); font-size:24px; font-variant-numeric:tabular-nums; }
-.resource-summary span,.resource-summary small { font-size:11px; }
-.resource-pulse { display:grid; min-height:58px; grid-template-columns:124px minmax(0,1fr); align-items:stretch; margin-bottom:12px; overflow:hidden; border:1px solid var(--mes-border); border-left:3px solid var(--mes-primary); border-radius:var(--mes-radius); background:var(--mes-surface); }
-.pulse-caption { display:flex; flex-direction:column; justify-content:center; padding:9px 14px; border-right:1px solid var(--mes-border); }
-.pulse-caption span { color:var(--mes-text); font-size:12px; font-weight:650; }
-.pulse-caption small { margin-top:3px; color:var(--mes-text-muted); font-size:9px; white-space:nowrap; }
-.pulse-metrics { display:flex; min-width:0; align-items:stretch; overflow-x:auto; }
-.pulse-metric { --pulse-color:var(--mes-text-muted); display:grid; min-width:112px; flex:1 0 112px; grid-template-columns:7px minmax(0,1fr); grid-template-rows:auto auto; align-content:center; column-gap:8px; padding:8px 14px; border-right:1px solid var(--mes-border); }
-.pulse-metric:last-child { border-right:0; }
-.pulse-metric i { width:7px; height:7px; grid-row:1/3; align-self:center; border-radius:50%; background:var(--pulse-color); box-shadow:0 0 0 3px color-mix(in srgb,var(--pulse-color) 14%,transparent); }
-.pulse-metric span { color:var(--mes-text-muted); font-size:9px; white-space:nowrap; }
-.pulse-metric strong { margin-top:1px; color:var(--mes-text); font-size:16px; font-variant-numeric:tabular-nums; }
-.pulse-metric.tone-primary { --pulse-color:var(--mes-primary); }
-.pulse-metric.tone-success { --pulse-color:var(--mes-success); }
-.pulse-metric.tone-warning { --pulse-color:var(--mes-warning); }
-.pulse-metric.tone-danger { --pulse-color:var(--mes-danger); }
-.pulse-metric.tone-info { --pulse-color:var(--mes-data); }
-.resource-search-band { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:end; margin-bottom:12px; padding:14px 16px; border:1px solid var(--mes-border); border-radius:var(--mes-radius); background:var(--mes-surface); box-shadow:var(--mes-shadow-sm); }
-.filter-grid { display:grid; min-width:0; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:11px 14px; }
-.filter-item { min-width:0; }
-.filter-item label { display:block; margin-bottom:5px; color:var(--mes-text-secondary); font-size:11px; font-weight:600; }
-.filter-actions { align-self:end; gap:7px; }
-.filter-actions :deep(.el-button) { margin:0; }
 .resource-workspace { overflow:hidden; border:1px solid var(--mes-border); border-radius:var(--mes-radius); background:var(--mes-surface); box-shadow:var(--mes-shadow-sm); }
-.resource-toolbar { min-height:52px; justify-content:space-between; gap:12px; padding:8px 12px; border-top:2px solid var(--mes-primary); border-bottom:1px solid var(--mes-border); }
+.resource-commandbar,.resource-context,.resource-title-line,.resource-toolbar,.toolbar-primary,.toolbar-secondary,.filter-actions,.row-actions,.drawer-header>div,.child-editor-head,.child-editor-head>div,.data-source,.business-alert-copy,.business-alert-actions,.resource-load-error,.resource-load-error>div,.master-detail-head,.master-detail-head>div,.master-detail-error,.master-detail-error>div { display:flex; align-items:center; }
+.resource-commandbar { min-height:56px; justify-content:space-between; gap:16px; padding:8px 12px; border-top:2px solid var(--mes-primary); border-bottom:1px solid var(--mes-border); }
+.resource-context { min-width:0; gap:10px; }
+.resource-title-icon { display:inline-flex; width:32px; height:32px; flex:none; align-items:center; justify-content:center; color:var(--mes-primary); border:1px solid var(--mes-primary-border); border-radius:4px; background:var(--mes-primary-soft); }
+.resource-title-line { min-width:0; gap:9px; }
+.resource-title-line h1 { overflow:hidden; color:var(--mes-text); font-size:16px; font-weight:680; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
+.resource-count { flex:none; color:var(--mes-text-muted); font-size:11px; font-variant-numeric:tabular-nums; }
+.resource-toolbar { min-width:0; gap:12px; }
 .toolbar-primary,.toolbar-secondary { gap:7px; }
 .toolbar-primary :deep(.el-button),.toolbar-secondary :deep(.el-button) { margin:0; }
+.resource-querybar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:12px; padding:10px 12px; border-bottom:1px solid var(--mes-border); background:#fbfcfd; }
+.filter-grid { display:flex; min-width:0; flex-wrap:wrap; gap:8px 10px; }
+.filter-item { width:clamp(180px,16vw,248px); min-width:0; }
+.filter-item label { display:block; margin-bottom:3px; color:var(--mes-text-secondary); font-size:10px; font-weight:600; }
+.filter-actions { align-self:end; gap:7px; }
+.filter-actions :deep(.el-button) { margin:0; }
 .data-source { gap:6px; margin-right:4px; color:var(--mes-text-muted); font-size:10px; }
 .data-source i { width:6px; height:6px; border-radius:50%; background:var(--mes-primary); box-shadow:0 0 0 3px var(--mes-primary-soft); }
+.data-source.is-local i { background:var(--mes-warning); box-shadow:0 0 0 3px color-mix(in srgb,var(--mes-warning) 14%,transparent); }
+.resource-business-alert { display:flex; min-height:44px; align-items:center; justify-content:space-between; gap:12px; padding:7px 12px; color:#8f3029; border-bottom:1px solid #f0bbb5; background:#fff4f2; }
+.business-alert-copy { min-width:0; flex-wrap:wrap; gap:8px; }
+.business-alert-copy>span:not(.business-alert-icon)::before { margin-right:8px; color:#d18b83; content:'·'; }
+.business-alert-copy strong { font-size:12px; }
+.business-alert-copy>span { font-size:11px; }
+.business-alert-icon { display:inline-flex; width:28px; height:28px; flex:none; align-items:center; justify-content:center; color:#fff; border-radius:4px; background:var(--mes-danger); }
+.business-alert-actions { flex:none; gap:6px; }
+.business-alert-actions :deep(.el-button) { margin:0; }
+.resource-load-error { min-height:46px; justify-content:space-between; gap:14px; padding:7px 12px; color:#8f3029; border-bottom:1px solid #edb7b1; background:#fff2f0; }
+.resource-load-error>div { min-width:0; gap:9px; }
+.resource-load-error span { display:flex; min-width:0; flex-direction:column; font-size:10px; }
+.resource-load-error strong { font-size:12px; }
 .column-settings header { display:flex; min-height:34px; align-items:center; justify-content:space-between; border-bottom:1px solid var(--mes-border); }
 .column-settings header strong { font-size:12px; }
 .column-settings header :deep(.el-button) { margin:0; }
@@ -939,17 +1116,39 @@ onMounted(initialize)
 .column-settings :deep(.el-checkbox) { min-width:0; margin:0; }
 .column-settings :deep(.el-checkbox__label) { overflow:hidden; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
 .resource-table { width:100%; }
-.resource-table :deep(.el-table__cell) { padding:7px 0; }
-.resource-table :deep(.cell) { font-size:12px; }
+.resource-table :deep(.el-table__cell) { padding:8px 0; }
+.resource-table :deep(.el-table__header .el-table__cell) { height:44px; padding:6px 0; }
+.resource-table :deep(.cell) { font-size:12px; line-height:1.45; }
+.resource-table :deep(.el-table__body tr.is-danger-row>td.el-table__cell) { background:#fff4f2 !important; }
+.resource-table :deep(.el-table__body tr.is-danger-row:hover>td.el-table__cell) { background:#ffe8e4 !important; }
+.resource-table :deep(.el-table__body tr.is-danger-row>td.el-table__cell:first-child) { box-shadow:inset 3px 0 0 var(--mes-danger); }
+.resource-table :deep(.el-table__body tr.is-warning-row>td.el-table__cell) { background:#fff9eb !important; }
+.resource-table :deep(.el-table__body tr.is-warning-row:hover>td.el-table__cell) { background:#fff2d2 !important; }
+.resource-table :deep(.el-table__body tr.is-warning-row>td.el-table__cell:first-child) { box-shadow:inset 3px 0 0 var(--mes-warning); }
+.resource-table :deep(.el-table__body tr.current-row>td.el-table__cell) { background:#eaf5fb !important; }
+.resource-table :deep(.el-table__body tr.current-row>td.el-table__cell:first-child) { box-shadow:inset 3px 0 0 var(--mes-primary); }
 .table-empty { display:flex; min-height:230px; align-items:center; justify-content:center; }
 .primary-cell { max-width:100%; overflow:hidden; padding:0; color:var(--mes-primary-hover); border:0; background:transparent; font-weight:600; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
 .primary-cell:hover { color:var(--mes-primary); text-decoration:underline; }
+.cell-value { display:block; min-width:0; }
+.cell-value.is-multiline { display:-webkit-box; overflow:hidden; white-space:normal; word-break:break-word; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
 .reference-cell { color:var(--mes-primary-hover); }
 .row-actions { justify-content:center; gap:5px; }
 .row-actions :deep(.el-button) { margin:0; padding:4px; }
 .row-action-control { display:inline-flex; }
 .resource-pagination { display:flex; min-height:58px; align-items:center; justify-content:space-between; gap:16px; padding:10px 14px; border-top:1px solid var(--mes-border); }
 .resource-pagination>span { color:var(--mes-text-muted); font-size:11px; }
+.master-detail-panel { border-top:6px solid var(--mes-bg); background:#fff; }
+.master-detail-head { min-height:52px; justify-content:space-between; gap:12px; padding:8px 12px; border-bottom:1px solid var(--mes-border); }
+.master-detail-head>div { min-width:0; gap:9px; }
+.master-detail-head>div>div { display:flex; min-width:0; flex-direction:column; }
+.master-detail-head strong { color:var(--mes-text); font-size:13px; }
+.master-detail-head small { overflow:hidden; margin-top:2px; color:var(--mes-text-muted); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.master-detail-icon { display:inline-flex; width:29px; height:29px; flex:none; align-items:center; justify-content:center; color:var(--mes-primary); border:1px solid var(--mes-primary-border); border-radius:4px; background:var(--mes-primary-soft); }
+.master-detail-error { min-height:44px; justify-content:space-between; gap:12px; padding:6px 12px; color:#8f3029; border-bottom:1px solid #edb7b1; background:#fff2f0; }
+.master-detail-error>div { min-width:0; gap:8px; }
+.master-detail-error span { display:flex; min-width:0; flex-direction:column; font-size:10px; }
+.master-detail-error strong { font-size:11px; }
 .drawer-shell { display:grid; height:100dvh; grid-template-rows:auto minmax(0,1fr) auto; background:var(--mes-bg); }
 .drawer-header { display:flex; min-height:70px; align-items:center; justify-content:space-between; padding:0 18px; color:#edf5fb; background:var(--mes-command-bg); }
 .drawer-header>div { gap:11px; }
@@ -980,6 +1179,6 @@ onMounted(initialize)
 .trace-section { overflow:hidden; border:1px solid var(--mes-border); border-radius:var(--mes-radius); background:#fff; }
 .trace-section h3 { padding:11px 14px; border-bottom:1px solid var(--mes-border); font-size:13px; }
 .trace-section>p { padding:14px; color:var(--mes-text-secondary); font-size:12px; white-space:pre-wrap; }
-@media (max-width:1280px){.filter-grid{grid-template-columns:repeat(2,minmax(160px,1fr));}.resource-search-band{grid-template-columns:1fr}.filter-actions{justify-content:flex-end}.resource-toolbar{align-items:flex-start;flex-wrap:wrap}.toolbar-secondary{margin-left:auto}}
-@media (max-width:720px){.resource-heading{align-items:flex-start;flex-direction:column}.resource-summary{display:none}.resource-pulse{grid-template-columns:1fr}.pulse-caption{border-right:0;border-bottom:1px solid var(--mes-border)}.filter-grid{grid-template-columns:1fr}.filter-actions{flex-wrap:wrap;justify-content:flex-start}.resource-toolbar{align-items:flex-start;flex-direction:column}.toolbar-primary{width:100%;overflow-x:auto}.toolbar-secondary{align-self:flex-end}.resource-pagination{align-items:flex-start;flex-direction:column}.resource-pagination :deep(.el-pagination){max-width:100%;overflow-x:auto}.resource-form{grid-template-columns:1fr;padding:14px}.resource-form .wide{grid-column:auto}.detail-descriptions :deep(.el-descriptions__body){overflow-x:auto}.upload-meta{grid-template-columns:1fr}}
+@media (max-width:1280px){.resource-commandbar{align-items:flex-start;flex-wrap:wrap}.resource-toolbar{margin-left:auto}.resource-querybar{grid-template-columns:1fr}.filter-actions{justify-content:flex-end}.filter-item{width:min(230px,calc(50% - 5px))}}
+@media (max-width:720px){.resource-commandbar{align-items:flex-start;flex-direction:column}.resource-toolbar{width:100%;align-items:flex-start;flex-direction:column;margin-left:0}.toolbar-primary{width:100%;overflow-x:auto}.toolbar-secondary{align-self:flex-end}.resource-querybar{grid-template-columns:1fr}.filter-item{width:100%}.filter-actions{flex-wrap:wrap;justify-content:flex-start}.resource-business-alert,.resource-load-error,.master-detail-error{align-items:flex-start;flex-direction:column}.business-alert-actions,.master-detail-error :deep(.el-button){align-self:flex-end}.resource-pagination{align-items:flex-start;flex-direction:column}.resource-pagination :deep(.el-pagination){max-width:100%;overflow-x:auto}.master-detail-head{align-items:flex-start}.resource-form{grid-template-columns:1fr;padding:14px}.resource-form .wide{grid-column:auto}.detail-descriptions :deep(.el-descriptions__body){overflow-x:auto}.upload-meta{grid-template-columns:1fr}}
 </style>

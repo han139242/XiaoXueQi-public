@@ -234,6 +234,7 @@ const datetimePattern = /(Time|At)$/
 const numberPattern = /(Quantity|Rate|Capacity|Cost|Hours|Scale)$/
 const textareaPattern = /(remark|description|content|comment|result|reason|items)$/i
 const auditProps = new Set(['createdBy', 'updatedBy', 'deletedFlag', 'version'])
+const secondaryTableProps = new Set(['remark', 'createdTime', 'updatedTime'])
 
 function humanize(prop) {
   return labels[prop] || prop.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase())
@@ -258,6 +259,7 @@ export function field(prop, overrides = {}) {
     options: overrides.options,
     required: false,
     table: !auditProps.has(prop),
+    defaultVisible: !secondaryTableProps.has(prop),
     form: !auditProps.has(prop),
     detail: !auditProps.has(prop),
     min: type === 'number' ? 0 : undefined,

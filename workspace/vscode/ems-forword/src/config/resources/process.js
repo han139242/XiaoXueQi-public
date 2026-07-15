@@ -20,6 +20,12 @@ export default [
     key: 'process-route', domain: 'process', route: 'process/routes', title: '工艺路线', icon: 'route', baseUrl: '/api/process/route', idField: 'routeId',
     fields: ['routeCode', 'routeName', 'productId', 'version', 'status', 'remark', 'createdTime'], filters: ['keyword', 'productId', 'status'], defaults: { status: 'DRAFT' },
     overrides: { routeCode: { required: true }, routeName: { required: true }, productId: { required: true }, version: { required: true }, status: { type: 'select', options: optionSets.release }, createdTime: { form: false, width: 170 } },
+    masterDetail: {
+      title: '路线工序明细', resource: 'process-route-item', parentField: 'routeId',
+      endpoint: () => '/api/process/route-item/page',
+      params: (row) => ({ current: 1, size: 100, routeId: row.routeId }),
+      label: (row) => [row.routeCode, row.routeName].filter(Boolean).join(' / ')
+    },
     relations: [{ key: 'items', title: '路线工序明细', resource: 'process-route-item', parentField: 'routeId' }]
   }),
   defineResource({

@@ -62,7 +62,7 @@ request.interceptors.response.use(
     error.code = result.code
     error.data = result.data
     error.displayMessage = message
-    showError(message)
+    if (!response.config.suppressErrorMessage) showError(message)
     return Promise.reject(error)
   },
   (error) => {
@@ -84,7 +84,7 @@ request.interceptors.response.use(
       message = '请求超时，请稍后重试'
     }
     error.displayMessage = message
-    showError(message)
+    if (!error.config?.suppressErrorMessage) showError(message)
     return Promise.reject(error)
   }
 )

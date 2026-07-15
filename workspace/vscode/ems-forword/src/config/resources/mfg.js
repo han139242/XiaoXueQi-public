@@ -35,6 +35,12 @@ export default [
     fields: ['productionOrderNo', 'customerId', 'productId', 'orderQuantity', 'deliveryDate', 'sourceType', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'customerId', 'productId'], defaults: { sourceType: 'MANUAL', status: 'DRAFT' },
     overrides: { productionOrderNo: { required: true }, customerId: { required: true }, productId: { required: true }, orderQuantity: { required: true, type: 'number', min: 0 }, deliveryDate: { required: true }, sourceType: { type: 'select', options: sourceTypes }, status: { type: 'select', options: optionSets.productionOrder, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'DRAFT', canDelete: (row) => row.status === 'DRAFT', lockedReason: '只有草稿生产订单可以编辑或删除',
+    masterDetail: {
+      title: '订单关联生产计划', resource: 'mfg-production-plan', parentField: 'productionOrderId',
+      endpoint: () => '/api/mfg/production-plan/page',
+      params: (row) => ({ current: 1, size: 100, productionOrderId: row.productionOrderId }),
+      label: (row) => row.productionOrderNo || `生产订单 #${row.productionOrderId}`
+    },
     actions: [
       { key: 'release', label: '下达订单', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/production-order/${row.productionOrderId}/release`, visible: (row) => row.status === 'DRAFT', fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) },
       { key: 'generate-plan', label: '生成计划', icon: 'calendar', method: 'post', type: 'primary', path: (row) => `/api/mfg/production-plan/generate/${row.productionOrderId}`, visible: (row) => row.status === 'RELEASED', fields: [field('lineId', { required: true, type: 'reference', reference: 'factory-line' }), field('plannedStartTime', { required: true, type: 'datetime' }), field('plannedEndTime', { required: true, type: 'datetime' }), field('plannedQuantity', { required: true, type: 'number', min: 0.0001, defaultValue: (row) => row.orderQuantity }), field('remark', { type: 'textarea' })] }
@@ -45,6 +51,12 @@ export default [
     fields: ['planNo', 'productionOrderId', 'lineId', 'plannedStartTime', 'plannedEndTime', 'plannedQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'productionOrderId', 'lineId'], defaults: { status: 'DRAFT' },
     overrides: { planNo: { required: true }, productionOrderId: { required: true }, lineId: { required: true }, plannedStartTime: { required: true }, plannedEndTime: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, status: { type: 'select', options: optionSets.productionPlan, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'DRAFT', canDelete: (row) => row.status === 'DRAFT', lockedReason: '只有草稿生产计划可以编辑或删除',
+    masterDetail: {
+      title: '计划关联生产工单', resource: 'mfg-work-order', parentField: 'planId',
+      endpoint: () => '/api/mfg/work-order/page',
+      params: (row) => ({ current: 1, size: 100, planId: row.planId }),
+      label: (row) => row.planNo || `生产计划 #${row.planId}`
+    },
     actions: [{ key: 'generate-work-order', label: '生成工单', icon: 'package', method: 'post', type: 'primary', path: (row) => `/api/mfg/work-order/generate/${row.planId}`, visible: (row) => row.status === 'RELEASED', fields: [field('bomId', { required: true, type: 'reference', reference: 'mdm-bom' }), field('routeId', { required: true, type: 'reference', reference: 'process-route' }), field('plannedQuantity', { required: true, type: 'number', min: 0.0001, defaultValue: (row) => row.plannedQuantity }), field('remark', { type: 'textarea' })] }]
   }),
   defineResource({
@@ -52,6 +64,12 @@ export default [
     fields: ['workOrderNo', 'planId', 'productId', 'bomId', 'routeId', 'plannedQuantity', 'completedQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'planId', 'productId'], defaults: { status: 'DRAFT', completedQuantity: 0 },
     overrides: { workOrderNo: { required: true }, planId: { reference: 'mfg-production-plan', required: true }, productId: { required: true }, bomId: { required: true }, routeId: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, completedQuantity: { type: 'number', min: 0, create: false, edit: false }, status: { type: 'select', options: optionSets.workOrder, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'DRAFT', canDelete: (row) => row.status === 'DRAFT', lockedReason: '只有草稿生产工单可以编辑或删除',
+    masterDetail: {
+      title: '工单生产任务', resource: 'mfg-task', parentField: 'workOrderId',
+      endpoint: () => '/api/mfg/task/page',
+      params: (row) => ({ current: 1, size: 100, workOrderId: row.workOrderId, sort: 'oldest' }),
+      label: (row) => row.workOrderNo || `生产工单 #${row.workOrderId}`
+    },
     actions: [{ key: 'release', label: '下达工单', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-order/${row.workOrderId}/release`, visible: (row) => ['DRAFT', 'APPROVED'].includes(row.status), fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) }],
     relations: [{ key: 'materials', title: '工单用料需求', resource: 'mfg-work-order-material', parentField: 'workOrderId', endpoint: (row) => `/api/mfg/work-order-material/work-order/${row.workOrderId}` }]
   }),
@@ -70,6 +88,12 @@ export default [
     fields: ['taskNo', 'dispatchId', 'workOrderId', 'operationId', 'stationId', 'plannedQuantity', 'completedQuantity', 'defectQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status', 'dispatchId', 'workOrderId', 'operationId', 'stationId'], defaults: { status: 'WAIT_START', completedQuantity: 0, defectQuantity: 0 },
     overrides: { taskNo: { required: true }, dispatchId: { required: true }, workOrderId: { required: true }, operationId: { required: true }, stationId: { required: true }, plannedQuantity: { required: true, type: 'number', min: 0 }, completedQuantity: { type: 'number', min: 0, create: false, edit: false }, defectQuantity: { type: 'number', min: 0, create: false, edit: false }, status: { type: 'select', options: optionSets.task, create: false, edit: false }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.status === 'WAIT_START', canDelete: (row) => row.status === 'WAIT_START', lockedReason: '已开工或已结束的生产任务不可普通修改或删除',
+    masterDetail: {
+      title: '任务报工记录', resource: 'mfg-work-report', parentField: 'taskId',
+      endpoint: () => '/api/mfg/work-report/page',
+      params: (row) => ({ current: 1, size: 100, taskId: row.taskId }),
+      label: (row) => row.taskNo || `生产任务 #${row.taskId}`
+    },
     actions: [
       { key: 'start', label: '开始任务', icon: 'play', method: 'put', type: 'primary', path: (row) => `/api/mfg/task/${row.taskId}/start`, visible: (row) => row.status === 'WAIT_START', fields: [field('stationId', { label: '实际工位', type: 'reference', reference: 'factory-station' })], previewPatch: (values) => ({ status: 'RUNNING', ...(values.stationId ? { stationId: values.stationId } : {}) }) },
       { key: 'finish', label: '完成任务', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/task/${row.taskId}/finish`, visible: (row) => ['RUNNING', 'PAUSED'].includes(row.status), fields: [field('completedQuantity', { required: true, type: 'number', min: 0 }), field('defectQuantity', { required: true, type: 'number', min: 0 }), field('remark', { type: 'textarea' })], previewPatch: (values) => ({ completedQuantity: values.completedQuantity, defectQuantity: values.defectQuantity, ...(values.remark ? { remark: values.remark } : {}), status: 'FINISHED' }) }

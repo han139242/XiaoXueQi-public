@@ -7,7 +7,7 @@ export default [
   defineResource({
     key: 'qms-inspection-item', domain: 'qms', route: 'qms/inspection-items', title: '检验项目', icon: 'check', baseUrl: '/api/qms/inspection-item', idField: 'itemId',
     fields: ['itemCode', 'itemName', 'itemType', 'inspectionMethod', 'unitId', 'remark', 'createdTime'], filters: ['keyword', 'itemType'],
-    overrides: { itemCode: { required: true }, itemName: { required: true }, itemType: { required: true, type: 'select', options: values([['DIMENSION', '尺寸', 'primary'], ['PERFORMANCE', '性能', 'success'], ['APPEARANCE', '外观', 'warning'], ['WEIGHT', '重量', 'info']]) }, inspectionMethod: { required: true, type: 'textarea' }, createdTime: { form: false, width: 170 } }
+    overrides: { itemCode: { required: true, width: 220 }, itemName: { required: true, width: 150 }, itemType: { required: true, width: 100, type: 'select', options: values([['DIMENSION', '尺寸', 'primary'], ['PERFORMANCE', '性能', 'success'], ['APPEARANCE', '外观', 'warning'], ['WEIGHT', '重量', 'info']]) }, inspectionMethod: { required: true, type: 'textarea', width: 300, cellLines: 2 }, unitId: { width: 130 }, createdTime: { form: false, width: 170 } }
   }),
   defineResource({
     key: 'qms-inspection-standard', domain: 'qms', route: 'qms/standards', title: '检验标准', icon: 'shield-check', baseUrl: '/api/qms/inspection-standard', idField: 'standardId',

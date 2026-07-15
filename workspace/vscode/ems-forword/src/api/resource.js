@@ -1,7 +1,7 @@
 import request from '@/api/request'
 
-export function getResourcePage(baseUrl, params) {
-  return request.get(`${baseUrl}/page`, { params })
+export function getResourcePage(baseUrl, params, options = {}) {
+  return request.get(`${baseUrl}/page`, { params, ...options })
 }
 
 export function getResourceList(url, params) {

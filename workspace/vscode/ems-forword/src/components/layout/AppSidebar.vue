@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/common/AppIcon.vue'
 import { getNavigationGroups, getNavigationItems } from '@/config/navigation'
@@ -17,6 +17,13 @@ const navigationItems = computed(() => getNavigationItems())
 const navigationGroups = computed(() => getNavigationGroups())
 const activePath = computed(() => route.path)
 const menuCollapsed = computed(() => props.collapsed && !props.mobile)
+const searchKeyword = ref('')
+const searchResults = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  if (!keyword) return []
+  return navigationItems.value.filter((item) => [item.label, item.description]
+    .some((value) => String(value || '').toLowerCase().includes(keyword)))
+})
 
 function itemIndex(item) {
   return item.path || `action:${item.action}`
@@ -31,7 +38,13 @@ function handleSelect(index) {
   } else if (item.path) {
     router.push(item.path)
   }
+  searchKeyword.value = ''
   emit('navigate')
+}
+
+function openFirstSearchResult() {
+  const first = searchResults.value[0]
+  if (first) handleSelect(itemIndex(first))
 }
 </script>
 
@@ -48,8 +61,23 @@ function handleSelect(index) {
       </div>
     </div>
 
+    <div v-if="!menuCollapsed" class="sidebar-search">
+      <el-input v-model="searchKeyword" clearable placeholder="搜索菜单" @keyup.enter="openFirstSearchResult">
+        <template #prefix><AppIcon name="search" :size="15" /></template>
+      </el-input>
+    </div>
+
     <el-scrollbar class="sidebar-scroll">
+      <div v-if="searchKeyword && !menuCollapsed" class="sidebar-search-results">
+        <button v-for="item in searchResults" :key="itemIndex(item)" type="button" @click="handleSelect(itemIndex(item))">
+          <span><AppIcon :name="item.icon || 'database'" :size="17" /></span>
+          <div><strong>{{ item.label }}</strong><small>{{ item.description || '打开业务页面' }}</small></div>
+          <AppIcon name="right" :size="14" />
+        </button>
+        <p v-if="!searchResults.length">没有匹配的菜单</p>
+      </div>
       <el-menu
+        v-else
         :default-active="activePath"
         :collapse="menuCollapsed"
         :collapse-transition="false"
@@ -119,6 +147,76 @@ function handleSelect(index) {
   justify-content: center;
   padding: 0;
 }
+
+.sidebar-search {
+  flex: none;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--mes-sidebar-border);
+  background: var(--mes-sidebar);
+}
+
+.sidebar-search :deep(.el-input__wrapper) {
+  min-height: 34px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--mes-sidebar-border) inset;
+}
+
+.sidebar-search-results {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+}
+
+.sidebar-search-results button {
+  display: grid;
+  width: 100%;
+  min-height: 54px;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  color: var(--mes-sidebar-text);
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar-search-results button:hover {
+  color: var(--mes-sidebar-active-text);
+  border-left-color: var(--mes-primary);
+  background: var(--mes-sidebar-active);
+}
+
+.sidebar-search-results button>span {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  color: var(--mes-primary);
+  border: 1px solid var(--mes-primary-border);
+  border-radius: 4px;
+  background: var(--mes-primary-soft);
+}
+
+.sidebar-search-results button>div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.sidebar-search-results strong,
+.sidebar-search-results small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-search-results strong { font-size: 12px; }
+.sidebar-search-results small { margin-top: 2px; color: var(--mes-sidebar-muted); font-size: 9px; }
+.sidebar-search-results p { padding: 24px 16px; color: var(--mes-sidebar-muted); font-size: 11px; text-align: center; }
 
 .sidebar-logo {
   position: relative;

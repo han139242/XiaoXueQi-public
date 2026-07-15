@@ -38,6 +38,11 @@ export default [
     fields: ['inboundNo', 'inboundType', 'warehouseId', 'sourceOrderType', 'sourceOrderId', 'auditStatus', 'inboundTime', 'remark', 'createdTime'], filters: ['keyword', 'inboundType', 'warehouseId', 'sourceOrderType', 'sourceOrderId', 'auditStatus'], defaults: { auditStatus: 'SUBMITTED' },
     overrides: { inboundNo: { required: true }, inboundType: { required: true, type: 'select', options: values([['PURCHASE', '采购入库', 'primary'], ['PRODUCTION', '生产入库', 'success'], ['RETURN', '退料入库', 'warning']]) }, warehouseId: { required: true }, sourceOrderId: { type: 'number', min: 1 }, auditStatus: { type: 'select', options: optionSets.audit, create: false, edit: false }, inboundTime: { required: true }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.auditStatus !== 'APPROVED', canDelete: (row) => row.auditStatus !== 'APPROVED', lockedReason: '已确认入库的单据不可修改或删除',
+    masterDetail: {
+      title: '入库单明细', resource: 'wms-inbound-detail', parentField: 'inboundId',
+      endpoint: (row) => `/api/wms/inbound-detail/inbound/${row.inboundId}`,
+      label: (row) => row.inboundNo || `入库单 #${row.inboundId}`
+    },
     fullChild: { property: 'details', title: '入库明细', resource: 'wms-inbound-detail', parentField: 'inboundId', endpoint: (row) => `/api/wms/inbound-detail/inbound/${row.inboundId}` }, actions: [confirmAction('inbound', 'inboundId', '确认入库')]
   }),
   defineResource({ key: 'wms-inbound-detail', domain: 'wms', route: 'wms/inbound-details', title: '入库明细', baseUrl: '/api/wms/inbound-detail', idField: 'detailId', menu: false, fields: ['inboundId', 'materialId', 'batchId', 'locationId', 'inboundQuantity', 'remark'], filters: ['inboundId', 'materialId', 'batchId', 'locationId'], overrides: { inboundId: { required: true }, materialId: { required: true }, batchId: { required: true }, locationId: { required: true }, inboundQuantity: { required: true, type: 'number', min: 0 } } }),
