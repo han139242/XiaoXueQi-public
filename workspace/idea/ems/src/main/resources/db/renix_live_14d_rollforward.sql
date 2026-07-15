@@ -15,11 +15,11 @@ SET @live_marker_exists = (
 );
 
 SET @admin_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'admin' AND `deleted_flag` = 0 LIMIT 1);
-SET @planner_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'shengchanjihua001' AND `deleted_flag` = 0 LIMIT 1);
-SET @manager_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'shengchanjingli001' AND `deleted_flag` = 0 LIMIT 1);
-SET @quality_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'zhijianyuan001' AND `deleted_flag` = 0 LIMIT 1);
-SET @warehouse_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'cangkuguanliyuan001' AND `deleted_flag` = 0 LIMIT 1);
-SET @equipment_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'shebeiguanliyuan001' AND `deleted_flag` = 0 LIMIT 1);
+SET @planner_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'scjh001' AND `deleted_flag` = 0 LIMIT 1);
+SET @manager_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'scjl001' AND `deleted_flag` = 0 LIMIT 1);
+SET @quality_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'zjy001' AND `deleted_flag` = 0 LIMIT 1);
+SET @warehouse_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'ckgly001' AND `deleted_flag` = 0 LIMIT 1);
+SET @equipment_user_id = (SELECT `user_id` FROM `sys_user` WHERE `username` = 'sbgly001' AND `deleted_flag` = 0 LIMIT 1);
 SET @quality_employee_id = (SELECT `employee_id` FROM `org_employee` WHERE `employee_no` = 'EMP-QMS-001' AND `deleted_flag` = 0 LIMIT 1);
 SET @warehouse_employee_id = (SELECT `employee_id` FROM `org_employee` WHERE `employee_no` = 'EMP-WMS-001' AND `deleted_flag` = 0 LIMIT 1);
 SET @equipment_employee_id = (SELECT `employee_id` FROM `org_employee` WHERE `employee_no` = 'EMP-EAM-001' AND `deleted_flag` = 0 LIMIT 1);

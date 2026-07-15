@@ -29,10 +29,9 @@ FROM (
                WHERE `password_hash` LIKE 'pbkdf2-sha256$210000$%$%' AND `deleted_flag` = 0) AS CHAR)
   UNION ALL SELECT 'account', 'placeholder or invalid seeded accounts', '0',
          CAST((SELECT COUNT(*) FROM `sys_user`
-               WHERE `username` IN ('shengchanjihua001','shengchanjingli001','banzuzhang001','banzuzhang002',
-                                    'caozuogong001','caozuogong002','caozuogong003','caozuogong004',
-                                    'caozuogong005','caozuogong006','zhijianyuan001',
-                                    'cangkuguanliyuan001','shebeiguanliyuan001')
+               WHERE `username` IN ('scjh001','scjl001','bzz001','bzz002',
+                                    'czg001','czg002','czg003','czg004','czg005','czg006',
+                                    'zjy001','ckgly001','sbgly001')
                  AND (`password_hash` = '!' OR `status` <> 'ENABLE' OR `deleted_flag` <> 0)) AS CHAR)
 
   UNION ALL SELECT 'rbac', 'enabled enterprise roles', '8',

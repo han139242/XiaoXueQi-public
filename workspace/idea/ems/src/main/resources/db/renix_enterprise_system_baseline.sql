@@ -142,19 +142,19 @@ CREATE TEMPORARY TABLE `tmp_renix_user` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 INSERT INTO `tmp_renix_user` VALUES
   ('admin', 'EMP-IT-001', 'SUPER_ADMIN'),
-  ('shengchanjihua001', 'EMP-PMC-001', 'PLAN_SCHEDULER'),
-  ('shengchanjingli001', 'EMP-MFG-001', 'MES_MANAGER'),
-  ('banzuzhang001', 'EMP-MFG-101', 'PRODUCTION_SUPERVISOR'),
-  ('banzuzhang002', 'EMP-MFG-102', 'PRODUCTION_SUPERVISOR'),
-  ('caozuogong001', 'EMP-MFG-111', 'PRODUCTION_OPERATOR'),
-  ('caozuogong002', 'EMP-MFG-112', 'PRODUCTION_OPERATOR'),
-  ('caozuogong003', 'EMP-MFG-113', 'PRODUCTION_OPERATOR'),
-  ('caozuogong004', 'EMP-MFG-114', 'PRODUCTION_OPERATOR'),
-  ('caozuogong005', 'EMP-MFG-115', 'PRODUCTION_OPERATOR'),
-  ('caozuogong006', 'EMP-MFG-116', 'PRODUCTION_OPERATOR'),
-  ('zhijianyuan001', 'EMP-QMS-001', 'QUALITY_ENGINEER'),
-  ('cangkuguanliyuan001', 'EMP-WMS-001', 'WAREHOUSE_MANAGER'),
-  ('shebeiguanliyuan001', 'EMP-EAM-001', 'EQUIPMENT_ENGINEER');
+  ('scjh001', 'EMP-PMC-001', 'PLAN_SCHEDULER'),
+  ('scjl001', 'EMP-MFG-001', 'MES_MANAGER'),
+  ('bzz001', 'EMP-MFG-101', 'PRODUCTION_SUPERVISOR'),
+  ('bzz002', 'EMP-MFG-102', 'PRODUCTION_SUPERVISOR'),
+  ('czg001', 'EMP-MFG-111', 'PRODUCTION_OPERATOR'),
+  ('czg002', 'EMP-MFG-112', 'PRODUCTION_OPERATOR'),
+  ('czg003', 'EMP-MFG-113', 'PRODUCTION_OPERATOR'),
+  ('czg004', 'EMP-MFG-114', 'PRODUCTION_OPERATOR'),
+  ('czg005', 'EMP-MFG-115', 'PRODUCTION_OPERATOR'),
+  ('czg006', 'EMP-MFG-116', 'PRODUCTION_OPERATOR'),
+  ('zjy001', 'EMP-QMS-001', 'QUALITY_ENGINEER'),
+  ('ckgly001', 'EMP-WMS-001', 'WAREHOUSE_MANAGER'),
+  ('sbgly001', 'EMP-EAM-001', 'EQUIPMENT_ENGINEER');
 
 -- 已有环境先按员工编号原位改名，避免新版基线为同一员工重复创建账号。
 UPDATE `sys_user` user

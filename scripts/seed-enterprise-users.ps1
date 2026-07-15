@@ -25,10 +25,9 @@ if ($Database -notmatch '^[A-Za-z0-9_]+$') {
 }
 
 $usernames = @(
-    'shengchanjihua001', 'shengchanjingli001', 'banzuzhang001', 'banzuzhang002',
-    'caozuogong001', 'caozuogong002', 'caozuogong003', 'caozuogong004',
-    'caozuogong005', 'caozuogong006', 'zhijianyuan001',
-    'cangkuguanliyuan001', 'shebeiguanliyuan001'
+    'scjh001', 'scjl001', 'bzz001', 'bzz002',
+    'czg001', 'czg002', 'czg003', 'czg004', 'czg005', 'czg006',
+    'zjy001', 'ckgly001', 'sbgly001'
 )
 
 function New-Pbkdf2Hash([string]$Password) {
