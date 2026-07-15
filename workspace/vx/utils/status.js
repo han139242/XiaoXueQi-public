@@ -7,9 +7,10 @@ const maps = {
     CLOSED: ['已关闭', 'neutral']
   },
   workOrder: {
-    DRAFT: ['新建', 'neutral'],
-    APPROVED: ['已审核', 'primary'],
-    RELEASED: ['已下达', 'primary'],
+    DRAFT: ['待开始', 'neutral'],
+    APPROVED: ['待开始', 'neutral'],
+    RELEASED: ['待开始', 'neutral'],
+    WAIT_START: ['待开始', 'neutral'],
     RUNNING: ['生产中', 'warning'],
     FINISHED: ['已完成', 'success'],
     CLOSED: ['已关闭', 'neutral']

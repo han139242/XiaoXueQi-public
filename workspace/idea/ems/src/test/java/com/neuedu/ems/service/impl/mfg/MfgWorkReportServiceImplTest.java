@@ -1,5 +1,8 @@
 package com.neuedu.ems.service.impl.mfg;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
@@ -23,6 +26,7 @@ import com.neuedu.ems.entity.sys.SysUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -31,6 +35,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -243,6 +248,18 @@ class MfgWorkReportServiceImplTest {
                 () -> service.withdrawWorkReport(1L, 9L, "不是本人报工"));
 
         verify(reportMapper, never()).updateById(any(MfgWorkReport.class));
+    }
+
+    @Test
+    void keywordSearchMatchesReportNumberOrTaskNumber() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"), MfgWorkReport.class);
+        LambdaQueryWrapper<MfgWorkReport> query = ReflectionTestUtils.invokeMethod(
+                service, "buildWorkReportQuery", "TASK-20260714-003-1-050", null, null, null, null);
+
+        assertTrue(query.getSqlSegment().contains("report_no LIKE"));
+        assertTrue(query.getSqlSegment().contains("SELECT task_id FROM mfg_task"));
+        assertTrue(query.getSqlSegment().contains("task_no LIKE"));
+        assertTrue(query.getParamNameValuePairs().containsValue("TASK-20260714-003-1-050"));
     }
 
     private MfgWorkReport report(String quantity) {

@@ -18,6 +18,11 @@
         <view><text>良品数</text><text>{{workOrder.completedQuantity}}</text></view>
         <view><text>不良品数</text><text>{{workOrder.defectQuantity}}</text></view>
       </view>
+      <view wx:if="{{canStartWorkOrder && workOrder.status === 'RELEASED'}}" class="order-actions">
+        <button class="start-order-button" loading="{{startingWorkOrder}}" disabled="{{startingWorkOrder}}" bindtap="startWorkOrder">
+          <app-icon name="circle-play" size="30" inverse></app-icon><text>开始生产</text>
+        </button>
+      </view>
     </view>
 
     <view class="stage-section">

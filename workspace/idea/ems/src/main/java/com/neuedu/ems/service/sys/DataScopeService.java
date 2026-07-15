@@ -13,11 +13,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.Set;
+
 /**
  * 对生产执行链路应用 ALL/DEPARTMENT/TEAM/SELF 数据范围。
  */
 @Service
 public class DataScopeService {
+
+    private static final Set<String> CROSS_DEPARTMENT_PRODUCTION_READ_ROLES = Set.of(
+            "QUALITY_ENGINEER", "WAREHOUSE_MANAGER", "EQUIPMENT_ENGINEER");
 
     private final PermissionService permissionService;
     private final MfgTaskMapper mfgTaskMapper;
@@ -33,7 +38,7 @@ public class DataScopeService {
 
     public void applyTaskScope(LambdaQueryWrapper<MfgTask> wrapper) {
         AuthorizationContext context = currentContext();
-        if (context == null || "ALL".equals(context.dataScope())) {
+        if (context == null || "ALL".equals(context.dataScope()) || canReadAllProductionExecution(context)) {
             return;
         }
         if ("DEPARTMENT".equals(context.dataScope())) {
@@ -70,7 +75,7 @@ public class DataScopeService {
 
     public void applyWorkReportScope(LambdaQueryWrapper<MfgWorkReport> wrapper) {
         AuthorizationContext context = currentContext();
-        if (context == null || "ALL".equals(context.dataScope())) {
+        if (context == null || "ALL".equals(context.dataScope()) || canReadAllProductionExecution(context)) {
             return;
         }
         if ("DEPARTMENT".equals(context.dataScope())) {
@@ -256,6 +261,10 @@ public class DataScopeService {
         }
         Object userId = request.getAttribute("userId");
         return userId instanceof Number number ? permissionService.getContext(number.longValue()) : null;
+    }
+
+    private boolean canReadAllProductionExecution(AuthorizationContext context) {
+        return context.roles().stream().anyMatch(CROSS_DEPARTMENT_PRODUCTION_READ_ROLES::contains);
     }
 
     private void requireEmployee(AuthorizationContext context) {

@@ -56,6 +56,8 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null
+    if (tabBar) tabBar.setData({ currentPath: '/pages/report/index/index' })
     if (!this.data.loading) this.loadPage(true)
   },
 
@@ -147,6 +149,12 @@ Page({
   },
 
   search() {
+    this.loadPage(true)
+  },
+
+  clearKeyword() {
+    if (!this.data.keyword) return
+    this.setData({ keyword: '' })
     this.loadPage(true)
   },
 

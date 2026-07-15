@@ -6,9 +6,7 @@ const format = require('../../../utils/format')
 
 const statusOptions = [
   { value: '', label: '全部状态' },
-  { value: 'DRAFT', label: '新建' },
-  { value: 'APPROVED', label: '已审核' },
-  { value: 'RELEASED', label: '已下达' },
+  { value: 'WAIT_START', label: '待开始' },
   { value: 'RUNNING', label: '生产中' },
   { value: 'FINISHED', label: '已完成' },
   { value: 'CLOSED', label: '已关闭' }
@@ -52,6 +50,8 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null
+    if (tabBar) tabBar.setData({ currentPath: '/pages/work-order/index/index' })
     if (!this.data.loading) this.loadPage(true)
   },
 

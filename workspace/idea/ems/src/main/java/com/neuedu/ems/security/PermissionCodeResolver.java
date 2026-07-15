@@ -48,6 +48,7 @@ public class PermissionCodeResolver {
             rule("POST", "/api/mfg/dispatch-order/generate/[^/]+", "mfg:dispatch-order:generate"),
             rule("PUT", "/api/mfg/dispatch-order/[^/]+/release", "mfg:dispatch-order:release"),
             rule("PUT", "/api/mfg/dispatch-order/[^/]+/withdraw", "mfg:dispatch-order:withdraw"),
+            rule("PUT", "/api/mfg/work-order/[^/]+/start", "mfg:work-order:start"),
             rule("PUT", "/api/mfg/task/[^/]+/start", "mfg:task:start"),
             rule("PUT", "/api/mfg/task/[^/]+/withdraw", "mfg:task:withdraw"),
             rule("PUT", "/api/mfg/task/[^/]+/finish", "mfg:task:finish"),

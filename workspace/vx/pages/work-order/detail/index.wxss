@@ -81,6 +81,29 @@
   overflow-wrap: anywhere;
 }
 
+.order-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 22rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #eceff2;
+}
+
+.start-order-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 220rpx;
+  height: 68rpx;
+  margin: 0;
+  gap: 10rpx;
+  color: #ffffff;
+  background: #2d8cf0;
+  border-radius: 8rpx;
+  font-size: 27rpx;
+  line-height: 68rpx;
+}
+
 .stage-section {
   margin-top: 58rpx;
   padding: 24rpx 26rpx 18rpx;

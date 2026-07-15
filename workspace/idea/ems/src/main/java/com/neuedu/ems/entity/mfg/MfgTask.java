@@ -2,6 +2,7 @@ package com.neuedu.ems.entity.mfg;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
 import lombok.AllArgsConstructor;
@@ -30,6 +31,10 @@ public class MfgTask {
     private BigDecimal plannedQuantity;
     private BigDecimal completedQuantity;
     private BigDecimal defectQuantity;
+    @TableField(exist = false)
+    private BigDecimal reportedQualifiedQuantity;
+    @TableField(exist = false)
+    private BigDecimal reportedDefectQuantity;
     private String status;
     private String remark;
     @Version

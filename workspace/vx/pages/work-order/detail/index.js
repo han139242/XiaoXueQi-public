@@ -25,6 +25,11 @@ function dateRange(start, end) {
 }
 
 function compareTasks(left, right) {
+  const leftMatch = String(left.taskNo || '').match(/-(\d{3})$/)
+  const rightMatch = String(right.taskNo || '').match(/-(\d{3})$/)
+  const leftSequence = leftMatch ? Number(leftMatch[1]) : Number(left.operationId || Number.MAX_SAFE_INTEGER)
+  const rightSequence = rightMatch ? Number(rightMatch[1]) : Number(right.operationId || Number.MAX_SAFE_INTEGER)
+  if (leftSequence !== rightSequence) return leftSequence - rightSequence
   const leftTime = new Date(left.createdTime || 0).getTime()
   const rightTime = new Date(right.createdTime || 0).getTime()
   if (leftTime !== rightTime) return leftTime - rightTime
@@ -42,6 +47,8 @@ Page({
     historyLoading: false,
     historyLoaded: false,
     historyError: '',
+    canStartWorkOrder: false,
+    startingWorkOrder: false,
     canReport: false,
     canViewHistory: false,
     loading: true,
@@ -71,9 +78,32 @@ Page({
 
   syncPermissions() {
     this.setData({
+      canStartWorkOrder: auth.hasPermission('mfg:work-order:start'),
       canReport: auth.hasPermission('mfg:work-report:create') && auth.hasPermission('mfg:work-report:submit'),
       canViewHistory: auth.hasPermission('mfg:work-report:view')
     })
+  },
+
+  async startWorkOrder() {
+    if (!guard.requirePermission('mfg:work-order:start')) return
+    if (this.data.startingWorkOrder || !this.data.workOrder || this.data.workOrder.status !== 'RELEASED') return
+    const confirmed = await new Promise((resolve) => {
+      wx.showModal({
+        title: '开始生产',
+        content: '确认将工单 ' + this.data.workOrder.workOrderNo + ' 更改为生产中？',
+        success: (result) => resolve(result.confirm),
+        fail: () => resolve(false)
+      })
+    })
+    if (!confirmed) return
+    this.setData({ startingWorkOrder: true })
+    try {
+      await workOrderApi.start(this.data.id)
+      wx.showToast({ title: '工单已开始生产', icon: 'success' })
+      await this.loadData()
+    } finally {
+      this.setData({ startingWorkOrder: false })
+    }
   },
 
   switchTab(event) {
@@ -98,9 +128,9 @@ Page({
   decorateTasks(records, lookups) {
     const tasks = records.slice().sort(compareTasks).map((item) => {
       const planned = Number(item.plannedQuantity || 0)
-      const qualified = Number(item.completedQuantity || 0)
-      const defect = Number(item.defectQuantity || 0)
-      const progress = planned > 0 ? Math.min(100, qualified / planned * 100) : 0
+      const qualified = Math.max(Number(item.completedQuantity || 0), Number(item.reportedQualifiedQuantity || 0))
+      const defect = Math.max(Number(item.defectQuantity || 0), Number(item.reportedDefectQuantity || 0))
+      const progress = planned > 0 ? Math.min(100, (qualified + defect) / planned * 100) : 0
       return {
         ...item,
         statusView: statusUtil.getStatus('task', item.status),
@@ -182,7 +212,11 @@ Page({
       const records = taskPage && Array.isArray(taskPage.records) ? taskPage.records : []
       const tasks = this.decorateTasks(records, lookups)
       const product = findItem(lookups.product, workOrder.productId) || {}
-      const completedQuantity = Number(workOrder.completedQuantity || 0)
+      const activeTask = tasks.find((item) => item.status !== 'FINISHED')
+      const reportedCompleted = workOrder.status === 'RUNNING' && activeTask
+        ? Number(activeTask.qualifiedQuantity || 0)
+        : 0
+      const completedQuantity = Math.max(Number(workOrder.completedQuantity || 0), reportedCompleted)
       const defectQuantity = tasks.reduce((sum, item) => sum + Number(item.defectQuantity || 0), 0)
       this.setData({
         workOrder: {

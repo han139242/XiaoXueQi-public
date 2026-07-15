@@ -65,6 +65,21 @@ class DataScopeServiceTest {
     }
 
     @Test
+    void crossDepartmentOperationalRolesCanReadAllTasksAndReports() {
+        for (String role : Set.of("QUALITY_ENGINEER", "WAREHOUSE_MANAGER", "EQUIPMENT_ENGINEER")) {
+            DataScopeService service = serviceWithContext("DEPARTMENT", 31L, Set.of(role));
+            LambdaQueryWrapper<MfgTask> taskQuery = new LambdaQueryWrapper<>();
+            LambdaQueryWrapper<MfgWorkReport> reportQuery = new LambdaQueryWrapper<>();
+
+            service.applyTaskScope(taskQuery);
+            service.applyWorkReportScope(reportQuery);
+
+            assertTrue(taskQuery.getCustomSqlSegment().isBlank());
+            assertTrue(reportQuery.getCustomSqlSegment().isBlank());
+        }
+    }
+
+    @Test
     void selfReporterCannotImpersonateAnotherEmployee() {
         DataScopeService service = serviceWithContext("SELF", 21L);
         MfgWorkReport report = new MfgWorkReport();
@@ -75,9 +90,13 @@ class DataScopeServiceTest {
     }
 
     private DataScopeService serviceWithContext(String scope, Long employeeId) {
+        return serviceWithContext(scope, employeeId, Set.of());
+    }
+
+    private DataScopeService serviceWithContext(String scope, Long employeeId, Set<String> roles) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute("authorizationContext", new AuthorizationContext(
-                7L, employeeId, 3L, scope, Set.of(), Set.of(), Set.of(1L)));
+                7L, employeeId, 3L, scope, roles, Set.of(), Set.of(1L)));
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
         return new DataScopeService(
                 mock(PermissionService.class), mock(MfgTaskMapper.class), mock(MfgDispatchOrderMapper.class));

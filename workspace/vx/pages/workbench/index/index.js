@@ -23,6 +23,8 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
+    const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null
+    if (tabBar) tabBar.setData({ currentPath: '/pages/workbench/index/index' })
     const canQualityInspection = auth.hasPermission('qms:inspection-order:view')
     const canQualityDefect = auth.hasPermission('qms:nonconforming-order:view')
     const canInbound = auth.hasPermission('wms:inbound-order:view')

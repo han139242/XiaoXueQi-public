@@ -32,7 +32,8 @@ INSERT INTO `tmp_p0_production_permission` VALUES
   ('wms:inbound-order:view','wms:inbound-order:withdraw','撤回未确认入库单'),
   ('wms:outbound-order:view','wms:outbound-order:withdraw','撤回未确认出库单'),
   ('wms:return-order:view','wms:return-order:withdraw','撤回未确认退料单'),
-  ('qms:inspection-order:view','qms:inspection-order:withdraw','撤回未检验检验单');
+  ('qms:inspection-order:view','qms:inspection-order:withdraw','撤回未检验检验单'),
+  ('mfg:work-order:view','mfg:work-order:start','开始生产工单');
 
 INSERT INTO `sys_menu`
   (`parent_id`, `menu_name`, `menu_type`, `permission_code`, `route_path`, `remark`,
@@ -74,6 +75,7 @@ INSERT INTO `tmp_p0_production_role_permission` VALUES
   ('SUPER_ADMIN','wms:outbound-order:withdraw'),
   ('SUPER_ADMIN','wms:return-order:withdraw'),
   ('SUPER_ADMIN','qms:inspection-order:withdraw'),
+  ('SUPER_ADMIN','mfg:work-order:start'),
   ('MES_MANAGER','mfg:production-order:release'),
   ('MES_MANAGER','mfg:production-order:withdraw'),
   ('MES_MANAGER','mfg:production-plan:generate'),
@@ -91,6 +93,8 @@ INSERT INTO `tmp_p0_production_role_permission` VALUES
   ('MES_MANAGER','wms:outbound-order:withdraw'),
   ('MES_MANAGER','wms:return-order:withdraw'),
   ('MES_MANAGER','qms:inspection-order:withdraw'),
+  ('MES_MANAGER','mfg:work-order:start'),
+  ('PRODUCTION_SUPERVISOR','mfg:work-order:start'),
   ('PLAN_SCHEDULER','mfg:production-order:release'),
   ('PLAN_SCHEDULER','mfg:production-order:withdraw'),
   ('PLAN_SCHEDULER','mfg:production-plan:generate'),
@@ -181,7 +185,8 @@ WHERE permission.`permission_code` IN (
   'wms:inbound-order:withdraw',
   'wms:outbound-order:withdraw',
   'wms:return-order:withdraw',
-  'qms:inspection-order:withdraw'
+  'qms:inspection-order:withdraw',
+  'mfg:work-order:start'
 ) AND permission.`deleted_flag` = 0
 GROUP BY permission.`permission_code`
 ORDER BY permission.`permission_code`;

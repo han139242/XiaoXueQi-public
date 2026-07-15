@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgWorkReport;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
@@ -24,6 +25,9 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.time.LocalDateTime;
 
 /**
@@ -45,7 +49,7 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     private SysOperationLogMapper sysOperationLogMapper;
 
     @Autowired
-    private MfgWorkReportMapper workReportMapper;
+    private MfgWorkReportMapper mfgWorkReportMapper;
 
     /**
      * 分页查询生产任务列表，支持任务编号、状态、派工单、工单、工序和工位筛选。
@@ -65,7 +69,10 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     public Page<MfgTask> pageTasks(Integer current, Integer size, String keyword, String status,
                                    Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort) {
         Page<MfgTask> page = new Page<>(current, size);
-        return baseMapper.selectPage(page, buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
+        Page<MfgTask> result = baseMapper.selectPage(page,
+                buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
+        enrichReportedQuantities(result.getRecords());
+        return result;
     }
 
     /**
@@ -82,7 +89,10 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      */
     @Override
     public List<MfgTask> listTasks(String keyword, String status, Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort) {
-        return baseMapper.selectList(buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
+        List<MfgTask> tasks = baseMapper.selectList(
+                buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
+        enrichReportedQuantities(tasks);
+        return tasks;
     }
 
     /**
@@ -102,7 +112,41 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 .eq(MfgTask::getTaskId, taskId).eq(MfgTask::getDeletedFlag, 0)) > 0) {
             throw new DataScopeAccessDeniedException();
         }
+        enrichReportedQuantities(task == null ? Collections.emptyList() : Collections.singletonList(task));
         return task;
+    }
+
+    private void enrichReportedQuantities(List<MfgTask> tasks) {
+        if (tasks == null || tasks.isEmpty() || mfgWorkReportMapper == null) {
+            return;
+        }
+        List<Long> taskIds = tasks.stream().map(MfgTask::getTaskId).filter(java.util.Objects::nonNull).toList();
+        if (taskIds.isEmpty()) {
+            return;
+        }
+        List<MfgWorkReport> reports = mfgWorkReportMapper.selectList(new LambdaQueryWrapper<MfgWorkReport>()
+                .in(MfgWorkReport::getTaskId, taskIds)
+                .eq(MfgWorkReport::getDeletedFlag, 0)
+                .in(MfgWorkReport::getAuditStatus,
+                        BusinessStatus.Document.SUBMITTED, BusinessStatus.Document.APPROVED));
+        Map<Long, BigDecimal[]> totals = new HashMap<>();
+        for (MfgWorkReport report : reports) {
+            BigDecimal[] quantities = totals.computeIfAbsent(report.getTaskId(), ignored ->
+                    new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            quantities[0] = quantities[0].add(zeroIfNull(report.getQualifiedQuantity()));
+            quantities[1] = quantities[1].add(zeroIfNull(report.getDefectQuantity()));
+        }
+        for (MfgTask task : tasks) {
+            BigDecimal[] quantities = totals.get(task.getTaskId());
+            if (quantities != null) {
+                task.setReportedQualifiedQuantity(quantities[0]);
+                task.setReportedDefectQuantity(quantities[1]);
+            }
+        }
+    }
+
+    private BigDecimal zeroIfNull(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     /**
@@ -248,7 +292,7 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         if (!started || positive(existing.getCompletedQuantity()) || positive(existing.getDefectQuantity())) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "只有未产生数量的已开工任务可以撤回");
         }
-        long reports = workReportMapper.selectCount(new LambdaQueryWrapper<com.neuedu.ems.entity.mfg.MfgWorkReport>()
+        long reports = mfgWorkReportMapper.selectCount(new LambdaQueryWrapper<com.neuedu.ems.entity.mfg.MfgWorkReport>()
                 .eq(com.neuedu.ems.entity.mfg.MfgWorkReport::getTaskId, taskId)
                 .eq(com.neuedu.ems.entity.mfg.MfgWorkReport::getDeletedFlag, 0)
                 .ne(com.neuedu.ems.entity.mfg.MfgWorkReport::getAuditStatus, BusinessStatus.Document.WITHDRAWN));
@@ -309,6 +353,11 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 .eq(stationId != null, MfgTask::getStationId, stationId)
                 .inSql(employeeId != null, MfgTask::getTaskId,
                         "SELECT task_id FROM mfg_task_operator WHERE employee_id = " + employeeId + " AND deleted_flag = 0");
+        if (workOrderId == null) {
+            queryWrapper.inSql(MfgTask::getWorkOrderId,
+                    "SELECT work_order_id FROM mfg_work_order WHERE deleted_flag = 0 "
+                            + "AND status IN ('RUNNING', 'FINISHED', 'CLOSED')");
+        }
         applyDataScope(queryWrapper);
         if ("oldest".equalsIgnoreCase(sort)) {
             queryWrapper.orderByAsc(MfgTask::getCreatedTime);

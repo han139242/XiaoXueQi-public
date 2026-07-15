@@ -40,7 +40,7 @@ public class MfgWorkReportController {
      * 分页查询生产报工列表，支持编号、任务、人员、工位和审核状态筛选。
      * @param current 当前页码，默认1
      * @param size 每页记录数，默认10
-     * @param keyword 报工编号关键字，可选
+     * @param keyword 报工编号或任务编号关键字，可选
      * @param taskId 任务ID，可选
      * @param operatorId 操作工ID，可选
      * @param stationId 工位ID，可选

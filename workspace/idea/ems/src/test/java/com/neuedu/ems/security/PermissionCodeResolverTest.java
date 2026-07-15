@@ -76,6 +76,8 @@ class PermissionCodeResolverTest {
                 resolver.resolve("POST", "/api/mfg/dispatch-order/generate/6").orElseThrow());
         assertEquals("mfg:dispatch-order:release",
                 resolver.resolve("PUT", "/api/mfg/dispatch-order/7/release").orElseThrow());
+        assertEquals("mfg:work-order:start",
+                resolver.resolve("PUT", "/api/mfg/work-order/6/start").orElseThrow());
         assertEquals("mfg:work-report:submit",
                 resolver.resolve("POST", "/api/mfg/work-report").orElseThrow());
         assertEquals("mfg:work-report:submit",

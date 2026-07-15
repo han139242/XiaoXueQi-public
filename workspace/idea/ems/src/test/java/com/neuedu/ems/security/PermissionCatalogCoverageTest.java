@@ -34,7 +34,8 @@ class PermissionCatalogCoverageTest {
             "mfg:production-order:release",
             "mfg:production-plan:generate",
             "mfg:work-order:generate",
-            "mfg:work-order:release");
+            "mfg:work-order:release",
+            "mfg:work-order:start");
 
     private static final List<String> NOTIFICATION_PERMISSIONS = List.of(
             "sys:notification:view",

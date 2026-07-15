@@ -1,5 +1,6 @@
 package com.neuedu.ems.service.impl.mfg;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
@@ -9,6 +10,7 @@ import com.neuedu.ems.entity.mfg.MfgLineProductCapability;
 import com.neuedu.ems.entity.mdm.MdmBom;
 import com.neuedu.ems.entity.mdm.MdmBomItem;
 import com.neuedu.ems.entity.process.ProcessRoute;
+import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.entity.wms.WmsInventory;
@@ -21,6 +23,7 @@ import com.neuedu.ems.mapper.mfg.MfgLineProductCapabilityMapper;
 import com.neuedu.ems.mapper.mdm.MdmBomMapper;
 import com.neuedu.ems.mapper.mdm.MdmBomItemMapper;
 import com.neuedu.ems.mapper.process.ProcessRouteMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.mapper.wms.WmsInventoryMapper;
@@ -55,6 +58,7 @@ class MfgWorkOrderServiceImplTest {
     private WmsInventoryMapper inventoryMapper;
     private MfgLineProductCapabilityMapper capabilityMapper;
     private ProcessRouteMapper routeMapper;
+    private MfgTaskMapper taskMapper;
 
     @BeforeEach
     void setUp() {
@@ -68,6 +72,7 @@ class MfgWorkOrderServiceImplTest {
         inventoryMapper = mock(WmsInventoryMapper.class);
         capabilityMapper = mock(MfgLineProductCapabilityMapper.class);
         routeMapper = mock(ProcessRouteMapper.class);
+        taskMapper = mock(MfgTaskMapper.class);
         SysStatusChangeLogMapper statusLogMapper = mock(SysStatusChangeLogMapper.class);
         SysOperationLogMapper operationLogMapper = mock(SysOperationLogMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", workOrderMapper);
@@ -79,6 +84,7 @@ class MfgWorkOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "inventoryMapper", inventoryMapper);
         ReflectionTestUtils.setField(service, "lineProductCapabilityMapper", capabilityMapper);
         ReflectionTestUtils.setField(service, "routeMapper", routeMapper);
+        ReflectionTestUtils.setField(service, "mfgTaskMapper", taskMapper);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
@@ -215,6 +221,62 @@ class MfgWorkOrderServiceImplTest {
         verify(workOrderMapper).updateById(update.capture());
         assertEquals(BusinessStatus.Document.RELEASED, update.getValue().getStatus());
         assertEquals(4, update.getValue().getVersion());
+    }
+
+    @Test
+    void waitStartFilterIncludesAllPreProductionStatuses() {
+        QueryWrapper<MfgWorkOrder> query = ReflectionTestUtils.invokeMethod(
+                service, "buildWorkOrderQuery", null, BusinessStatus.Production.WAIT_START, null, null);
+
+        assertTrue(query.getSqlSegment().contains("status IN"));
+        assertTrue(query.getParamNameValuePairs().containsValue(BusinessStatus.Document.DRAFT));
+        assertTrue(query.getParamNameValuePairs().containsValue(BusinessStatus.Document.APPROVED));
+        assertTrue(query.getParamNameValuePairs().containsValue(BusinessStatus.Document.RELEASED));
+        assertTrue(query.getParamNameValuePairs().containsValue(BusinessStatus.Production.WAIT_START));
+    }
+
+    @Test
+    void startMovesReleasedWorkOrderToRunningWhenTasksExist() {
+        MfgWorkOrder existing = request("100");
+        existing.setWorkOrderId(5L);
+        existing.setStatus(BusinessStatus.Document.RELEASED);
+        existing.setVersion(4);
+        when(workOrderMapper.selectOne(any())).thenReturn(existing);
+        when(taskMapper.selectCount(any())).thenReturn(7L, 0L);
+        when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
+
+        service.startWorkOrder(5L, 9L);
+
+        org.mockito.ArgumentCaptor<MfgWorkOrder> update = org.mockito.ArgumentCaptor.forClass(MfgWorkOrder.class);
+        verify(workOrderMapper).updateById(update.capture());
+        assertEquals(BusinessStatus.Production.RUNNING, update.getValue().getStatus());
+        assertEquals(4, update.getValue().getVersion());
+    }
+
+    @Test
+    void startRejectsWorkOrderWithoutTasks() {
+        MfgWorkOrder existing = request("100");
+        existing.setWorkOrderId(5L);
+        existing.setStatus(BusinessStatus.Document.RELEASED);
+        when(workOrderMapper.selectOne(any())).thenReturn(existing);
+        when(taskMapper.selectCount(any())).thenReturn(0L);
+
+        assertThrows(BusinessException.class, () -> service.startWorkOrder(5L, 9L));
+
+        verify(workOrderMapper, never()).updateById(any(MfgWorkOrder.class));
+    }
+
+    @Test
+    void startRejectsWorkOrderWithAlreadyStartedTask() {
+        MfgWorkOrder existing = request("100");
+        existing.setWorkOrderId(5L);
+        existing.setStatus(BusinessStatus.Document.RELEASED);
+        when(workOrderMapper.selectOne(any())).thenReturn(existing);
+        when(taskMapper.selectCount(any())).thenReturn(7L, 1L);
+
+        assertThrows(BusinessException.class, () -> service.startWorkOrder(5L, 9L));
+
+        verify(workOrderMapper, never()).updateById(any(MfgWorkOrder.class));
     }
 
     private MfgProductionPlan plan() {
