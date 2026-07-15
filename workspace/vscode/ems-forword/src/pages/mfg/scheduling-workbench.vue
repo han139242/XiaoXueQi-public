@@ -9,6 +9,7 @@ import {
   getDraftProductionOrderPage,
   getManualEligibleLines,
   getManualOrderAiAdvice,
+  getScheduleScenarioPage,
   getScheduleScenarioDetail,
   getScheduleScenarioItems,
   openManualScheduleDraft,
@@ -20,12 +21,15 @@ import { loadReferenceOptions } from '@/utils/resource-options'
 import { hasPermission } from '@/utils/permission'
 
 const draft = ref(null)
+const scenarioOptions = ref([])
+const selectedScenarioId = ref('')
 const scheduleItems = ref([])
 const pendingOrders = ref([])
 const lineOptions = ref([])
 const productOptions = ref([])
 const orderOptions = ref([])
 const loading = ref(false)
+const scenarioLoading = ref(false)
 const pendingLoading = ref(false)
 const candidateLoading = ref(false)
 const addingLineId = ref(null)
@@ -71,6 +75,7 @@ const filteredPendingOrders = computed(() => {
 const scheduledItems = computed(() => scheduleItems.value.filter((item) => item.lineId && item.plannedStartTime && item.plannedEndTime))
 const conflictItems = computed(() => scheduleItems.value.filter((item) => item.status === 'CONFLICT'))
 const canCreateSchedule = computed(() => hasPermission('mfg:schedule-scenario:create'))
+const canViewPendingOrders = computed(() => hasPermission('mfg:production-order:view'))
 const canUpdateSchedule = computed(() => hasPermission('mfg:schedule-scenario:update'))
 const canDeleteSchedule = computed(() => hasPermission('mfg:schedule-scenario:delete'))
 const canValidateSchedule = computed(() => hasPermission('mfg:schedule-scenario:validate'))
@@ -190,6 +195,10 @@ async function loadReferenceData() {
 }
 
 async function loadPendingOrders() {
+  if (!canViewPendingOrders.value) {
+    pendingOrders.value = []
+    return
+  }
   pendingLoading.value = true
   try {
     const result = await getDraftProductionOrderPage({ current: 1, size: 100 })
@@ -201,25 +210,78 @@ async function loadPendingOrders() {
   }
 }
 
-async function loadDraft({ open = false } = {}) {
+function clearScenario() {
+  draft.value = null
+  scheduleItems.value = []
+  visibleLineIds.value = []
+  advice.value = null
+  selectedOrder.value = null
+  selectedItem.value = null
+}
+
+async function loadScenarioOptions() {
+  scenarioLoading.value = true
+  try {
+    const result = await getScheduleScenarioPage({ current: 1, size: 100 })
+    scenarioOptions.value = result?.data?.records || []
+  } finally {
+    scenarioLoading.value = false
+  }
+}
+
+async function loadDraft(scenarioId = selectedScenarioId.value || draft.value?.scenarioId) {
+  if (!scenarioId) {
+    selectedScenarioId.value = ''
+    clearScenario()
+    return
+  }
+  const [detailResult, itemResult] = await Promise.all([
+    getScheduleScenarioDetail(scenarioId),
+    getScheduleScenarioItems(scenarioId)
+  ])
+  draft.value = detailResult?.data || null
+  scheduleItems.value = itemResult?.data || []
+  selectedScenarioId.value = draft.value?.scenarioId ? String(draft.value.scenarioId) : ''
+  advice.value = null
+  selectedOrder.value = null
+  selectedItem.value = null
+  const itemLineIds = scheduleItems.value.filter((item) => item.lineId).map((item) => String(item.lineId))
+  visibleLineIds.value = [...new Set(itemLineIds)]
+}
+
+async function selectScenario(scenarioId) {
+  loading.value = true
+  try {
+    await loadDraft(scenarioId)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function openDraft() {
   if (!canCreateSchedule.value) return
   loading.value = true
   try {
-    const seed = open || !draft.value ? await openManualScheduleDraft() : { data: draft.value }
-    const scenarioId = seed?.data?.scenarioId
-    if (!scenarioId) return
-    const [detailResult, itemResult] = await Promise.all([getScheduleScenarioDetail(scenarioId), getScheduleScenarioItems(scenarioId)])
-    draft.value = detailResult?.data || seed.data
-    scheduleItems.value = itemResult?.data || []
-    const itemLineIds = scheduleItems.value.filter((item) => item.lineId).map((item) => String(item.lineId))
-    visibleLineIds.value = [...new Set([...visibleLineIds.value.map(String), ...itemLineIds])]
+    const result = await openManualScheduleDraft()
+    const scenarioId = result?.data?.scenarioId
+    await loadScenarioOptions()
+    await loadDraft(scenarioId)
+    ElMessage.success('排产草案已打开')
   } finally {
     loading.value = false
   }
 }
 
 async function refreshWorkbench() {
-  await Promise.all([loadDraft({ open: !draft.value }), loadPendingOrders(), loadReferenceData()])
+  loading.value = true
+  try {
+    await Promise.all([loadScenarioOptions(), loadPendingOrders(), loadReferenceData()])
+    const selectedExists = scenarioOptions.value.some((item) => String(item.scenarioId) === String(selectedScenarioId.value))
+    const scenarioId = selectedExists ? selectedScenarioId.value : scenarioOptions.value[0]?.scenarioId
+    await loadDraft(scenarioId)
+  } finally {
+    loading.value = false
+  }
 }
 
 async function openCandidates(order) {
@@ -399,7 +461,9 @@ onMounted(() => {
         <div><h1 class="mes-page-title">智能排产工作台</h1><p class="mes-page-subtitle">订单选线、时间安排、风险校验与人工确认</p></div>
       </div>
       <div class="workbench-actions">
-        <el-tag :type="draftStatus.type" effect="plain">{{ draftStatus.label }}</el-tag>
+        <el-select v-model="selectedScenarioId" class="scenario-selector" filterable :loading="scenarioLoading" placeholder="选择排产方案" @change="selectScenario"><el-option v-for="item in scenarioOptions" :key="item.scenarioId" :label="`${item.scenarioNo} · ${item.status}`" :value="String(item.scenarioId)" /></el-select>
+        <el-button v-if="canCreateSchedule" type="primary" @click="openDraft"><AppIcon name="plus" :size="15" />打开排产草案</el-button>
+        <el-tag v-if="draft" :type="draftStatus.type" effect="plain">{{ draftStatus.label }}</el-tag>
         <el-tooltip content="刷新工作台" placement="bottom"><el-button circle :loading="loading" aria-label="刷新工作台" @click="refreshWorkbench"><AppIcon name="refresh" :size="16" /></el-button></el-tooltip>
       </div>
     </header>
@@ -409,7 +473,7 @@ onMounted(() => {
       <div><span>草案订单</span><strong>{{ draft?.orderCount || 0 }}</strong></div>
       <div><span>阻断风险</span><strong :class="{ danger: conflictItems.length }">{{ draft?.conflictOrderCount || 0 }}</strong></div>
       <div><span>预计延期</span><strong :class="{ warning: Number(draft?.lateOrderCount || 0) > 0 }">{{ draft?.lateOrderCount || 0 }}</strong></div>
-      <div><span>当前草案</span><strong>{{ draft?.scenarioNo || '--' }}</strong><small>仅人工确认后生成生产计划</small></div>
+      <div><span>当前方案</span><strong>{{ draft?.scenarioNo || '--' }}</strong><small>仅人工确认后生成生产计划</small></div>
     </section>
 
     <section class="top-grid">
@@ -440,10 +504,10 @@ onMounted(() => {
     </section>
 
     <section class="mes-panel timeline-panel">
-      <div class="mes-panel-header"><div><h2 class="mes-panel-title">手工时间安排</h2><span>{{ draft ? `${formatDateTime(draft.horizonStart)} 至 ${formatDateTime(draft.horizonEnd)}` : '加载中' }}</span></div><div class="timeline-actions"><el-button v-if="canUpdateSchedule" :disabled="!isEditable" @click="addLineOpen = true"><AppIcon name="plus" :size="15" />添加产线</el-button><el-button v-if="canValidateSchedule" :disabled="!isEditable" @click="validateDraft"><AppIcon name="shield-check" :size="15" />编辑完成并校验</el-button></div></div>
+      <div class="mes-panel-header"><div><h2 class="mes-panel-title">手工时间安排</h2><span>{{ draft ? `${formatDateTime(draft.horizonStart)} 至 ${formatDateTime(draft.horizonEnd)}` : '暂无方案' }}</span></div><div class="timeline-actions"><el-button v-if="canUpdateSchedule" :disabled="!isEditable" @click="addLineOpen = true"><AppIcon name="plus" :size="15" />添加产线</el-button><el-button v-if="canValidateSchedule" :disabled="!isEditable" @click="validateDraft"><AppIcon name="shield-check" :size="15" />编辑完成并校验</el-button></div></div>
       <div class="timeline-toolbar"><span>点击订单块可编辑产线与生产时间</span><div><el-button circle size="small" aria-label="缩小时间轴" :disabled="timelineZoom <= .75" @click="timelineZoom = Number(Math.max(.75, timelineZoom - .25).toFixed(2))"><AppIcon name="zoom-out" :size="14" /></el-button><el-slider v-model="timelineZoom" :min=".75" :max="3" :step=".25" :show-tooltip="false" /><el-button circle size="small" aria-label="放大时间轴" :disabled="timelineZoom >= 3" @click="timelineZoom = Number(Math.min(3, timelineZoom + .25).toFixed(2))"><AppIcon name="zoom-in" :size="14" /></el-button></div></div>
       <div v-if="lineGroups.length" class="timeline-board"><div class="timeline-inner" :style="{ '--timeline-width': `${timelineCanvasWidth}px` }"><div class="timeline-head"><div class="timeline-corner">产线</div><div class="timeline-axis"><span v-for="tick in timelineTicks" :key="tick.key" class="axis-tick" :style="{ left: tick.left }"><b>{{ tick.date }}</b><small>{{ tick.detail }}</small></span></div></div><div v-for="group in lineGroups" :key="group.lineId" class="timeline-row"><div class="line-label"><strong>{{ group.label }}</strong><small>{{ group.items.length }} 个订单</small></div><div class="timeline-lane" :style="{ '--tracks': group.trackCount }"><i v-for="tick in timelineTicks" :key="tick.key" :style="{ left: tick.left }" /><button v-for="item in group.items" :key="item.scheduleItemId" type="button" class="timeline-block" :class="{ conflict: item.status === 'CONFLICT', late: Number(item.tardinessMinutes || 0) > 0 }" :style="timelineBlockStyle(item)" :disabled="!isEditable || !canUpdateSchedule" @click="openPlacement(item)"><strong>{{ scheduledOrderLabel(item) }}</strong><span>{{ scheduledProductLabel(item) }} · {{ formatDateTime(item.plannedStartTime) }}</span></button></div></div></div></div>
-      <el-empty v-else description="从待排订单选择产线后，订单会显示在这里" :image-size="62" />
+      <el-empty v-else :description="draft ? '当前方案暂无时间安排' : '暂无可查看的排产方案'" :image-size="62" />
       <div v-if="conflictItems.length" class="conflict-strip"><AppIcon name="alert" :size="16" /><span v-for="item in conflictItems" :key="item.scheduleItemId">订单 #{{ item.productionOrderId }}：{{ item.conflictReason || '存在排程冲突' }}</span></div>
     </section>
 
@@ -458,5 +522,5 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.workbench-header,.workbench-heading,.workbench-actions,.mes-panel-header>div,.timeline-actions,.timeline-toolbar,.timeline-toolbar>div,.risk-actions{display:flex;align-items:center}.workbench-header{justify-content:space-between;gap:16px}.workbench-heading{gap:12px}.workbench-heading-icon{display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;color:var(--mes-primary);border:1px solid var(--mes-primary-border);border-radius:6px;background:var(--mes-primary-soft)}.workbench-actions{gap:8px}.workbench-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(250px,1.6fr);margin-bottom:14px;border:1px solid var(--mes-border);border-left:3px solid var(--mes-primary);background:var(--mes-surface)}.workbench-summary>div{display:flex;min-width:0;flex-direction:column;justify-content:center;gap:3px;padding:12px 16px;border-right:1px solid var(--mes-border)}.workbench-summary>div:last-child{border:0}.workbench-summary span,.workbench-summary small{color:var(--mes-text-muted);font-size:10px}.workbench-summary strong{overflow:hidden;font-size:17px;text-overflow:ellipsis;white-space:nowrap}.workbench-summary .danger{color:var(--mes-danger)}.workbench-summary .warning{color:var(--mes-warning)}.top-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(330px,.9fr);gap:14px;margin-bottom:14px}.mes-panel{overflow:hidden;border-radius:var(--mes-radius)}.mes-panel-header{display:flex;min-height:52px;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--mes-border)}.mes-panel-header>div{min-width:0;gap:8px}.mes-panel-header span,.mes-panel-header small{overflow:hidden;color:var(--mes-text-muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.filter-row{display:flex;gap:7px;padding:8px 12px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.filter-row :deep(.el-input){min-width:0;flex:1}.filter-row :deep(.el-select){width:145px}.filter-row :deep(.el-date-editor){width:118px}.compact-table{width:100%}.compact-table :deep(.el-table__cell){padding:7px 0}.compact-table strong,.compact-table small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact-table small{margin-top:2px;color:var(--mes-text-muted);font-size:10px}.detail-panel{display:flex;min-height:358px;flex-direction:column}.detail-panel>:deep(.app-icon){color:var(--mes-primary)}.advice-content{flex:1;padding:14px;color:var(--mes-text-secondary);font-size:12px;line-height:1.7;white-space:pre-line}.advice-content p{margin:0}.advice-content ul{margin:10px 0;padding-left:18px}.advice-content li+li{margin-top:4px}.advice-content small{display:block;margin-top:12px;color:var(--mes-text-muted);font-size:10px}.panel-loading{padding:14px}.risk-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding:12px 14px;border-top:1px solid var(--mes-border);background:var(--mes-surface-muted)}.risk-footer>div:first-child{display:flex;min-width:0;flex-direction:column;gap:3px}.risk-footer strong{font-size:12px}.risk-footer span{color:var(--mes-text-muted);font-size:10px}.risk-actions{flex:none;gap:7px}.risk-actions :deep(.el-button)>span,.timeline-actions :deep(.el-button)>span{display:inline-flex;align-items:center;gap:5px}.timeline-panel{min-height:540px}.timeline-toolbar{justify-content:space-between;gap:12px;padding:8px 14px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-toolbar>span{color:var(--mes-text-secondary);font-size:11px}.timeline-toolbar>div{gap:5px}.timeline-toolbar :deep(.el-slider){width:108px;margin:0 3px}.timeline-board{overflow:auto}.timeline-inner{width:max-content;min-width:100%}.timeline-head,.timeline-row{display:grid;grid-template-columns:172px var(--timeline-width,960px)}.timeline-head{position:sticky;top:0;z-index:3;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-corner,.line-label{position:sticky;left:0;z-index:2;display:flex;flex-direction:column;justify-content:center;background:var(--mes-surface)}.timeline-corner{z-index:4;min-height:48px;padding:0 14px;color:var(--mes-text-secondary);font-size:11px;font-weight:650;background:var(--mes-surface-muted)}.timeline-axis{position:relative;height:48px}.axis-tick{position:absolute;bottom:0;display:flex;height:100%;flex-direction:column;justify-content:center;gap:3px;padding-left:4px;border-left:1px solid var(--mes-border);color:var(--mes-text-secondary);font-size:10px}.axis-tick small{color:var(--mes-text-muted);font-size:9px}.timeline-row{min-height:86px;border-bottom:1px solid var(--mes-border)}.line-label{gap:3px;padding:12px 14px;border-right:1px solid var(--mes-border)}.line-label strong{overflow:hidden;max-width:140px;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.line-label small{color:var(--mes-text-muted);font-size:10px}.timeline-lane{position:relative;min-height:calc(var(--tracks,1)*66px + 18px);background:#fff}.timeline-lane>i{position:absolute;top:0;bottom:0;width:1px;background:var(--mes-border);opacity:.7}.timeline-block{position:absolute;display:flex;min-width:154px;height:52px;overflow:hidden;flex-direction:column;justify-content:center;gap:3px;padding:6px 8px;color:#fff;border:1px solid rgb(var(--mes-primary-rgb)/75%);border-radius:5px;background:var(--mes-primary);box-shadow:0 3px 8px rgb(var(--mes-primary-rgb)/16%);font:inherit;text-align:left;cursor:pointer}.timeline-block:disabled{cursor:default}.timeline-block strong,.timeline-block span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.timeline-block strong{font-size:11px}.timeline-block span{color:rgb(255 255 255 / 84%);font-size:10px}.timeline-block.late{border-color:#a96d00;background:var(--mes-warning)}.timeline-block.conflict{border-color:#b24a45;background:var(--mes-danger)}.conflict-strip{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;color:var(--mes-danger);border-top:1px solid var(--mes-border);background:var(--mes-danger-soft);font-size:11px}.dialog-tip,.confirm-copy{margin:0 0 14px;color:var(--mes-text-secondary);font-size:12px;line-height:1.65}.full-width{width:100%}@media(max-width:1050px){.top-grid{grid-template-columns:1fr}.workbench-summary{grid-template-columns:repeat(4,minmax(0,1fr))}.workbench-summary>div:last-child{grid-column:1/-1;border-top:1px solid var(--mes-border)}}@media(max-width:680px){.workbench-header{align-items:flex-start;flex-direction:column}.workbench-actions{width:100%;justify-content:space-between}.workbench-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.workbench-summary>div{border-bottom:1px solid var(--mes-border)}.filter-row{flex-wrap:wrap}.filter-row :deep(.el-input){min-width:180px}.timeline-actions{width:100%;justify-content:space-between}.mes-panel-header{align-items:flex-start;flex-direction:column}.timeline-head,.timeline-row{grid-template-columns:132px var(--timeline-width,720px)}.line-label{padding:10px}.line-label strong{max-width:106px}.risk-footer{align-items:flex-start;flex-direction:column}.risk-actions{width:100%}.risk-actions :deep(.el-button){flex:1}.timeline-toolbar{align-items:flex-start;flex-direction:column}}
+.workbench-header,.workbench-heading,.workbench-actions,.mes-panel-header>div,.timeline-actions,.timeline-toolbar,.timeline-toolbar>div,.risk-actions{display:flex;align-items:center}.workbench-header{justify-content:space-between;gap:16px}.workbench-heading{gap:12px}.workbench-heading-icon{display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;color:var(--mes-primary);border:1px solid var(--mes-primary-border);border-radius:6px;background:var(--mes-primary-soft)}.workbench-actions{gap:8px}.scenario-selector{width:250px}.workbench-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(250px,1.6fr);margin-bottom:14px;border:1px solid var(--mes-border);border-left:3px solid var(--mes-primary);background:var(--mes-surface)}.workbench-summary>div{display:flex;min-width:0;flex-direction:column;justify-content:center;gap:3px;padding:12px 16px;border-right:1px solid var(--mes-border)}.workbench-summary>div:last-child{border:0}.workbench-summary span,.workbench-summary small{color:var(--mes-text-muted);font-size:10px}.workbench-summary strong{overflow:hidden;font-size:17px;text-overflow:ellipsis;white-space:nowrap}.workbench-summary .danger{color:var(--mes-danger)}.workbench-summary .warning{color:var(--mes-warning)}.top-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(330px,.9fr);gap:14px;margin-bottom:14px}.mes-panel{overflow:hidden;border-radius:var(--mes-radius)}.mes-panel-header{display:flex;min-height:52px;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--mes-border)}.mes-panel-header>div{min-width:0;gap:8px}.mes-panel-header span,.mes-panel-header small{overflow:hidden;color:var(--mes-text-muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.filter-row{display:flex;gap:7px;padding:8px 12px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.filter-row :deep(.el-input){min-width:0;flex:1}.filter-row :deep(.el-select){width:145px}.filter-row :deep(.el-date-editor){width:118px}.compact-table{width:100%}.compact-table :deep(.el-table__cell){padding:7px 0}.compact-table strong,.compact-table small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact-table small{margin-top:2px;color:var(--mes-text-muted);font-size:10px}.detail-panel{display:flex;min-height:358px;flex-direction:column}.detail-panel>:deep(.app-icon){color:var(--mes-primary)}.advice-content{flex:1;padding:14px;color:var(--mes-text-secondary);font-size:12px;line-height:1.7;white-space:pre-line}.advice-content p{margin:0}.advice-content ul{margin:10px 0;padding-left:18px}.advice-content li+li{margin-top:4px}.advice-content small{display:block;margin-top:12px;color:var(--mes-text-muted);font-size:10px}.panel-loading{padding:14px}.risk-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding:12px 14px;border-top:1px solid var(--mes-border);background:var(--mes-surface-muted)}.risk-footer>div:first-child{display:flex;min-width:0;flex-direction:column;gap:3px}.risk-footer strong{font-size:12px}.risk-footer span{color:var(--mes-text-muted);font-size:10px}.risk-actions{flex:none;gap:7px}.risk-actions :deep(.el-button)>span,.timeline-actions :deep(.el-button)>span{display:inline-flex;align-items:center;gap:5px}.timeline-panel{min-height:540px}.timeline-toolbar{justify-content:space-between;gap:12px;padding:8px 14px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-toolbar>span{color:var(--mes-text-secondary);font-size:11px}.timeline-toolbar>div{gap:5px}.timeline-toolbar :deep(.el-slider){width:108px;margin:0 3px}.timeline-board{overflow:auto}.timeline-inner{width:max-content;min-width:100%}.timeline-head,.timeline-row{display:grid;grid-template-columns:172px var(--timeline-width,960px)}.timeline-head{position:sticky;top:0;z-index:3;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-corner,.line-label{position:sticky;left:0;z-index:2;display:flex;flex-direction:column;justify-content:center;background:var(--mes-surface)}.timeline-corner{z-index:4;min-height:48px;padding:0 14px;color:var(--mes-text-secondary);font-size:11px;font-weight:650;background:var(--mes-surface-muted)}.timeline-axis{position:relative;height:48px}.axis-tick{position:absolute;bottom:0;display:flex;height:100%;flex-direction:column;justify-content:center;gap:3px;padding-left:4px;border-left:1px solid var(--mes-border);color:var(--mes-text-secondary);font-size:10px}.axis-tick small{color:var(--mes-text-muted);font-size:9px}.timeline-row{min-height:86px;border-bottom:1px solid var(--mes-border)}.line-label{gap:3px;padding:12px 14px;border-right:1px solid var(--mes-border)}.line-label strong{overflow:hidden;max-width:140px;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.line-label small{color:var(--mes-text-muted);font-size:10px}.timeline-lane{position:relative;min-height:calc(var(--tracks,1)*66px + 18px);background:#fff}.timeline-lane>i{position:absolute;top:0;bottom:0;width:1px;background:var(--mes-border);opacity:.7}.timeline-block{position:absolute;display:flex;min-width:154px;height:52px;overflow:hidden;flex-direction:column;justify-content:center;gap:3px;padding:6px 8px;color:#fff;border:1px solid rgb(var(--mes-primary-rgb)/75%);border-radius:5px;background:var(--mes-primary);box-shadow:0 3px 8px rgb(var(--mes-primary-rgb)/16%);font:inherit;text-align:left;cursor:pointer}.timeline-block:disabled{cursor:default}.timeline-block strong,.timeline-block span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.timeline-block strong{font-size:11px}.timeline-block span{color:rgb(255 255 255 / 84%);font-size:10px}.timeline-block.late{border-color:#a96d00;background:var(--mes-warning)}.timeline-block.conflict{border-color:#b24a45;background:var(--mes-danger)}.conflict-strip{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;color:var(--mes-danger);border-top:1px solid var(--mes-border);background:var(--mes-danger-soft);font-size:11px}.dialog-tip,.confirm-copy{margin:0 0 14px;color:var(--mes-text-secondary);font-size:12px;line-height:1.65}.full-width{width:100%}@media(max-width:1050px){.top-grid{grid-template-columns:1fr}.workbench-summary{grid-template-columns:repeat(4,minmax(0,1fr))}.workbench-summary>div:last-child{grid-column:1/-1;border-top:1px solid var(--mes-border)}}@media(max-width:680px){.workbench-header{align-items:flex-start;flex-direction:column}.workbench-actions{width:100%;flex-wrap:wrap;justify-content:flex-start}.scenario-selector{width:min(100%,250px)}.workbench-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.workbench-summary>div{border-bottom:1px solid var(--mes-border)}.filter-row{flex-wrap:wrap}.filter-row :deep(.el-input){min-width:180px}.timeline-actions{width:100%;justify-content:space-between}.mes-panel-header{align-items:flex-start;flex-direction:column}.timeline-head,.timeline-row{grid-template-columns:132px var(--timeline-width,720px)}.line-label{padding:10px}.line-label strong{max-width:106px}.risk-footer{align-items:flex-start;flex-direction:column}.risk-actions{width:100%}.risk-actions :deep(.el-button){flex:1}.timeline-toolbar{align-items:flex-start;flex-direction:column}}
 </style>

@@ -6,7 +6,13 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.entity.sys.SysOperationLog;
+import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
+import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgTaskService;
 import com.neuedu.ems.service.sys.DataScopeService;
 import com.neuedu.ems.exception.DataScopeAccessDeniedException;
@@ -17,6 +23,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.time.LocalDateTime;
 
 /**
  * 生产任务管理 Service 实现类。
@@ -26,6 +33,12 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
 
     @Autowired(required = false)
     private DataScopeService dataScopeService;
+
+    @Autowired
+    private SysStatusChangeLogMapper sysStatusChangeLogMapper;
+
+    @Autowired
+    private SysOperationLogMapper sysOperationLogMapper;
 
     /**
      * 分页查询生产任务列表，支持任务编号、状态、派工单、工单、工序和工位筛选。
@@ -154,9 +167,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      */
     @Override
     @Transactional
-    public boolean startTask(Long taskId, Long stationId) {
+    public boolean startTask(Long taskId, Long stationId, Long operatorId) {
         MfgTask existing = getTaskById(taskId);
-        if (existing == null || !BusinessStatus.Production.WAIT_START.equals(existing.getStatus())) {
+        if (existing == null || operatorId == null || !BusinessStatus.Production.WAIT_START.equals(existing.getStatus())) {
             return false;
         }
         MfgTask task = new MfgTask();
@@ -166,7 +179,14 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             task.setStationId(stationId);
         }
         task.setStatus(BusinessStatus.Production.RUNNING);
-        return baseMapper.update(task, taskInState(taskId, existing.getStatus())) > 0;
+        boolean updated = baseMapper.update(task, taskInState(taskId, existing.getStatus())) > 0;
+        if (updated) {
+            LocalDateTime now = LocalDateTime.now();
+            insertStatusLog(taskId, existing.getStatus(), BusinessStatus.Production.RUNNING,
+                    "START_TASK", operatorId, null, now);
+            insertOperationLog(taskId, "START_TASK", operatorId, null, now);
+        }
+        return updated;
     }
 
     /**
@@ -179,12 +199,13 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      */
     @Override
     @Transactional
-    public boolean finishTask(Long taskId, BigDecimal completedQuantity, BigDecimal defectQuantity, String remark) {
+    public boolean finishTask(Long taskId, BigDecimal completedQuantity, BigDecimal defectQuantity, String remark,
+                              Long operatorId) {
         MfgTask existing = getTaskById(taskId);
         boolean finishable = existing != null
                 && (BusinessStatus.Production.RUNNING.equals(existing.getStatus())
                 || BusinessStatus.Production.PAUSED.equals(existing.getStatus()));
-        if (!finishable || completedQuantity == null || completedQuantity.signum() < 0
+        if (!finishable || operatorId == null || completedQuantity == null || completedQuantity.signum() < 0
                 || defectQuantity == null || defectQuantity.signum() < 0) {
             return false;
         }
@@ -195,7 +216,14 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         task.setDefectQuantity(defectQuantity);
         task.setRemark(remark);
         task.setStatus(BusinessStatus.Production.FINISHED);
-        return baseMapper.update(task, taskInState(taskId, existing.getStatus())) > 0;
+        boolean updated = baseMapper.update(task, taskInState(taskId, existing.getStatus())) > 0;
+        if (updated) {
+            LocalDateTime now = LocalDateTime.now();
+            insertStatusLog(taskId, existing.getStatus(), BusinessStatus.Production.FINISHED,
+                    "FINISH_TASK", operatorId, remark, now);
+            insertOperationLog(taskId, "FINISH_TASK", operatorId, remark, now);
+        }
+        return updated;
     }
 
     /**
@@ -246,5 +274,40 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         if (dataScopeService != null) {
             dataScopeService.applyTaskScope(queryWrapper);
         }
+    }
+
+    private void insertStatusLog(Long bizId, String oldStatus, String newStatus, String reason,
+                                 Long operatorId, String remark, LocalDateTime now) {
+        SysStatusChangeLog log = new SysStatusChangeLog();
+        log.setBizType("MFG_TASK");
+        log.setBizId(bizId);
+        log.setOldStatus(oldStatus);
+        log.setNewStatus(newStatus);
+        log.setChangeReason(reason);
+        log.setChangedBy(operatorId);
+        log.setChangedTime(now);
+        log.setRemark(remark);
+        log.setCreatedBy(operatorId);
+        log.setCreatedTime(now);
+        log.setUpdatedBy(operatorId);
+        log.setUpdatedTime(now);
+        log.setDeletedFlag(0);
+        if (sysStatusChangeLogMapper.insert(log) == 0) throw new BusinessException(ResultCode.FAILED);
+    }
+
+    private void insertOperationLog(Long bizId, String type, Long operatorId, String remark, LocalDateTime now) {
+        SysOperationLog log = new SysOperationLog();
+        log.setUserId(operatorId);
+        log.setOperationType(type);
+        log.setModuleCode("mfg_task");
+        log.setBizId(bizId);
+        log.setOperationTime(now);
+        log.setRemark(remark);
+        log.setCreatedBy(operatorId);
+        log.setCreatedTime(now);
+        log.setUpdatedBy(operatorId);
+        log.setUpdatedTime(now);
+        log.setDeletedFlag(0);
+        if (sysOperationLogMapper.insert(log) == 0) throw new BusinessException(ResultCode.FAILED);
     }
 }

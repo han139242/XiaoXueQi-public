@@ -3,7 +3,7 @@ import { hasPermission, resourcePermission } from '@/utils/permission'
 
 function domainEntries(domain) {
   const specialEntries = domain === 'mfg'
-    ? [{ label: '智能排产工作台', icon: 'route', path: '/mfg/schedule-workbench', description: '计算排程方案、识别风险并人工确认生产计划', permission: 'mfg:schedule-scenario:create' }]
+    ? [{ label: '智能排产工作台', icon: 'route', path: '/mfg/schedule-workbench', description: '计算排程方案、识别风险并人工确认生产计划', permission: 'mfg:schedule-scenario:view' }]
     : []
   return [
     ...specialEntries,

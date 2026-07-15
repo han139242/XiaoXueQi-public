@@ -17,6 +17,9 @@ import java.util.List;
 @Service
 public class WmsMaterialBatchServiceImpl extends ServiceImpl<WmsMaterialBatchMapper, WmsMaterialBatch> implements WmsMaterialBatchService {
 
+    private static final String WAIT_INSPECTION = "WAIT_INSPECTION";
+    private static final String FROZEN = "FROZEN";
+
     /**
      * 分页查询物料批次列表，支持批次号、物料、供应商、质量状态和状态筛选。
      * @param current 当前页码
@@ -69,6 +72,12 @@ public class WmsMaterialBatchServiceImpl extends ServiceImpl<WmsMaterialBatchMap
      */
     @Override
     public boolean saveMaterialBatch(WmsMaterialBatch materialBatch) {
+        if (materialBatch == null || !StringUtils.hasText(materialBatch.getBatchNo())
+                || materialBatch.getMaterialId() == null) {
+            return false;
+        }
+        materialBatch.setQualityStatus(WAIT_INSPECTION);
+        materialBatch.setStatus(FROZEN);
         if (materialBatch.getDeletedFlag() == null) {
             materialBatch.setDeletedFlag(0);
         }
@@ -85,7 +94,16 @@ public class WmsMaterialBatchServiceImpl extends ServiceImpl<WmsMaterialBatchMap
         if (materialBatch.getBatchId() == null) {
             return false;
         }
+        WmsMaterialBatch existing = getMaterialBatchById(materialBatch.getBatchId());
+        if (existing == null) {
+            return false;
+        }
         materialBatch.setDeletedFlag(null);
+        materialBatch.setQualityStatus(null);
+        materialBatch.setStatus(null);
+        if (materialBatch.getVersion() == null) {
+            materialBatch.setVersion(existing.getVersion());
+        }
         return baseMapper.updateById(materialBatch) > 0;
     }
 
@@ -96,8 +114,13 @@ public class WmsMaterialBatchServiceImpl extends ServiceImpl<WmsMaterialBatchMap
      */
     @Override
     public boolean removeMaterialBatchById(Long batchId) {
+        WmsMaterialBatch existing = getMaterialBatchById(batchId);
+        if (existing == null) {
+            return false;
+        }
         WmsMaterialBatch materialBatch = new WmsMaterialBatch();
         materialBatch.setBatchId(batchId);
+        materialBatch.setVersion(existing.getVersion());
         materialBatch.setDeletedFlag(1);
         return baseMapper.updateById(materialBatch) > 0;
     }

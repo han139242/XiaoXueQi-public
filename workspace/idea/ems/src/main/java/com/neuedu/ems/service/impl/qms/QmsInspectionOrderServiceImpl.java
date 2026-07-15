@@ -9,10 +9,12 @@ import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.qms.QmsInspectionResult;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.entity.wms.WmsMaterialBatch;
 import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
 import com.neuedu.ems.mapper.qms.QmsInspectionResultMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.service.qms.QmsInspectionOrderService;
 import com.neuedu.ems.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +31,11 @@ import java.util.List;
 @Service
 public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrderMapper, QmsInspectionOrder> implements QmsInspectionOrderService {
 
+    private static final String BATCH_AVAILABLE = "AVAILABLE";
+    private static final String BATCH_FROZEN = "FROZEN";
+    private static final String BATCH_EXHAUSTED = "EXHAUSTED";
+    private static final String BATCH_SCRAPPED = "SCRAPPED";
+
     @Autowired
     private QmsInspectionResultMapper qmsInspectionResultMapper;
 
@@ -37,6 +44,9 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired
+    private WmsMaterialBatchMapper wmsMaterialBatchMapper;
 
     /**
      * 分页查询检验单，支持单号、类型、方案、工单、任务、报工、批次、检验员、状态和结果筛选。
@@ -198,12 +208,20 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     @Transactional
     public boolean submitInspectionOrder(Long inspectionId, String inspectionResult, String remark, Long operatorId) {
         String normalizedInspectionResult = BusinessStatus.normalizeCode(inspectionResult);
-        if (!BusinessStatus.isInspectionResult(normalizedInspectionResult)) {
+        if (!BusinessStatus.isInspectionResult(normalizedInspectionResult) || operatorId == null) {
             return false;
         }
         QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
         if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
             return false;
+        }
+        WmsMaterialBatch batch = existing.getBatchId() == null ? null : getActiveBatch(existing.getBatchId());
+        if (existing.getBatchId() != null && batch == null) {
+            throw business(ResultCode.NOT_FOUND, "检验单关联的物料批次不存在或已删除");
+        }
+        if (batch != null && !BusinessStatus.Quality.FAIL.equals(normalizedInspectionResult)
+                && (BATCH_EXHAUSTED.equals(batch.getStatus()) || BATCH_SCRAPPED.equals(batch.getStatus()))) {
+            throw business(ResultCode.BUSINESS_ERROR, "耗尽或报废批次不能通过检验重新放行");
         }
         QmsInspectionOrder update = new QmsInspectionOrder();
         update.setInspectionId(inspectionId);
@@ -211,14 +229,46 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         update.setInspectionResult(normalizedInspectionResult);
         update.setStatus(BusinessStatus.Production.FINISHED);
         update.setRemark(StringUtils.hasText(remark) ? remark : existing.getRemark());
-        boolean updated = baseMapper.updateById(update) > 0;
-        if (updated) {
-            LocalDateTime now = LocalDateTime.now();
-            insertStatusChangeLog(inspectionId, existing.getStatus(), BusinessStatus.Production.FINISHED, "QMS_INSPECTION_ORDER",
-                    "SUBMIT_INSPECTION", operatorId, remark, now);
-            insertOperationLog(inspectionId, "SUBMIT_INSPECTION", "qms_inspection_order", operatorId, remark, now);
+        if (baseMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "检验单已被其他用户修改，请刷新后重试");
         }
-        return updated;
+        LocalDateTime now = LocalDateTime.now();
+        insertStatusChangeLog(inspectionId, existing.getStatus(), BusinessStatus.Production.FINISHED, "QMS_INSPECTION_ORDER",
+                "SUBMIT_INSPECTION", operatorId, remark, now);
+        insertOperationLog(inspectionId, "SUBMIT_INSPECTION", "qms_inspection_order", operatorId, remark, now);
+        if (batch != null) {
+            synchronizeBatchQuality(batch, normalizedInspectionResult, inspectionId, operatorId, now);
+        }
+        return true;
+    }
+
+    private WmsMaterialBatch getActiveBatch(Long batchId) {
+        LambdaQueryWrapper<WmsMaterialBatch> query = new LambdaQueryWrapper<>();
+        query.eq(WmsMaterialBatch::getBatchId, batchId)
+                .eq(WmsMaterialBatch::getDeletedFlag, 0);
+        return wmsMaterialBatchMapper.selectOne(query);
+    }
+
+    private void synchronizeBatchQuality(WmsMaterialBatch batch, String inspectionResult, Long inspectionId,
+                                         Long operatorId, LocalDateTime now) {
+        boolean terminalBatch = BATCH_EXHAUSTED.equals(batch.getStatus()) || BATCH_SCRAPPED.equals(batch.getStatus());
+        String targetStatus = terminalBatch ? batch.getStatus()
+                : BusinessStatus.Quality.FAIL.equals(inspectionResult) ? BATCH_FROZEN : BATCH_AVAILABLE;
+        WmsMaterialBatch update = new WmsMaterialBatch();
+        update.setBatchId(batch.getBatchId());
+        update.setVersion(batch.getVersion());
+        update.setQualityStatus(inspectionResult);
+        update.setStatus(targetStatus);
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (wmsMaterialBatchMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "物料批次已被其他用户修改，请刷新后重试");
+        }
+        String batchRemark = "检验单#" + inspectionId + "同步批次质量状态，批次状态=" + targetStatus;
+        insertStatusChangeLog(batch.getBatchId(), batch.getQualityStatus(), inspectionResult, "WMS_MATERIAL_BATCH",
+                "SYNC_INSPECTION_RESULT", operatorId, batchRemark, now);
+        insertOperationLog(batch.getBatchId(), "SYNC_INSPECTION_RESULT", "wms_material_batch",
+                operatorId, batchRemark, now);
     }
 
     /**
@@ -344,7 +394,9 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         statusLog.setCreatedTime(changedTime);
         statusLog.setRemark(remark);
         statusLog.setDeletedFlag(0);
-        sysStatusChangeLogMapper.insert(statusLog);
+        if (sysStatusChangeLogMapper.insert(statusLog) == 0) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
     }
 
     /**
@@ -368,6 +420,12 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         operationLog.setCreatedTime(operationTime);
         operationLog.setRemark(remark);
         operationLog.setDeletedFlag(0);
-        sysOperationLogMapper.insert(operationLog);
+        if (sysOperationLogMapper.insert(operationLog) == 0) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
+    }
+
+    private BusinessException business(ResultCode code, String message) {
+        return new BusinessException(code.getCode(), message);
     }
 }

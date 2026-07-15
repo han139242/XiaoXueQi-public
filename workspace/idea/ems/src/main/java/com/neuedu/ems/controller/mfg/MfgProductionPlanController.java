@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -75,6 +76,14 @@ public class MfgProductionPlanController {
     public ResultData save(@RequestBody MfgProductionPlan plan) {
         boolean flag = mfgProductionPlanService.savePlan(plan);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
+    }
+
+    @PostMapping("/generate/{productionOrderId}")
+    public ResultData generate(@PathVariable Long productionOrderId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody MfgProductionPlan request) {
+        return ResultData.success(ResultCode.SUCCESS,
+                mfgProductionPlanService.generatePlan(productionOrderId, request, userId));
     }
 
     /**

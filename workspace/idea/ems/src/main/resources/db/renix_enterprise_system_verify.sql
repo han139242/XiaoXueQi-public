@@ -58,10 +58,10 @@ FROM (
            GROUP BY user.`user_id`
            HAVING COUNT(relation.`id`) <> 1
          ) invalid_user_role) AS CHAR)
-  UNION ALL SELECT 'rbac', 'permission nodes', '414',
+  UNION ALL SELECT 'rbac', 'permission nodes', '435',
          CAST((SELECT COUNT(*) FROM `sys_menu`
-               WHERE `remark` LIKE 'RENIX_RBAC_V1%' AND `deleted_flag` = 0) AS CHAR)
-  UNION ALL SELECT 'rbac', 'directory/resource/hidden/special/button shape', '414',
+               WHERE `deleted_flag` = 0) AS CHAR)
+  UNION ALL SELECT 'rbac', 'directory/resource/hidden/special/button shape', '435',
          CAST((SELECT
            (SELECT COUNT(*) FROM `sys_menu`
             WHERE `menu_type` = 'DIRECTORY' AND `remark` = 'RENIX_RBAC_V1: 业务域目录' AND `deleted_flag` = 0)
@@ -74,8 +74,12 @@ FROM (
                     ('dashboard:summary:view','dashboard:big-screen:view','ai:assistant:use')
                 AND `deleted_flag` = 0)
            + (SELECT COUNT(*) FROM `sys_menu`
-              WHERE `menu_type` = 'BUTTON' AND `remark` LIKE 'RENIX_RBAC_V1%' AND `deleted_flag` = 0)) AS CHAR)
-  UNION ALL SELECT 'rbac', 'active role-permission relations', '1166',
+              WHERE `menu_type` = 'BUTTON' AND `remark` LIKE 'RENIX_RBAC_V1%' AND `deleted_flag` = 0)
+           + (SELECT COUNT(*) FROM `sys_menu`
+              WHERE `remark` LIKE 'RBAC_PERMISSION_V2:%' AND `deleted_flag` = 0)
+           + (SELECT COUNT(*) FROM `sys_menu`
+              WHERE `remark` LIKE 'P0_PRODUCTION_FLOW_PERMISSION_V1:%' AND `deleted_flag` = 0)) AS CHAR)
+  UNION ALL SELECT 'rbac', 'active role-permission relations', '1227',
          CAST((SELECT COUNT(*) FROM `sys_role_menu` relation
                JOIN `sys_role` role ON role.`role_id` = relation.`role_id` AND role.`deleted_flag` = 0
                JOIN `sys_menu` menu ON menu.`menu_id` = relation.`menu_id` AND menu.`deleted_flag` = 0

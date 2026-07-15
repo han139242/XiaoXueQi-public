@@ -38,6 +38,40 @@ class PermissionCodeResolverTest {
                 resolver.resolve("POST", "/api/mfg/schedule-scenario/5/orders/8/ai-advice").orElseThrow());
         assertEquals("mfg:schedule-scenario:confirm",
                 resolver.resolve("PUT", "/api/mfg/schedule-scenario/5/confirm").orElseThrow());
+        assertEquals("mfg:production-order:release",
+                resolver.resolve("PUT", "/api/mfg/production-order/5/release").orElseThrow());
+        assertEquals("mfg:production-plan:generate",
+                resolver.resolve("POST", "/api/mfg/production-plan/generate/5").orElseThrow());
+        assertEquals("mfg:work-order:generate",
+                resolver.resolve("POST", "/api/mfg/work-order/generate/6").orElseThrow());
+        assertEquals("mfg:work-order:release",
+                resolver.resolve("PUT", "/api/mfg/work-order/6/release").orElseThrow());
+        assertEquals("mfg:work-report:submit",
+                resolver.resolve("POST", "/api/mfg/work-report").orElseThrow());
+        assertEquals("mfg:work-report:submit",
+                resolver.resolve("POST", "/api/mfg/work-report/full").orElseThrow());
+    }
+
+    @Test
+    void separatesManualSchedulingViewAndMutationPermissions() {
+        assertEquals("mfg:schedule-scenario:view",
+                resolver.resolve("GET", "/api/mfg/schedule-scenario/page").orElseThrow());
+        assertEquals("mfg:schedule-scenario:create",
+                resolver.resolve("POST", "/api/mfg/schedule-scenario/manual-draft/open").orElseThrow());
+        assertEquals("mfg:schedule-scenario:view",
+                resolver.resolve("GET", "/api/mfg/schedule-scenario/5/orders/8/eligible-lines").orElseThrow());
+        assertEquals("mfg:schedule-scenario:create",
+                resolver.resolve("POST", "/api/mfg/schedule-scenario/5/items").orElseThrow());
+        assertEquals("mfg:schedule-scenario:update",
+                resolver.resolve("PUT", "/api/mfg/schedule-scenario/5/items/9/placement").orElseThrow());
+        assertEquals("mfg:schedule-scenario:delete",
+                resolver.resolve("DELETE", "/api/mfg/schedule-scenario/5/items/9").orElseThrow());
+    }
+
+    @Test
+    void taskReminderSummaryUsesTaskViewPermission() {
+        assertEquals("mfg:task:view",
+                resolver.resolve("GET", "/api/mfg/task/reminder-summary").orElseThrow());
     }
 
     @Test

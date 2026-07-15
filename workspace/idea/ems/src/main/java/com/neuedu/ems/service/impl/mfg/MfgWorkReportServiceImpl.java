@@ -4,16 +4,27 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgReportMaterial;
+import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.entity.mfg.MfgProductionOrder;
+import com.neuedu.ems.entity.mfg.MfgProductionPlan;
+import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.mfg.MfgReportMaterialMapper;
+import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgWorkReportService;
 import com.neuedu.ems.service.sys.DataScopeService;
 import com.neuedu.ems.exception.DataScopeAccessDeniedException;
+import com.neuedu.ems.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +51,18 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired
+    private MfgTaskMapper mfgTaskMapper;
+
+    @Autowired
+    private MfgWorkOrderMapper mfgWorkOrderMapper;
+
+    @Autowired
+    private MfgProductionPlanMapper mfgProductionPlanMapper;
+
+    @Autowired
+    private MfgProductionOrderMapper mfgProductionOrderMapper;
 
     @Autowired(required = false)
     private DataScopeService dataScopeService;
@@ -103,10 +126,14 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
      */
     @Override
     public boolean saveWorkReport(MfgWorkReport workReport) {
+        if (workReport == null) {
+            throw business(ResultCode.PARAM_ERROR, "报工信息不能为空");
+        }
+        prepareWorkReport(workReport);
+        validateWorkReport(workReport);
         if (dataScopeService != null) {
             dataScopeService.assertCanWriteWorkReport(workReport);
         }
-        prepareWorkReport(workReport);
         return baseMapper.insert(workReport) > 0;
     }
 
@@ -140,6 +167,10 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
         fillMissingQuantities(workReport, existing);
         workReport.setDeletedFlag(null);
+        workReport.setAuditStatus(null);
+        if (workReport.getVersion() == null) {
+            workReport.setVersion(existing.getVersion());
+        }
         return baseMapper.updateById(workReport) > 0;
     }
 
@@ -176,6 +207,7 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
         MfgWorkReport workReport = new MfgWorkReport();
         workReport.setReportId(reportId);
+        workReport.setVersion(existing.getVersion());
         workReport.setDeletedFlag(1);
         boolean removed = baseMapper.updateById(workReport) > 0;
         softDeleteMaterials(reportId);
@@ -191,12 +223,11 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
     @Override
     @Transactional
     public Long submitWorkReport(MfgWorkReport workReport, List<MfgReportMaterial> materials) {
-        String oldStatus = workReport.getAuditStatus();
         workReport.setAuditStatus(SUBMITTED_STATUS);
         Long reportId = saveWorkReportFull(workReport, materials);
         LocalDateTime now = LocalDateTime.now();
         Long currentUserId = currentUserId(workReport.getCreatedBy());
-        insertStatusChangeLog(reportId, oldStatus, SUBMITTED_STATUS, "MFG_WORK_REPORT", "SUBMIT_WORK_REPORT",
+        insertStatusChangeLog(reportId, null, SUBMITTED_STATUS, "MFG_WORK_REPORT", "SUBMIT_WORK_REPORT",
                 currentUserId, workReport.getRemark(), now);
         insertOperationLog(reportId, "SUBMIT_WORK_REPORT", "mfg_work_report", currentUserId, workReport.getRemark(), now);
         return reportId;
@@ -213,25 +244,186 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
     @Override
     @Transactional
     public boolean auditWorkReport(Long reportId, String auditResult, String auditComment, Long operatorId) {
-        if (!StringUtils.hasText(auditResult)) {
+        String normalizedAuditResult = BusinessStatus.normalizeCode(auditResult);
+        if (!BusinessStatus.isApprovalResult(normalizedAuditResult) || operatorId == null) {
             return false;
         }
         MfgWorkReport existing = getWorkReportById(reportId);
-        if (existing == null || APPROVED_STATUS.equals(existing.getAuditStatus())) {
+        if (existing == null || !SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
             return false;
         }
+        MfgWorkOrder workOrder = APPROVED_STATUS.equals(normalizedAuditResult)
+                ? validateApprovalQuantity(existing)
+                : null;
         MfgWorkReport update = new MfgWorkReport();
         update.setReportId(reportId);
-        update.setAuditStatus(auditResult);
+        update.setVersion(existing.getVersion());
+        update.setAuditStatus(normalizedAuditResult);
         update.setRemark(StringUtils.hasText(auditComment) ? auditComment : existing.getRemark());
-        boolean updated = baseMapper.updateById(update) > 0;
-        if (updated) {
-            LocalDateTime now = LocalDateTime.now();
-            insertStatusChangeLog(reportId, existing.getAuditStatus(), auditResult, "MFG_WORK_REPORT", "AUDIT_WORK_REPORT",
-                    operatorId, auditComment, now);
-            insertOperationLog(reportId, "AUDIT_WORK_REPORT", "mfg_work_report", operatorId, auditComment, now);
+        if (baseMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产报工已被其他用户修改，请刷新后重试");
         }
-        return updated;
+        LocalDateTime now = LocalDateTime.now();
+        insertStatusChangeLog(reportId, existing.getAuditStatus(), normalizedAuditResult, "MFG_WORK_REPORT", "AUDIT_WORK_REPORT",
+                operatorId, auditComment, now);
+        insertOperationLog(reportId, "AUDIT_WORK_REPORT", "mfg_work_report", operatorId, auditComment, now);
+        if (workOrder != null) {
+            aggregateWorkOrder(workOrder, operatorId, now);
+        }
+        return true;
+    }
+
+    private MfgWorkOrder validateApprovalQuantity(MfgWorkReport report) {
+        MfgTask task = activeTask(report.getTaskId());
+        if (task == null || task.getWorkOrderId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "报工未关联有效生产任务和工单");
+        }
+        MfgWorkOrder workOrder = activeWorkOrder(task.getWorkOrderId());
+        if (workOrder == null || !List.of(BusinessStatus.Document.RELEASED, BusinessStatus.Production.RUNNING)
+                .contains(workOrder.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "报工关联的生产工单不存在或当前状态不可审核");
+        }
+        BigDecimal currentApproved = approvedQuantity(workOrder.getWorkOrderId());
+        BigDecimal candidate = currentApproved.add(zero(report.getQualifiedQuantity()));
+        if (candidate.compareTo(workOrder.getPlannedQuantity()) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "累计审核合格数量不能超过工单计划数量");
+        }
+        return workOrder;
+    }
+
+    private void aggregateWorkOrder(MfgWorkOrder workOrder, Long operatorId, LocalDateTime now) {
+        BigDecimal completed = approvedQuantity(workOrder.getWorkOrderId());
+        if (completed.compareTo(workOrder.getPlannedQuantity()) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "累计审核合格数量不能超过工单计划数量");
+        }
+        String oldStatus = workOrder.getStatus();
+        String newStatus = completed.compareTo(workOrder.getPlannedQuantity()) >= 0
+                ? BusinessStatus.Production.FINISHED
+                : completed.signum() > 0 ? BusinessStatus.Production.RUNNING : oldStatus;
+        MfgWorkOrder update = new MfgWorkOrder();
+        update.setWorkOrderId(workOrder.getWorkOrderId());
+        update.setCompletedQuantity(completed);
+        update.setStatus(newStatus);
+        update.setVersion(workOrder.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (mfgWorkOrderMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "工单完成数量已被其他请求修改，请刷新后重试");
+        }
+        if (!java.util.Objects.equals(oldStatus, newStatus)) {
+            insertStatusChangeLog(workOrder.getWorkOrderId(), oldStatus, newStatus, "MFG_WORK_ORDER",
+                    "AGGREGATE_APPROVED_WORK_REPORT", operatorId, null, now);
+        }
+        insertOperationLog(workOrder.getWorkOrderId(), "AGGREGATE_WORK_ORDER_QUANTITY", "mfg_work_order",
+                operatorId, "审核报工后重算完成数量=" + completed.toPlainString(), now);
+        if (BusinessStatus.Production.FINISHED.equals(newStatus)) {
+            finishPlanAndOrderIfComplete(workOrder.getPlanId(), operatorId, now);
+        }
+    }
+
+    private void finishPlanAndOrderIfComplete(Long planId, Long operatorId, LocalDateTime now) {
+        MfgProductionPlan plan = activePlan(planId);
+        if (plan == null || BusinessStatus.Document.CLOSED.equals(plan.getStatus())) {
+            return;
+        }
+        LambdaQueryWrapper<MfgWorkOrder> workOrderQuery = new LambdaQueryWrapper<>();
+        workOrderQuery.eq(MfgWorkOrder::getPlanId, planId)
+                .eq(MfgWorkOrder::getDeletedFlag, 0)
+                .ne(MfgWorkOrder::getStatus, BusinessStatus.Document.CLOSED);
+        List<MfgWorkOrder> workOrders = mfgWorkOrderMapper.selectList(workOrderQuery);
+        if (workOrders.isEmpty() || workOrders.stream().anyMatch(item ->
+                !BusinessStatus.Production.FINISHED.equals(item.getStatus()))
+                || workOrders.stream().map(MfgWorkOrder::getPlannedQuantity).map(this::zero)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).compareTo(plan.getPlannedQuantity()) < 0) {
+            return;
+        }
+        if (!BusinessStatus.Production.FINISHED.equals(plan.getStatus())) {
+            MfgProductionPlan update = new MfgProductionPlan();
+            update.setPlanId(planId);
+            update.setStatus(BusinessStatus.Production.FINISHED);
+            update.setVersion(plan.getVersion());
+            update.setUpdatedBy(operatorId);
+            update.setUpdatedTime(now);
+            if (mfgProductionPlanMapper.updateById(update) == 0) {
+                throw business(ResultCode.DATA_CONFLICT, "生产计划已被其他请求修改，请刷新后重试");
+            }
+            insertStatusChangeLog(planId, plan.getStatus(), BusinessStatus.Production.FINISHED,
+                    "MFG_PRODUCTION_PLAN", "ALL_WORK_ORDERS_FINISHED", operatorId, null, now);
+        }
+        finishProductionOrderIfComplete(plan.getProductionOrderId(), operatorId, now);
+    }
+
+    private void finishProductionOrderIfComplete(Long productionOrderId, Long operatorId, LocalDateTime now) {
+        MfgProductionOrder order = activeOrder(productionOrderId);
+        if (order == null || BusinessStatus.Document.CLOSED.equals(order.getStatus())) {
+            return;
+        }
+        LambdaQueryWrapper<MfgProductionPlan> planQuery = new LambdaQueryWrapper<>();
+        planQuery.eq(MfgProductionPlan::getProductionOrderId, productionOrderId)
+                .eq(MfgProductionPlan::getDeletedFlag, 0)
+                .ne(MfgProductionPlan::getStatus, BusinessStatus.Document.CLOSED);
+        List<MfgProductionPlan> plans = mfgProductionPlanMapper.selectList(planQuery);
+        if (plans.isEmpty() || plans.stream().anyMatch(item ->
+                !BusinessStatus.Production.FINISHED.equals(item.getStatus()))
+                || plans.stream().map(MfgProductionPlan::getPlannedQuantity).map(this::zero)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).compareTo(order.getOrderQuantity()) < 0) {
+            return;
+        }
+        if (!BusinessStatus.Production.FINISHED.equals(order.getStatus())) {
+            MfgProductionOrder update = new MfgProductionOrder();
+            update.setProductionOrderId(productionOrderId);
+            update.setStatus(BusinessStatus.Production.FINISHED);
+            update.setVersion(order.getVersion());
+            update.setUpdatedBy(operatorId);
+            update.setUpdatedTime(now);
+            if (mfgProductionOrderMapper.updateById(update) == 0) {
+                throw business(ResultCode.DATA_CONFLICT, "生产订单已被其他请求修改，请刷新后重试");
+            }
+            insertStatusChangeLog(productionOrderId, order.getStatus(), BusinessStatus.Production.FINISHED,
+                    "MFG_PRODUCTION_ORDER", "ALL_PRODUCTION_PLANS_FINISHED", operatorId, null, now);
+        }
+    }
+
+    private BigDecimal approvedQuantity(Long workOrderId) {
+        LambdaQueryWrapper<MfgWorkReport> query = new LambdaQueryWrapper<>();
+        query.eq(MfgWorkReport::getDeletedFlag, 0)
+                .eq(MfgWorkReport::getAuditStatus, APPROVED_STATUS)
+                .inSql(MfgWorkReport::getTaskId,
+                        "SELECT task_id FROM mfg_task WHERE deleted_flag = 0 AND work_order_id = " + workOrderId);
+        return baseMapper.selectList(query).stream()
+                .map(MfgWorkReport::getQualifiedQuantity)
+                .map(this::zero)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private MfgTask activeTask(Long taskId) {
+        return taskId == null ? null : mfgTaskMapper.selectOne(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getTaskId, taskId).eq(MfgTask::getDeletedFlag, 0));
+    }
+
+    private MfgWorkOrder activeWorkOrder(Long workOrderId) {
+        return mfgWorkOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, workOrderId).eq(MfgWorkOrder::getDeletedFlag, 0));
+    }
+
+    private MfgProductionPlan activePlan(Long planId) {
+        return planId == null ? null : mfgProductionPlanMapper.selectOne(new LambdaQueryWrapper<MfgProductionPlan>()
+                .eq(MfgProductionPlan::getPlanId, planId).eq(MfgProductionPlan::getDeletedFlag, 0));
+    }
+
+    private MfgProductionOrder activeOrder(Long productionOrderId) {
+        return productionOrderId == null ? null : mfgProductionOrderMapper.selectOne(
+                new LambdaQueryWrapper<MfgProductionOrder>()
+                        .eq(MfgProductionOrder::getProductionOrderId, productionOrderId)
+                        .eq(MfgProductionOrder::getDeletedFlag, 0));
+    }
+
+    private BigDecimal zero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private BusinessException business(ResultCode code, String message) {
+        return new BusinessException(code.getCode(), message);
     }
 
     /**
@@ -289,11 +481,24 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         if (workReport.getReportTime() == null) {
             workReport.setReportTime(LocalDateTime.now());
         }
-        if (!StringUtils.hasText(workReport.getAuditStatus())) {
-            workReport.setAuditStatus(SUBMITTED_STATUS);
-        }
+        workReport.setAuditStatus(SUBMITTED_STATUS);
         if (workReport.getDeletedFlag() == null) {
             workReport.setDeletedFlag(0);
+        }
+    }
+
+    private void validateWorkReport(MfgWorkReport workReport) {
+        if (workReport.getTaskId() == null || workReport.getOperatorId() == null || workReport.getStationId() == null) {
+            throw business(ResultCode.PARAM_ERROR, "生产任务、操作工和工位不能为空");
+        }
+        BigDecimal qualified = zero(workReport.getQualifiedQuantity());
+        BigDecimal defect = zero(workReport.getDefectQuantity());
+        BigDecimal workHours = zero(workReport.getActualWorkHours());
+        if (qualified.signum() < 0 || defect.signum() < 0 || workHours.signum() < 0) {
+            throw business(ResultCode.PARAM_ERROR, "合格数量、不良数量和实际工时不能为负数");
+        }
+        if (qualified.add(defect).signum() <= 0) {
+            throw business(ResultCode.PARAM_ERROR, "报工数量必须大于 0");
         }
     }
 
@@ -381,7 +586,9 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         statusLog.setCreatedTime(changedTime);
         statusLog.setRemark(remark);
         statusLog.setDeletedFlag(0);
-        sysStatusChangeLogMapper.insert(statusLog);
+        if (sysStatusChangeLogMapper.insert(statusLog) == 0) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
     }
 
     /**
@@ -405,6 +612,8 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         operationLog.setCreatedTime(operationTime);
         operationLog.setRemark(remark);
         operationLog.setDeletedFlag(0);
-        sysOperationLogMapper.insert(operationLog);
+        if (sysOperationLogMapper.insert(operationLog) == 0) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
     }
 }

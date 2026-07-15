@@ -51,6 +51,10 @@ public interface MfgWorkOrderService extends IService<MfgWorkOrder> {
      */
     boolean removeWorkOrderById(Long workOrderId);
 
+    MfgWorkOrder generateWorkOrder(Long planId, MfgWorkOrder request, Long operatorId);
+
+    MfgWorkOrder releaseWorkOrder(Long workOrderId, Long operatorId, String remark);
+
     /**
      * 查询生产工单列表，支持关键字搜索、状态筛选、生产计划筛选和产品筛选。
      * @param keyword 关键字（匹配工单编号）

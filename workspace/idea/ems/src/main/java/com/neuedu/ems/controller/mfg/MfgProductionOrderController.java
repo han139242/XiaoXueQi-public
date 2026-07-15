@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -88,6 +89,14 @@ public class MfgProductionOrderController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PutMapping("/{productionOrderId}/release")
+    public ResultData release(@PathVariable Long productionOrderId,
+                              @RequestAttribute("userId") Long userId,
+                              @RequestBody(required = false) ReleaseRequest request) {
+        return ResultData.success(ResultCode.SUCCESS, mfgProductionOrderService.releaseOrder(
+                productionOrderId, userId, request == null ? null : request.getRemark()));
+    }
+
     /**
      * 删除生产订单（软删除，将删除标志设为1）。
      * @param productionOrderId 生产订单ID
@@ -115,5 +124,10 @@ public class MfgProductionOrderController {
                       @RequestParam(required = false) Long productId) {
         List<MfgProductionOrder> orders = mfgProductionOrderService.listOrders(keyword, status, customerId, productId);
         excelExportUtil.exportExcel(response, orders, MfgProductionOrder.class, "生产订单列表", "生产订单列表");
+    }
+
+    @lombok.Data
+    public static class ReleaseRequest {
+        private String remark;
     }
 }

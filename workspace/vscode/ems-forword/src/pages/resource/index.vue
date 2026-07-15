@@ -547,7 +547,8 @@ async function openAction(action, row = null) {
   actionRow.value = row
   actionModel.value = Object.fromEntries((action.fields || []).map((item) => [
     item.prop,
-    item.defaultValue ?? (item.multiple ? [] : item.type === 'number' ? undefined : '')
+    (typeof item.defaultValue === 'function' ? item.defaultValue(row) : item.defaultValue)
+      ?? (item.multiple ? [] : item.type === 'number' ? undefined : '')
   ]))
   if (action.preload && !localDataMode.value) {
     submitting.value = true

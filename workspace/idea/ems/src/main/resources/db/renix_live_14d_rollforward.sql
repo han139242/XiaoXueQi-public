@@ -675,7 +675,7 @@ INSERT INTO `wms_material_batch`
 SELECT CONCAT('FG-', product_lot.`lot_no`), product.`material_id`,
        IF(work_order.`work_order_no` = 'WO-20260713-013-1', '2026-07-13', '2026-07-14'),
        IF(work_order.`work_order_no` = 'WO-20260713-013-1', '2026-07-13', '2026-07-14'),
-       'PASS', 'ENABLE', 'PRODUCTION', work_order.`work_order_id`, product_lot.`product_lot_id`,
+       'PASS', 'AVAILABLE', 'PRODUCTION', work_order.`work_order_id`, product_lot.`product_lot_id`,
        CONCAT(@live_marker, ': 最终检验合格成品批次'), 0, @warehouse_user_id,
        IF(work_order.`work_order_no` = 'WO-20260713-013-1', '2026-07-13 16:35:00', '2026-07-14 10:25:00'),
        @warehouse_user_id,

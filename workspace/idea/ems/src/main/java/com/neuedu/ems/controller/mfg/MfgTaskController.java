@@ -3,8 +3,10 @@ package com.neuedu.ems.controller.mfg;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.common.ResultData;
+import com.neuedu.ems.common.AuthorizationContext;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.service.mfg.MfgTaskService;
+import com.neuedu.ems.service.mfg.MfgTaskReminderService;
 import com.neuedu.ems.util.ExcelExportUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,6 +34,9 @@ public class MfgTaskController {
 
     @Autowired
     private MfgTaskService mfgTaskService;
+
+    @Autowired
+    private MfgTaskReminderService mfgTaskReminderService;
 
     @Autowired
     private ExcelExportUtil excelExportUtil;
@@ -62,6 +68,11 @@ public class MfgTaskController {
                            @RequestParam(required = false) String sort) {
         Page<MfgTask> result = mfgTaskService.pageTasks(current, size, keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort);
         return ResultData.success(ResultCode.SUCCESS, result);
+    }
+
+    @GetMapping("/reminder-summary")
+    public ResultData reminderSummary(@RequestAttribute("authorizationContext") AuthorizationContext context) {
+        return ResultData.success(ResultCode.SUCCESS, mfgTaskReminderService.getCurrentUserSummary(context));
     }
 
     /**
@@ -105,8 +116,9 @@ public class MfgTaskController {
      */
     @PutMapping("/{taskId}/start")
     public ResultData start(@PathVariable("taskId") Long taskId,
+                            @RequestAttribute("userId") Long userId,
                             @RequestBody(required = false) Map<String, Object> request) {
-        boolean flag = mfgTaskService.startTask(taskId, getLong(request, "stationId"));
+        boolean flag = mfgTaskService.startTask(taskId, getLong(request, "stationId"), userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -118,12 +130,14 @@ public class MfgTaskController {
      */
     @PutMapping("/{taskId}/finish")
     public ResultData finish(@PathVariable("taskId") Long taskId,
+                             @RequestAttribute("userId") Long userId,
                              @RequestBody(required = false) Map<String, Object> request) {
         boolean flag = mfgTaskService.finishTask(
                 taskId,
                 getBigDecimal(request, "completedQuantity"),
                 getBigDecimal(request, "defectQuantity"),
-                getString(request, "remark"));
+                getString(request, "remark"),
+                userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
