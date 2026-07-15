@@ -29,6 +29,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -60,6 +61,9 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired
+    private WmsResponsibilityNotificationService responsibilityNotificationService;
 
     /**
      * 分页查询入库单列表，支持入库单号、类型、仓库、来源单据和审核状态筛选。
@@ -115,6 +119,7 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean saveInboundOrder(WmsInboundOrder inboundOrder) {
         if (inboundOrder == null || inboundOrder.getWarehouseId() == null) {
             return false;
@@ -124,7 +129,11 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         if (inboundOrder.getDeletedFlag() == null) {
             inboundOrder.setDeletedFlag(0);
         }
-        return baseMapper.insert(inboundOrder) > 0;
+        boolean saved = baseMapper.insert(inboundOrder) > 0;
+        if (saved) {
+            responsibilityNotificationService.publishInboundPending(inboundOrder, inboundOrder.getCreatedBy());
+        }
+        return saved;
     }
 
     /**
@@ -157,6 +166,7 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean updateInboundOrder(WmsInboundOrder inboundOrder) {
         if (inboundOrder.getInboundId() == null) {
             return false;
@@ -171,7 +181,15 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         if (inboundOrder.getVersion() == null) {
             inboundOrder.setVersion(existing.getVersion());
         }
-        return baseMapper.updateById(inboundOrder) > 0;
+        boolean warehouseChanged = inboundOrder.getWarehouseId() != null
+                && !Objects.equals(existing.getWarehouseId(), inboundOrder.getWarehouseId());
+        boolean updated = baseMapper.updateById(inboundOrder) > 0;
+        if (updated && warehouseChanged) {
+            responsibilityNotificationService.cancelInboundPending(existing.getInboundId(), inboundOrder.getUpdatedBy());
+            responsibilityNotificationService.publishInboundPending(
+                    getInboundOrderById(existing.getInboundId()), inboundOrder.getUpdatedBy());
+        }
+        return updated;
     }
 
     /**
@@ -218,6 +236,9 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         inboundOrder.setVersion(existing.getVersion());
         boolean orderRemoved = baseMapper.updateById(inboundOrder) > 0;
         softDeleteDetails(inboundId);
+        if (orderRemoved) {
+            responsibilityNotificationService.cancelInboundPending(inboundId, existing.getUpdatedBy());
+        }
         return orderRemoved;
     }
 
@@ -265,6 +286,8 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         }
         insertStatusChangeLog(inboundOrder, operatorId, remark, now);
         insertOperationLog(inboundOrder, operatorId, remark, now);
+        responsibilityNotificationService.cancelInboundPending(inboundId, operatorId);
+        responsibilityNotificationService.publishInboundCompleted(inboundOrder, operatorId);
         return true;
     }
 

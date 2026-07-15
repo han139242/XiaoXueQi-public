@@ -3,6 +3,7 @@ package com.neuedu.ems.service.impl.wms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.entity.wms.WmsInventory;
@@ -24,6 +25,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 盘点单管理 Service 实现类。
@@ -31,7 +33,8 @@ import java.util.List;
 @Service
 public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderMapper, WmsStocktakeOrder> implements WmsStocktakeOrderService {
 
-    private static final String FINISHED_STATUS = "FINISHED";
+    private static final String DRAFT_STATUS = BusinessStatus.Document.DRAFT;
+    private static final String FINISHED_STATUS = BusinessStatus.Production.FINISHED;
 
     @Autowired
     private WmsStocktakeDetailMapper wmsStocktakeDetailMapper;
@@ -47,6 +50,9 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired
+    private WmsResponsibilityNotificationService responsibilityNotificationService;
 
     /**
      * 分页查询盘点单，支持单号、仓库、盘点类型和盘点状态筛选。
@@ -97,11 +103,19 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean saveStocktakeOrder(WmsStocktakeOrder stocktakeOrder) {
+        if (!StringUtils.hasText(stocktakeOrder.getStocktakeStatus())) {
+            stocktakeOrder.setStocktakeStatus(DRAFT_STATUS);
+        }
         if (stocktakeOrder.getDeletedFlag() == null) {
             stocktakeOrder.setDeletedFlag(0);
         }
-        return baseMapper.insert(stocktakeOrder) > 0;
+        boolean saved = baseMapper.insert(stocktakeOrder) > 0;
+        if (saved) {
+            responsibilityNotificationService.publishStocktakePending(stocktakeOrder, stocktakeOrder.getCreatedBy());
+        }
+        return saved;
     }
 
     /**
@@ -133,6 +147,7 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean updateStocktakeOrder(WmsStocktakeOrder stocktakeOrder) {
         if (stocktakeOrder.getStocktakeId() == null) {
             return false;
@@ -145,7 +160,15 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
         if (stocktakeOrder.getVersion() == null) {
             stocktakeOrder.setVersion(existing.getVersion());
         }
-        return baseMapper.updateById(stocktakeOrder) > 0;
+        boolean warehouseChanged = stocktakeOrder.getWarehouseId() != null
+                && !Objects.equals(existing.getWarehouseId(), stocktakeOrder.getWarehouseId());
+        boolean updated = baseMapper.updateById(stocktakeOrder) > 0;
+        if (updated && warehouseChanged) {
+            responsibilityNotificationService.cancelStocktakePending(existing.getStocktakeId(), stocktakeOrder.getUpdatedBy());
+            responsibilityNotificationService.publishStocktakePending(
+                    getStocktakeOrderById(existing.getStocktakeId()), stocktakeOrder.getUpdatedBy());
+        }
+        return updated;
     }
 
     /**
@@ -193,6 +216,9 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
         stocktakeOrder.setVersion(existing.getVersion());
         boolean orderRemoved = baseMapper.updateById(stocktakeOrder) > 0;
         softDeleteDetails(stocktakeId);
+        if (orderRemoved) {
+            responsibilityNotificationService.cancelStocktakePending(stocktakeId, existing.getUpdatedBy());
+        }
         return orderRemoved;
     }
 
@@ -234,6 +260,8 @@ public class WmsStocktakeOrderServiceImpl extends ServiceImpl<WmsStocktakeOrderM
             insertStatusChangeLog(stocktakeOrder.getStocktakeId(), stocktakeOrder.getStocktakeStatus(), FINISHED_STATUS,
                     "WMS_STOCKTAKE_ORDER", "FINISH_STOCKTAKE", operatorId, remark, now);
             insertOperationLog(stocktakeOrder.getStocktakeId(), "FINISH_STOCKTAKE", "wms_stocktake_order", operatorId, remark, now);
+            responsibilityNotificationService.cancelStocktakePending(stocktakeId, operatorId);
+            responsibilityNotificationService.publishStocktakeCompleted(stocktakeOrder, operatorId);
         }
         return updated;
     }

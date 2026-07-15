@@ -78,6 +78,9 @@ DROP TABLE IF EXISTS `org_team_member`;
 DROP TABLE IF EXISTS `org_team`;
 DROP TABLE IF EXISTS `org_employee`;
 DROP TABLE IF EXISTS `org_department`;
+DROP TABLE IF EXISTS `sys_event_outbox`;
+DROP TABLE IF EXISTS `sys_notification_recipient`;
+DROP TABLE IF EXISTS `sys_notification`;
 DROP TABLE IF EXISTS `sys_approval_record`;
 DROP TABLE IF EXISTS `sys_status_change_log`;
 DROP TABLE IF EXISTS `sys_operation_log`;
@@ -245,6 +248,87 @@ CREATE TABLE `sys_file` (
   PRIMARY KEY (`file_id`),
   KEY `idx_sys_file_biz_id` (`biz_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='附件文件表';
+
+CREATE TABLE `sys_notification` (
+  `notification_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '通知事件主键。',
+  `event_key` VARCHAR(191) NOT NULL COMMENT '全局唯一事件幂等键。',
+  `event_type` VARCHAR(64) NOT NULL COMMENT '稳定事件类型编码。',
+  `category` VARCHAR(32) NOT NULL COMMENT 'SYSTEM、MFG、PLAN、QMS、WMS、EAM。',
+  `severity` VARCHAR(32) NOT NULL COMMENT 'INFO、WARNING、HIGH、CRITICAL。',
+  `title` VARCHAR(128) NOT NULL COMMENT '通知标题，纯文本。',
+  `summary` VARCHAR(500) NULL COMMENT '通知摘要，纯文本。',
+  `biz_type` VARCHAR(64) NULL COMMENT '关联业务类型。',
+  `biz_id` BIGINT UNSIGNED NULL COMMENT '关联业务主键。',
+  `biz_no` VARCHAR(64) NULL COMMENT '关联业务编号快照。',
+  `route_path` VARCHAR(255) NULL COMMENT '后端白名单生成的前端站内路由。',
+  `source_user_id` BIGINT UNSIGNED NULL COMMENT '事件操作用户。',
+  `source_employee_id` BIGINT UNSIGNED NULL COMMENT '事件操作员工。',
+  `occurred_time` DATETIME NOT NULL COMMENT '事件发生时间。',
+  `expire_time` DATETIME NULL COMMENT '通知过期时间。',
+  `status` VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE、CANCELLED、EXPIRED。',
+  `payload_json` TEXT NULL COMMENT '仅供展示的非敏感 JSON 快照。',
+  `remark` VARCHAR(500) NULL COMMENT '备注',
+  `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+  `created_by` BIGINT UNSIGNED NULL COMMENT '创建人',
+  `created_time` DATETIME NULL COMMENT '创建时间',
+  `updated_by` BIGINT UNSIGNED NULL COMMENT '更新人',
+  `updated_time` DATETIME NULL COMMENT '更新时间',
+  `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
+  PRIMARY KEY (`notification_id`),
+  UNIQUE KEY `uk_sys_notification_event_key` (`event_key`),
+  KEY `idx_sys_notification_biz` (`biz_type`, `biz_id`),
+  KEY `idx_sys_notification_occurred_time` (`occurred_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='通知事件表';
+
+CREATE TABLE `sys_notification_recipient` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '通知接收记录主键。',
+  `notification_id` BIGINT UNSIGNED NOT NULL COMMENT '通知事件主键。',
+  `recipient_user_id` BIGINT UNSIGNED NOT NULL COMMENT '接收账号。',
+  `recipient_employee_id` BIGINT UNSIGNED NULL COMMENT '接收员工快照。',
+  `recipient_reason` VARCHAR(32) NOT NULL COMMENT 'ASSIGNEE、REQUESTER、TEAM_LEADER、RESOURCE_OWNER、SUBSCRIPTION、ESCALATION。',
+  `read_status` VARCHAR(32) NOT NULL DEFAULT 'UNREAD' COMMENT 'UNREAD、READ。',
+  `read_time` DATETIME NULL COMMENT '已读时间。',
+  `ack_status` VARCHAR(32) NOT NULL DEFAULT 'NOT_REQUIRED' COMMENT 'NOT_REQUIRED、PENDING、ACKNOWLEDGED。',
+  `ack_time` DATETIME NULL COMMENT '确认时间。',
+  `delivery_status` VARCHAR(32) NOT NULL DEFAULT 'DELIVERED' COMMENT 'DELIVERED、FAILED。',
+  `delivered_time` DATETIME NULL COMMENT '站内投递时间。',
+  `remark` VARCHAR(500) NULL COMMENT '备注',
+  `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+  `created_by` BIGINT UNSIGNED NULL COMMENT '创建人',
+  `created_time` DATETIME NULL COMMENT '创建时间',
+  `updated_by` BIGINT UNSIGNED NULL COMMENT '更新人',
+  `updated_time` DATETIME NULL COMMENT '更新时间',
+  `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_sys_notification_recipient` (`notification_id`, `recipient_user_id`),
+  KEY `idx_sys_notification_recipient_inbox` (`recipient_user_id`, `read_status`, `created_time`),
+  KEY `idx_sys_notification_recipient_notification` (`notification_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='通知接收记录表';
+
+CREATE TABLE `sys_event_outbox` (
+  `outbox_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Outbox 主键。',
+  `event_key` VARCHAR(191) NOT NULL COMMENT '全局唯一事件幂等键。',
+  `aggregate_type` VARCHAR(64) NOT NULL COMMENT '业务聚合类型。',
+  `aggregate_id` BIGINT UNSIGNED NULL COMMENT '业务聚合主键。',
+  `event_type` VARCHAR(64) NOT NULL COMMENT '事件类型编码。',
+  `payload_json` TEXT NOT NULL COMMENT '接收人解析所需的非敏感事件数据。',
+  `status` VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING、PROCESSING、PROCESSED、FAILED、CANCELLED。',
+  `retry_count` INT NOT NULL DEFAULT 0 COMMENT '处理失败重试次数。',
+  `next_retry_time` DATETIME NULL COMMENT '下次允许重试时间。',
+  `last_error` VARCHAR(500) NULL COMMENT '最近一次处理错误摘要。',
+  `occurred_time` DATETIME NOT NULL COMMENT '业务事件发生时间。',
+  `processed_time` DATETIME NULL COMMENT '处理完成时间。',
+  `remark` VARCHAR(500) NULL COMMENT '备注',
+  `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+  `created_by` BIGINT UNSIGNED NULL COMMENT '创建人',
+  `created_time` DATETIME NULL COMMENT '创建时间',
+  `updated_by` BIGINT UNSIGNED NULL COMMENT '更新人',
+  `updated_time` DATETIME NULL COMMENT '更新时间',
+  `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
+  PRIMARY KEY (`outbox_id`),
+  UNIQUE KEY `uk_sys_event_outbox_event_key` (`event_key`),
+  KEY `idx_sys_event_outbox_pending` (`status`, `next_retry_time`, `created_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='业务事件 Outbox 表';
 
 CREATE TABLE `sys_operation_log` (
   `log_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '日志主键。',

@@ -60,6 +60,8 @@ class WmsInboundOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "wmsMaterialBatchMapper", batchMapper);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
+        ReflectionTestUtils.setField(service, "responsibilityNotificationService",
+                mock(WmsResponsibilityNotificationService.class));
 
         when(detailMapper.selectList(any())).thenReturn(List.of(detail()));
         when(inventoryMapper.insert(any(WmsInventory.class))).thenReturn(1);

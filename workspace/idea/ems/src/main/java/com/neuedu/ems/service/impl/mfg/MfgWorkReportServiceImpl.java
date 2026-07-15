@@ -67,6 +67,9 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
     @Autowired(required = false)
     private DataScopeService dataScopeService;
 
+    @Autowired(required = false)
+    private MfgResponsibilityNotificationService responsibilityNotificationService;
+
     /**
      * 分页查询生产报工，支持编号、任务、人员、工位和审核状态筛选。
      * @param current 当前页码
@@ -230,6 +233,9 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         insertStatusChangeLog(reportId, null, SUBMITTED_STATUS, "MFG_WORK_REPORT", "SUBMIT_WORK_REPORT",
                 currentUserId, workReport.getRemark(), now);
         insertOperationLog(reportId, "SUBMIT_WORK_REPORT", "mfg_work_report", currentUserId, workReport.getRemark(), now);
+        if (responsibilityNotificationService != null) {
+            responsibilityNotificationService.publishWorkReportSubmitted(workReport, currentUserId);
+        }
         return reportId;
     }
 
@@ -269,6 +275,11 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         insertOperationLog(reportId, "AUDIT_WORK_REPORT", "mfg_work_report", operatorId, auditComment, now);
         if (workOrder != null) {
             aggregateWorkOrder(workOrder, operatorId, now);
+        }
+        if (responsibilityNotificationService != null) {
+            responsibilityNotificationService.cancelWorkReportSubmitted(reportId, operatorId);
+            existing.setAuditStatus(normalizedAuditResult);
+            responsibilityNotificationService.publishWorkReportAudited(existing, normalizedAuditResult, operatorId);
         }
         return true;
     }

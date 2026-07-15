@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@SpringBootTest
+@SpringBootTest(properties = "mes.notification.scheduling-enabled=false")
 @Transactional
 @EnabledIfEnvironmentVariable(named = "DB_URL", matches = ".+")
 class OptimisticLockIntegrationTest {

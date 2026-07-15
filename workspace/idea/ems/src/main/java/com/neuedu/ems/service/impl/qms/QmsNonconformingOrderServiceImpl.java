@@ -44,6 +44,9 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
     @Autowired
     private SysApprovalRecordMapper sysApprovalRecordMapper;
 
+    @Autowired
+    private QmsResponsibilityNotificationService responsibilityNotificationService;
+
     /**
      * 分页查询不合格品处理单，支持单号、检验单、产品批次、处理方式、审批状态和状态筛选。
      * @param current 当前页码
@@ -98,9 +101,15 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean saveNonconformingOrder(QmsNonconformingOrder nonconformingOrder) {
         prepareNonconformingOrder(nonconformingOrder);
-        return baseMapper.insert(nonconformingOrder) > 0;
+        boolean saved = baseMapper.insert(nonconformingOrder) > 0;
+        if (saved) {
+            responsibilityNotificationService.publishPendingNonconforming(
+                    nonconformingOrder, nonconformingOrder.getCreatedBy());
+        }
+        return saved;
     }
 
     /**
@@ -180,6 +189,9 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
         order.setVersion(existing.getVersion());
         boolean removed = baseMapper.updateById(order) > 0;
         softDeleteDetails(ncrId);
+        if (removed) {
+            responsibilityNotificationService.cancelPendingNonconforming(ncrId, existing.getUpdatedBy());
+        }
         return removed;
     }
 
@@ -219,6 +231,9 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
                     "APPROVE_NONCONFORMING", operatorId, approvalComment, now);
             insertApprovalRecord(ncrId, normalizedApprovalResult, approvalComment, operatorId, now);
             insertOperationLog(ncrId, "APPROVE_NONCONFORMING", "qms_nonconforming_order", operatorId, approvalComment, now);
+            responsibilityNotificationService.cancelPendingNonconforming(ncrId, operatorId);
+            responsibilityNotificationService.publishNonconformingApprovalResult(
+                    existing, normalizedApprovalResult, operatorId);
         }
         return updated;
     }

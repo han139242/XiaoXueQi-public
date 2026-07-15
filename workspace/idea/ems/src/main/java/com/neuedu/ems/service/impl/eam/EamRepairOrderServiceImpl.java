@@ -51,6 +51,9 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
 
+    @Autowired
+    private EamResponsibilityNotificationService responsibilityNotificationService;
+
     /**
      * 分页查询维修单，默认过滤已删除记录。
      * @param current 当前页码
@@ -103,6 +106,7 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean saveRepairOrder(EamRepairOrder repairOrder) {
         if (repairOrder.getDeletedFlag() == null) {
             repairOrder.setDeletedFlag(0);
@@ -111,7 +115,11 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         repairOrder.setRepairResult(null);
         repairOrder.setRepairCost(null);
         repairOrder.setStatus(BusinessStatus.Repair.SUBMITTED);
-        return baseMapper.insert(repairOrder) > 0;
+        boolean saved = baseMapper.insert(repairOrder) > 0;
+        if (saved) {
+            responsibilityNotificationService.publishOpenRepair(repairOrder, repairOrder.getCreatedBy());
+        }
+        return saved;
     }
 
     /**
@@ -146,6 +154,7 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean removeRepairOrderById(Long repairId) {
         EamRepairOrder existing = getRepairOrderById(repairId);
         if (existing == null || !BusinessStatus.Repair.SUBMITTED.equals(existing.getStatus())) {
@@ -155,7 +164,11 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         repairOrder.setRepairId(repairId);
         repairOrder.setDeletedFlag(1);
         repairOrder.setVersion(existing.getVersion());
-        return baseMapper.update(repairOrder, repairOrderInState(repairId, existing.getStatus())) > 0;
+        boolean removed = baseMapper.update(repairOrder, repairOrderInState(repairId, existing.getStatus())) > 0;
+        if (removed) {
+            responsibilityNotificationService.cancelOpenRepair(repairId, existing.getUpdatedBy());
+        }
+        return removed;
     }
 
     /**
@@ -163,13 +176,14 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
      * @param repairId 维修单ID
      * @param repairerId 维修人ID
      * @param remark 派工备注
+     * @param operatorUserId 当前登录用户ID
      * @return 是否成功
      */
     @Override
     @Transactional
-    public boolean assignRepairOrder(Long repairId, Long repairerId, String remark) {
+    public boolean assignRepairOrder(Long repairId, Long repairerId, String remark, Long operatorUserId) {
         EamRepairOrder existing = getRepairOrderById(repairId);
-        if (existing == null || repairerId == null
+        if (existing == null || repairerId == null || operatorUserId == null
                 || !BusinessStatus.Repair.SUBMITTED.equals(existing.getStatus())) {
             return false;
         }
@@ -183,9 +197,11 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         boolean updated = baseMapper.update(update, repairOrderInState(repairId, existing.getStatus())) > 0;
         if (updated) {
             EamEquipment equipment = updateEquipmentStatus(existing.getEquipmentId(), EQUIPMENT_STATUS_REPAIRING);
-            insertEquipmentStatusLog(existing.getEquipmentId(), equipment, EQUIPMENT_STATUS_REPAIRING, remark, repairerId, now);
-            insertStatusChangeLog(existing, STATUS_REPAIRING, "ASSIGN_REPAIR", repairerId, remark, now);
-            insertOperationLog(existing.getRepairId(), "ASSIGN_REPAIR", repairerId, remark, now);
+            insertEquipmentStatusLog(existing.getEquipmentId(), equipment, EQUIPMENT_STATUS_REPAIRING, remark, operatorUserId, now);
+            insertStatusChangeLog(existing, STATUS_REPAIRING, "ASSIGN_REPAIR", operatorUserId, remark, now);
+            insertOperationLog(existing.getRepairId(), "ASSIGN_REPAIR", operatorUserId, remark, now);
+            responsibilityNotificationService.cancelOpenRepair(repairId, operatorUserId);
+            responsibilityNotificationService.publishOpenRepair(getRepairOrderById(repairId), operatorUserId);
         }
         return updated;
     }
@@ -195,16 +211,17 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
      * @param repairId 维修单ID
      * @param repairResult 维修结果
      * @param repairCost 维修费用
+     * @param operatorUserId 当前登录用户ID
      * @return 是否成功
      */
     @Override
     @Transactional
-    public boolean closeRepairOrder(Long repairId, String repairResult, BigDecimal repairCost) {
+    public boolean closeRepairOrder(Long repairId, String repairResult, BigDecimal repairCost, Long operatorUserId) {
         EamRepairOrder existing = getRepairOrderById(repairId);
         boolean closeable = existing != null
                 && (STATUS_REPAIRING.equals(existing.getStatus())
                 || BusinessStatus.Repair.WAIT_ACCEPTANCE.equals(existing.getStatus()));
-        if (!closeable || !StringUtils.hasText(repairResult)
+        if (!closeable || operatorUserId == null || !StringUtils.hasText(repairResult)
                 || (repairCost != null && repairCost.signum() < 0)) {
             return false;
         }
@@ -217,11 +234,12 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         update.setStatus(STATUS_CLOSED);
         boolean updated = baseMapper.update(update, repairOrderInState(repairId, existing.getStatus())) > 0;
         if (updated) {
-            Long operatorId = existing.getRepairerId();
             EamEquipment equipment = updateEquipmentStatus(existing.getEquipmentId(), EQUIPMENT_STATUS_RUNNING);
-            insertEquipmentStatusLog(existing.getEquipmentId(), equipment, EQUIPMENT_STATUS_RUNNING, repairResult, operatorId, now);
-            insertStatusChangeLog(existing, STATUS_CLOSED, "CLOSE_REPAIR", operatorId, repairResult, now);
-            insertOperationLog(existing.getRepairId(), "CLOSE_REPAIR", operatorId, repairResult, now);
+            insertEquipmentStatusLog(existing.getEquipmentId(), equipment, EQUIPMENT_STATUS_RUNNING, repairResult, operatorUserId, now);
+            insertStatusChangeLog(existing, STATUS_CLOSED, "CLOSE_REPAIR", operatorUserId, repairResult, now);
+            insertOperationLog(existing.getRepairId(), "CLOSE_REPAIR", operatorUserId, repairResult, now);
+            responsibilityNotificationService.cancelOpenRepair(repairId, operatorUserId);
+            responsibilityNotificationService.publishRepairClosed(existing, operatorUserId);
         }
         return updated;
     }

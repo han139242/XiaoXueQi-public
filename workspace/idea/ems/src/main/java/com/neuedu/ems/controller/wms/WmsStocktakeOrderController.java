@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -119,13 +120,15 @@ public class WmsStocktakeOrderController {
     /**
      * 完成盘点，根据盘点差异调整库存并写入库存流水。
      * @param stocktakeId 盘点单ID
-     * @param request 请求体，支持operatorId和remark参数
+     * @param userId JWT 中的当前用户ID
+     * @param request 请求体，支持remark参数
      * @return 操作结果
      */
     @PutMapping("/{stocktakeId}/finish")
     public ResultData finish(@PathVariable("stocktakeId") Long stocktakeId,
+                             @RequestAttribute("userId") Long userId,
                              @RequestBody(required = false) Map<String, Object> request) {
-        boolean flag = wmsStocktakeOrderService.finishStocktakeOrder(stocktakeId, getLong(request, "operatorId"), getString(request, "remark"));
+        boolean flag = wmsStocktakeOrderService.finishStocktakeOrder(stocktakeId, userId, getString(request, "remark"));
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -157,17 +160,6 @@ public class WmsStocktakeOrderController {
         List<WmsStocktakeOrder> stocktakeOrders = wmsStocktakeOrderService.listStocktakeOrders(
                 keyword, warehouseId, stocktakeType, stocktakeStatus);
         excelExportUtil.exportExcel(response, stocktakeOrders, WmsStocktakeOrder.class, "盘点单列表", "盘点单列表");
-    }
-
-    /**
-     * 从请求体中读取Long类型参数。
-     * @param request 请求体Map
-     * @param key 参数名
-     * @return Long类型参数值
-     */
-    private Long getLong(Map<String, Object> request, String key) {
-        Object value = request == null ? null : request.get(key);
-        return value == null ? null : Long.valueOf(value.toString());
     }
 
     /**

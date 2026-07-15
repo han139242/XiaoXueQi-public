@@ -42,6 +42,8 @@ class QmsNonconformingOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusChangeLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", mock(SysOperationLogMapper.class));
         ReflectionTestUtils.setField(service, "sysApprovalRecordMapper", approvalRecordMapper);
+        ReflectionTestUtils.setField(service, "responsibilityNotificationService",
+                mock(QmsResponsibilityNotificationService.class));
     }
 
     @Test

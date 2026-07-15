@@ -19,7 +19,7 @@ import java.time.LocalTime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
+@SpringBootTest(properties = "mes.notification.scheduling-enabled=false")
 @Transactional
 @EnabledIfEnvironmentVariable(named = "DB_URL", matches = ".+")
 class MasterDataTypeIntegrationTest {

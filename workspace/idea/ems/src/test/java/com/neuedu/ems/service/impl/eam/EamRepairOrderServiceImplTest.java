@@ -50,6 +50,8 @@ class EamRepairOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "eamEquipmentStatusLogMapper", equipmentStatusLogMapper);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusChangeLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
+        ReflectionTestUtils.setField(service, "responsibilityNotificationService",
+                mock(EamResponsibilityNotificationService.class));
     }
 
     @Test
@@ -71,7 +73,7 @@ class EamRepairOrderServiceImplTest {
     void assignOnlyAcceptsSubmittedOrder() {
         when(repairMapper.selectOne(any())).thenReturn(repair(BusinessStatus.Repair.REPAIRING));
 
-        assertFalse(service.assignRepairOrder(1L, 8L, null));
+        assertFalse(service.assignRepairOrder(1L, 8L, null, 9L));
         verify(repairMapper, never()).update(any(EamRepairOrder.class), any());
     }
 
@@ -87,7 +89,7 @@ class EamRepairOrderServiceImplTest {
         when(repairMapper.update(any(EamRepairOrder.class), any())).thenReturn(1);
         when(equipmentMapper.selectById(12L)).thenReturn(equipment);
 
-        assertTrue(service.assignRepairOrder(1L, 8L, "派工"));
+        assertTrue(service.assignRepairOrder(1L, 8L, "派工", 9L));
 
         ArgumentCaptor<EamEquipment> equipmentUpdate = ArgumentCaptor.forClass(EamEquipment.class);
         ArgumentCaptor<EamEquipmentStatusLog> runningLog = ArgumentCaptor.forClass(EamEquipmentStatusLog.class);
@@ -102,7 +104,7 @@ class EamRepairOrderServiceImplTest {
         when(repairMapper.selectOne(any())).thenReturn(repair(BusinessStatus.Repair.REPAIRING));
         when(repairMapper.update(any(EamRepairOrder.class), any())).thenReturn(1);
 
-        assertTrue(service.closeRepairOrder(1L, "试运行正常", BigDecimal.TEN));
+        assertTrue(service.closeRepairOrder(1L, "试运行正常", BigDecimal.TEN, 9L));
 
         ArgumentCaptor<EamRepairOrder> update = ArgumentCaptor.forClass(EamRepairOrder.class);
         verify(repairMapper).update(update.capture(), any());
@@ -124,7 +126,7 @@ class EamRepairOrderServiceImplTest {
         when(repairMapper.selectOne(any())).thenReturn(repair(BusinessStatus.Repair.SUBMITTED));
         when(repairMapper.update(any(EamRepairOrder.class), any())).thenReturn(0);
 
-        assertFalse(service.assignRepairOrder(1L, 8L, "派工"));
+        assertFalse(service.assignRepairOrder(1L, 8L, "派工", 9L));
         verify(equipmentMapper, never()).updateById(any(EamEquipment.class));
         verify(equipmentStatusLogMapper, never()).insert(any(EamEquipmentStatusLog.class));
         verify(statusChangeLogMapper, never()).insert(any(SysStatusChangeLog.class));

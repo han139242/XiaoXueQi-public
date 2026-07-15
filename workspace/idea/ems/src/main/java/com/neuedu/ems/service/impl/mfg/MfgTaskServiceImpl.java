@@ -34,6 +34,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     @Autowired(required = false)
     private DataScopeService dataScopeService;
 
+    @Autowired(required = false)
+    private MfgResponsibilityNotificationService responsibilityNotificationService;
+
     @Autowired
     private SysStatusChangeLogMapper sysStatusChangeLogMapper;
 
@@ -185,6 +188,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             insertStatusLog(taskId, existing.getStatus(), BusinessStatus.Production.RUNNING,
                     "START_TASK", operatorId, null, now);
             insertOperationLog(taskId, "START_TASK", operatorId, null, now);
+            if (responsibilityNotificationService != null) {
+                responsibilityNotificationService.cancelOpenTaskNotifications(taskId, operatorId);
+            }
         }
         return updated;
     }
@@ -222,6 +228,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             insertStatusLog(taskId, existing.getStatus(), BusinessStatus.Production.FINISHED,
                     "FINISH_TASK", operatorId, remark, now);
             insertOperationLog(taskId, "FINISH_TASK", operatorId, remark, now);
+            if (responsibilityNotificationService != null) {
+                responsibilityNotificationService.cancelOpenTaskNotifications(taskId, operatorId);
+            }
         }
         return updated;
     }

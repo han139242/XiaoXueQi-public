@@ -24,6 +24,14 @@ class PermissionCodeResolverTest {
     void resolvesHighRiskActionsBeforeGenericMethodMapping() {
         assertEquals("sys:role:assign-menu",
                 resolver.resolve("PUT", "/api/sys/role/3/menus").orElseThrow());
+        assertEquals("sys:notification:read",
+                resolver.resolve("PUT", "/api/sys/notification/9/read").orElseThrow());
+        assertEquals("sys:notification:read",
+                resolver.resolve("PUT", "/api/sys/notification/read-all").orElseThrow());
+        assertEquals("sys:notification:ack",
+                resolver.resolve("PUT", "/api/sys/notification/9/ack").orElseThrow());
+        assertEquals("sys:notification:audit",
+                resolver.resolve("GET", "/api/sys/notification/audit/page").orElseThrow());
         assertEquals("mfg:task:start",
                 resolver.resolve("PUT", "/api/mfg/task/12/start").orElseThrow());
         assertEquals("wms:outbound-order:confirm",

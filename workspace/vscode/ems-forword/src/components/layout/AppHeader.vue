@@ -10,7 +10,11 @@ import { getModuleDefinition, getNavigationItems } from '@/config/navigation'
 import { openAiAssistant } from '@/utils/app-events'
 import { activeTheme } from '@/utils/theme'
 import { getCurrentUserInfo, logout } from '@/api/auth'
-import { getTaskReminderSummary } from '@/api/mfg/task'
+import {
+  getNotificationPage,
+  getNotificationUnreadCount,
+  markNotificationRead
+} from '@/api/sys/notification'
 import { setCurrentUser } from '@/utils/auth'
 import { hasPermission } from '@/utils/permission'
 
@@ -27,14 +31,14 @@ const themeOpen = ref(false)
 const notificationOpen = ref(false)
 const now = ref(dayjs())
 const currentUser = ref(getCurrentUser())
-const taskReminder = ref({ enabled: false, audience: 'NONE', total: 0, taskTotal: 0, waiting: 0, unassigned: 0, paused: 0, overdue: 0, auditPending: 0, signature: 'NONE' })
-const taskReminderLoading = ref(false)
+const notificationSummary = ref({ total: 0, categories: {} })
+const recentNotifications = ref([])
+const notificationLoading = ref(false)
 let clockTimer
-let taskTimer
-let taskNotification
-let lastTaskSignature = ''
+let notificationTimer
+let urgentNotification
 
-const TASK_REMINDER_INTERVAL = 60_000
+const NOTIFICATION_INTERVAL = 60_000
 
 const displayName = computed(() => currentUser.value.realName || currentUser.value.nickname || currentUser.value.username || 'MES 用户')
 const displayInitial = computed(() => displayName.value.slice(0, 1).toUpperCase())
@@ -42,8 +46,9 @@ const dateText = computed(() => now.value.format('YYYY.MM.DD'))
 const timeText = computed(() => now.value.format('HH:mm'))
 const previewMode = isFrameworkPreview()
 const canUseAi = computed(() => hasPermission('ai:assistant:use'))
-const canViewTasks = computed(() => hasPermission('mfg:task:view'))
-const pendingTaskCount = computed(() => taskReminder.value.total)
+const canViewNotifications = computed(() => hasPermission('sys:notification:view'))
+const canReadNotifications = computed(() => hasPermission('sys:notification:read'))
+const unreadNotificationCount = computed(() => Number(notificationSummary.value.total || 0))
 
 const breadcrumbTitle = computed(() => {
   if (route.name === 'ModuleHub') {
@@ -83,103 +88,107 @@ async function toggleFullscreen() {
   }
 }
 
-function closeTaskNotification() {
-  taskNotification?.close()
-  taskNotification = undefined
+function closeUrgentNotification() {
+  urgentNotification?.close()
+  urgentNotification = undefined
 }
 
-async function openTaskPage() {
+async function openNotification(item) {
   notificationOpen.value = false
-  closeTaskNotification()
-  await router.push('/mfg/tasks')
+  closeUrgentNotification()
+  if (item?.readStatus === 'UNREAD' && canReadNotifications.value) {
+    await markNotificationRead(item.recipientId)
+  }
+  rememberUrgentNotification(item?.recipientId)
+  if (isSafeNotificationRoute(item?.routePath)) {
+    await router.push(item.routePath)
+  }
+  await loadNotifications()
 }
 
-async function openWorkReportPage() {
+async function openNotificationCenter() {
   notificationOpen.value = false
-  closeTaskNotification()
-  await router.push('/mfg/work-reports')
+  closeUrgentNotification()
+  await router.push('/notifications')
 }
 
-function taskReminderMessage() {
-  return [
-    taskReminder.value.waiting && `待开工 ${taskReminder.value.waiting} 项`,
-    taskReminder.value.unassigned && `待分配 ${taskReminder.value.unassigned} 项`,
-    taskReminder.value.paused && `已暂停 ${taskReminder.value.paused} 项`,
-    taskReminder.value.overdue && `已逾期 ${taskReminder.value.overdue} 项`,
-    taskReminder.value.auditPending && `报工待审核 ${taskReminder.value.auditPending} 项`
-  ].filter(Boolean).join('，')
+function isSafeNotificationRoute(path) {
+  return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')
 }
 
-function reminderStorageKey() {
+function urgentStorageKey() {
   const identity = currentUser.value.userId || currentUser.value.username || 'unknown'
-  return `mes:task-reminder:${identity}`
+  return `mes:urgent-notification:${identity}`
 }
 
-function storedTaskSignature() {
+function storedUrgentNotification() {
   try {
-    return window.localStorage.getItem(reminderStorageKey()) || ''
+    return window.localStorage.getItem(urgentStorageKey()) || ''
   } catch {
-    return lastTaskSignature
+    return ''
   }
 }
 
-function rememberTaskSignature(signature) {
-  lastTaskSignature = signature
+function rememberUrgentNotification(recipientId) {
+  if (!recipientId) return
   try {
-    window.localStorage.setItem(reminderStorageKey(), signature)
+    window.localStorage.setItem(urgentStorageKey(), String(recipientId))
   } catch {
-    // 浏览器禁用持久化时退回当前标签页内存签名。
+    // 浏览器禁用持久化时只影响跨标签页去重。
   }
 }
 
-function showTaskNotification() {
-  if (!pendingTaskCount.value || route.path === '/mfg/tasks') {
-    return
-  }
-  closeTaskNotification()
-  taskNotification = ElNotification({
-    title: `待处理生产任务 ${pendingTaskCount.value} 项`,
-    message: taskReminderMessage(),
-    type: 'warning',
+function showUrgentNotification(item) {
+  if (!item || route.path === item.routePath) return
+  closeUrgentNotification()
+  urgentNotification = ElNotification({
+    title: item.title,
+    message: item.summary || item.bizNo || '业务状态已更新',
+    type: item.severity === 'CRITICAL' ? 'error' : 'warning',
     position: 'bottom-right',
-    duration: 0,
+    duration: item.severity === 'CRITICAL' ? 0 : 8000,
     offset: 18,
-    onClick: taskReminder.value.taskTotal ? openTaskPage : openWorkReportPage
+    onClick: () => openNotification(item)
   })
+  rememberUrgentNotification(item.recipientId)
 }
 
-async function loadTaskReminder({ notify = false } = {}) {
-  if (previewMode || !canViewTasks.value || taskReminderLoading.value) {
+async function loadNotifications({ notify = false } = {}) {
+  if (previewMode || !canViewNotifications.value || notificationLoading.value) {
     return
   }
-  taskReminderLoading.value = true
+  notificationLoading.value = true
   try {
-    const result = await getTaskReminderSummary()
-    const summary = result?.data || {}
-    taskReminder.value = {
-      enabled: Boolean(summary.enabled),
-      audience: summary.audience || 'NONE',
-      total: Number(summary.total || 0),
-      taskTotal: Number(summary.taskTotal || 0),
-      waiting: Number(summary.waiting || 0),
-      unassigned: Number(summary.unassigned || 0),
-      paused: Number(summary.paused || 0),
-      overdue: Number(summary.overdue || 0),
-      auditPending: Number(summary.auditPending || 0),
-      signature: summary.signature || 'NONE'
+    const [countResult, pageResult] = await Promise.all([
+      getNotificationUnreadCount(),
+      getNotificationPage({ current: 1, size: 6, readStatus: 'UNREAD' })
+    ])
+    notificationSummary.value = {
+      total: Number(countResult?.data?.total || 0),
+      categories: countResult?.data?.categories || {}
     }
-    const signature = taskReminder.value.signature
-    if (!pendingTaskCount.value) {
-      closeTaskNotification()
-    } else if (notify && signature !== storedTaskSignature()) {
-      showTaskNotification()
+    recentNotifications.value = pageResult?.data?.records || []
+    if (!unreadNotificationCount.value) {
+      closeUrgentNotification()
+    } else if (notify) {
+      const urgent = recentNotifications.value.find((item) => ['HIGH', 'CRITICAL'].includes(item.severity))
+      if (urgent && String(urgent.recipientId) !== storedUrgentNotification()) {
+        showUrgentNotification(urgent)
+      }
     }
-    rememberTaskSignature(signature)
   } catch {
-    // 请求层统一展示错误，保留上一次成功的任务数量。
+    // 请求层统一展示错误，保留上一次成功的未读数量。
   } finally {
-    taskReminderLoading.value = false
+    notificationLoading.value = false
   }
+}
+
+function categoryLabel(value) {
+  return { SYSTEM: '系统', MFG: '生产', PLAN: '计划', QMS: '质量', WMS: '仓储', EAM: '设备' }[value] || '业务'
+}
+
+function notificationTime(value) {
+  return value ? dayjs(value).format('MM-DD HH:mm') : '--'
 }
 
 async function handleCommand(command) {
@@ -212,20 +221,20 @@ onMounted(async () => {
       // 请求层负责处理失效登录；其他错误下继续使用本地用户信息。
     }
   }
-  await loadTaskReminder({ notify: true })
+  await loadNotifications({ notify: true })
   clockTimer = window.setInterval(() => {
     now.value = dayjs()
   }, 30000)
-  if (!previewMode && canViewTasks.value && taskReminder.value.enabled) {
-    taskTimer = window.setInterval(() => loadTaskReminder({ notify: true }), TASK_REMINDER_INTERVAL)
+  if (!previewMode && canViewNotifications.value) {
+    notificationTimer = window.setInterval(() => loadNotifications({ notify: true }), NOTIFICATION_INTERVAL)
   }
   window.addEventListener('keydown', handleShortcut)
 })
 
 onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
-  window.clearInterval(taskTimer)
-  closeTaskNotification()
+  window.clearInterval(notificationTimer)
+  closeUrgentNotification()
   window.removeEventListener('keydown', handleShortcut)
 })
 </script>
@@ -270,66 +279,55 @@ onBeforeUnmount(() => {
       </el-tooltip>
 
       <el-popover
-        v-if="taskReminder.enabled"
+        v-if="canViewNotifications"
         v-model:visible="notificationOpen"
         placement="bottom"
-        :width="300"
+        :width="340"
         trigger="click"
         popper-class="notification-popover"
       >
         <template #reference>
           <el-badge
-            class="notification-badge hide-mobile"
-            :value="pendingTaskCount"
+            class="notification-badge"
+            :value="unreadNotificationCount"
             :max="99"
-            :hidden="pendingTaskCount === 0"
+            :hidden="unreadNotificationCount === 0"
           >
-            <el-button class="header-icon-button" text aria-label="任务通知">
+            <el-button class="header-icon-button" text aria-label="消息中心">
               <AppIcon name="bell" :size="18" />
             </el-button>
           </el-badge>
         </template>
         <div class="notification-head">
-          <strong>生产待办</strong>
-          <span>{{ pendingTaskCount ? `${pendingTaskCount} 项待处理` : '暂无待办' }}</span>
+          <strong>消息中心</strong>
+          <span>{{ unreadNotificationCount ? `${unreadNotificationCount} 条未读` : '暂无未读' }}</span>
         </div>
-        <div v-if="taskReminderLoading" class="notification-empty">正在刷新任务</div>
-        <div v-else-if="pendingTaskCount" class="task-reminder-list">
-          <div v-if="taskReminder.waiting" class="task-reminder-row">
-            <span class="task-reminder-icon is-waiting"><AppIcon name="clipboard" :size="16" /></span>
-            <span>待开工任务</span>
-            <strong>{{ taskReminder.waiting }}</strong>
-          </div>
-          <div v-if="taskReminder.unassigned" class="task-reminder-row">
-            <span class="task-reminder-icon is-running"><AppIcon name="activity" :size="16" /></span>
-            <span>班组待分配</span>
-            <strong>{{ taskReminder.unassigned }}</strong>
-          </div>
-          <div v-if="taskReminder.paused" class="task-reminder-row">
-            <span class="task-reminder-icon is-paused"><AppIcon name="alert" :size="16" /></span>
-            <span>已暂停任务</span>
-            <strong>{{ taskReminder.paused }}</strong>
-          </div>
-          <div v-if="taskReminder.overdue" class="task-reminder-row">
-            <span class="task-reminder-icon is-paused"><AppIcon name="alert" :size="16" /></span>
-            <span>已逾期任务</span>
-            <strong>{{ taskReminder.overdue }}</strong>
-          </div>
-          <div v-if="taskReminder.auditPending" class="task-reminder-row">
-            <span class="task-reminder-icon is-waiting"><AppIcon name="shield-check" :size="16" /></span>
-            <span>报工待审核</span>
-            <strong>{{ taskReminder.auditPending }}</strong>
-          </div>
-          <el-button v-if="taskReminder.taskTotal" class="task-reminder-action" type="primary" @click="openTaskPage">
-            查看生产任务
+        <div v-if="notificationLoading" class="notification-empty">正在刷新消息</div>
+        <div v-else-if="recentNotifications.length" class="notification-preview-list">
+          <button
+            v-for="item in recentNotifications"
+            :key="item.recipientId"
+            type="button"
+            class="notification-preview-item"
+            @click="openNotification(item)"
+          >
+            <span class="notification-preview-dot" :class="`is-${String(item.severity || 'INFO').toLowerCase()}`" />
+            <span class="notification-preview-copy">
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.summary || item.bizNo || '业务状态已更新' }}</span>
+              <small>{{ categoryLabel(item.category) }} · {{ notificationTime(item.occurredTime) }}</small>
+            </span>
             <AppIcon name="right" :size="14" />
-          </el-button>
-          <el-button v-if="taskReminder.auditPending" class="task-reminder-action" :type="taskReminder.taskTotal ? 'default' : 'primary'" @click="openWorkReportPage">
-            查看报工审核
+          </button>
+          <el-button class="notification-center-action" text @click="openNotificationCenter">
+            查看全部消息
             <AppIcon name="right" :size="14" />
           </el-button>
         </div>
-        <div v-else class="notification-empty">暂无待处理任务</div>
+        <div v-else class="notification-empty">
+          <span>暂无未读消息</span>
+          <el-button text @click="openNotificationCenter">查看消息中心</el-button>
+        </div>
       </el-popover>
 
       <el-tooltip v-if="canUseAi" content="AI 工作台" placement="bottom">
@@ -576,60 +574,90 @@ onBeforeUnmount(() => {
   line-height: 13px;
 }
 
-.task-reminder-list {
+.notification-preview-list {
   padding-top: 8px;
 }
 
-.task-reminder-row {
+.notification-preview-item {
   display: grid;
-  min-height: 42px;
-  grid-template-columns: 30px 1fr auto;
+  width: 100%;
+  min-height: 68px;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
+  padding: 9px 4px;
   color: var(--mes-text-secondary);
+  border: 0;
   border-bottom: 1px solid var(--el-border-color-light);
+  background: transparent;
+  font: inherit;
   font-size: 12px;
+  text-align: left;
+  cursor: pointer;
 }
 
-.task-reminder-row strong {
-  color: var(--mes-text);
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-}
-
-.task-reminder-icon {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--mes-radius-sm);
-}
-
-.task-reminder-icon.is-waiting {
-  color: var(--mes-info);
+.notification-preview-item:hover {
   background: var(--mes-surface-muted);
 }
 
-.task-reminder-icon.is-running {
-  color: var(--mes-warning);
-  background: var(--mes-warning-soft);
+.notification-preview-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mes-info);
 }
 
-.task-reminder-icon.is-paused {
-  color: var(--mes-danger);
-  background: var(--mes-danger-soft);
+.notification-preview-dot.is-warning {
+  background: var(--mes-warning);
 }
 
-.task-reminder-action.el-button {
+.notification-preview-dot.is-high,
+.notification-preview-dot.is-critical {
+  background: var(--mes-danger);
+}
+
+.notification-preview-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.notification-preview-copy strong,
+.notification-preview-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-preview-copy strong {
+  color: var(--mes-text);
+  font-size: 12px;
+}
+
+.notification-preview-copy span {
+  color: var(--mes-text-secondary);
+  font-size: 11px;
+}
+
+.notification-preview-copy small {
+  color: var(--mes-text-muted);
+  font-size: 9px;
+}
+
+.notification-center-action.el-button {
   width: 100%;
   height: 36px;
   gap: 5px;
-  margin-top: 12px;
+  margin-top: 6px;
   border-radius: var(--mes-radius-sm);
 }
 
 .notification-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 4px;
   padding: 34px 0 24px;
   text-align: center;
 }

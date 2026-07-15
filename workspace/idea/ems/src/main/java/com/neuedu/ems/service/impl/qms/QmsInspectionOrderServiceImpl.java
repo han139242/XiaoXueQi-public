@@ -24,6 +24,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 检验单 Service 实现类。
@@ -47,6 +48,9 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
 
     @Autowired
     private WmsMaterialBatchMapper wmsMaterialBatchMapper;
+
+    @Autowired
+    private QmsResponsibilityNotificationService responsibilityNotificationService;
 
     /**
      * 分页查询检验单，支持单号、类型、方案、工单、任务、报工、批次、检验员、状态和结果筛选。
@@ -114,9 +118,14 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean saveInspectionOrder(QmsInspectionOrder inspectionOrder) {
         prepareInspectionOrder(inspectionOrder);
-        return baseMapper.insert(inspectionOrder) > 0;
+        boolean saved = baseMapper.insert(inspectionOrder) > 0;
+        if (saved) {
+            responsibilityNotificationService.publishOpenInspection(inspectionOrder, inspectionOrder.getCreatedBy());
+        }
+        return saved;
     }
 
     /**
@@ -139,6 +148,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean updateInspectionOrder(QmsInspectionOrder inspectionOrder) {
         if (inspectionOrder.getInspectionId() == null) {
             return false;
@@ -153,7 +163,14 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         if (inspectionOrder.getVersion() == null) {
             inspectionOrder.setVersion(existing.getVersion());
         }
-        return baseMapper.updateById(inspectionOrder) > 0;
+        boolean updated = baseMapper.updateById(inspectionOrder) > 0;
+        if (updated && inspectionOrder.getInspectorId() != null
+                && !Objects.equals(existing.getInspectorId(), inspectionOrder.getInspectorId())) {
+            responsibilityNotificationService.cancelOpenInspection(existing.getInspectionId(), inspectionOrder.getUpdatedBy());
+            QmsInspectionOrder current = getInspectionOrderById(existing.getInspectionId());
+            responsibilityNotificationService.publishOpenInspection(current, inspectionOrder.getUpdatedBy());
+        }
+        return updated;
     }
 
     /**
@@ -193,6 +210,9 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         inspectionOrder.setVersion(existing.getVersion());
         boolean removed = baseMapper.updateById(inspectionOrder) > 0;
         softDeleteResults(inspectionId);
+        if (removed) {
+            responsibilityNotificationService.cancelOpenInspection(inspectionId, existing.getUpdatedBy());
+        }
         return removed;
     }
 
@@ -239,6 +259,8 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         if (batch != null) {
             synchronizeBatchQuality(batch, normalizedInspectionResult, inspectionId, operatorId, now);
         }
+        responsibilityNotificationService.cancelOpenInspection(inspectionId, operatorId);
+        responsibilityNotificationService.publishInspectionCompleted(existing, normalizedInspectionResult, operatorId);
         return true;
     }
 

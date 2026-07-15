@@ -50,19 +50,19 @@ public interface MfgTaskOperatorService extends IService<MfgTaskOperator> {
      * @param taskOperator 任务人员分配实体
      * @return 是否成功
      */
-    boolean saveTaskOperator(MfgTaskOperator taskOperator);
+    boolean saveTaskOperator(MfgTaskOperator taskOperator, Long sourceUserId);
 
     /**
      * 更新任务人员分配信息。
      * @param taskOperator 任务人员分配实体
      * @return 是否成功
      */
-    boolean updateTaskOperator(MfgTaskOperator taskOperator);
+    boolean updateTaskOperator(MfgTaskOperator taskOperator, Long sourceUserId);
 
     /**
      * 根据ID删除任务人员分配（软删除）。
      * @param id 任务人员分配ID
      * @return 是否成功
      */
-    boolean removeTaskOperatorById(Long id);
+    boolean removeTaskOperatorById(Long id, Long sourceUserId);
 }

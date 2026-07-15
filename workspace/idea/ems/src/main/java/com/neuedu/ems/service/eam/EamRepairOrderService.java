@@ -70,16 +70,18 @@ public interface EamRepairOrderService extends IService<EamRepairOrder> {
      * @param repairId 维修单ID
      * @param repairerId 维修人ID
      * @param remark 派工备注
+     * @param operatorUserId 当前登录用户ID
      * @return 是否成功
      */
-    boolean assignRepairOrder(Long repairId, Long repairerId, String remark);
+    boolean assignRepairOrder(Long repairId, Long repairerId, String remark, Long operatorUserId);
 
     /**
      * 关闭维修单并同步设备状态。
      * @param repairId 维修单ID
      * @param repairResult 维修结果
      * @param repairCost 维修费用
+     * @param operatorUserId 当前登录用户ID
      * @return 是否成功
      */
-    boolean closeRepairOrder(Long repairId, String repairResult, BigDecimal repairCost);
+    boolean closeRepairOrder(Long repairId, String repairResult, BigDecimal repairCost, Long operatorUserId);
 }

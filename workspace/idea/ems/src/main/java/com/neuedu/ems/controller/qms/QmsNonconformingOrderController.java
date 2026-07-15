@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -123,13 +124,16 @@ public class QmsNonconformingOrderController {
     /**
      * 审批不合格品处理单。
      * @param ncrId 不合格品处理单ID
-     * @param request 请求体，支持approvalResult、approvalComment、operatorId参数
+     * @param userId JWT 中的当前用户ID
+     * @param request 请求体，支持approvalResult、approvalComment参数
      * @return 操作结果
      */
     @PutMapping("/{ncrId}/approve")
-    public ResultData approve(@PathVariable("ncrId") Long ncrId, @RequestBody Map<String, Object> request) {
+    public ResultData approve(@PathVariable("ncrId") Long ncrId,
+                              @RequestAttribute("userId") Long userId,
+                              @RequestBody Map<String, Object> request) {
         boolean flag = qmsNonconformingOrderService.approveNonconformingOrder(ncrId, getString(request, "approvalResult"),
-                getString(request, "approvalComment"), getLong(request, "operatorId"));
+                getString(request, "approvalComment"), userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -165,17 +169,6 @@ public class QmsNonconformingOrderController {
         List<QmsNonconformingOrder> orders = qmsNonconformingOrderService.listNonconformingOrders(
                 keyword, inspectionId, productLotId, dispositionType, approvalStatus, status);
         excelExportUtil.exportExcel(response, orders, QmsNonconformingOrder.class, "不合格品处理单列表", "不合格品处理单列表");
-    }
-
-    /**
-     * 从请求体中读取Long类型参数。
-     * @param request 请求体Map
-     * @param key 参数名
-     * @return Long类型参数值
-     */
-    private Long getLong(Map<String, Object> request, String key) {
-        Object value = request == null ? null : request.get(key);
-        return value == null ? null : Long.valueOf(value.toString());
     }
 
     /**

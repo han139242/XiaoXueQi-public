@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -80,8 +81,9 @@ public class MfgTaskOperatorController {
      * @return 操作结果
      */
     @PostMapping
-    public ResultData save(@RequestBody MfgTaskOperator taskOperator) {
-        boolean flag = mfgTaskOperatorService.saveTaskOperator(taskOperator);
+    public ResultData save(@RequestBody MfgTaskOperator taskOperator,
+                           @RequestAttribute("userId") Long userId) {
+        boolean flag = mfgTaskOperatorService.saveTaskOperator(taskOperator, userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -91,8 +93,9 @@ public class MfgTaskOperatorController {
      * @return 操作结果
      */
     @PutMapping
-    public ResultData update(@RequestBody MfgTaskOperator taskOperator) {
-        boolean flag = mfgTaskOperatorService.updateTaskOperator(taskOperator);
+    public ResultData update(@RequestBody MfgTaskOperator taskOperator,
+                             @RequestAttribute("userId") Long userId) {
+        boolean flag = mfgTaskOperatorService.updateTaskOperator(taskOperator, userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -102,8 +105,9 @@ public class MfgTaskOperatorController {
      * @return 操作结果
      */
     @DeleteMapping("/{id}")
-    public ResultData delete(@PathVariable("id") Long id) {
-        boolean flag = mfgTaskOperatorService.removeTaskOperatorById(id);
+    public ResultData delete(@PathVariable("id") Long id,
+                             @RequestAttribute("userId") Long userId) {
+        boolean flag = mfgTaskOperatorService.removeTaskOperatorById(id, userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 

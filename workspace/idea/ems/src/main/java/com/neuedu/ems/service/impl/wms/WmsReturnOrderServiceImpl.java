@@ -3,6 +3,7 @@ package com.neuedu.ems.service.impl.wms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.entity.wms.WmsInventory;
@@ -31,7 +32,8 @@ import java.util.List;
 @Service
 public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper, WmsReturnOrder> implements WmsReturnOrderService {
 
-    private static final String APPROVED_STATUS = "APPROVED";
+    private static final String SUBMITTED_STATUS = BusinessStatus.Document.SUBMITTED;
+    private static final String APPROVED_STATUS = BusinessStatus.Document.APPROVED;
 
     @Autowired
     private WmsReturnDetailMapper wmsReturnDetailMapper;
@@ -47,6 +49,9 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired
+    private WmsResponsibilityNotificationService responsibilityNotificationService;
 
     /**
      * 分页查询退料单，支持单号、类型、工单、申请人和审核状态筛选。
@@ -99,11 +104,19 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean saveReturnOrder(WmsReturnOrder returnOrder) {
+        if (!StringUtils.hasText(returnOrder.getAuditStatus())) {
+            returnOrder.setAuditStatus(SUBMITTED_STATUS);
+        }
         if (returnOrder.getDeletedFlag() == null) {
             returnOrder.setDeletedFlag(0);
         }
-        return baseMapper.insert(returnOrder) > 0;
+        boolean saved = baseMapper.insert(returnOrder) > 0;
+        if (saved) {
+            responsibilityNotificationService.publishReturnPending(returnOrder, returnOrder.getCreatedBy());
+        }
+        return saved;
     }
 
     /**
@@ -143,6 +156,8 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
             return false;
         }
         returnOrder.setDeletedFlag(null);
+        returnOrder.setAuditStatus(null);
+        returnOrder.setReturnTime(null);
         if (returnOrder.getVersion() == null) {
             returnOrder.setVersion(existing.getVersion());
         }
@@ -193,6 +208,9 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
         returnOrder.setVersion(existing.getVersion());
         boolean orderRemoved = baseMapper.updateById(returnOrder) > 0;
         softDeleteDetails(returnId);
+        if (orderRemoved) {
+            responsibilityNotificationService.cancelReturnPending(returnId, existing.getUpdatedBy());
+        }
         return orderRemoved;
     }
 
@@ -207,7 +225,7 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
     @Transactional
     public boolean confirmReturnOrder(Long returnId, Long operatorId, String remark) {
         WmsReturnOrder returnOrder = getReturnOrderById(returnId);
-        if (returnOrder == null || APPROVED_STATUS.equals(returnOrder.getAuditStatus())) {
+        if (returnOrder == null || !SUBMITTED_STATUS.equals(returnOrder.getAuditStatus())) {
             return false;
         }
         List<WmsReturnDetail> details = listActiveDetails(returnId);
@@ -230,6 +248,8 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
             insertStatusChangeLog(returnOrder.getReturnId(), returnOrder.getAuditStatus(), APPROVED_STATUS,
                     "WMS_RETURN_ORDER", "CONFIRM_RETURN", operatorId, remark, now);
             insertOperationLog(returnOrder.getReturnId(), "CONFIRM_RETURN", "wms_return_order", operatorId, remark, now);
+            responsibilityNotificationService.cancelReturnPending(returnId, operatorId);
+            responsibilityNotificationService.publishReturnCompleted(returnOrder, operatorId);
         }
         return updated;
     }

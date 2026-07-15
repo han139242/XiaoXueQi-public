@@ -7,15 +7,21 @@ import com.neuedu.ems.entity.mfg.MfgTaskOperator;
 import com.neuedu.ems.mapper.mfg.MfgTaskOperatorMapper;
 import com.neuedu.ems.service.mfg.MfgTaskOperatorService;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 /**
  * 任务人员分配管理 Service 实现类。
  */
 @Service
 public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMapper, MfgTaskOperator> implements MfgTaskOperatorService {
+
+    @Autowired(required = false)
+    private MfgResponsibilityNotificationService notificationService;
 
     /**
      * 分页查询任务人员分配列表，支持任务、员工和任务角色筛选。
@@ -73,11 +79,27 @@ public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMappe
      * @return 是否成功
      */
     @Override
-    public boolean saveTaskOperator(MfgTaskOperator taskOperator) {
+    @Transactional
+    public boolean saveTaskOperator(MfgTaskOperator taskOperator, Long sourceUserId) {
         if (taskOperator.getDeletedFlag() == null) {
             taskOperator.setDeletedFlag(0);
         }
-        return baseMapper.insert(taskOperator) > 0;
+        LocalDateTime now = LocalDateTime.now();
+        if (taskOperator.getAssignedTime() == null) {
+            taskOperator.setAssignedTime(now);
+        }
+        if (taskOperator.getCreatedBy() == null) {
+            taskOperator.setCreatedBy(sourceUserId);
+        }
+        if (taskOperator.getCreatedTime() == null) {
+            taskOperator.setCreatedTime(now);
+        }
+        boolean inserted = baseMapper.insert(taskOperator) > 0;
+        if (inserted && notificationService != null) {
+            notificationService.cancelTaskUnassigned(taskOperator.getTaskId(), sourceUserId);
+            notificationService.publishTaskAssigned(taskOperator.getTaskId(), taskOperator.getEmployeeId(), sourceUserId);
+        }
+        return inserted;
     }
 
     /**
@@ -86,12 +108,25 @@ public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMappe
      * @return 是否成功
      */
     @Override
-    public boolean updateTaskOperator(MfgTaskOperator taskOperator) {
+    @Transactional
+    public boolean updateTaskOperator(MfgTaskOperator taskOperator, Long sourceUserId) {
         if (taskOperator.getId() == null) {
             return false;
         }
+        MfgTaskOperator existing = getTaskOperatorById(taskOperator.getId());
         taskOperator.setDeletedFlag(null);
-        return baseMapper.updateById(taskOperator) > 0;
+        boolean updated = baseMapper.updateById(taskOperator) > 0;
+        if (updated && notificationService != null) {
+            Long taskId = taskOperator.getTaskId() == null && existing != null ? existing.getTaskId() : taskOperator.getTaskId();
+            Long employeeId = taskOperator.getEmployeeId() == null && existing != null
+                    ? existing.getEmployeeId() : taskOperator.getEmployeeId();
+            if (existing != null && existing.getEmployeeId() != null && !existing.getEmployeeId().equals(employeeId)) {
+                notificationService.cancelTaskAssignment(existing.getTaskId(), existing.getEmployeeId(), sourceUserId);
+            }
+            notificationService.cancelTaskUnassigned(taskId, sourceUserId);
+            notificationService.publishTaskAssigned(taskId, employeeId, sourceUserId);
+        }
+        return updated;
     }
 
     /**
@@ -100,11 +135,17 @@ public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMappe
      * @return 是否成功
      */
     @Override
-    public boolean removeTaskOperatorById(Long id) {
+    @Transactional
+    public boolean removeTaskOperatorById(Long id, Long sourceUserId) {
+        MfgTaskOperator existing = getTaskOperatorById(id);
         MfgTaskOperator taskOperator = new MfgTaskOperator();
         taskOperator.setId(id);
         taskOperator.setDeletedFlag(1);
-        return baseMapper.updateById(taskOperator) > 0;
+        boolean removed = baseMapper.updateById(taskOperator) > 0;
+        if (removed && notificationService != null && existing != null) {
+            notificationService.cancelTaskAssignment(existing.getTaskId(), existing.getEmployeeId(), sourceUserId);
+        }
+        return removed;
     }
 
     /**

@@ -47,6 +47,8 @@ class QmsInspectionOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
         ReflectionTestUtils.setField(service, "wmsMaterialBatchMapper", batchMapper);
+        ReflectionTestUtils.setField(service, "responsibilityNotificationService",
+                mock(QmsResponsibilityNotificationService.class));
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
         when(operationLogMapper.insert(any(SysOperationLog.class))).thenReturn(1);
     }

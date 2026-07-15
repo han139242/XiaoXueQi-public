@@ -7,9 +7,11 @@ import com.neuedu.ems.entity.eam.EamMaintenancePlan;
 import com.neuedu.ems.mapper.eam.EamMaintenancePlanMapper;
 import com.neuedu.ems.service.eam.EamMaintenancePlanService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 保养计划 Service 实现类。
@@ -17,6 +19,12 @@ import java.util.List;
 @Service
 public class EamMaintenancePlanServiceImpl extends ServiceImpl<EamMaintenancePlanMapper, EamMaintenancePlan>
         implements EamMaintenancePlanService {
+
+    private final EamResponsibilityNotificationService responsibilityNotificationService;
+
+    public EamMaintenancePlanServiceImpl(EamResponsibilityNotificationService responsibilityNotificationService) {
+        this.responsibilityNotificationService = responsibilityNotificationService;
+    }
 
     /**
      * 分页查询保养计划，默认过滤已删除记录。
@@ -71,11 +79,17 @@ public class EamMaintenancePlanServiceImpl extends ServiceImpl<EamMaintenancePla
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean saveMaintenancePlan(EamMaintenancePlan maintenancePlan) {
         if (maintenancePlan.getDeletedFlag() == null) {
             maintenancePlan.setDeletedFlag(0);
         }
-        return baseMapper.insert(maintenancePlan) > 0;
+        boolean saved = baseMapper.insert(maintenancePlan) > 0;
+        if (saved) {
+            responsibilityNotificationService.publishMaintenanceAssigned(
+                    maintenancePlan, maintenancePlan.getCreatedBy());
+        }
+        return saved;
     }
 
     /**
@@ -84,12 +98,28 @@ public class EamMaintenancePlanServiceImpl extends ServiceImpl<EamMaintenancePla
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean updateMaintenancePlan(EamMaintenancePlan maintenancePlan) {
         if (maintenancePlan.getPlanId() == null) {
             return false;
         }
+        EamMaintenancePlan existing = getMaintenancePlanById(maintenancePlan.getPlanId());
+        if (existing == null) {
+            return false;
+        }
         maintenancePlan.setDeletedFlag(null);
-        return baseMapper.updateById(maintenancePlan) > 0;
+        boolean responsibilityChanged = maintenancePlan.getResponsibleId() != null
+                && !Objects.equals(existing.getResponsibleId(), maintenancePlan.getResponsibleId());
+        boolean statusChanged = StringUtils.hasText(maintenancePlan.getStatus())
+                && !Objects.equals(existing.getStatus(), maintenancePlan.getStatus());
+        boolean updated = baseMapper.updateById(maintenancePlan) > 0;
+        if (updated && (responsibilityChanged || statusChanged)) {
+            responsibilityNotificationService.cancelMaintenanceAssignment(
+                    maintenancePlan.getPlanId(), maintenancePlan.getUpdatedBy());
+            responsibilityNotificationService.publishMaintenanceAssigned(
+                    getMaintenancePlanById(maintenancePlan.getPlanId()), maintenancePlan.getUpdatedBy());
+        }
+        return updated;
     }
 
     /**
@@ -98,11 +128,20 @@ public class EamMaintenancePlanServiceImpl extends ServiceImpl<EamMaintenancePla
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean removeMaintenancePlanById(Long planId) {
+        EamMaintenancePlan existing = getMaintenancePlanById(planId);
+        if (existing == null) {
+            return false;
+        }
         EamMaintenancePlan maintenancePlan = new EamMaintenancePlan();
         maintenancePlan.setPlanId(planId);
         maintenancePlan.setDeletedFlag(1);
-        return baseMapper.updateById(maintenancePlan) > 0;
+        boolean removed = baseMapper.updateById(maintenancePlan) > 0;
+        if (removed) {
+            responsibilityNotificationService.cancelMaintenanceAssignment(planId, existing.getUpdatedBy());
+        }
+        return removed;
     }
 
     /**

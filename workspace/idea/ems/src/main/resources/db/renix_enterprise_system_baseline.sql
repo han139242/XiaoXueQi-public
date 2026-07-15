@@ -262,6 +262,7 @@ INSERT INTO `tmp_renix_resource` VALUES
   ('sys','sys-dict-type','字典类型','/sys/dict-types',1),
   ('sys','sys-file','附件文件','/sys/files',1),
   ('sys','sys-menu','菜单管理','/sys/menus',1),
+  ('sys','sys-notification','消息中心','/notifications',0),
   ('sys','sys-operation-log','操作日志','/sys/operation-logs',1),
   ('sys','sys-role','角色管理','/sys/roles',1),
   ('sys','sys-role-menu','角色菜单关联','/sys/role-menus',0),
@@ -354,9 +355,9 @@ CROSS JOIN `tmp_renix_action` action
 JOIN `sys_menu` resource_menu
   ON resource_menu.`permission_code` = CONCAT(resource.`domain_code`, ':', SUBSTRING(resource.`resource_key`, LENGTH(resource.`domain_code`) + 2), ':view')
  AND resource_menu.`deleted_flag` = 0
-WHERE (action.`action_code` = 'export' AND resource.`resource_key` <> 'mfg-schedule-scenario')
+WHERE (action.`action_code` = 'export' AND resource.`resource_key` NOT IN ('mfg-schedule-scenario','sys-notification'))
    OR (action.`action_code` <> 'export' AND resource.`resource_key` NOT IN (
-     'sys-operation-log','sys-status-change-log','eam-equipment-status-log','wms-inventory','wms-stock-movement'
+     'sys-operation-log','sys-status-change-log','sys-notification','eam-equipment-status-log','wms-inventory','wms-stock-movement'
    ))
 ON DUPLICATE KEY UPDATE
   `parent_id` = VALUES(`parent_id`), `menu_name` = VALUES(`menu_name`), `menu_type` = 'BUTTON',
@@ -373,6 +374,9 @@ INSERT INTO `tmp_renix_special_permission` VALUES
   ('sys-user','sys:user:reset-password','重置用户密码'),
   ('sys-user','sys:user:assign-role','分配用户角色'),
   ('sys-role','sys:role:assign-menu','分配角色权限'),
+  ('sys-notification','sys:notification:read','标记本人通知已读'),
+  ('sys-notification','sys:notification:ack','确认本人通知'),
+  ('sys-notification','sys:notification:audit','查看通知投递审计'),
   ('sys-file','sys:file:upload','上传附件'),
   ('sys-file','sys:file:download','下载附件'),
   ('mfg-andon-alert','mfg:andon-alert:trigger','触发安灯告警'),
@@ -513,6 +517,17 @@ INSERT INTO `tmp_renix_role_pattern` VALUES
   ('EQUIPMENT_ENGINEER','eam:%'),('EQUIPMENT_ENGINEER','trace:%:view'),
   ('EQUIPMENT_ENGINEER','mfg:exception:handle'),('EQUIPMENT_ENGINEER','mfg:andon-alert:close'),
   ('EQUIPMENT_ENGINEER','dashboard:%'),('EQUIPMENT_ENGINEER','ai:%');
+
+-- 所有有效岗位都能使用个人消息中心；全局投递审计仅由 SUPER_ADMIN 的全权限模式获得。
+INSERT INTO `tmp_renix_role_pattern`
+SELECT role_seed.`role_code`, permission_seed.`permission_pattern`
+FROM `tmp_renix_role` role_seed
+CROSS JOIN (
+  SELECT 'sys:notification:view' AS `permission_pattern`
+  UNION ALL SELECT 'sys:notification:read'
+  UNION ALL SELECT 'sys:notification:ack'
+) permission_seed
+ON DUPLICATE KEY UPDATE `permission_pattern` = VALUES(`permission_pattern`);
 
 INSERT INTO `sys_role_menu`
   (`role_id`, `menu_id`, `created_by`, `created_time`, `deleted_flag`)

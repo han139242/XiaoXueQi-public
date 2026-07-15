@@ -10,6 +10,7 @@ import com.neuedu.ems.mapper.wms.WmsReplenishmentSuggestionMapper;
 import com.neuedu.ems.service.wms.WmsReplenishmentSuggestionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -27,6 +28,9 @@ public class WmsReplenishmentSuggestionServiceImpl extends ServiceImpl<WmsReplen
 
     @Autowired
     private WmsInventoryMapper wmsInventoryMapper;
+
+    @Autowired
+    private WmsResponsibilityNotificationService responsibilityNotificationService;
 
     /**
      * 分页查询补货建议，支持建议编号、物料、来源类型和状态筛选。
@@ -76,9 +80,15 @@ public class WmsReplenishmentSuggestionServiceImpl extends ServiceImpl<WmsReplen
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean saveSuggestion(WmsReplenishmentSuggestion suggestion) {
         prepareSuggestion(suggestion);
-        return baseMapper.insert(suggestion) > 0;
+        boolean saved = baseMapper.insert(suggestion) > 0;
+        if (saved && !INVENTORY_WARNING_SOURCE.equals(suggestion.getSourceType())) {
+            responsibilityNotificationService.publishReplenishmentPending(
+                    suggestion, null, suggestion.getCreatedBy());
+        }
+        return saved;
     }
 
     /**
@@ -87,12 +97,21 @@ public class WmsReplenishmentSuggestionServiceImpl extends ServiceImpl<WmsReplen
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean updateSuggestion(WmsReplenishmentSuggestion suggestion) {
-        if (suggestion.getSuggestionId() == null || getSuggestionById(suggestion.getSuggestionId()) == null) {
+        WmsReplenishmentSuggestion existing = suggestion.getSuggestionId() == null
+                ? null : getSuggestionById(suggestion.getSuggestionId());
+        if (existing == null) {
             return false;
         }
         suggestion.setDeletedFlag(null);
-        return baseMapper.updateById(suggestion) > 0;
+        boolean updated = baseMapper.updateById(suggestion) > 0;
+        if (updated && StringUtils.hasText(suggestion.getStatus())
+                && !PENDING_STATUS.equals(suggestion.getStatus())) {
+            responsibilityNotificationService.cancelReplenishmentPending(
+                    suggestion.getSuggestionId(), suggestion.getUpdatedBy());
+        }
+        return updated;
     }
 
     /**
@@ -101,14 +120,20 @@ public class WmsReplenishmentSuggestionServiceImpl extends ServiceImpl<WmsReplen
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean removeSuggestionById(Long suggestionId) {
-        if (getSuggestionById(suggestionId) == null) {
+        WmsReplenishmentSuggestion existing = getSuggestionById(suggestionId);
+        if (existing == null) {
             return false;
         }
         WmsReplenishmentSuggestion suggestion = new WmsReplenishmentSuggestion();
         suggestion.setSuggestionId(suggestionId);
         suggestion.setDeletedFlag(1);
-        return baseMapper.updateById(suggestion) > 0;
+        boolean removed = baseMapper.updateById(suggestion) > 0;
+        if (removed) {
+            responsibilityNotificationService.cancelReplenishmentPending(suggestionId, existing.getUpdatedBy());
+        }
+        return removed;
     }
 
     /**
@@ -119,6 +144,7 @@ public class WmsReplenishmentSuggestionServiceImpl extends ServiceImpl<WmsReplen
      * @return 补货建议ID
      */
     @Override
+    @Transactional
     public Long generateSuggestion(Long materialId, Long warehouseId, BigDecimal requiredQuantity) {
         if (materialId == null) {
             return null;
@@ -133,6 +159,8 @@ public class WmsReplenishmentSuggestionServiceImpl extends ServiceImpl<WmsReplen
         suggestion.setSourceType(INVENTORY_WARNING_SOURCE);
         suggestion.setStatus(PENDING_STATUS);
         saveSuggestion(suggestion);
+        responsibilityNotificationService.publishReplenishmentPending(
+                suggestion, warehouseId, suggestion.getCreatedBy());
         return suggestion.getSuggestionId();
     }
 

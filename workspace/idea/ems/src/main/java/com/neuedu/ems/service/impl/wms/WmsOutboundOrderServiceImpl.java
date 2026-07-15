@@ -3,6 +3,7 @@ package com.neuedu.ems.service.impl.wms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.entity.wms.WmsInventory;
@@ -24,6 +25,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 出库单管理 Service 实现类。
@@ -31,7 +33,8 @@ import java.util.List;
 @Service
 public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMapper, WmsOutboundOrder> implements WmsOutboundOrderService {
 
-    private static final String APPROVED_STATUS = "APPROVED";
+    private static final String SUBMITTED_STATUS = BusinessStatus.Document.SUBMITTED;
+    private static final String APPROVED_STATUS = BusinessStatus.Document.APPROVED;
 
     @Autowired
     private WmsOutboundDetailMapper wmsOutboundDetailMapper;
@@ -47,6 +50,9 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired
+    private WmsResponsibilityNotificationService responsibilityNotificationService;
 
     /**
      * 分页查询出库单，支持单号、类型、仓库、工单、申请人和审核状态筛选。
@@ -102,11 +108,19 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean saveOutboundOrder(WmsOutboundOrder outboundOrder) {
+        if (!StringUtils.hasText(outboundOrder.getAuditStatus())) {
+            outboundOrder.setAuditStatus(SUBMITTED_STATUS);
+        }
         if (outboundOrder.getDeletedFlag() == null) {
             outboundOrder.setDeletedFlag(0);
         }
-        return baseMapper.insert(outboundOrder) > 0;
+        boolean saved = baseMapper.insert(outboundOrder) > 0;
+        if (saved) {
+            responsibilityNotificationService.publishOutboundPending(outboundOrder, outboundOrder.getCreatedBy());
+        }
+        return saved;
     }
 
     /**
@@ -137,6 +151,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
      * @return 是否成功
      */
     @Override
+    @Transactional
     public boolean updateOutboundOrder(WmsOutboundOrder outboundOrder) {
         if (outboundOrder.getOutboundId() == null) {
             return false;
@@ -146,10 +161,20 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
             return false;
         }
         outboundOrder.setDeletedFlag(null);
+        outboundOrder.setAuditStatus(null);
+        outboundOrder.setOutboundTime(null);
         if (outboundOrder.getVersion() == null) {
             outboundOrder.setVersion(existing.getVersion());
         }
-        return baseMapper.updateById(outboundOrder) > 0;
+        boolean warehouseChanged = outboundOrder.getWarehouseId() != null
+                && !Objects.equals(existing.getWarehouseId(), outboundOrder.getWarehouseId());
+        boolean updated = baseMapper.updateById(outboundOrder) > 0;
+        if (updated && warehouseChanged) {
+            responsibilityNotificationService.cancelOutboundPending(existing.getOutboundId(), outboundOrder.getUpdatedBy());
+            responsibilityNotificationService.publishOutboundPending(
+                    getOutboundOrderById(existing.getOutboundId()), outboundOrder.getUpdatedBy());
+        }
+        return updated;
     }
 
     /**
@@ -196,6 +221,9 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         outboundOrder.setVersion(existing.getVersion());
         boolean orderRemoved = baseMapper.updateById(outboundOrder) > 0;
         softDeleteDetails(outboundId);
+        if (orderRemoved) {
+            responsibilityNotificationService.cancelOutboundPending(outboundId, existing.getUpdatedBy());
+        }
         return orderRemoved;
     }
 
@@ -210,7 +238,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
     @Transactional
     public boolean confirmOutboundOrder(Long outboundId, Long operatorId, String remark) {
         WmsOutboundOrder outboundOrder = getOutboundOrderById(outboundId);
-        if (outboundOrder == null || APPROVED_STATUS.equals(outboundOrder.getAuditStatus())) {
+        if (outboundOrder == null || !SUBMITTED_STATUS.equals(outboundOrder.getAuditStatus())) {
             return false;
         }
         List<WmsOutboundDetail> details = listActiveDetails(outboundId);
@@ -233,6 +261,8 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
             insertStatusChangeLog(outboundOrder.getOutboundId(), outboundOrder.getAuditStatus(), APPROVED_STATUS,
                     "WMS_OUTBOUND_ORDER", "CONFIRM_OUTBOUND", operatorId, remark, now);
             insertOperationLog(outboundOrder.getOutboundId(), "CONFIRM_OUTBOUND", "wms_outbound_order", operatorId, remark, now);
+            responsibilityNotificationService.cancelOutboundPending(outboundId, operatorId);
+            responsibilityNotificationService.publishOutboundCompleted(outboundOrder, operatorId);
         }
         return updated;
     }

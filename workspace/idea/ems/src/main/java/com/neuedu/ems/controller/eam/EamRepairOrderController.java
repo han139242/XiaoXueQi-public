@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -95,28 +96,32 @@ public class EamRepairOrderController {
     /**
      * 派工维修单并同步设备状态。
      * @param repairId 维修单ID
+     * @param userId JWT 中的当前用户ID
      * @param request 请求体，支持repairerId和remark参数
      * @return 操作结果
      */
     @PutMapping("/{repairId}/assign")
     public ResultData assign(@PathVariable("repairId") Long repairId,
+                             @RequestAttribute("userId") Long userId,
                              @RequestBody(required = false) Map<String, Object> request) {
         boolean flag = eamRepairOrderService.assignRepairOrder(
-                repairId, getLong(request, "repairerId"), getString(request, "remark"));
+                repairId, getLong(request, "repairerId"), getString(request, "remark"), userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
     /**
      * 关闭维修单并同步设备状态。
      * @param repairId 维修单ID
+     * @param userId JWT 中的当前用户ID
      * @param request 请求体，支持repairResult和repairCost参数
      * @return 操作结果
      */
     @PutMapping("/{repairId}/close")
     public ResultData close(@PathVariable("repairId") Long repairId,
+                            @RequestAttribute("userId") Long userId,
                             @RequestBody(required = false) Map<String, Object> request) {
         boolean flag = eamRepairOrderService.closeRepairOrder(
-                repairId, getString(request, "repairResult"), getBigDecimal(request, "repairCost"));
+                repairId, getString(request, "repairResult"), getBigDecimal(request, "repairCost"), userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 

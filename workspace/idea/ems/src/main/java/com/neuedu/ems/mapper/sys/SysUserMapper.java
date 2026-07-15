@@ -2,6 +2,7 @@ package com.neuedu.ems.mapper.sys;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.neuedu.ems.entity.sys.SysUser;
+import com.neuedu.ems.vo.sys.NotificationRecipientAccount;
 import org.apache.ibatis.annotations.*;
 
 import java.time.LocalDateTime;
@@ -101,4 +102,28 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
             order by member.team_id
             """)
     List<Long> listTeamIdsByUserId(@Param("userId") Long userId);
+
+    @Select("""
+            SELECT DISTINCT user.user_id, user.employee_id
+            FROM sys_user user
+            JOIN org_employee employee
+              ON employee.employee_id = user.employee_id
+             AND employee.deleted_flag = 0 AND employee.status = 'ENABLE'
+            JOIN sys_user_role user_role
+              ON user_role.user_id = user.user_id AND user_role.deleted_flag = 0
+            JOIN sys_role role
+              ON role.role_id = user_role.role_id
+             AND role.deleted_flag = 0 AND role.status = 'ENABLE'
+            LEFT JOIN sys_role_menu role_menu
+              ON role_menu.role_id = role.role_id AND role_menu.deleted_flag = 0
+            LEFT JOIN sys_menu menu
+              ON menu.menu_id = role_menu.menu_id AND menu.deleted_flag = 0
+            WHERE user.employee_id = #{employeeId}
+              AND user.status = 'ENABLE' AND user.deleted_flag = 0
+              AND (role.role_code = 'SUPER_ADMIN' OR menu.permission_code = #{requiredPermission})
+            ORDER BY user.user_id
+            """)
+    List<NotificationRecipientAccount> listNotificationRecipients(
+            @Param("employeeId") Long employeeId,
+            @Param("requiredPermission") String requiredPermission);
 }

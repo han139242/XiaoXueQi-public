@@ -36,6 +36,12 @@ class PermissionCatalogCoverageTest {
             "mfg:work-order:generate",
             "mfg:work-order:release");
 
+    private static final List<String> NOTIFICATION_PERMISSIONS = List.of(
+            "sys:notification:view",
+            "sys:notification:read",
+            "sys:notification:ack",
+            "sys:notification:audit");
+
     @Test
     void schedulingPermissionsExistInBaselineAndRepairMigration() throws IOException {
         String baseline = readResource("/db/renix_enterprise_system_baseline.sql");
@@ -56,6 +62,17 @@ class PermissionCatalogCoverageTest {
         for (String permission : PRODUCTION_FLOW_PERMISSIONS) {
             assertTrue(baseline.contains(permission), () -> permission + " missing from enterprise baseline");
             assertTrue(repair.contains(permission), () -> permission + " missing from P0 repair migration");
+        }
+    }
+
+    @Test
+    void notificationPermissionsExistInBaselineAndMigration() throws IOException {
+        String baseline = readResource("/db/renix_enterprise_system_baseline.sql");
+        String migration = readResource("/db/enterprise_notification_center_migration.sql");
+
+        for (String permission : NOTIFICATION_PERMISSIONS) {
+            assertTrue(baseline.contains(permission), () -> permission + " missing from enterprise baseline");
+            assertTrue(migration.contains(permission), () -> permission + " missing from notification migration");
         }
     }
 
