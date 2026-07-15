@@ -8,7 +8,7 @@ const versionUrls = {
 }
 
 const mockDataDefaults = {
-  develop: true,
+  develop: false,
   trial: false,
   release: false
 }
@@ -32,7 +32,6 @@ function getBaseUrl() {
 
 function useMockData() {
   const envVersion = getEnvVersion()
-  if (envVersion === 'develop') return true
   if (envVersion === 'release') return false
   const override = wx.getStorageSync(MOCK_DATA_KEY)
   if (override === true || override === 'true') return true

@@ -32,23 +32,31 @@ Page({
   },
 
   async ensureLookups() {
-    const lookups = await lookupApi.load(['material', 'warehouse', 'location'])
+    const lookups = await lookupApi.load(['material', 'warehouse', 'location', 'batch'])
     this.setData({ lookups })
     return lookups
   },
 
   decorate(item, lookups) {
-    const quantity = Number(item.quantity || 0)
-    const warning = Number(item.warningQuantity || 0)
-    const isWarning = warning > 0 && quantity < warning
+    const availableQuantity = Number(item.availableQuantity || 0)
+    const lockedQuantity = Number(item.lockedQuantity || 0)
+    const inspectionQuantity = Number(item.inspectionQuantity || 0)
+    const totalQuantity = Number((availableQuantity + lockedQuantity + inspectionQuantity).toFixed(4))
+    const statusView = inspectionQuantity > 0
+      ? ['存在待检库存', 'warning']
+      : lockedQuantity > 0
+        ? ['存在锁定库存', 'primary']
+        : ['库存可用', 'success']
     return {
       ...item,
       materialLabel: lookupApi.label(lookups.material, item.materialId, '物料'),
       warehouseLabel: lookupApi.label(lookups.warehouse, item.warehouseId, '仓库'),
       locationLabel: lookupApi.label(lookups.location, item.locationId, '库位'),
+      batchLabel: lookupApi.label(lookups.batch, item.batchId, '批次'),
+      totalQuantity,
       updatedTimeText: format.formatDateTime(item.updatedTime),
-      statusText: isWarning ? '低于预警' : '库存正常',
-      statusTone: isWarning ? 'warning' : 'success'
+      statusText: statusView[0],
+      statusTone: statusView[1]
     }
   },
 

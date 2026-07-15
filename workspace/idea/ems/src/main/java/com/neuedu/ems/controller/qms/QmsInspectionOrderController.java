@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -132,7 +133,7 @@ public class QmsInspectionOrderController {
     /**
      * 提交检验单结果并结束检验单。
      * @param inspectionId 检验单ID
-     * @param request 请求体，支持inspectionResult、remark参数
+     * @param request 请求体，支持inspectionResult、remark及检验数量参数
      * @param userId JWT 中的当前用户ID
      * @return 操作结果
      */
@@ -141,7 +142,9 @@ public class QmsInspectionOrderController {
                              @RequestAttribute("userId") Long userId,
                              @RequestBody Map<String, Object> request) {
         boolean flag = qmsInspectionOrderService.submitInspectionOrder(inspectionId, getString(request, "inspectionResult"),
-                getString(request, "remark"), userId);
+                getString(request, "remark"), userId,
+                getBigDecimal(request, "sampleQuantity"), getBigDecimal(request, "qualifiedQuantity"),
+                getBigDecimal(request, "unqualifiedQuantity"));
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -187,6 +190,13 @@ public class QmsInspectionOrderController {
         excelExportUtil.exportExcel(response, orders, QmsInspectionOrder.class, "检验单列表", "检验单列表");
     }
 
+    /**
+     * 从请求体中读取BigDecimal类型参数。
+     */
+    private BigDecimal getBigDecimal(Map<String, Object> request, String key) {
+        Object value = request == null ? null : request.get(key);
+        return value == null ? null : new BigDecimal(value.toString());
+    }
     /**
      * 从请求体中读取String类型参数。
      * @param request 请求体Map

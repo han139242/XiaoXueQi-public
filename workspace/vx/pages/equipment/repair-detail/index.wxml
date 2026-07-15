@@ -9,18 +9,17 @@
       </view>
       <view class="detail-fields">
         <view><text>设备</text><text>{{detail.equipmentLabel}}</text></view>
-        <view><text>报修人</text><text>{{detail.applicantLabel}}</text></view>
+        <view><text>报修人</text><text>{{detail.reporterLabel}}</text></view>
         <view><text>维修人</text><text>{{detail.repairerLabel}}</text></view>
         <view><text>报修时间</text><text>{{detail.reportedTimeText}}</text></view>
-        <view><text>派工时间</text><text>{{detail.assignedTimeText}}</text></view>
-        <view><text>关闭时间</text><text>{{detail.closedTimeText}}</text></view>
+        <view><text>最后更新</text><text>{{detail.updatedTimeText}}</text></view>
       </view>
     </view>
     <view class="detail-card"><view class="section-title">故障描述</view><view class="remark-text">{{detail.faultText}}</view></view>
     <view class="detail-card"><view class="section-title">维修结果</view><view class="remark-text">{{detail.resultText}}</view></view>
     <view class="detail-actions">
       <button wx:if="{{canAssign && detail.status === 'SUBMITTED'}}" class="primary-button" bindtap="assignRepair">派工</button>
-      <button wx:if="{{canClose && (detail.status === 'ASSIGNED' || detail.status === 'PROCESSING')}}" class="primary-button" bindtap="closeRepair">关闭维修单</button>
+      <button wx:if="{{canClose && (detail.status === 'REPAIRING' || detail.status === 'WAIT_ACCEPTANCE')}}" class="primary-button" bindtap="closeRepair">关闭维修单</button>
     </view>
   </view>
 </view>

@@ -6,6 +6,8 @@ const format = require('../../../utils/format')
 const statusMap = {
   WAIT_INSPECTION: ['待检', 'warning'],
   INSPECTING: ['检验中', 'primary'],
+  DRAFT: ['待检', 'warning'],
+  RUNNING: ['检验中', 'primary'],
   FINISHED: ['已完成', 'success'],
   CLOSED: ['已关闭', 'neutral']
 }
@@ -31,17 +33,15 @@ const resultOptions = [
   { value: '', label: '全部结果' },
   { value: 'PASS', label: '合格' },
   { value: 'FAIL', label: '不合格' },
-  { value: 'CONCESSION', label: '让步接收' },
-  { value: 'PENDING', label: '未判定' }
+  { value: 'CONCESSION', label: '让步接收' }
 ]
 
-const statusOptions = [
-  { value: '', label: '全部状态' },
-  { value: 'FINISHED', label: '已完成' },
-  { value: 'WAIT_INSPECTION', label: '待检' },
-  { value: 'INSPECTING', label: '检验中' },
-  { value: 'CLOSED', label: '已关闭' }
-]
+const dispositionMap = {
+  REWORK: '返工',
+  SCRAP: '报废',
+  DOWNGRADE: '降级',
+  CONCESSION: '让步接收'
+}
 
 Page({
   data: {
@@ -54,10 +54,8 @@ Page({
     finished: false,
     error: '',
     keyword: '',
-    filters: { status: '', inspectionResult: '' },
-    statusOptions,
+    filters: { inspectionResult: '' },
     resultOptions,
-    statusIndex: 0,
     resultIndex: 0,
     activeFilter: '',
     dropdownOptions: [],
@@ -100,11 +98,10 @@ Page({
       this.setData({ activeFilter: '', dropdownOptions: [] })
       return
     }
-    const options = field === 'status' ? statusOptions : resultOptions
-    const selectedValue = field === 'status' ? this.data.filters.status : this.data.filters.inspectionResult
+    const selectedValue = this.data.filters.inspectionResult
     this.setData({
       activeFilter: field,
-      dropdownOptions: field === 'keyword' ? [] : options.map((item, index) => ({
+      dropdownOptions: field === 'keyword' ? [] : resultOptions.map((item, index) => ({
         ...item,
         index,
         selected: item.value === selectedValue
@@ -115,9 +112,7 @@ Page({
   selectFilter(event) {
     const field = this.data.activeFilter
     const index = Number(event.currentTarget.dataset.index)
-    if (field === 'status') {
-      this.setData({ statusIndex: index, 'filters.status': statusOptions[index].value })
-    } else if (field === 'result') {
+    if (field === 'result') {
       this.setData({ resultIndex: index, 'filters.inspectionResult': resultOptions[index].value })
     }
     this.setData({ activeFilter: '', dropdownOptions: [] })
@@ -126,15 +121,6 @@ Page({
 
   submitKeyword() {
     this.setData({ activeFilter: '' })
-    this.loadPage(true)
-  },
-
-  handleStatus(event) {
-    const index = Number(event.detail.value)
-    this.setData({
-      statusIndex: index,
-      'filters.status': statusOptions[index].value
-    })
     this.loadPage(true)
   },
 
@@ -148,7 +134,7 @@ Page({
   },
 
   async ensureLookups() {
-    const lookups = await lookupApi.load(['workOrder', 'employee'])
+    const lookups = await lookupApi.load(['workOrder', 'task', 'report', 'employee'])
     this.setData({ lookups })
     return lookups
   },
@@ -157,6 +143,8 @@ Page({
     const statusView = statusMap[item.status] || [item.status || '-', 'neutral']
     const hasResult = item.inspectionResult !== null && item.inspectionResult !== undefined && item.inspectionResult !== ''
     const resultView = hasResult ? (resultMap[item.inspectionResult] || [item.inspectionResult, 'neutral']) : ['未判定', 'neutral']
+    const sampleQuantity = Number(item.sampleQuantity || 0)
+    const unqualifiedQuantity = Number(item.unqualifiedQuantity || 0)
     return {
       ...item,
       statusText: statusView[0],
@@ -166,9 +154,35 @@ Page({
       typeText: typeMap[item.inspectionType] || item.inspectionType || '-',
       workOrderLabel: lookupApi.label(lookups.workOrder, item.workOrderId, '工单'),
       inspectorLabel: lookupApi.label(lookups.employee, item.inspectorId, '员工'),
-      taskLabel: item.taskNo || (item.taskId ? '任务 ID ' + item.taskId : '-'),
-      reportLabel: item.reportNo || (item.reportId ? '报工 ID ' + item.reportId : '-'),
+      taskLabel: lookupApi.label(lookups.task, item.taskId, '任务'),
+      reportLabel: lookupApi.label(lookups.report, item.reportId, '报工'),
+      hasQuantity: sampleQuantity > 0,
+      unqualifiedRateText: sampleQuantity > 0 ? (unqualifiedQuantity / sampleQuantity * 100).toFixed(4) + '%' : '-',
+      inspectionTimeText: format.formatDateTime(item.inspectionTime || item.updatedTime),
       updatedTimeText: format.formatDateTime(item.updatedTime || item.createdTime)
+    }
+  },
+
+  async loadNonconformingSummary(item) {
+    if (item.inspectionResult !== 'FAIL') return {}
+    try {
+      const page = await qualityApi.nonconformingPage({
+        current: 1,
+        size: 20,
+        inspectionId: item.inspectionId
+      })
+      const orders = page && Array.isArray(page.records) ? page.records : []
+      const dispositions = Array.from(new Set(orders.map((order) => {
+        return dispositionMap[String(order.dispositionType || '').toUpperCase()] || order.dispositionType
+      }).filter(Boolean)))
+      return {
+        dispositionText: dispositions.length ? dispositions.join('、') : '待录入',
+        nonconformingNoText: orders.length
+          ? orders.map((order) => order.ncrNo || ('不良品项 ' + order.ncrId)).join('、')
+          : '未关联不良品项'
+      }
+    } catch (error) {
+      return { dispositionText: '暂无法获取', nonconformingNoText: '暂无法获取' }
     }
   },
 
@@ -184,14 +198,14 @@ Page({
         current,
         size: this.data.size,
         keyword: this.data.keyword.trim(),
-        status: this.data.filters.status,
-        inspectionResult: resultFilter === 'PENDING' ? '' : resultFilter
+        status: 'FINISHED',
+        inspectionResult: resultFilter
       }))
-      let records = page && Array.isArray(page.records) ? page.records : []
-      if (resultFilter === 'PENDING') {
-        records = records.filter((item) => !item.inspectionResult)
-      }
-      const decorated = records.map((item) => this.decorate(item, lookups))
+      const records = page && Array.isArray(page.records) ? page.records : []
+      const decorated = await Promise.all(records.map(async (item) => ({
+        ...this.decorate(item, lookups),
+        ...await this.loadNonconformingSummary(item)
+      })))
       const pages = Number(page && page.pages) || 0
       this.setData({
         list: reset ? decorated : this.data.list.concat(decorated),

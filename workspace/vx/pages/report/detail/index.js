@@ -32,7 +32,7 @@ Page({
       const [report, materials, lookups] = await Promise.all([
         reportApi.detail(this.data.id),
         reportApi.materials(this.data.id),
-        lookupApi.load(['station', 'employee'])
+        lookupApi.load(['task', 'station', 'employee'])
       ])
       if (!report) {
         this.setData({ report: null, materials: [], loading: false })
@@ -42,6 +42,7 @@ Page({
         report: {
           ...report,
           statusView: statusUtil.getStatus('audit', report.auditStatus),
+          taskNo: lookupApi.label(lookups.task, report.taskId, '任务'),
           operatorLabel: lookupApi.label(lookups.employee, report.operatorId, '员工'),
           stationLabel: lookupApi.label(lookups.station, report.stationId, '工位'),
           reportTimeText: format.formatDateTime(report.reportTime),

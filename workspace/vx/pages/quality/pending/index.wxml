@@ -17,8 +17,7 @@
         <view><text>创建时间</text><text>{{item.createdTimeText}}</text></view>
       </view>
       <view class="inspection-actions">
-        <view wx:if="{{canSubmit}}" class="action-pass" data-id="{{item.inspectionId}}" catchtap="submitPass"><app-icon name="circle-check-big" size="28"></app-icon><text>检验通过</text></view>
-        <view wx:if="{{canCreateDefect}}" class="action-fail" data-id="{{item.inspectionId}}" catchtap="openDefectForm"><app-icon name="triangle-alert" size="28"></app-icon><text>录入不良</text></view>
+        <view wx:if="{{canSubmit}}" class="action-record" data-id="{{item.inspectionId}}" catchtap="openInspectionForm"><app-icon name="notebook-pen" size="28"></app-icon><text>录入检验记录</text></view>
       </view>
     </view>
     <view wx:if="{{error}}" class="append-error" bindtap="onReachBottom">{{error}}，点击重试</view>

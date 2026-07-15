@@ -169,7 +169,7 @@ Page({
     const current = reset ? 1 : this.data.current
     this.setData({ loading: true, error: reset ? '' : this.data.error })
     try {
-      const lookups = this.data.lookups || await lookupApi.load(['workOrder', 'station', 'employee'])
+      const lookups = this.data.lookups || await lookupApi.load(['task', 'station', 'employee'])
       if (!this.data.lookups) this.setData({ lookups })
       const query = format.compactQuery({
         current,
@@ -183,6 +183,7 @@ Page({
       const decorated = records.map((item) => ({
         ...item,
         statusView: statusUtil.getStatus('audit', item.auditStatus),
+        taskNo: lookupApi.label(lookups.task, item.taskId, '任务'),
         operatorLabel: lookupApi.label(lookups.employee, item.operatorId, '员工'),
         stationLabel: lookupApi.label(lookups.station, item.stationId, '工位'),
         reportTimeText: format.formatDateTime(item.reportTime)

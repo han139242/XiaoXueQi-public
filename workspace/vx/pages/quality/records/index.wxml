@@ -1,7 +1,7 @@
 <view class="filter-shell quality-filter-shell">
   <view class="quality-filter-bar">
     <view class="quality-filter {{keyword ? 'quality-filter--active' : ''}}" data-field="keyword" bindtap="toggleFilter"><text>{{keyword || '检验单号'}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
-    <view class="quality-filter {{filters.status ? 'quality-filter--active' : ''}}" data-field="status" bindtap="toggleFilter"><text>{{statusOptions[statusIndex].label}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
+    <view class="quality-filter quality-filter--active"><text>已完成</text><app-icon name="circle-check-big" size="22"></app-icon></view>
     <view class="quality-filter {{filters.inspectionResult ? 'quality-filter--active' : ''}}" data-field="result" bindtap="toggleFilter"><text>{{resultOptions[resultIndex].label}}</text><app-icon name="chevron-down" size="22" muted></app-icon></view>
   </view>
   <view wx:if="{{activeFilter === 'keyword'}}" class="quality-dropdown keyword-dropdown">
@@ -30,8 +30,12 @@
         <view><text>工单编号</text><text>{{item.workOrderLabel}}</text></view>
         <view><text>任务编号</text><text>{{item.taskLabel}}</text></view>
         <view><text>报工编号</text><text>{{item.reportLabel}}</text></view>
+        <view wx:if="{{item.hasQuantity}}"><text>检验数量</text><text>抽检 {{item.sampleQuantity}} / 合格 {{item.qualifiedQuantity}} / 不合格 {{item.unqualifiedQuantity}}</text></view>
+        <view wx:if="{{item.hasQuantity}}"><text>不合格率</text><text>{{item.unqualifiedRateText}}</text></view>
+        <view wx:if="{{item.inspectionResult === 'FAIL'}}"><text>处理方式</text><text>{{item.dispositionText}}</text></view>
+        <view wx:if="{{item.inspectionResult === 'FAIL'}}"><text>不良品项</text><text>{{item.nonconformingNoText}}</text></view>
         <view><text>质检员</text><text>{{item.inspectorLabel}}</text></view>
-        <view><text>更新时间</text><text>{{item.updatedTimeText}}</text></view>
+        <view><text>检验时间</text><text>{{item.inspectionTimeText}}</text></view>
       </view>
       <view class="record-footer"><text>查看记录详情</text><app-icon name="chevron-right" size="25" muted></app-icon></view>
     </view>

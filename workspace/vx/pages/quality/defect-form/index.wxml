@@ -5,9 +5,16 @@
       <text>不良品项编号</text>
       <input value="{{form.ncrNo}}" disabled />
     </view>
-    <view wx:else class="form-field">
-      <text>检验单 ID</text>
-      <input value="{{form.inspectionId}}" data-field="inspectionId" type="number" placeholder="请输入检验单 ID" bindinput="handleInput" />
+    <view wx:if="{{associationLocked}}" class="form-field">
+      <text>关联检验单编号</text>
+      <input value="{{inspectionNo}}" disabled />
+    </view>
+    <picker wx:else range="{{failedInspectionOptions}}" range-key="label" value="{{inspectionIndex}}" bindchange="handleInspection">
+      <view class="picker-field"><text><text class="required-star">*</text>关联检验单编号</text><view><text>{{failedInspectionOptions[inspectionIndex].label}}</text><app-icon name="chevron-right" size="28" muted></app-icon></view></view>
+    </picker>
+    <view class="form-field">
+      <text>录入时间</text>
+      <input value="{{entryTimeText}}" disabled />
     </view>
     <view class="form-field">
       <text>产品批次 ID</text>
@@ -18,7 +25,7 @@
       <input value="{{form.defectReason}}" data-field="defectReason" placeholder="例如：涂胶不均匀" bindinput="handleInput" />
     </view>
     <picker range="{{dispositionOptions}}" range-key="label" value="{{dispositionIndex}}" bindchange="handleDisposition">
-      <view class="picker-field"><text>处理方式</text><view><text>{{dispositionOptions[dispositionIndex].label}}</text><app-icon name="chevron-right" size="28" muted></app-icon></view></view>
+      <view class="picker-field"><text><text class="required-star">*</text>处理方式</text><view><text>{{dispositionOptions[dispositionIndex].label}}</text><app-icon name="chevron-right" size="28" muted></app-icon></view></view>
     </picker>
   </view>
 

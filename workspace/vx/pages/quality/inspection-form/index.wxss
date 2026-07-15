@@ -1,0 +1,98 @@
+.inspection-form-page {
+  padding-top: 24rpx;
+}
+
+.inspection-summary,
+.form-panel {
+  padding: 24rpx;
+  background: #ffffff;
+  border: 1rpx solid #e2e8ee;
+  border-radius: 8rpx;
+}
+
+.inspection-no {
+  display: block;
+  margin-bottom: 14rpx;
+  color: #202a36;
+  font-size: 31rpx;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 7rpx 0;
+  color: #7a848e;
+  font-size: 25rpx;
+}
+
+.summary-row text:last-child {
+  min-width: 0;
+  color: #202a36;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.form-panel {
+  margin-top: 20rpx;
+}
+
+.form-field {
+  display: block;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #edf0f3;
+}
+
+.form-field > text {
+  display: block;
+  margin-bottom: 13rpx;
+  color: #617080;
+  font-size: 26rpx;
+}
+
+.form-field input {
+  width: 100%;
+  height: 64rpx;
+  font-size: 30rpx;
+}
+
+.form-field textarea {
+  width: 100%;
+  height: 150rpx;
+  font-size: 28rpx;
+}
+
+.readonly-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.readonly-field > text {
+  margin-bottom: 0;
+}
+
+.readonly-field > text:last-child {
+  color: #202a36;
+  text-align: right;
+}
+
+.result-value--success {
+  color: #21855b !important;
+  font-weight: 650;
+}
+
+.result-value--danger {
+  color: #bf433e !important;
+  font-weight: 650;
+}
+
+.form-error {
+  margin-top: 18rpx;
+  color: #bf433e;
+  font-size: 25rpx;
+  line-height: 1.5;
+}

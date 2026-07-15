@@ -5,7 +5,7 @@
   <block wx:else>
     <view class="detail-hero">
       <view class="detail-hero__header"><view class="detail-hero__identity"><view class="detail-hero__icon"><app-icon name="file-text" size="40"></app-icon></view><view><text class="detail-hero__number" selectable>{{report.reportNo || ('报工 ID ' + report.reportId)}}</text><text class="hero-type">生产报工</text></view></view><status-tag text="{{report.statusView.text}}" tone="{{report.statusView.tone}}"></status-tag></view>
-      <view class="report-context"><view><app-icon name="list-checks" size="27" muted></app-icon><text>任务 ID {{report.taskId}}</text></view><view><app-icon name="user-round" size="27" muted></app-icon><text>{{report.operatorLabel}}</text></view><view><app-icon name="map-pin" size="27" muted></app-icon><text>{{report.stationLabel}}</text></view></view>
+      <view class="report-context"><view><app-icon name="list-checks" size="27" muted></app-icon><text selectable>{{report.taskNo}}</text></view><view><app-icon name="user-round" size="27" muted></app-icon><text>{{report.operatorLabel}}</text></view><view><app-icon name="map-pin" size="27" muted></app-icon><text>{{report.stationLabel}}</text></view></view>
       <view class="quantity-grid"><view><text>{{report.qualifiedQuantity}}</text><text>合格数量</text></view><view><text class="defect">{{report.defectQuantity}}</text><text>不良数量</text></view><view><text>{{report.actualWorkHours}}</text><text>实际工时</text></view></view>
     </view>
 

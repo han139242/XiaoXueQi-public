@@ -10,6 +10,8 @@ const statusMap = {
   STOPPED: ['停机', 'warning'],
   FAULT: ['故障', 'danger'],
   MAINTENANCE: ['维修中', 'warning'],
+  MAINTAINING: ['保养中', 'warning'],
+  REPAIRING: ['维修中', 'warning'],
   SCRAPPED: ['已报废', 'neutral']
 }
 

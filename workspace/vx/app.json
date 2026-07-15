@@ -21,6 +21,7 @@
     "pages/equipment/repair-detail/index",
     "pages/quality/pending/index",
     "pages/quality/pending-detail/index",
+    "pages/quality/inspection-form/index",
     "pages/quality/records/index",
     "pages/quality/defect/index",
     "pages/quality/defect-form/index",
