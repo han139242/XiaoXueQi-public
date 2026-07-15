@@ -4,15 +4,19 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.entity.wms.WmsInventory;
+import com.neuedu.ems.entity.wms.WmsMaterialBatch;
 import com.neuedu.ems.entity.wms.WmsOutboundDetail;
 import com.neuedu.ems.entity.wms.WmsOutboundOrder;
 import com.neuedu.ems.entity.wms.WmsStockMovement;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.mapper.wms.WmsInventoryMapper;
+import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.mapper.wms.WmsOutboundDetailMapper;
 import com.neuedu.ems.mapper.wms.WmsOutboundOrderMapper;
 import com.neuedu.ems.mapper.wms.WmsStockMovementMapper;
@@ -24,8 +28,11 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 出库单管理 Service 实现类。
@@ -35,12 +42,18 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
 
     private static final String SUBMITTED_STATUS = BusinessStatus.Document.SUBMITTED;
     private static final String APPROVED_STATUS = BusinessStatus.Document.APPROVED;
+    private static final Set<String> RELEASED_QUALITY_STATUSES = Set.of(
+            BusinessStatus.Quality.PASS, BusinessStatus.Quality.CONCESSION);
+    private static final Set<String> ISSUABLE_BATCH_STATUSES = Set.of("AVAILABLE", "ENABLE");
 
     @Autowired
     private WmsOutboundDetailMapper wmsOutboundDetailMapper;
 
     @Autowired
     private WmsInventoryMapper wmsInventoryMapper;
+
+    @Autowired
+    private WmsMaterialBatchMapper wmsMaterialBatchMapper;
 
     @Autowired
     private WmsStockMovementMapper wmsStockMovementMapper;
@@ -110,12 +123,10 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
     @Override
     @Transactional
     public boolean saveOutboundOrder(WmsOutboundOrder outboundOrder) {
-        if (!StringUtils.hasText(outboundOrder.getAuditStatus())) {
-            outboundOrder.setAuditStatus(SUBMITTED_STATUS);
-        }
-        if (outboundOrder.getDeletedFlag() == null) {
-            outboundOrder.setDeletedFlag(0);
-        }
+        outboundOrder.setOutboundId(null);
+        outboundOrder.setAuditStatus(SUBMITTED_STATUS);
+        outboundOrder.setOutboundTime(null);
+        outboundOrder.setDeletedFlag(0);
         boolean saved = baseMapper.insert(outboundOrder) > 0;
         if (saved) {
             responsibilityNotificationService.publishOutboundPending(outboundOrder, outboundOrder.getCreatedBy());
@@ -132,14 +143,18 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
     @Override
     @Transactional
     public Long saveOutboundOrderFull(WmsOutboundOrder outboundOrder, List<WmsOutboundDetail> details) {
-        saveOutboundOrder(outboundOrder);
-        if (details != null) {
-            for (WmsOutboundDetail detail : details) {
-                detail.setOutboundId(outboundOrder.getOutboundId());
-                if (detail.getDeletedFlag() == null) {
-                    detail.setDeletedFlag(0);
-                }
-                wmsOutboundDetailMapper.insert(detail);
+        if (details == null || details.isEmpty()) {
+            throw business(ResultCode.PARAM_ERROR, "出库单至少需要一条明细");
+        }
+        if (!saveOutboundOrder(outboundOrder)) {
+            throw business(ResultCode.FAILED, "出库单保存失败");
+        }
+        for (WmsOutboundDetail detail : details) {
+            detail.setDetailId(null);
+            detail.setOutboundId(outboundOrder.getOutboundId());
+            detail.setDeletedFlag(0);
+            if (wmsOutboundDetailMapper.insert(detail) == 0) {
+                throw business(ResultCode.FAILED, "出库明细保存失败");
             }
         }
         return outboundOrder.getOutboundId();
@@ -194,10 +209,10 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
             for (WmsOutboundDetail detail : details) {
                 detail.setDetailId(null);
                 detail.setOutboundId(outboundOrder.getOutboundId());
-                if (detail.getDeletedFlag() == null) {
-                    detail.setDeletedFlag(0);
+                detail.setDeletedFlag(0);
+                if (wmsOutboundDetailMapper.insert(detail) == 0) {
+                    throw business(ResultCode.FAILED, "出库明细保存失败");
                 }
-                wmsOutboundDetailMapper.insert(detail);
             }
         }
         return true;
@@ -219,12 +234,12 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         outboundOrder.setOutboundId(outboundId);
         outboundOrder.setDeletedFlag(1);
         outboundOrder.setVersion(existing.getVersion());
-        boolean orderRemoved = baseMapper.updateById(outboundOrder) > 0;
-        softDeleteDetails(outboundId);
-        if (orderRemoved) {
-            responsibilityNotificationService.cancelOutboundPending(outboundId, existing.getUpdatedBy());
+        if (baseMapper.updateById(outboundOrder) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "出库单已被其他用户修改，请刷新后重试");
         }
-        return orderRemoved;
+        softDeleteDetails(outboundId);
+        responsibilityNotificationService.cancelOutboundPending(outboundId, existing.getUpdatedBy());
+        return true;
     }
 
     /**
@@ -237,34 +252,46 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
     @Override
     @Transactional
     public boolean confirmOutboundOrder(Long outboundId, Long operatorId, String remark) {
+        if (operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "当前登录用户不能为空");
+        }
         WmsOutboundOrder outboundOrder = getOutboundOrderById(outboundId);
-        if (outboundOrder == null || !SUBMITTED_STATUS.equals(outboundOrder.getAuditStatus())) {
-            return false;
+        if (outboundOrder == null) {
+            throw business(ResultCode.NOT_FOUND, "出库单不存在或已删除");
+        }
+        if (!SUBMITTED_STATUS.equals(outboundOrder.getAuditStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有 SUBMITTED 状态的出库单可以确认");
+        }
+        if (outboundOrder.getWarehouseId() == null) {
+            throw business(ResultCode.PARAM_ERROR, "出库仓库不能为空");
         }
         List<WmsOutboundDetail> details = listActiveDetails(outboundId);
-        if (details.isEmpty() || !canDecreaseInventory(outboundOrder, details)) {
-            return false;
+        if (details.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "出库单至少需要一条有效明细");
         }
+        Map<InventoryKey, InventoryDeduction> deductions = prepareInventoryDeductions(outboundOrder, details);
         LocalDateTime now = LocalDateTime.now();
-        for (WmsOutboundDetail detail : details) {
-            decreaseInventory(outboundOrder, detail);
-            insertOutboundMovement(outboundOrder, detail, operatorId, remark, now);
-        }
         WmsOutboundOrder update = new WmsOutboundOrder();
         update.setOutboundId(outboundId);
         update.setVersion(outboundOrder.getVersion());
         update.setAuditStatus(APPROVED_STATUS);
         update.setOutboundTime(now);
         update.setRemark(StringUtils.hasText(remark) ? remark : outboundOrder.getRemark());
-        boolean updated = baseMapper.updateById(update) > 0;
-        if (updated) {
-            insertStatusChangeLog(outboundOrder.getOutboundId(), outboundOrder.getAuditStatus(), APPROVED_STATUS,
-                    "WMS_OUTBOUND_ORDER", "CONFIRM_OUTBOUND", operatorId, remark, now);
-            insertOperationLog(outboundOrder.getOutboundId(), "CONFIRM_OUTBOUND", "wms_outbound_order", operatorId, remark, now);
-            responsibilityNotificationService.cancelOutboundPending(outboundId, operatorId);
-            responsibilityNotificationService.publishOutboundCompleted(outboundOrder, operatorId);
+        if (baseMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "出库单已被其他用户修改，请刷新后重试");
         }
-        return updated;
+        for (InventoryDeduction deduction : deductions.values()) {
+            decreaseInventory(deduction);
+        }
+        for (WmsOutboundDetail detail : details) {
+            insertOutboundMovement(outboundOrder, detail, operatorId, remark, now);
+        }
+        insertStatusChangeLog(outboundOrder.getOutboundId(), outboundOrder.getAuditStatus(), APPROVED_STATUS,
+                "WMS_OUTBOUND_ORDER", "CONFIRM_OUTBOUND", operatorId, remark, now);
+        insertOperationLog(outboundOrder.getOutboundId(), "CONFIRM_OUTBOUND", "wms_outbound_order", operatorId, remark, now);
+        responsibilityNotificationService.cancelOutboundPending(outboundId, operatorId);
+        responsibilityNotificationService.publishOutboundCompleted(outboundOrder, operatorId);
+        return true;
     }
 
     /**
@@ -302,7 +329,9 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
             WmsOutboundDetail update = new WmsOutboundDetail();
             update.setDetailId(detail.getDetailId());
             update.setDeletedFlag(1);
-            wmsOutboundDetailMapper.updateById(update);
+            if (wmsOutboundDetailMapper.updateById(update) == 0) {
+                throw business(ResultCode.DATA_CONFLICT, "出库明细已被其他用户修改，请刷新后重试");
+            }
         }
     }
 
@@ -322,18 +351,52 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
      * 校验出库明细库存是否足够扣减。
      * @param outboundOrder 出库单实体
      * @param details 出库明细列表
-     * @return 是否可以扣减
+     * @return 按库存唯一键汇总后的扣减计划
      */
-    private boolean canDecreaseInventory(WmsOutboundOrder outboundOrder, List<WmsOutboundDetail> details) {
+    private Map<InventoryKey, InventoryDeduction> prepareInventoryDeductions(
+            WmsOutboundOrder outboundOrder, List<WmsOutboundDetail> details) {
+        Map<InventoryKey, BigDecimal> requiredQuantities = new LinkedHashMap<>();
         for (WmsOutboundDetail detail : details) {
-            BigDecimal outboundQuantity = detail.getOutboundQuantity() == null ? BigDecimal.ZERO : detail.getOutboundQuantity();
-            WmsInventory inventory = selectInventory(outboundOrder.getWarehouseId(), detail.getLocationId(), detail.getMaterialId(), detail.getBatchId());
-            BigDecimal availableQuantity = inventory == null || inventory.getAvailableQuantity() == null ? BigDecimal.ZERO : inventory.getAvailableQuantity();
-            if (outboundQuantity.compareTo(BigDecimal.ZERO) <= 0 || availableQuantity.compareTo(outboundQuantity) < 0) {
-                return false;
+            if (detail.getDetailId() == null || detail.getMaterialId() == null || detail.getBatchId() == null
+                    || detail.getLocationId() == null || detail.getOutboundQuantity() == null
+                    || detail.getOutboundQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+                throw business(ResultCode.PARAM_ERROR, "出库明细的物料、批次、库位和正数数量不能为空");
             }
+            WmsMaterialBatch batch = getActiveBatch(detail.getBatchId());
+            if (batch == null) {
+                throw business(ResultCode.NOT_FOUND, "出库明细关联的物料批次不存在或已删除");
+            }
+            if (!detail.getMaterialId().equals(batch.getMaterialId())) {
+                throw business(ResultCode.BUSINESS_ERROR, "出库明细物料与批次物料不一致");
+            }
+            if (!RELEASED_QUALITY_STATUSES.contains(batch.getQualityStatus())
+                    || !ISSUABLE_BATCH_STATUSES.contains(batch.getStatus())) {
+                throw business(ResultCode.BUSINESS_ERROR, "批次未放行或不可用，禁止出库");
+            }
+            InventoryKey key = new InventoryKey(outboundOrder.getWarehouseId(), detail.getLocationId(),
+                    detail.getMaterialId(), detail.getBatchId());
+            requiredQuantities.merge(key, detail.getOutboundQuantity(), BigDecimal::add);
         }
-        return true;
+
+        Map<InventoryKey, InventoryDeduction> deductions = new LinkedHashMap<>();
+        for (Map.Entry<InventoryKey, BigDecimal> entry : requiredQuantities.entrySet()) {
+            InventoryKey key = entry.getKey();
+            WmsInventory inventory = selectInventory(
+                    key.warehouseId(), key.locationId(), key.materialId(), key.batchId());
+            BigDecimal availableQuantity = inventory == null || inventory.getAvailableQuantity() == null ? BigDecimal.ZERO : inventory.getAvailableQuantity();
+            if (availableQuantity.compareTo(entry.getValue()) < 0) {
+                throw business(ResultCode.BUSINESS_ERROR, "出库库存不足，请核对仓库、库位、物料、批次和数量");
+            }
+            deductions.put(key, new InventoryDeduction(inventory, entry.getValue()));
+        }
+        return deductions;
+    }
+
+    private WmsMaterialBatch getActiveBatch(Long batchId) {
+        LambdaQueryWrapper<WmsMaterialBatch> query = new LambdaQueryWrapper<>();
+        query.eq(WmsMaterialBatch::getBatchId, batchId)
+                .eq(WmsMaterialBatch::getDeletedFlag, 0);
+        return wmsMaterialBatchMapper.selectOne(query);
     }
 
     /**
@@ -356,17 +419,18 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
 
     /**
      * 根据出库明细扣减可用库存。
-     * @param outboundOrder 出库单实体
-     * @param detail 出库明细实体
+     * @param deduction 库存扣减计划
      */
-    private void decreaseInventory(WmsOutboundOrder outboundOrder, WmsOutboundDetail detail) {
-        WmsInventory inventory = selectInventory(outboundOrder.getWarehouseId(), detail.getLocationId(), detail.getMaterialId(), detail.getBatchId());
+    private void decreaseInventory(InventoryDeduction deduction) {
+        WmsInventory inventory = deduction.inventory();
         BigDecimal availableQuantity = inventory.getAvailableQuantity() == null ? BigDecimal.ZERO : inventory.getAvailableQuantity();
         WmsInventory update = new WmsInventory();
         update.setInventoryId(inventory.getInventoryId());
         update.setVersion(inventory.getVersion());
-        update.setAvailableQuantity(availableQuantity.subtract(detail.getOutboundQuantity()));
-        wmsInventoryMapper.updateById(update);
+        update.setAvailableQuantity(availableQuantity.subtract(deduction.quantity()));
+        if (wmsInventoryMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "库存余额已被其他请求修改，请刷新后重试");
+        }
     }
 
     /**
@@ -380,7 +444,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
     private void insertOutboundMovement(WmsOutboundOrder outboundOrder, WmsOutboundDetail detail,
                                         Long operatorId, String remark, LocalDateTime operationTime) {
         WmsStockMovement movement = new WmsStockMovement();
-        movement.setMovementNo("MV" + System.currentTimeMillis() + detail.getDetailId());
+        movement.setMovementNo("WMS-OUT-" + outboundOrder.getOutboundId() + "-" + detail.getDetailId());
         movement.setMovementType("OUTBOUND");
         movement.setSourceOrderType("OUTBOUND_ORDER");
         movement.setSourceOrderId(outboundOrder.getOutboundId());
@@ -392,7 +456,9 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         movement.setCreatedBy(operatorId);
         movement.setRemark(remark);
         movement.setDeletedFlag(0);
-        wmsStockMovementMapper.insert(movement);
+        if (wmsStockMovementMapper.insert(movement) == 0) {
+            throw business(ResultCode.FAILED, "出库库存流水写入失败");
+        }
     }
 
     /**
@@ -420,7 +486,9 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         statusLog.setCreatedTime(changedTime);
         statusLog.setRemark(remark);
         statusLog.setDeletedFlag(0);
-        sysStatusChangeLogMapper.insert(statusLog);
+        if (sysStatusChangeLogMapper.insert(statusLog) == 0) {
+            throw business(ResultCode.FAILED, "出库状态日志写入失败");
+        }
     }
 
     /**
@@ -444,6 +512,18 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         operationLog.setCreatedTime(operationTime);
         operationLog.setRemark(remark);
         operationLog.setDeletedFlag(0);
-        sysOperationLogMapper.insert(operationLog);
+        if (sysOperationLogMapper.insert(operationLog) == 0) {
+            throw business(ResultCode.FAILED, "出库操作日志写入失败");
+        }
+    }
+
+    private BusinessException business(ResultCode code, String message) {
+        return new BusinessException(code.getCode(), message);
+    }
+
+    private record InventoryKey(Long warehouseId, Long locationId, Long materialId, Long batchId) {
+    }
+
+    private record InventoryDeduction(WmsInventory inventory, BigDecimal quantity) {
     }
 }

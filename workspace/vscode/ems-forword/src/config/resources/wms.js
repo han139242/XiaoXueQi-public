@@ -7,9 +7,7 @@ const confirmAction = (kind, idField, label = '确认') => ({
   key: `confirm-${kind}`, label, icon: 'check', method: 'put', type: 'success',
   path: (row) => `/api/wms/${kind}-order/${row[idField]}/confirm`,
   visible: (row) => row.auditStatus === 'SUBMITTED',
-  fields: kind === 'inbound'
-    ? [field('remark', { type: 'textarea' })]
-    : [field('operatorId', { label: '操作人', type: 'reference', reference: 'org-employee' }), field('remark', { type: 'textarea' })],
+  fields: [field('remark', { type: 'textarea' })],
   previewPatch: () => ({ auditStatus: 'APPROVED' })
 })
 
@@ -49,8 +47,13 @@ export default [
   defineResource({
     key: 'wms-outbound-order', domain: 'wms', route: 'wms/outbound-orders', title: '出库管理', icon: 'logout', baseUrl: '/api/wms/outbound-order', idField: 'outboundId', createPath: '/full', updatePath: '/full',
     fields: ['outboundNo', 'outboundType', 'warehouseId', 'workOrderId', 'applicantId', 'auditStatus', 'outboundTime', 'remark', 'createdTime'], filters: ['keyword', 'outboundType', 'warehouseId', 'workOrderId', 'applicantId', 'auditStatus'], defaults: { auditStatus: 'SUBMITTED' },
-    overrides: { outboundNo: { required: true }, outboundType: { required: true, type: 'select', options: values([['PRODUCTION', '生产领料', 'primary'], ['SALES', '销售出库', 'success'], ['TRANSFER', '调拨出库', 'warning']]) }, warehouseId: { required: true }, applicantId: { required: true }, auditStatus: { type: 'select', options: optionSets.audit, create: false, edit: false }, outboundTime: { required: true }, createdTime: { form: false, width: 170 } },
+    overrides: { outboundNo: { required: true }, outboundType: { required: true, type: 'select', options: values([['MATERIAL_ISSUE', '生产领料', 'primary'], ['SALE', '销售出库', 'success'], ['TRANSFER', '调拨出库', 'warning']]) }, warehouseId: { required: true }, applicantId: { required: true }, auditStatus: { type: 'select', options: optionSets.audit, create: false, edit: false }, outboundTime: { required: true }, createdTime: { form: false, width: 170 } },
     canEdit: (row) => row.auditStatus !== 'APPROVED', canDelete: (row) => row.auditStatus !== 'APPROVED', lockedReason: '已确认出库的单据不可修改或删除',
+    masterDetail: {
+      title: '出库单明细', resource: 'wms-outbound-detail', parentField: 'outboundId',
+      endpoint: (row) => `/api/wms/outbound-detail/outbound/${row.outboundId}`,
+      label: (row) => row.outboundNo || `出库单 #${row.outboundId}`
+    },
     fullChild: { property: 'details', title: '出库明细', resource: 'wms-outbound-detail', parentField: 'outboundId', endpoint: (row) => `/api/wms/outbound-detail/outbound/${row.outboundId}` }, actions: [confirmAction('outbound', 'outboundId', '确认出库')]
   }),
   defineResource({ key: 'wms-outbound-detail', domain: 'wms', route: 'wms/outbound-details', title: '出库明细', baseUrl: '/api/wms/outbound-detail', idField: 'detailId', menu: false, fields: ['outboundId', 'materialId', 'batchId', 'locationId', 'outboundQuantity', 'remark'], filters: ['outboundId', 'materialId', 'batchId', 'locationId'], overrides: { outboundId: { required: true }, materialId: { required: true }, batchId: { required: true }, locationId: { required: true }, outboundQuantity: { required: true, type: 'number', min: 0 } } }),
