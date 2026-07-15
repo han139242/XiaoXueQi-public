@@ -7,6 +7,8 @@ const format = require('../../../utils/format')
 const statusMap = {
   WAIT_INSPECTION: ['待检', 'warning'],
   INSPECTING: ['检验中', 'primary'],
+  DRAFT: ['待检', 'warning'],
+  RUNNING: ['检验中', 'primary'],
   FINISHED: ['已完成', 'success'],
   CLOSED: ['已关闭', 'neutral']
 }
@@ -15,7 +17,11 @@ const typeMap = {
   first: '首检',
   process: '巡检',
   final: '终检',
-  incoming: '来料检验'
+  incoming: '来料检验',
+  FIRST: '首检',
+  PROCESS: '巡检',
+  FINAL: '终检',
+  INCOMING: '来料检验'
 }
 
 const resultMap = {
@@ -66,7 +72,9 @@ Page({
   },
 
   async ensureLookups() {
-    const lookups = await lookupApi.load(['workOrder', 'employee'])
+    const lookups = await lookupApi.load([
+      'workOrder', 'task', 'report', 'employee', 'batch', 'inspectionScheme'
+    ])
     this.setData({ lookups })
     return lookups
   },
@@ -82,14 +90,14 @@ Page({
       typeText: typeMap[item.inspectionType] || item.inspectionType || '-',
       resultText: resultMap[item.inspectionResult] || item.inspectionResult || '未判定',
       workOrderLabel: lookupApi.label(lookups.workOrder, item.workOrderId, '工单'),
-      taskLabel: item.taskNo || (item.taskId ? '任务 ID ' + item.taskId : '-'),
-      reportLabel: item.reportNo || (item.reportId ? '报工 ID ' + item.reportId : '-'),
-      batchLabel: item.batchNo || item.lotNo || (item.batchId ? '批次 ID ' + item.batchId : '-'),
-      schemeLabel: item.schemeName || (item.schemeId ? '方案 ID ' + item.schemeId : '-'),
+      taskLabel: lookupApi.label(lookups.task, item.taskId, '任务'),
+      reportLabel: lookupApi.label(lookups.report, item.reportId, '报工'),
+      batchLabel: lookupApi.label(lookups.batch, item.batchId, '批次'),
+      schemeLabel: lookupApi.label(lookups.inspectionScheme, item.schemeId, '方案'),
       inspectorLabel: lookupApi.label(lookups.employee, item.inspectorId, '员工'),
       hasQuantity: sampleQuantity > 0,
       unqualifiedRateText: sampleQuantity > 0 ? (unqualifiedQuantity / sampleQuantity * 100).toFixed(4) + '%' : '-',
-      inspectionTimeText: format.formatDateTime(item.inspectionTime),
+      inspectionTimeText: format.formatDateTime(item.inspectionTime || item.updatedTime),
       createdTimeText: format.formatDateTime(item.createdTime),
       updatedTimeText: format.formatDateTime(item.updatedTime),
       remarkText: format.display(item.remark)

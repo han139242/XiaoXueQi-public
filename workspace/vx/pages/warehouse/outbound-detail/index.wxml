@@ -18,7 +18,7 @@
       <view class="section-title">出库明细</view>
       <view wx:for="{{lines}}" wx:key="detailId" class="line-item">
         <view class="line-title"><text>{{item.materialLabel}}</text><text>{{item.outboundQuantity}}</text></view>
-        <view class="line-sub">{{item.batchNo || ('批次 ID ' + item.batchId)}} · {{item.locationLabel}}</view>
+        <view class="line-sub">{{item.batchLabel}} · {{item.locationLabel}}</view>
       </view>
       <view wx:if="{{lines.length === 0}}" class="line-empty">暂无明细</view>
     </view>

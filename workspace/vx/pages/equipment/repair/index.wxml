@@ -9,7 +9,7 @@
         <status-tag text="{{item.statusText}}" tone="{{item.statusTone}}"></status-tag>
       </view>
       <view class="module-fields">
-        <view><text>报修人</text><text>{{item.applicantLabel}}</text></view>
+        <view><text>报修人</text><text>{{item.reporterLabel}}</text></view>
         <view><text>维修人</text><text>{{item.repairerLabel}}</text></view>
         <view><text>报修时间</text><text>{{item.reportedTimeText}}</text></view>
         <view><text>故障描述</text><text>{{item.faultDescription || '-'}}</text></view>

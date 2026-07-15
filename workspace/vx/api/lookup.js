@@ -60,6 +60,13 @@ const definitions = {
       return item.locationName || item.locationCode
     }
   },
+  batch: {
+    url: '/api/wms/material-batch/page',
+    id: 'batchId',
+    label(item) {
+      return item.batchNo
+    }
+  },
   equipment: {
     url: '/api/eam/equipment/page',
     id: 'equipmentId',
@@ -72,6 +79,34 @@ const definitions = {
     id: 'taskId',
     label(item) {
       return item.taskNo
+    }
+  },
+  report: {
+    url: '/api/mfg/work-report/page',
+    id: 'reportId',
+    label(item) {
+      return item.reportNo
+    }
+  },
+  inspection: {
+    url: '/api/qms/inspection-order/page',
+    id: 'inspectionId',
+    label(item) {
+      return item.inspectionNo
+    }
+  },
+  inspectionScheme: {
+    url: '/api/qms/inspection-scheme/page',
+    id: 'schemeId',
+    label(item) {
+      return item.schemeName || item.schemeCode
+    }
+  },
+  user: {
+    url: '/api/sys/user/page',
+    id: 'userId',
+    label(item) {
+      return item.username
     }
   },
   workOrder: {

@@ -6,6 +6,8 @@ const format = require('../../../utils/format')
 const statusMap = {
   WAIT_INSPECTION: ['待检', 'warning'],
   INSPECTING: ['检验中', 'primary'],
+  DRAFT: ['待检', 'warning'],
+  RUNNING: ['检验中', 'primary'],
   FINISHED: ['已完成', 'success'],
   CLOSED: ['已关闭', 'neutral']
 }
@@ -132,7 +134,7 @@ Page({
   },
 
   async ensureLookups() {
-    const lookups = await lookupApi.load(['workOrder', 'employee'])
+    const lookups = await lookupApi.load(['workOrder', 'task', 'report', 'employee'])
     this.setData({ lookups })
     return lookups
   },
@@ -152,11 +154,11 @@ Page({
       typeText: typeMap[item.inspectionType] || item.inspectionType || '-',
       workOrderLabel: lookupApi.label(lookups.workOrder, item.workOrderId, '工单'),
       inspectorLabel: lookupApi.label(lookups.employee, item.inspectorId, '员工'),
-      taskLabel: item.taskNo || (item.taskId ? '任务 ID ' + item.taskId : '-'),
-      reportLabel: item.reportNo || (item.reportId ? '报工 ID ' + item.reportId : '-'),
+      taskLabel: lookupApi.label(lookups.task, item.taskId, '任务'),
+      reportLabel: lookupApi.label(lookups.report, item.reportId, '报工'),
       hasQuantity: sampleQuantity > 0,
       unqualifiedRateText: sampleQuantity > 0 ? (unqualifiedQuantity / sampleQuantity * 100).toFixed(4) + '%' : '-',
-      inspectionTimeText: format.formatDateTime(item.inspectionTime),
+      inspectionTimeText: format.formatDateTime(item.inspectionTime || item.updatedTime),
       updatedTimeText: format.formatDateTime(item.updatedTime || item.createdTime)
     }
   },

@@ -38,7 +38,7 @@ Page({
   },
 
   async ensureLookups() {
-    const lookups = await lookupApi.load(['warehouse', 'material', 'location', 'workOrder'])
+    const lookups = await lookupApi.load(['warehouse', 'material', 'location', 'workOrder', 'batch'])
     this.setData({ lookups })
     return lookups
   },
@@ -61,7 +61,8 @@ Page({
     return {
       ...item,
       materialLabel: lookupApi.label(lookups.material, item.materialId, '物料'),
-      locationLabel: lookupApi.label(lookups.location, item.locationId, '库位')
+      locationLabel: lookupApi.label(lookups.location, item.locationId, '库位'),
+      batchLabel: lookupApi.label(lookups.batch, item.batchId, '批次')
     }
   },
 

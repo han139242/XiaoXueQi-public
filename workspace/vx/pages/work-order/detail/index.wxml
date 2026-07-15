@@ -1,33 +1,78 @@
-<view class="page">
+<view class="page work-order-detail-page">
   <loading-state wx:if="{{loading}}"></loading-state>
   <empty-state wx:elif="{{error}}" title="工单详情加载失败" description="{{error}}" action-text="重试" bind:action="loadData"></empty-state>
   <empty-state wx:elif="{{!workOrder}}" title="工单不存在" description="记录可能已删除"></empty-state>
 
   <block wx:else>
-    <view class="detail-hero">
-      <view class="detail-hero__header">
-        <view class="detail-hero__identity"><view class="detail-hero__icon"><app-icon name="clipboard-list" size="40"></app-icon></view><view><text class="detail-hero__number" selectable>{{workOrder.workOrderNo || ('工单 ID ' + workOrder.workOrderId)}}</text><text class="hero-type">生产工单</text></view></view>
-        <status-tag text="{{workOrder.statusView.text}}" tone="{{workOrder.statusView.tone}}"></status-tag>
+    <view class="order-summary">
+      <view class="order-summary__header">
+        <text class="order-summary__number" selectable>{{workOrder.workOrderNo || ('工单 ID ' + workOrder.workOrderId)}}</text>
+        <text class="order-status order-status--{{workOrder.statusView.tone}}">{{workOrder.statusView.text}}</text>
       </view>
-      <view class="hero-product"><app-icon name="package" size="30" muted></app-icon><text>{{workOrder.productLabel}}</text></view>
-      <view class="stat-grid"><view class="stat-cell"><text class="stat-value">{{workOrder.plannedQuantity == null ? '-' : workOrder.plannedQuantity}}</text><text class="stat-label">计划数量</text></view><view class="stat-cell"><text class="stat-value">{{workOrder.completedQuantity == null ? '-' : workOrder.completedQuantity}}</text><text class="stat-label">完成数量</text></view></view>
-    </view>
-
-    <view class="detail-section surface info-section">
-      <view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="info" size="34"></app-icon></view><text class="section-heading__title">工单信息</text></view></view>
-      <view class="field-row"><text class="field-label">创建时间</text><text class="field-value">{{workOrder.createdTimeText}}</text></view>
-      <view class="field-row"><text class="field-label">更新时间</text><text class="field-value">{{workOrder.updatedTimeText}}</text></view>
-      <view class="field-row"><text class="field-label">备注</text><text class="field-value">{{workOrder.remark || '-'}}</text></view>
-    </view>
-
-    <view class="section-heading job-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="list-checks" size="34"></app-icon></view><text class="section-heading__title">生产任务</text></view><text class="section-heading__meta">{{tasks.length}} 项</text></view>
-    <empty-state wx:if="{{tasks.length === 0}}" title="暂无生产任务"></empty-state>
-    <view wx:else class="job-list">
-      <view wx:for="{{tasks}}" wx:key="taskId" class="record-card" data-id="{{item.taskId}}" bindtap="openTask">
-        <view class="record-header"><view class="record-identity"><view class="record-icon"><app-icon name="list-checks" size="34"></app-icon></view><view><text class="record-number" selectable>{{item.taskNo || ('任务 ID ' + item.taskId)}}</text><text class="record-subline">{{item.operationLabel}}</text></view></view><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
-        <view class="task-meta"><view><app-icon name="map-pin" size="26" muted></app-icon><text>{{item.stationLabel}}</text></view><view><app-icon name="chart-no-axes-column-increasing" size="26" muted></app-icon><text>{{item.plannedQuantity == null ? '-' : item.plannedQuantity}} / {{item.completedQuantity == null ? '-' : item.completedQuantity}}</text></view></view>
-        <view class="job-actions"><view class="card-link"><text>查看详情</text><app-icon name="chevron-right" size="25"></app-icon></view></view>
+      <view class="summary-fields">
+        <view><text>工单编号</text><text selectable>{{workOrder.workOrderNo || ('工单 ID ' + workOrder.workOrderId)}}</text></view>
+        <view><text>产品信息</text><text>{{workOrder.productText}}</text></view>
+        <view><text>计划时间</text><text>{{workOrder.planTimeText}}</text></view>
+        <view><text>计划数</text><text>{{workOrder.plannedQuantity == null ? '-' : workOrder.plannedQuantity}}</text></view>
+        <view><text>实际数</text><text>{{workOrder.actualQuantity}}</text></view>
+        <view><text>良品数</text><text>{{workOrder.completedQuantity}}</text></view>
+        <view><text>不良品数</text><text>{{workOrder.defectQuantity}}</text></view>
       </view>
     </view>
+
+    <view class="stage-section">
+      <view class="stage-heading">生产进度</view>
+      <scroll-view wx:if="{{tasks.length}}" class="stage-scroll" scroll-x enhanced show-scrollbar="{{false}}">
+        <view class="stage-track">
+          <view wx:for="{{tasks}}" wx:key="taskId" class="stage-item">
+            <view class="stage-node-row">
+              <view wx:if="{{index < tasks.length - 1}}" class="stage-line stage-line--{{item.stageState}}"></view>
+              <view class="stage-node stage-node--{{item.stageState}}">{{index + 1}}</view>
+            </view>
+            <text class="stage-name">{{item.operationLabel}}</text>
+            <text class="stage-percent">{{item.progressText}}</text>
+          </view>
+        </view>
+      </scroll-view>
+      <view wx:else class="stage-empty">暂无生产任务</view>
+    </view>
+
+    <view class="detail-tabs">
+      <view class="detail-tab {{activeTab === 'progress' ? 'detail-tab--active' : ''}}" data-tab="progress" bindtap="switchTab">生产进度</view>
+      <view class="detail-tab {{activeTab === 'history' ? 'detail-tab--active' : ''}}" data-tab="history" bindtap="switchTab">生产履历</view>
+    </view>
+
+    <block wx:if="{{activeTab === 'progress'}}">
+      <empty-state wx:if="{{tasks.length === 0}}" title="暂无生产任务"></empty-state>
+      <view wx:else class="task-card-list">
+        <view wx:for="{{tasks}}" wx:key="taskId" class="task-progress-card">
+          <view class="task-card-header">
+            <view><text class="task-operation">{{item.operationLabel}}</text><text class="task-station">{{item.taskNo}} · {{item.stationLabel}}</text></view>
+            <text class="task-state task-state--{{item.statusView.tone}}">{{item.statusView.text}}</text>
+          </view>
+          <view class="task-plan">计划数: {{item.plannedQuantity == null ? '-' : item.plannedQuantity}}</view>
+          <view class="task-quantity"><text>良品数: {{item.qualifiedQuantity}}</text><text>不良品数: {{item.defectQuantity}}</text></view>
+          <view class="task-actions">
+            <button class="task-action" data-id="{{item.taskId}}" catchtap="openTask">详情</button>
+            <button wx:if="{{canReport && item.status === 'RUNNING'}}" class="task-action task-action--primary" data-id="{{item.taskId}}" catchtap="openReportForm">报工</button>
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <block wx:else>
+      <loading-state wx:if="{{historyLoading}}"></loading-state>
+      <empty-state wx:elif="{{historyError}}" title="生产履历加载失败" description="{{historyError}}" action-text="重试" bind:action="retryHistory"></empty-state>
+      <empty-state wx:elif="{{history.length === 0}}" title="暂无生产履历"></empty-state>
+      <view wx:else class="history-list">
+        <view wx:for="{{history}}" wx:key="reportId" class="history-card" data-id="{{item.reportId}}" bindtap="openReport">
+          <view class="history-header"><view><text class="history-operation">{{item.operationLabel}}</text><text class="history-number" selectable>{{item.reportNo || ('报工 ID ' + item.reportId)}}</text></view><status-tag text="{{item.statusView.text}}" tone="{{item.statusView.tone}}"></status-tag></view>
+          <view class="history-field"><text>任务编号</text><text selectable>{{item.taskLabel}}</text></view>
+          <view class="history-field"><text>操作人员</text><text>{{item.operatorLabel}}</text></view>
+          <view class="history-field"><text>报工时间</text><text>{{item.reportTimeText}}</text></view>
+          <view class="history-quantity"><text>良品 {{item.qualifiedQuantity == null ? '-' : item.qualifiedQuantity}}</text><text>不良 {{item.defectQuantity == null ? '-' : item.defectQuantity}}</text></view>
+        </view>
+      </view>
+    </block>
   </block>
 </view>

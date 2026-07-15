@@ -5,8 +5,8 @@ const format = require('../../../utils/format')
 
 const statusMap = {
   SUBMITTED: ['待派工', 'warning'],
-  ASSIGNED: ['已派工', 'primary'],
-  PROCESSING: ['维修中', 'warning'],
+  REPAIRING: ['维修中', 'warning'],
+  WAIT_ACCEPTANCE: ['待验收', 'primary'],
   CLOSED: ['已关闭', 'success'],
   CANCELLED: ['已取消', 'neutral']
 }
@@ -52,7 +52,7 @@ Page({
       statusText: statusView[0],
       statusTone: statusView[1],
       equipmentLabel: lookupApi.label(lookups.equipment, item.equipmentId, '设备'),
-      applicantLabel: lookupApi.label(lookups.employee, item.applicantId, '员工'),
+      reporterLabel: lookupApi.label(lookups.employee, item.reportedBy, '员工'),
       repairerLabel: item.repairerId ? lookupApi.label(lookups.employee, item.repairerId, '员工') : '未派工',
       reportedTimeText: format.formatDateTime(item.reportedTime)
     }

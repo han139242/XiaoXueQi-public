@@ -1,7 +1,5 @@
 const guard = require('../../utils/guard')
 const dashboardApi = require('../../api/dashboard')
-const warehouseApi = require('../../api/warehouse')
-const equipmentApi = require('../../api/equipment')
 
 const metricDefinitions = [
   ['productionOrderCount', '当前生产订单', 'primary', 'factory', '/pages/production-order/index/index'],
@@ -12,16 +10,6 @@ const metricDefinitions = [
   ['inventoryWarningCount', '补货预警', 'warning', 'warehouse'],
   ['equipmentFaultCount', '故障设备', 'danger', 'wrench']
 ]
-
-function countInventoryWarnings(page) {
-  const records = page && Array.isArray(page.records) ? page.records : []
-  return records.filter((item) => Number(item.warningQuantity || 0) > 0 && Number(item.quantity || 0) < Number(item.warningQuantity || 0)).length
-}
-
-function countFaultEquipments(page) {
-  const records = page && Array.isArray(page.records) ? page.records : []
-  return records.filter((item) => item.status === 'FAULT').length
-}
 
 Page({
   data: {
@@ -51,16 +39,7 @@ Page({
     if (this.data.loading) return
     this.setData({ loading: true, error: '' })
     try {
-      const [dashboardSummary, inventoryPage, equipmentPage] = await Promise.all([
-        dashboardApi.summary(),
-        warehouseApi.inventoryPage({ current: 1, size: 500 }),
-        equipmentApi.equipmentPage({ current: 1, size: 500 })
-      ])
-      const summary = {
-        ...(dashboardSummary || {}),
-        inventoryWarningCount: countInventoryWarnings(inventoryPage),
-        equipmentFaultCount: countFaultEquipments(equipmentPage)
-      }
+      const summary = await dashboardApi.summary() || {}
       const metrics = metricDefinitions.map(([key, label, tone, icon, url]) => ({
         key,
         label,

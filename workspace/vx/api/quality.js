@@ -370,9 +370,9 @@ function createNonconforming(data) {
 function updateNonconforming(ncrId, data) {
   return withMockFallback(
     () => request({
-      url: '/api/qms/nonconforming-order/' + encodeURIComponent(ncrId),
+      url: '/api/qms/nonconforming-order',
       method: 'PUT',
-      data,
+      data: { ...(data || {}), ncrId },
       silent: env.useMockData()
     }),
     () => fallbackUpdateNonconforming(ncrId, data)

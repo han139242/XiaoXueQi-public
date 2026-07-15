@@ -7,6 +7,8 @@ const format = require('../../../utils/format')
 const statusMap = {
   WAIT_INSPECTION: ['待检', 'warning'],
   INSPECTING: ['检验中', 'primary'],
+  DRAFT: ['待检', 'warning'],
+  RUNNING: ['检验中', 'primary'],
   FINISHED: ['已完成', 'success'],
   CLOSED: ['已关闭', 'neutral']
 }
@@ -15,7 +17,11 @@ const typeMap = {
   first: '首检',
   process: '巡检',
   final: '终检',
-  incoming: '来料检验'
+  incoming: '来料检验',
+  FIRST: '首检',
+  PROCESS: '巡检',
+  FINAL: '终检',
+  INCOMING: '来料检验'
 }
 
 Page({
@@ -50,7 +56,7 @@ Page({
   },
 
   async ensureLookups() {
-    const lookups = await lookupApi.load(['workOrder'])
+    const lookups = await lookupApi.load(['workOrder', 'task', 'report'])
     this.setData({ lookups })
     return lookups
   },
@@ -63,8 +69,8 @@ Page({
       statusTone: statusView[1],
       typeText: typeMap[item.inspectionType] || item.inspectionType || '-',
       workOrderLabel: lookupApi.label(lookups.workOrder, item.workOrderId, '工单'),
-      taskLabel: item.taskNo || (item.taskId ? '任务 ID ' + item.taskId : '-'),
-      reportLabel: item.reportNo || (item.reportId ? '报工 ID ' + item.reportId : '-'),
+      taskLabel: lookupApi.label(lookups.task, item.taskId, '任务'),
+      reportLabel: lookupApi.label(lookups.report, item.reportId, '报工'),
       createdTimeText: format.formatDateTime(item.createdTime)
     }
   },
@@ -79,7 +85,7 @@ Page({
       const page = await qualityApi.inspectionPage({
         current,
         size: this.data.size,
-        status: 'WAIT_INSPECTION'
+        status: 'DRAFT'
       })
       const records = page && Array.isArray(page.records) ? page.records : []
       const decorated = records.map((item) => this.decorate(item, lookups))
