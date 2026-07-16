@@ -43,7 +43,9 @@ const specialRules = [
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/validate$/, 'mfg:schedule-scenario:validate'],
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/orders\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
+  ['post', /^\/api\/mfg\/schedule-scenario\/manual-board\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
   ['put', /^\/api\/mfg\/schedule-scenario\/[^/]+\/confirm$/, 'mfg:schedule-scenario:confirm'],
+  ['put', /^\/api\/mfg\/schedule-scenario\/[^/]+\/items\/[^/]+\/confirm$/, 'mfg:schedule-scenario:confirm'],
   ['post', /^\/api\/wms\/inbound-order\/generate-production\/[^/]+$/, 'wms:inbound-order:create'],
   ['put', /^\/api\/wms\/inbound-order\/[^/]+\/confirm$/, 'wms:inbound-order:confirm'],
   ['put', /^\/api\/wms\/inbound-order\/[^/]+\/withdraw$/, 'wms:inbound-order:withdraw'],
@@ -91,7 +93,8 @@ export function resourcePermission(resourceKey, action = 'view') {
 // 优先匹配上面的特殊动作，普通接口再按 GET/POST/PUT/DELETE 推导 CRUD 权限。
 export function resolveRequestPermission(method, rawUrl) {
   const requestMethod = String(method || '').toLowerCase()
-  const path = String(rawUrl || '').split('?')[0].replace(/\/$/, '')
+  const [rawPath] = String(rawUrl || '').split('?', 2)
+  const path = rawPath.replace(/\/$/, '')
   const special = specialRules.find(([ruleMethod, pattern]) => ruleMethod === requestMethod && pattern.test(path))
   if (special) return special[2]
   if (path === '/api/ai' || path.startsWith('/api/ai/')) return 'ai:assistant:use'

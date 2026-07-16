@@ -5,64 +5,67 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppIcon from '@/components/common/AppIcon.vue'
 import {
   addManualScheduleItem,
-  confirmScheduleScenario,
-  getDraftProductionOrderPage,
+  getManualBoardAiAdvice,
+  confirmManualScheduleItem,
   getManualEligibleLines,
-  getManualOrderAiAdvice,
-  getScheduleScenarioPage,
-  getScheduleScenarioDetail,
-  getScheduleScenarioItems,
+  getManualScheduleBoard,
   openManualScheduleDraft,
   removeManualScheduleItem,
-  updateManualSchedulePlacement,
-  validateManualScheduleDraft
+  updateManualSchedulePlacement
 } from '@/api/mfg/scheduling'
 import { loadReferenceOptions } from '@/utils/resource-options'
 import { hasPermission } from '@/utils/permission'
 
+// 人工排产工作台把待排订单拖入/加入产线时间轴，调整时间后确认生成正式生产计划。
+// board是后端返回的完整看板，draft是可编辑草稿，timelineItems是时间轴中的计划项。
+const board = ref(null)
 const draft = ref(null)
-const scenarioOptions = ref([])
-const selectedScenarioId = ref('')
-const scheduleItems = ref([])
+const timelineItems = ref([])
 const pendingOrders = ref([])
 const lineOptions = ref([])
 const productOptions = ref([])
 const orderOptions = ref([])
 const loading = ref(false)
-const scenarioLoading = ref(false)
-const pendingLoading = ref(false)
 const candidateLoading = ref(false)
 const addingLineId = ref(null)
 const savingPlacement = ref(false)
 const removingItem = ref(false)
-const validating = ref(false)
-const confirming = ref(false)
-const adviceLoading = ref(false)
+const confirmingItem = ref(false)
+const aiAdviceLoading = ref(false)
 const candidateOpen = ref(false)
 const placementOpen = ref(false)
 const addLineOpen = ref(false)
-const confirmOpen = ref(false)
 const selectedOrder = ref(null)
 const selectedItem = ref(null)
 const candidates = ref([])
 const candidateError = ref('')
-const advice = ref(null)
+const aiAdvice = ref(null)
+const aiAdviceStale = ref(false)
+const aiAdviceGeneratedAt = ref('')
+const boardFingerprint = ref('')
 const visibleLineIds = ref([])
-const timelineZoom = ref(1.5)
+// 时间轴允许在50%到200%左右的视图范围内缩放，默认值作为百分比换算基准。
+const TIMELINE_ZOOM_MIN = 0.75
+const TIMELINE_ZOOM_MAX = 3
+const TIMELINE_ZOOM_DEFAULT = 1.5
+const timelineZoom = ref(TIMELINE_ZOOM_DEFAULT)
 const pendingFilter = reactive({ keyword: '', productId: '', deliveryDate: '' })
-const placementForm = reactive({ lineId: '', timeRange: [], remark: '' })
-const confirmForm = reactive({ remark: '' })
+const placementForm = reactive({ lineId: '', startTime: '', endTime: '', remark: '' })
 const lineToAdd = ref('')
+// 候选产线请求序号用于丢弃过期响应，避免快速切换订单时旧请求覆盖新订单数据。
 let candidateRequestSequence = 0
 
-const weekdayLabels = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+const timelineTickSteps = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168]
+// 将下拉选项数组转成Map，使页面按ID查名称时不必每次遍历整个数组。
 const lineMap = computed(() => new Map(lineOptions.value.map((item) => [String(item.value), item.label])))
 const productMap = computed(() => new Map(productOptions.value.map((item) => [String(item.value), item.label])))
 const orderMap = computed(() => new Map([
   ...orderOptions.value.map((item) => [String(item.value), item.row || {}]),
-  ...pendingOrders.value.map((item) => [String(item.productionOrderId), item])
+  ...pendingOrders.value.map((item) => [String(item.productionOrderId), item]),
+  ...timelineItems.value.map((item) => [String(item.productionOrderId), item])
 ]))
 const filteredPendingOrders = computed(() => {
+  // 待排订单支持订单号/产品名称、产品ID和交期组合筛选。
   const keyword = pendingFilter.keyword.trim().toLocaleLowerCase()
   return pendingOrders.value.filter((order) => {
     const matchesKeyword = !keyword || [order.productionOrderNo, productLabel(order.productId)]
@@ -72,24 +75,38 @@ const filteredPendingOrders = computed(() => {
       && (!pendingFilter.deliveryDate || order.deliveryDate === pendingFilter.deliveryDate)
   })
 })
-const scheduledItems = computed(() => scheduleItems.value.filter((item) => item.lineId && item.plannedStartTime && item.plannedEndTime))
-const conflictItems = computed(() => scheduleItems.value.filter((item) => item.status === 'CONFLICT'))
+const manualItems = computed(() => timelineItems.value.filter((item) => item.sourceType === 'MANUAL'))
+// PLAN是正式计划，MANUAL是尚可调整的人工草稿项，两者在同一时间轴用不同样式展示。
+const productionPlanItems = computed(() => timelineItems.value.filter((item) => item.sourceType === 'PLAN'))
+const manuallyScheduledOrderIds = computed(() => new Set(manualItems.value
+  .map((item) => String(item.productionOrderId)).filter(Boolean)))
+const unscheduledPendingOrders = computed(() => pendingOrders.value
+  .filter((order) => !manuallyScheduledOrderIds.value.has(String(order.productionOrderId))))
+const aiAdviceOrderReferences = computed(() => [...unscheduledPendingOrders.value]
+  .sort((left, right) => String(left.deliveryDate || '9999-12-31').localeCompare(String(right.deliveryDate || '9999-12-31'))
+    || String(left.productionOrderNo || '').localeCompare(String(right.productionOrderNo || '')))
+  .slice(0, 12))
+const aiAdviceParagraphs = computed(() => formatAiAdviceParagraphs(aiAdvice.value?.answer))
+const conflictItems = computed(() => manualItems.value.filter((item) => item.status === 'CONFLICT'))
+// 每类操作分别判断后端权限码，按钮显示和实际请求保持一致。
+const selectedIsManual = computed(() => selectedItem.value?.sourceType === 'MANUAL')
 const canCreateSchedule = computed(() => hasPermission('mfg:schedule-scenario:create'))
-const canViewPendingOrders = computed(() => hasPermission('mfg:production-order:view'))
 const canUpdateSchedule = computed(() => hasPermission('mfg:schedule-scenario:update'))
 const canDeleteSchedule = computed(() => hasPermission('mfg:schedule-scenario:delete'))
-const canValidateSchedule = computed(() => hasPermission('mfg:schedule-scenario:validate'))
 const canRequestAdvice = computed(() => hasPermission('mfg:schedule-scenario:ai-advice'))
 const canConfirmSchedule = computed(() => hasPermission('mfg:schedule-scenario:confirm'))
-const isEditable = computed(() => draft.value?.status === 'DRAFT')
-const isCalculated = computed(() => draft.value?.status === 'CALCULATED')
-const canConfirm = computed(() => canConfirmSchedule.value && isCalculated.value && !conflictItems.value.length)
-const draftStatus = computed(() => ({
-  DRAFT: { label: '编辑中', type: 'info' },
-  CALCULATED: { label: '校验通过', type: 'success' },
-  CONFIRMED: { label: '已确认', type: 'success' }
-}[draft.value?.status] || { label: draft.value?.status || '--', type: 'info' }))
 const placementLine = computed(() => candidates.value.find((item) => String(item.lineId) === String(placementForm.lineId)))
+const placementMinimumWorkingMinutes = computed(() => Math.max(0, Number(placementLine.value?.minimumWorkingMinutes || 0)))
+const placementChanged = computed(() => {
+  // 比较弹窗表单和原始排产项，只有发生修改时才需要先保存再确认。
+  if (!selectedIsManual.value || !selectedItem.value) return false
+  return String(placementForm.lineId) !== String(selectedItem.value.lineId)
+    || normalizeDateTime(placementForm.startTime) !== normalizeDateTime(selectedItem.value.plannedStartTime)
+    || normalizeDateTime(placementForm.endTime) !== normalizeDateTime(selectedItem.value.plannedEndTime)
+    || placementForm.remark.trim() !== String(selectedItem.value.remark || '').trim()
+})
+const scheduledItems = computed(() => timelineItems.value.filter((item) => item.lineId && item.plannedStartTime && item.plannedEndTime))
+// 按产线分组并计算重叠任务的轨道编号，避免同一产线的时间块互相遮挡。
 const lineGroups = computed(() => {
   const ids = new Set([...visibleLineIds.value.map(String), ...scheduledItems.value.map((item) => String(item.lineId))])
   return [...ids].map((id) => {
@@ -107,33 +124,68 @@ const lineGroups = computed(() => {
     return { lineId, label: lineLabel(lineId), items: layoutItems, trackCount: Math.max(1, trackEnds.length) }
   }).sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'))
 })
-const horizonStart = computed(() => dayjs(draft.value?.horizonStart))
-const horizonEnd = computed(() => dayjs(draft.value?.horizonEnd))
-const timelineCanvasWidth = computed(() => {
-  if (!horizonStart.value.isValid() || !horizonEnd.value.isValid()) return 960
-  return Math.max(960, Math.round(Math.max(1, horizonEnd.value.diff(horizonStart.value, 'hour', true) / 24) * 176 * timelineZoom.value))
+const horizonStart = computed(() => dayjs(board.value?.horizonStart))
+// 时间轴结束时间至少覆盖后端视窗，并自动延伸到最晚计划的结束时间。
+const horizonEnd = computed(() => scheduledItems.value.reduce((latestEnd, item) => {
+  const itemEnd = dayjs(item.plannedEndTime)
+  return itemEnd.isValid() && (!latestEnd.isValid() || itemEnd.isAfter(latestEnd)) ? itemEnd : latestEnd
+}, dayjs(board.value?.horizonEnd)))
+const timelineEnd = computed(() => {
+  if (!horizonEnd.value.isValid()) return horizonEnd.value
+  const dayStart = horizonEnd.value.startOf('day')
+  const elapsedMinutes = horizonEnd.value.diff(dayStart, 'minute', true)
+  return dayStart.add((Math.floor(elapsedMinutes / 720) + 1) * 720, 'minute')
 })
+const timelineViewScale = computed(() => Math.max(1, TIMELINE_ZOOM_DEFAULT / timelineZoom.value))
+const timelineViewStart = computed(() => {
+  if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return horizonStart.value
+  const range = timelineEnd.value.diff(horizonStart.value)
+  const padding = (range * timelineViewScale.value - range) / 2
+  return horizonStart.value.subtract(padding, 'millisecond')
+})
+const timelineViewEnd = computed(() => {
+  if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return timelineEnd.value
+  const range = timelineEnd.value.diff(horizonStart.value)
+  const padding = (range * timelineViewScale.value - range) / 2
+  return timelineEnd.value.add(padding, 'millisecond')
+})
+const timelineCanvasWidth = computed(() => {
+  if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return 960
+  const totalDays = Math.max(1, timelineEnd.value.diff(horizonStart.value, 'hour', true) / 24)
+  const baseWidth = Math.max(960, totalDays * 300)
+  return Math.round(baseWidth * Math.max(1, timelineZoom.value / TIMELINE_ZOOM_DEFAULT))
+})
+const timelineZoomPercent = computed(() => Math.round(timelineZoom.value / TIMELINE_ZOOM_DEFAULT * 100))
 const timelineTicks = computed(() => {
-  if (!horizonStart.value.isValid() || !horizonEnd.value.isValid() || !horizonEnd.value.isAfter(horizonStart.value)) return []
-  const totalHours = horizonEnd.value.diff(horizonStart.value, 'hour', true)
-  const stepHours = totalHours <= 48 ? 4 : totalHours <= 168 ? 12 : 24
+  // 根据可视时间范围和画布宽度选择合适刻度，缩放后仍保持刻度数量可读。
+  if (!timelineViewStart.value.isValid() || !timelineViewEnd.value.isValid() || !timelineViewEnd.value.isAfter(timelineViewStart.value)) return []
+  const totalHours = timelineViewEnd.value.diff(timelineViewStart.value, 'hour', true)
+  const targetTickCount = Math.max(2, Math.floor(timelineCanvasWidth.value / 100))
+  const desiredStep = totalHours / targetTickCount
+  const stepHours = timelineTickSteps.find((step) => step >= desiredStep) || timelineTickSteps.at(-1)
   const ticks = []
-  let point = stepHours === 24 ? horizonStart.value.startOf('day') : horizonStart.value.startOf('hour')
-  if (point.isBefore(horizonStart.value)) point = point.add(stepHours, 'hour')
-  while (point.isBefore(horizonEnd.value) || point.isSame(horizonEnd.value)) {
+  let point = timelineViewStart.value.startOf('day')
+  while (point.isBefore(timelineViewStart.value)) point = point.add(stepHours, 'hour')
+  let previousDate = ''
+  const appendTick = (tickPoint) => {
+    const dateKey = tickPoint.format('YYYY-MM-DD')
     ticks.push({
-      key: point.valueOf(),
-      left: `${Math.min(100, Math.max(0, point.diff(horizonStart.value) / horizonEnd.value.diff(horizonStart.value) * 100))}%`,
-      date: point.format('MM-DD'),
-      detail: stepHours === 24 ? weekdayLabels[point.day()] : point.format('HH:mm')
+      key: tickPoint.valueOf(),
+      left: `${Math.min(100, Math.max(0, tickPoint.diff(timelineViewStart.value) / timelineViewEnd.value.diff(timelineViewStart.value) * 100))}%`,
+      date: dateKey === previousDate ? '' : tickPoint.format('MM-DD'),
+      detail: tickPoint.format('HH:mm')
     })
+    previousDate = dateKey
+  }
+  while (point.isBefore(timelineViewEnd.value) || point.isSame(timelineViewEnd.value)) {
+    appendTick(point)
     point = point.add(stepHours, 'hour')
   }
   return ticks
 })
 
 function productLabel(productId) {
-  return productMap.value.get(String(productId)) || `产品 #${productId}`
+  return productMap.value.get(String(productId)) || `产品 #${productId || '--'}`
 }
 
 function lineLabel(lineId) {
@@ -145,13 +197,53 @@ function scheduledOrder(item) {
 }
 
 function scheduledOrderLabel(item) {
-  const order = scheduledOrder(item)
-  return order?.productionOrderNo || `订单 #${item?.productionOrderId || '--'}`
+  return item?.productionOrderNo || scheduledOrder(item)?.productionOrderNo || `订单 #${item?.productionOrderId || '--'}`
 }
 
 function scheduledProductLabel(item) {
-  const order = scheduledOrder(item)
-  return order?.productId ? productLabel(order.productId) : '型号待补充'
+  const productId = item?.productId || scheduledOrder(item)?.productId
+  return productId ? productLabel(productId) : '型号待补充'
+}
+
+function formatAiAdviceParagraphs(answer) {
+  // 后端AI可能返回连续文本，这里按常见中文标题拆成段落供模板逐段显示。
+  const text = String(answer || '').trim()
+  if (!text) return []
+  const paragraphStarts = '(?:当前排产状态[：:]|待排订单安排建议(?:如下)?[：:]|风险与优化建议[：:]|[一二三四五六七八九十]+、)'
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(new RegExp(`\\s*(?=${paragraphStarts})`, 'g'), '\n\n')
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+}
+
+function isManuallyScheduled(order) {
+  return manuallyScheduledOrderIds.value.has(String(order?.productionOrderId))
+}
+
+function openPendingOrderPlacement(order) {
+  const manualItem = manualItems.value.find((item) => String(item.productionOrderId) === String(order?.productionOrderId))
+  if (manualItem) openPlacement(manualItem)
+}
+
+function itemKey(item) {
+  return `${item.sourceType}-${item.scheduleItemId || item.planId}`
+}
+
+function normalizeDateTime(value) {
+  return dayjs(value).isValid() ? dayjs(value).format('YYYY-MM-DDTHH:mm:ss') : ''
+}
+
+function createBoardFingerprint(value) {
+  // 只提取影响排产结果的字段生成指纹；看板变化后标记旧AI建议已经过期。
+  return JSON.stringify({
+    timelineItems: (value?.timelineItems || []).map((item) => [
+      item.sourceType, item.scheduleItemId || item.planId, item.scenarioVersion, item.itemVersion,
+      item.lineId, item.plannedStartTime, item.plannedEndTime, item.status
+    ]),
+    pendingOrderIds: (value?.pendingOrders || []).map((item) => item.productionOrderId)
+  })
 }
 
 function formatNumber(value, digits = 2) {
@@ -162,14 +254,35 @@ function formatDateTime(value) {
   return dayjs(value).isValid() ? dayjs(value).format('MM-DD HH:mm') : '--'
 }
 
+function formatDurationHours(minutes) {
+  const value = Number(minutes || 0)
+  if (value <= 0) return '--'
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1, minimumFractionDigits: value < 60 ? 1 : 0 })
+    .format(Math.ceil(value / 6) / 10)
+}
+
+function shiftPlacementTime(field, hours) {
+  if (!canUpdateSchedule.value || !selectedIsManual.value || !['startTime', 'endTime'].includes(field)) return
+  const current = dayjs(placementForm[field])
+  if (!current.isValid()) return
+  placementForm[field] = current.add(hours, 'hour').format('YYYY-MM-DDTHH:mm:ss')
+}
+
+function changeTimelineZoom(delta) {
+  timelineZoom.value = Number(Math.min(TIMELINE_ZOOM_MAX,
+    Math.max(TIMELINE_ZOOM_MIN, timelineZoom.value + delta)).toFixed(2))
+}
+
 function timelineGeometry(item) {
+  // 把计划开始/结束时间换算为时间轴上的百分比位置和宽度。
   const start = dayjs(item.plannedStartTime)
   const end = dayjs(item.plannedEndTime)
-  const total = horizonEnd.value.diff(horizonStart.value)
+  const total = timelineViewEnd.value.diff(timelineViewStart.value)
   if (!start.isValid() || !end.isValid() || total <= 0) return { start: 0, width: 0, end: 0 }
-  const left = Math.max(0, Math.min(100, start.diff(horizonStart.value) / total * 100))
+  const left = Math.max(0, Math.min(100, start.diff(timelineViewStart.value) / total * 100))
   const rawWidth = end.diff(start) / total * 100
-  const width = Math.min(100 - left, Math.max((154 / timelineCanvasWidth.value) * 100, rawWidth))
+  // Block width must match the scheduled duration; details remain available on hover when space is limited.
+  const width = Math.min(100 - left, Math.max(0, rawWidth))
   return { start: left, width, end: Math.min(100, left + width) }
 }
 
@@ -184,6 +297,7 @@ function resetPendingFilters() {
 }
 
 async function loadReferenceData() {
+  // 并行加载产线、产品和订单名称，用于把数据库ID显示成可读文字。
   const results = await Promise.allSettled([
     loadReferenceOptions('factory-line'),
     loadReferenceOptions('mdm-product'),
@@ -194,98 +308,37 @@ async function loadReferenceData() {
   if (results[2].status === 'fulfilled') orderOptions.value = results[2].value
 }
 
-async function loadPendingOrders() {
-  if (!canViewPendingOrders.value) {
-    pendingOrders.value = []
-    return
-  }
-  pendingLoading.value = true
-  try {
-    const result = await getDraftProductionOrderPage({ current: 1, size: 100 })
-    pendingOrders.value = result?.data?.records || []
-  } catch {
-    pendingOrders.value = []
-  } finally {
-    pendingLoading.value = false
-  }
-}
-
-function clearScenario() {
-  draft.value = null
-  scheduleItems.value = []
-  visibleLineIds.value = []
-  advice.value = null
-  selectedOrder.value = null
-  selectedItem.value = null
-}
-
-async function loadScenarioOptions() {
-  scenarioLoading.value = true
-  try {
-    const result = await getScheduleScenarioPage({ current: 1, size: 100 })
-    scenarioOptions.value = result?.data?.records || []
-  } finally {
-    scenarioLoading.value = false
-  }
-}
-
-async function loadDraft(scenarioId = selectedScenarioId.value || draft.value?.scenarioId) {
-  if (!scenarioId) {
-    selectedScenarioId.value = ''
-    clearScenario()
-    return
-  }
-  const [detailResult, itemResult] = await Promise.all([
-    getScheduleScenarioDetail(scenarioId),
-    getScheduleScenarioItems(scenarioId)
-  ])
-  draft.value = detailResult?.data || null
-  scheduleItems.value = itemResult?.data || []
-  selectedScenarioId.value = draft.value?.scenarioId ? String(draft.value.scenarioId) : ''
-  advice.value = null
-  selectedOrder.value = null
-  selectedItem.value = null
-  const itemLineIds = scheduleItems.value.filter((item) => item.lineId).map((item) => String(item.lineId))
-  visibleLineIds.value = [...new Set(itemLineIds)]
-}
-
-async function selectScenario(scenarioId) {
+async function loadBoard({ open = false } = {}) {
+  // 有创建权限时先打开可编辑草稿，再获取统一看板并拆分到各个响应式状态。
   loading.value = true
   try {
-    await loadDraft(scenarioId)
-  } finally {
-    loading.value = false
-  }
-}
-
-async function openDraft() {
-  if (!canCreateSchedule.value) return
-  loading.value = true
-  try {
-    const result = await openManualScheduleDraft()
-    const scenarioId = result?.data?.scenarioId
-    await loadScenarioOptions()
-    await loadDraft(scenarioId)
-    ElMessage.success('排产草案已打开')
+    const seed = canCreateSchedule.value && (open || !draft.value) ? await openManualScheduleDraft() : null
+    const result = await getManualScheduleBoard()
+    const nextBoard = result?.data || null
+    const nextFingerprint = createBoardFingerprint(nextBoard)
+    if (aiAdvice.value && boardFingerprint.value && nextFingerprint !== boardFingerprint.value) {
+      aiAdviceStale.value = true
+    }
+    boardFingerprint.value = nextFingerprint
+    board.value = nextBoard
+    draft.value = board.value?.workspaceDraft || seed?.data || draft.value
+    timelineItems.value = board.value?.timelineItems || []
+    pendingOrders.value = board.value?.pendingOrders || []
+    const itemLineIds = timelineItems.value.filter((item) => item.lineId).map((item) => String(item.lineId))
+    visibleLineIds.value = [...new Set([...visibleLineIds.value.map(String), ...itemLineIds])]
   } finally {
     loading.value = false
   }
 }
 
 async function refreshWorkbench() {
-  loading.value = true
-  try {
-    await Promise.all([loadScenarioOptions(), loadPendingOrders(), loadReferenceData()])
-    const selectedExists = scenarioOptions.value.some((item) => String(item.scenarioId) === String(selectedScenarioId.value))
-    const scenarioId = selectedExists ? selectedScenarioId.value : scenarioOptions.value[0]?.scenarioId
-    await loadDraft(scenarioId)
-  } finally {
-    loading.value = false
-  }
+  // 看板数据和关联名称没有依赖关系，因此并行刷新。
+  await Promise.all([loadBoard({ open: true }), loadReferenceData()])
 }
 
 async function openCandidates(order) {
-  if (!canCreateSchedule.value || !draft.value || !isEditable.value) return
+  // 选择待排订单后向后端查询满足产品能力、日历和产能要求的候选产线。
+  if (!canCreateSchedule.value || !draft.value) return
   const requestSequence = ++candidateRequestSequence
   selectedOrder.value = order
   candidates.value = []
@@ -305,6 +358,7 @@ async function openCandidates(order) {
 }
 
 async function addToLine(candidate) {
+  // 后端创建草稿项后重新加载看板，确保版本号、冲突状态和计算时间以服务端为准。
   if (!canCreateSchedule.value || !draft.value || !selectedOrder.value || addingLineId.value !== null) return
   addingLineId.value = candidate.lineId
   try {
@@ -315,8 +369,10 @@ async function addToLine(candidate) {
     })
     visibleLineIds.value = [...new Set([...visibleLineIds.value.map(String), String(candidate.lineId)])]
     candidateOpen.value = false
-    ElMessage.success('订单已加入产线时间安排')
-    await Promise.all([loadDraft(), loadPendingOrders()])
+    ElMessage.success('订单已加入排产总览')
+    await loadBoard()
+  } catch (error) {
+    await showSchedulingError(error, '添加订单失败', '订单未能加入排程，请刷新后重试。')
   } finally {
     addingLineId.value = null
   }
@@ -329,84 +385,207 @@ function currentLineCandidate(item) {
     lineId: item?.lineId,
     lineCode: row.lineCode || option?.label || lineLabel(item?.lineId),
     lineName: row.lineName || option?.label || lineLabel(item?.lineId),
-    workshopId: row.workshopId
-  }
-}
-
-async function openAdvice(order) {
-  if (!canRequestAdvice.value || !draft.value) return
-  selectedOrder.value = order
-  adviceLoading.value = true
-  advice.value = null
-  try {
-    const result = await getManualOrderAiAdvice(draft.value.scenarioId, order.productionOrderId, { scenarioVersion: draft.value.version })
-    advice.value = result?.data || null
-  } finally {
-    adviceLoading.value = false
+    workshopId: row.workshopId,
+    earliestStartTime: item?.plannedStartTime,
+    earliestEndTime: item?.plannedEndTime
   }
 }
 
 async function openPlacement(item) {
-  if (!canUpdateSchedule.value || !draft.value || !isEditable.value) return
+  // 正式PLAN只允许查看；MANUAL项还会加载候选产线并允许调整位置。
   selectedItem.value = item
-  placementForm.lineId = String(item.lineId)
-  placementForm.timeRange = [item.plannedStartTime, item.plannedEndTime]
+  placementForm.lineId = String(item.lineId || '')
+  placementForm.startTime = item.plannedStartTime || ''
+  placementForm.endTime = item.plannedEndTime || ''
   placementForm.remark = item.remark || ''
-  const currentLine = currentLineCandidate(item)
-  candidates.value = [currentLine]
+  candidates.value = item.lineId ? [currentLineCandidate(item)] : []
   placementOpen.value = true
+  if (item.sourceType !== 'MANUAL' || !canUpdateSchedule.value) return
   candidateLoading.value = true
   try {
-    const result = await getManualEligibleLines(draft.value.scenarioId, item.productionOrderId)
+    const result = await getManualEligibleLines(item.scenarioId, item.productionOrderId)
     const loaded = result?.data || []
+    const currentLine = currentLineCandidate(item)
     candidates.value = loaded.some((line) => String(line.lineId) === String(item.lineId))
       ? loaded
       : [currentLine, ...loaded]
+  } catch (error) {
+    candidateError.value = schedulingErrorMessage(error, '候选产线加载失败，请重试。')
+    await showSchedulingError(error, '候选产线加载失败', '候选产线加载失败，请刷新后重试。')
   } finally {
     candidateLoading.value = false
   }
 }
 
-async function savePlacement() {
-  if (!canUpdateSchedule.value || !draft.value || !selectedItem.value || !placementForm.lineId || placementForm.timeRange.length !== 2) return
+async function persistPlacement(closeAfterSave) {
+  // 同时提交方案版本和明细版本，后端通过乐观锁阻止多人排产互相覆盖。
+  if (!canUpdateSchedule.value || !selectedIsManual.value || !selectedItem.value || !placementForm.lineId
+    || !placementForm.startTime || !placementForm.endTime) return false
   savingPlacement.value = true
+  const scheduleItemId = selectedItem.value.scheduleItemId
   try {
-    await updateManualSchedulePlacement(draft.value.scenarioId, selectedItem.value.scheduleItemId, {
-      scenarioVersion: draft.value.version,
-      itemVersion: selectedItem.value.version,
+    await updateManualSchedulePlacement(selectedItem.value.scenarioId, scheduleItemId, {
+      scenarioVersion: selectedItem.value.scenarioVersion,
+      itemVersion: selectedItem.value.itemVersion,
       lineId: Number(placementForm.lineId),
-      plannedStartTime: placementForm.timeRange[0],
-      plannedEndTime: placementForm.timeRange[1],
+      plannedStartTime: placementForm.startTime,
+      plannedEndTime: placementForm.endTime,
       remark: placementForm.remark.trim() || undefined
     })
     visibleLineIds.value = [...new Set([...visibleLineIds.value.map(String), String(placementForm.lineId)])]
-    placementOpen.value = false
+    await loadBoard()
+    selectedItem.value = timelineItems.value.find((item) => item.sourceType === 'MANUAL' && item.scheduleItemId === scheduleItemId) || null
+    if (closeAfterSave) placementOpen.value = false
     ElMessage.success('时间安排已更新')
-    await loadDraft()
+    return true
+  } catch (error) {
+    await showSchedulingError(error, '保存临时安排失败', '请检查产线、班次和计划时间后重试。')
+    return false
   } finally {
     savingPlacement.value = false
   }
 }
 
-async function removeItem(item) {
-  if (!canDeleteSchedule.value || !draft.value || !isEditable.value || removingItem.value) return
+function isSchedulingConflict(error) {
+  // 业务码1007或版本相关文案都表示当前看板已被其他操作更新。
+  const message = String(error?.displayMessage || error?.message || '')
+  return Number(error?.code) === 1007 || /排程已更新|其他用户修改|版本/.test(message)
+}
+
+function schedulingErrorMessage(error, fallback) {
+  const message = String(error?.displayMessage || error?.message || '').trim()
+  if (isSchedulingConflict(error)) return '排程已更新，页面已刷新，请重新选择要操作的安排。'
+  if (/DRAFT|草案|另一份可编辑/.test(message)) return '该订单当前不能继续安排，请刷新后查看它是否已生成生产计划或进入其他生产状态。'
+  return message || fallback
+}
+
+async function showSchedulingError(error, title, fallback) {
+  // 版本冲突时先关闭旧弹窗并刷新看板，再告诉用户重新选择，避免继续编辑过期数据。
+  const conflict = isSchedulingConflict(error)
+  if (conflict) {
+    candidateOpen.value = false
+    placementOpen.value = false
+    selectedItem.value = null
+    try {
+      await refreshWorkbench()
+    } catch {
+      // The business error is still shown even when the follow-up refresh is unavailable.
+    }
+  }
   try {
-    await ElMessageBox.confirm('移出草案后，订单会回到待排列表。', '移出订单', { type: 'warning', confirmButtonText: '移出', cancelButtonText: '取消' })
+    await ElMessageBox.alert(schedulingErrorMessage(error, fallback), title, {
+      type: 'error',
+      confirmButtonText: '关闭',
+      showClose: true,
+      closeOnClickModal: false,
+      closeOnPressEscape: true
+    })
+  } catch {
+    // Closing the dialog does not discard unsaved form data unless the board was refreshed for a conflict.
+  }
+}
+
+function ensureConfirmedPlanVisible(plan, manualItem) {
+  // 确认接口成功但看板刷新暂未包含新计划时，在本地立即把MANUAL项替换为PLAN项。
+  if (!plan?.planId || !manualItem) return
+  const hasFormalPlan = timelineItems.value.some((item) => item.sourceType === 'PLAN'
+    && String(item.planId) === String(plan.planId))
+  if (hasFormalPlan) return
+  const formalItem = {
+    ...manualItem,
+    sourceType: 'PLAN',
+    planId: plan.planId,
+    planNo: plan.planNo,
+    status: plan.status || 'RELEASED',
+    remark: plan.remark || manualItem.remark,
+    editable: false
+  }
+  timelineItems.value = [...timelineItems.value
+    .filter((item) => !(item.sourceType === 'MANUAL'
+      && String(item.scheduleItemId) === String(manualItem.scheduleItemId))), formalItem]
+    .sort((left, right) => dayjs(left.plannedStartTime).valueOf() - dayjs(right.plannedStartTime).valueOf())
+}
+
+async function savePlacement() {
+  if (!placementForm.lineId || !placementForm.startTime || !placementForm.endTime) {
+    await showSchedulingError(null, '无法保存临时安排', '请先完整选择生产产线、开始时间和结束时间。')
+    return
+  }
+  await persistPlacement(true)
+}
+
+async function removeItem() {
+  // 移出草稿项前二次确认，成功后订单会重新回到待排列表。
+  if (!canDeleteSchedule.value || !selectedIsManual.value || !selectedItem.value || removingItem.value) return
+  try {
+    await ElMessageBox.confirm('移出后订单会回到待排列表。', '移出订单', {
+      type: 'warning', confirmButtonText: '移出', cancelButtonText: '取消'
+    })
   } catch {
     return
   }
   removingItem.value = true
   try {
-    await removeManualScheduleItem(draft.value.scenarioId, item.scheduleItemId, {
-      scenarioVersion: draft.value.version,
-      itemVersion: item.version
+    await removeManualScheduleItem(selectedItem.value.scenarioId, selectedItem.value.scheduleItemId, {
+      scenarioVersion: selectedItem.value.scenarioVersion,
+      itemVersion: selectedItem.value.itemVersion
     })
     placementOpen.value = false
     selectedItem.value = null
-    ElMessage.success('订单已移出草案')
-    await Promise.all([loadDraft(), loadPendingOrders()])
+    ElMessage.success('订单已移出时间安排')
+    await loadBoard()
+  } catch (error) {
+    await showSchedulingError(error, '移出安排失败', '订单未能移出当前安排，请刷新后重试。')
   } finally {
     removingItem.value = false
+  }
+}
+
+async function confirmPlan() {
+  // 若表单有未保存修改则先保存，再调用确认接口生成正式生产计划。
+  if (!canConfirmSchedule.value || !selectedIsManual.value || !selectedItem.value || confirmingItem.value) return
+  try {
+    await ElMessageBox.confirm('确认后将保存当前安排，并生成正式生产计划。', '生成生产计划', {
+      type: 'warning', confirmButtonText: '确认并生成', cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  confirmingItem.value = true
+  try {
+    if (placementChanged.value) {
+      const saved = await persistPlacement(false)
+      if (!saved || !selectedItem.value) return
+    }
+    const confirmedManualItem = { ...selectedItem.value }
+    const result = await confirmManualScheduleItem(selectedItem.value.scenarioId, selectedItem.value.scheduleItemId, {
+      scenarioVersion: selectedItem.value.scenarioVersion,
+      itemVersion: selectedItem.value.itemVersion,
+      remark: placementForm.remark.trim() || undefined
+    })
+    placementOpen.value = false
+    selectedItem.value = null
+    ElMessage.success('生产计划已生成')
+    await loadBoard()
+    ensureConfirmedPlanVisible(result?.data, confirmedManualItem)
+  } catch (error) {
+    await showSchedulingError(error, '生成生产计划失败', '当前安排未能生成生产计划，请刷新后重试。')
+  } finally {
+    confirmingItem.value = false
+  }
+}
+
+async function runAiAdvice() {
+  // AI建议针对当前整张看板；后续看板变化时通过指纹将建议标记为已过期。
+  if (!canRequestAdvice.value || aiAdviceLoading.value) return
+  aiAdviceLoading.value = true
+  try {
+    const result = await getManualBoardAiAdvice()
+    aiAdvice.value = result?.data || null
+    aiAdviceGeneratedAt.value = dayjs().format('YYYY-MM-DD HH:mm')
+    aiAdviceStale.value = false
+  } finally {
+    aiAdviceLoading.value = false
   }
 }
 
@@ -417,110 +596,225 @@ function addVisibleLine() {
   addLineOpen.value = false
 }
 
-async function validateDraft() {
-  if (!canValidateSchedule.value || !draft.value || !isEditable.value) return
-  validating.value = true
-  try {
-    await validateManualScheduleDraft(draft.value.scenarioId, { scenarioVersion: draft.value.version })
-    ElMessage.success('草案校验完成')
-    await loadDraft()
-  } finally {
-    validating.value = false
-  }
-}
-
-function openConfirmDialog() {
-  if (!canConfirm.value) return
-  confirmForm.remark = ''
-  confirmOpen.value = true
-}
-
-async function confirmDraft() {
-  if (!canConfirmSchedule.value || !draft.value) return
-  confirming.value = true
-  try {
-    await confirmScheduleScenario(draft.value.scenarioId, { version: draft.value.version, remark: confirmForm.remark.trim() || undefined })
-    confirmOpen.value = false
-    ElMessage.success('草案已确认，生产计划已生成')
-    await Promise.all([loadDraft(), loadPendingOrders()])
-  } finally {
-    confirming.value = false
-  }
-}
-
-onMounted(() => {
-  refreshWorkbench()
-})
+onMounted(refreshWorkbench)
 </script>
 
 <template>
+  <!-- 左侧管理待排订单，中间是分产线时间轴，弹窗负责候选产线和具体时间编辑。 -->
   <div class="mes-page manual-scheduling-workbench">
     <header class="mes-page-header workbench-header">
       <div class="workbench-heading">
         <span class="workbench-heading-icon"><AppIcon name="route" :size="23" /></span>
-        <div><h1 class="mes-page-title">智能排产工作台</h1><p class="mes-page-subtitle">订单选线、时间安排、风险校验与人工确认</p></div>
+        <div><h1 class="mes-page-title">智能排产工作台</h1><p class="mes-page-subtitle">待排订单、手工安排与生产计划总览</p></div>
       </div>
       <div class="workbench-actions">
-        <el-select v-model="selectedScenarioId" class="scenario-selector" filterable :loading="scenarioLoading" placeholder="选择排产方案" @change="selectScenario"><el-option v-for="item in scenarioOptions" :key="item.scenarioId" :label="`${item.scenarioNo} · ${item.status}`" :value="String(item.scenarioId)" /></el-select>
-        <el-button v-if="canCreateSchedule" type="primary" @click="openDraft"><AppIcon name="plus" :size="15" />打开排产草案</el-button>
-        <el-tag v-if="draft" :type="draftStatus.type" effect="plain">{{ draftStatus.label }}</el-tag>
+        <el-tag type="primary" effect="plain">整体计划板</el-tag>
         <el-tooltip content="刷新工作台" placement="bottom"><el-button circle :loading="loading" aria-label="刷新工作台" @click="refreshWorkbench"><AppIcon name="refresh" :size="16" /></el-button></el-tooltip>
       </div>
     </header>
 
-    <section class="workbench-summary">
-      <div><span>待排订单</span><strong>{{ pendingOrders.length }}</strong></div>
-      <div><span>草案订单</span><strong>{{ draft?.orderCount || 0 }}</strong></div>
-      <div><span>阻断风险</span><strong :class="{ danger: conflictItems.length }">{{ draft?.conflictOrderCount || 0 }}</strong></div>
-      <div><span>预计延期</span><strong :class="{ warning: Number(draft?.lateOrderCount || 0) > 0 }">{{ draft?.lateOrderCount || 0 }}</strong></div>
-      <div><span>当前方案</span><strong>{{ draft?.scenarioNo || '--' }}</strong><small>仅人工确认后生成生产计划</small></div>
-    </section>
-
     <section class="top-grid">
       <section class="mes-panel pending-panel">
-        <div class="mes-panel-header"><div><h2 class="mes-panel-title">待排生产订单</h2><span>已提交排产</span></div><small>{{ filteredPendingOrders.length }} 条</small></div>
+        <div class="mes-panel-header"><div><h2 class="mes-panel-title">待排生产订单</h2><span>含已排但尚未确认生产计划的订单</span></div><small>{{ filteredPendingOrders.length }} 条</small></div>
         <div class="filter-row">
           <el-input v-model="pendingFilter.keyword" clearable placeholder="订单号或型号" />
           <el-select v-model="pendingFilter.productId" clearable placeholder="产品"><el-option v-for="item in productOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select>
           <el-date-picker v-model="pendingFilter.deliveryDate" type="date" value-format="YYYY-MM-DD" placeholder="交期" />
           <el-tooltip content="重置筛选" placement="top"><el-button circle aria-label="重置筛选" @click="resetPendingFilters"><AppIcon name="refresh" :size="15" /></el-button></el-tooltip>
         </div>
-        <el-table v-loading="pendingLoading" :data="filteredPendingOrders" size="small" max-height="300" class="compact-table">
-          <el-table-column label="订单 / 型号" min-width="160"><template #default="{ row }"><strong>{{ row.productionOrderNo }}</strong><small>{{ productLabel(row.productId) }}</small></template></el-table-column>
-          <el-table-column label="数量" width="86" align="right"><template #default="{ row }">{{ formatNumber(row.orderQuantity, 4) }}</template></el-table-column>
-          <el-table-column label="交期" width="94"><template #default="{ row }">{{ row.deliveryDate || '--' }}</template></el-table-column>
-          <el-table-column label="操作" width="112" fixed="right"><template #default="{ row }"><el-tooltip v-if="canCreateSchedule" content="添加到产线" placement="top"><el-button link type="primary" aria-label="添加到产线" :disabled="!isEditable" @click="openCandidates(row)"><AppIcon name="plus" :size="16" /></el-button></el-tooltip><el-tooltip v-if="canRequestAdvice" content="查看 AI 建议" placement="top"><el-button link aria-label="查看 AI 建议" :disabled="!draft" @click="openAdvice(row)"><AppIcon name="bot" :size="16" /></el-button></el-tooltip></template></el-table-column>
-          <template #empty><el-empty description="暂无待排订单" :image-size="54" /></template>
+        <el-table v-loading="loading" :data="filteredPendingOrders" size="small" height="335" class="compact-table">
+          <el-table-column label="序号" width="58" align="center" fixed="left"><template #default="{ $index }">{{ $index + 1 }}</template></el-table-column>
+          <el-table-column label="订单 / 型号" min-width="180"><template #default="{ row }"><strong>{{ row.productionOrderNo }}</strong><small>{{ productLabel(row.productId) }}</small></template></el-table-column>
+          <el-table-column label="数量" width="92" align="right"><template #default="{ row }">{{ formatNumber(row.orderQuantity, 4) }}</template></el-table-column>
+          <el-table-column label="交期" width="104"><template #default="{ row }">{{ row.deliveryDate || '--' }}</template></el-table-column>
+          <el-table-column label="状态" width="76"><template #default="{ row }"><el-tag size="small" :effect="isManuallyScheduled(row) ? 'light' : 'plain'" :type="isManuallyScheduled(row) ? 'primary' : 'info'">{{ isManuallyScheduled(row) ? '已排' : '待排' }}</el-tag></template></el-table-column>
+          <el-table-column label="操作" width="70" fixed="right"><template #default="{ row }"><el-tooltip v-if="isManuallyScheduled(row)" content="查看已排安排" placement="top"><el-button link type="primary" aria-label="查看已排安排" @click="openPendingOrderPlacement(row)"><AppIcon name="eye" :size="16" /></el-button></el-tooltip><el-tooltip v-else-if="canCreateSchedule" content="添加到产线" placement="top"><el-button link type="primary" aria-label="添加到产线" :disabled="!draft" @click="openCandidates(row)"><AppIcon name="plus" :size="16" /></el-button></el-tooltip></template></el-table-column>
+          <template #empty><el-empty description="暂无待确认生产计划的订单" :image-size="54" /></template>
         </el-table>
       </section>
 
-      <section class="mes-panel detail-panel">
-        <div class="mes-panel-header"><div><h2 class="mes-panel-title">详情与风险确认</h2><span>{{ selectedOrder ? selectedOrder.productionOrderNo : '选择订单查看建议' }}</span></div><AppIcon name="shield-check" :size="18" /></div>
-        <div v-if="adviceLoading" class="panel-loading"><el-skeleton :rows="4" animated /></div>
-        <div v-else-if="advice" class="advice-content"><p>{{ advice.answer }}</p><ul v-if="advice.suggestions?.length"><li v-for="item in advice.suggestions" :key="item">{{ item }}</li></ul><small>{{ advice.disclaimer }}</small></div>
-        <el-empty v-else description="点击订单的建议按钮查看产线安排建议" :image-size="48" />
-        <div class="risk-footer"><div><strong>{{ conflictItems.length ? `${conflictItems.length} 项阻断风险` : isCalculated ? '草案已通过校验' : '请完成时间安排后校验草案' }}</strong><span>{{ isCalculated ? '可人工确认并生成生产计划' : '校验会复核产线能力、周历与时间冲突' }}</span></div><div class="risk-actions"><el-button v-if="canValidateSchedule" :loading="validating" :disabled="!isEditable || !scheduleItems.length" @click="validateDraft"><AppIcon name="shield-check" :size="15" />校验草案</el-button><el-button v-if="canConfirmSchedule" type="success" :disabled="!canConfirm" @click="openConfirmDialog"><AppIcon name="check" :size="15" />确认</el-button></div></div>
+      <section class="mes-panel overview-panel">
+        <div class="mes-panel-header"><div><h2 class="mes-panel-title">排产状态</h2><span>当前全局负荷</span></div><AppIcon name="activity" :size="18" /></div>
+        <div class="overview-grid">
+          <div class="tone-pending"><span class="overview-icon"><AppIcon name="clipboard" :size="22" /></span><span class="overview-copy"><small>待排订单</small><strong>{{ unscheduledPendingOrders.length }}<em>单</em></strong></span></div>
+          <div class="tone-formal"><span class="overview-icon"><AppIcon name="factory" :size="22" /></span><span class="overview-copy"><small>生产计划</small><strong>{{ productionPlanItems.length }}<em>项</em></strong></span></div>
+          <div class="tone-manual"><span class="overview-icon"><AppIcon name="edit" :size="22" /></span><span class="overview-copy"><small>手工安排</small><strong>{{ manualItems.length }}<em>项</em></strong></span></div>
+          <div class="tone-risk"><span class="overview-icon"><AppIcon name="alert" :size="22" /></span><span class="overview-copy"><small>冲突 / 延期</small><strong>{{ board?.conflictCount || 0 }} / {{ board?.lateCount || 0 }}</strong></span></div>
+        </div>
+        <div class="overview-window">
+          <div class="tone-start"><span class="overview-icon"><AppIcon name="calendar" :size="21" /></span><span class="overview-copy"><small>当前计划最早开始</small><strong>{{ formatDateTime(board?.horizonStart) }}</strong></span></div>
+          <div class="tone-end"><span class="overview-icon"><AppIcon name="calendar" :size="21" /></span><span class="overview-copy"><small>当前计划最晚结束</small><strong>{{ formatDateTime(board?.horizonEnd) }}</strong></span></div>
+        </div>
+        <div class="overview-lines tone-lines"><span class="overview-icon"><AppIcon name="route" :size="22" /></span><span class="overview-copy"><small>已排产线</small><strong>{{ lineGroups.length }}<em>条</em></strong></span></div>
       </section>
     </section>
 
     <section class="mes-panel timeline-panel">
-      <div class="mes-panel-header"><div><h2 class="mes-panel-title">手工时间安排</h2><span>{{ draft ? `${formatDateTime(draft.horizonStart)} 至 ${formatDateTime(draft.horizonEnd)}` : '暂无方案' }}</span></div><div class="timeline-actions"><el-button v-if="canUpdateSchedule" :disabled="!isEditable" @click="addLineOpen = true"><AppIcon name="plus" :size="15" />添加产线</el-button><el-button v-if="canValidateSchedule" :disabled="!isEditable" @click="validateDraft"><AppIcon name="shield-check" :size="15" />编辑完成并校验</el-button></div></div>
-      <div class="timeline-toolbar"><span>点击订单块可编辑产线与生产时间</span><div><el-button circle size="small" aria-label="缩小时间轴" :disabled="timelineZoom <= .75" @click="timelineZoom = Number(Math.max(.75, timelineZoom - .25).toFixed(2))"><AppIcon name="zoom-out" :size="14" /></el-button><el-slider v-model="timelineZoom" :min=".75" :max="3" :step=".25" :show-tooltip="false" /><el-button circle size="small" aria-label="放大时间轴" :disabled="timelineZoom >= 3" @click="timelineZoom = Number(Math.min(3, timelineZoom + .25).toFixed(2))"><AppIcon name="zoom-in" :size="14" /></el-button></div></div>
-      <div v-if="lineGroups.length" class="timeline-board"><div class="timeline-inner" :style="{ '--timeline-width': `${timelineCanvasWidth}px` }"><div class="timeline-head"><div class="timeline-corner">产线</div><div class="timeline-axis"><span v-for="tick in timelineTicks" :key="tick.key" class="axis-tick" :style="{ left: tick.left }"><b>{{ tick.date }}</b><small>{{ tick.detail }}</small></span></div></div><div v-for="group in lineGroups" :key="group.lineId" class="timeline-row"><div class="line-label"><strong>{{ group.label }}</strong><small>{{ group.items.length }} 个订单</small></div><div class="timeline-lane" :style="{ '--tracks': group.trackCount }"><i v-for="tick in timelineTicks" :key="tick.key" :style="{ left: tick.left }" /><button v-for="item in group.items" :key="item.scheduleItemId" type="button" class="timeline-block" :class="{ conflict: item.status === 'CONFLICT', late: Number(item.tardinessMinutes || 0) > 0 }" :style="timelineBlockStyle(item)" :disabled="!isEditable || !canUpdateSchedule" @click="openPlacement(item)"><strong>{{ scheduledOrderLabel(item) }}</strong><span>{{ scheduledProductLabel(item) }} · {{ formatDateTime(item.plannedStartTime) }}</span></button></div></div></div></div>
-      <el-empty v-else :description="draft ? '当前方案暂无时间安排' : '暂无可查看的排产方案'" :image-size="62" />
-      <div v-if="conflictItems.length" class="conflict-strip"><AppIcon name="alert" :size="16" /><span v-for="item in conflictItems" :key="item.scheduleItemId">订单 #{{ item.productionOrderId }}：{{ item.conflictReason || '存在排程冲突' }}</span></div>
+      <div class="mes-panel-header"><div><h2 class="mes-panel-title">生产排程总览</h2><span>{{ formatDateTime(horizonStart) }} 至 {{ formatDateTime(horizonEnd) }}</span></div><div class="timeline-actions"><el-button @click="addLineOpen = true"><AppIcon name="plus" :size="15" />添加产线</el-button></div></div>
+      <div class="timeline-toolbar"><div class="timeline-legend"><span><i class="manual" />手工安排</span><span><i class="formal" />生产计划</span><span><i class="risk" />风险安排</span></div><div class="timeline-zoom-controls" aria-label="时间轴缩放"><el-tooltip content="缩小时间轴" placement="top"><el-button circle size="small" aria-label="缩小时间轴" :disabled="timelineZoom <= TIMELINE_ZOOM_MIN" @click="changeTimelineZoom(-.1)"><AppIcon name="zoom-out" :size="14" /></el-button></el-tooltip><el-slider v-model="timelineZoom" :min="TIMELINE_ZOOM_MIN" :max="TIMELINE_ZOOM_MAX" :step=".05" :show-tooltip="false" /><span class="zoom-value">{{ timelineZoomPercent }}%</span><el-tooltip content="放大时间轴" placement="top"><el-button circle size="small" aria-label="放大时间轴" :disabled="timelineZoom >= TIMELINE_ZOOM_MAX" @click="changeTimelineZoom(.1)"><AppIcon name="zoom-in" :size="14" /></el-button></el-tooltip></div></div>
+      <div v-if="lineGroups.length" class="timeline-board">
+        <div class="timeline-inner" :style="{ '--timeline-width': `${timelineCanvasWidth}px` }">
+          <div class="timeline-head">
+            <div class="timeline-corner">产线</div>
+            <div class="timeline-axis"><span v-for="tick in timelineTicks" :key="tick.key" class="axis-tick" :class="{ 'has-date': tick.date }" :style="{ left: tick.left }"><b v-if="tick.date">{{ tick.date }}</b><small>{{ tick.detail }}</small></span></div>
+          </div>
+          <div v-for="group in lineGroups" :key="group.lineId" class="timeline-row">
+            <div class="line-label"><strong>{{ group.label }}</strong><small>{{ group.items.length }} 个计划</small></div>
+            <div class="timeline-lane" :style="{ '--tracks': group.trackCount }">
+              <i v-for="tick in timelineTicks" :key="tick.key" :style="{ left: tick.left }" />
+              <el-tooltip v-for="item in group.items" :key="itemKey(item)" placement="top" :show-after="180" popper-class="timeline-plan-tooltip">
+                <template #content>
+                  <strong>{{ scheduledOrderLabel(item) }}</strong>
+                  <span>开始：{{ formatDateTime(item.plannedStartTime) }}</span>
+                  <span>结束：{{ formatDateTime(item.plannedEndTime) }}</span>
+                </template>
+                <button type="button" class="timeline-block" :class="{ formal: item.sourceType === 'PLAN', conflict: item.status === 'CONFLICT', late: Number(item.tardinessMinutes || 0) > 0 }" :style="timelineBlockStyle(item)" @click="openPlacement(item)"><strong>{{ scheduledOrderLabel(item) }}</strong><span>{{ scheduledProductLabel(item) }} · {{ formatDateTime(item.plannedStartTime) }}</span></button>
+              </el-tooltip>
+            </div>
+          </div>
+        </div>
+      </div>
+      <el-empty v-else description="暂无排产安排" :image-size="62" />
+      <div v-if="conflictItems.length" class="conflict-strip"><AppIcon name="alert" :size="16" /><div><strong>当前风险安排</strong><button v-for="item in conflictItems" :key="itemKey(item)" type="button" @click="openPlacement(item)">{{ scheduledOrderLabel(item) }}：{{ item.conflictReason || '存在排程冲突' }}</button></div></div>
     </section>
 
-    <el-dialog v-model="candidateOpen" title="选择生产产线" width="min(720px, calc(100vw - 32px))" destroy-on-close><p class="dialog-tip">{{ selectedOrder?.productionOrderNo }} · {{ productLabel(selectedOrder?.productId) }}。选择后会自动加入时间轴；未显示的产线会自动新增到左侧。</p><el-table v-loading="candidateLoading" element-loading-text="正在匹配可生产产线..." :data="candidates" size="small"><el-table-column label="产线" min-width="170"><template #default="{ row }"><strong>{{ row.lineCode || row.lineName }}</strong><small>{{ row.lineName }}</small></template></el-table-column><el-table-column label="车间" width="94"><template #default="{ row }">#{{ row.workshopId }}</template></el-table-column><el-table-column label="最早可用" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestStartTime) }}</template></el-table-column><el-table-column label="预计结束" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestEndTime) }}</template></el-table-column><el-table-column label="操作" width="82"><template #default="{ row }"><el-button v-if="canCreateSchedule" link type="primary" :loading="String(addingLineId) === String(row.lineId)" :disabled="addingLineId !== null" @click="addToLine(row)">添加</el-button></template></el-table-column><template #empty><el-empty :description="candidateError || '没有符合能力和周历条件的产线'" :image-size="50" /></template></el-table></el-dialog>
+    <section class="mes-panel ai-advice-panel">
+      <div class="mes-panel-header">
+        <div><h2 class="mes-panel-title">AI 建议</h2><span>{{ aiAdviceGeneratedAt ? `最近生成 ${aiAdviceGeneratedAt}` : '尚未生成建议' }}</span></div>
+        <div class="ai-advice-actions"><el-tag v-if="aiAdviceStale" type="warning" effect="plain">排程已调整</el-tag><el-button v-if="canRequestAdvice" type="primary" :loading="aiAdviceLoading" @click="runAiAdvice"><AppIcon name="bot" :size="15" />生成 AI 建议</el-button></div>
+      </div>
+      <div class="ai-advice-body">
+        <div v-if="aiAdviceLoading" class="ai-advice-loading"><el-skeleton :rows="5" animated /></div>
+        <div v-else-if="aiAdvice" class="ai-advice-result">
+          <div v-if="aiAdviceStale" class="ai-advice-stale"><AppIcon name="alert" :size="15" /><span>排程内容已经调整，以下建议来自上一次分析，请重新生成 AI 建议后再作为当前排产依据。</span></div>
+          <div class="ai-advice-answer"><p v-for="(paragraph, index) in aiAdviceParagraphs" :key="`${index}-${paragraph}`">{{ paragraph }}</p></div>
+          <div v-if="aiAdviceOrderReferences.length" class="ai-advice-references"><span class="ai-advice-references-title">待排订单建议编号对照</span><div v-for="(order, index) in aiAdviceOrderReferences" :key="order.productionOrderId" class="ai-advice-reference"><strong>P{{ index + 1 }}</strong><span>{{ order.productionOrderNo }}</span><small>{{ productLabel(order.productId) }} · {{ formatNumber(order.orderQuantity, 4) }} · 交期 {{ order.deliveryDate || '--' }}</small></div></div>
+          <ul v-if="aiAdvice.suggestions?.length"><li v-for="item in aiAdvice.suggestions" :key="item">{{ item }}</li></ul>
+          <small v-if="aiAdvice.disclaimer">{{ aiAdvice.disclaimer }}</small>
+        </div>
+        <el-empty v-else description="暂无 AI 建议" :image-size="54" />
+      </div>
+    </section>
 
-    <el-drawer v-model="placementOpen" title="编辑订单时间安排" size="min(440px, 100vw)" destroy-on-close><el-form label-position="top"><el-form-item label="订单"><el-input :model-value="selectedItem ? `${scheduledOrderLabel(selectedItem)} · ${scheduledProductLabel(selectedItem)}` : ''" disabled /></el-form-item><el-form-item label="生产产线"><el-select v-model="placementForm.lineId" class="full-width" :loading="candidateLoading" loading-text="正在加载候选产线"><el-option v-for="line in candidates" :key="line.lineId" :label="`${line.lineCode || line.lineName} · 车间 #${line.workshopId || '--'}`" :value="String(line.lineId)" /></el-select></el-form-item><el-form-item label="所属车间"><el-input :model-value="placementLine?.workshopId ? `车间 #${placementLine.workshopId}` : '--'" disabled /></el-form-item><el-form-item label="生产时间"><el-date-picker v-model="placementForm.timeRange" class="full-width" type="datetimerange" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm" start-placeholder="开始" end-placeholder="结束" /></el-form-item><el-form-item label="备注"><el-input v-model="placementForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item></el-form><template #footer><el-button v-if="canDeleteSchedule" type="danger" plain :loading="removingItem" :disabled="savingPlacement" @click="removeItem(selectedItem)"><AppIcon name="trash" :size="15" />移出草案</el-button><el-button :disabled="removingItem" @click="placementOpen = false">取消</el-button><el-button v-if="canUpdateSchedule" type="primary" :loading="savingPlacement" :disabled="removingItem" @click="savePlacement">保存安排</el-button></template></el-drawer>
+    <el-dialog v-model="candidateOpen" title="选择生产产线" width="min(720px, calc(100vw - 32px))" destroy-on-close><p class="dialog-tip">{{ selectedOrder?.productionOrderNo }} · {{ productLabel(selectedOrder?.productId) }}</p><el-table v-loading="candidateLoading" element-loading-text="正在匹配可生产产线..." :data="candidates" size="small"><el-table-column label="产线" min-width="170"><template #default="{ row }"><strong>{{ row.lineCode || row.lineName }}</strong><small>{{ row.lineName }}</small></template></el-table-column><el-table-column label="车间" width="94"><template #default="{ row }">#{{ row.workshopId }}</template></el-table-column><el-table-column label="最早可用" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestStartTime) }}</template></el-table-column><el-table-column label="预计结束" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestEndTime) }}</template></el-table-column><el-table-column label="操作" width="82"><template #default="{ row }"><el-button v-if="canCreateSchedule" link type="primary" :loading="String(addingLineId) === String(row.lineId)" :disabled="addingLineId !== null" @click="addToLine(row)">添加</el-button></template></el-table-column><template #empty><el-empty :description="candidateError || '没有符合能力和周历条件的产线'" :image-size="50" /></template></el-table></el-dialog>
 
-    <el-dialog v-model="addLineOpen" title="添加时间轴产线" width="min(420px, calc(100vw - 32px))" destroy-on-close><p class="dialog-tip">仅改变当前时间轴显示，不创建产线主数据。</p><el-select v-model="lineToAdd" class="full-width" filterable placeholder="选择现有产线"><el-option v-for="line in lineOptions" :key="line.value" :label="line.label" :value="String(line.value)" /></el-select><template #footer><el-button @click="addLineOpen = false">取消</el-button><el-button type="primary" @click="addVisibleLine">添加</el-button></template></el-dialog>
+    <el-drawer v-model="placementOpen" :title="selectedIsManual ? '编辑计划安排' : '生产计划详情'" size="min(460px, 100vw)" destroy-on-close>
+      <el-form label-position="top">
+        <el-form-item label="订单"><el-input :model-value="selectedItem ? `${scheduledOrderLabel(selectedItem)} · ${scheduledProductLabel(selectedItem)}` : ''" disabled /></el-form-item>
+        <el-form-item v-if="!selectedIsManual" label="计划编号"><el-input :model-value="selectedItem?.planNo || '--'" disabled /></el-form-item>
+        <el-form-item label="生产产线"><el-select v-model="placementForm.lineId" class="full-width" :disabled="!selectedIsManual || !canUpdateSchedule" :loading="candidateLoading" loading-text="正在加载候选产线"><el-option v-for="line in candidates" :key="line.lineId" :label="`${line.lineCode || line.lineName} · 车间 #${line.workshopId || '--'}`" :value="String(line.lineId)" /></el-select></el-form-item>
+        <el-form-item label="所属车间"><el-input :model-value="placementLine?.workshopId ? `车间 #${placementLine.workshopId}` : '--'" disabled /></el-form-item>
 
-    <el-dialog v-model="confirmOpen" title="确认手工排程草案" width="min(460px, calc(100vw - 32px))" destroy-on-close><p class="confirm-copy">确认时系统会重新校验订单状态、未来时间、产线能力、班次和计划冲突，校验通过后生成正式生产计划。</p><el-form label-position="top"><el-form-item label="确认说明"><el-input v-model="confirmForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="存在预计延期时必须填写处置说明" /></el-form-item></el-form><template #footer><el-button @click="confirmOpen = false">取消</el-button><el-button v-if="canConfirmSchedule" type="success" :loading="confirming" @click="confirmDraft">确认并生成计划</el-button></template></el-dialog>
+        <div v-if="selectedIsManual" class="capacity-hint">
+          <AppIcon name="activity" :size="17" />
+          <div v-if="candidateLoading"><strong>正在核算最短生产用时</strong><span>根据订单数量和所选产线当前产能计算</span></div>
+          <div v-else-if="placementMinimumWorkingMinutes"><strong>建议至少预留 {{ formatDurationHours(placementMinimumWorkingMinutes) }} 小时产线工作时间</strong><span>订单数量 {{ formatNumber(selectedItem?.plannedQuantity, 4) }}，按 {{ placementLine?.lineCode || placementLine?.lineName || lineLabel(placementForm.lineId) }} 当前产能与班次核算；下班和停工时间不计入工作时长，保存时将按所选时段再次校验。</span></div>
+          <div v-else><strong>将按产线班次核算可用工作时间</strong><span>下班和停工时间不计入工作时长；请先选择可生产产线，再保存安排。</span></div>
+        </div>
+
+        <el-form-item label="生产时间">
+          <div class="placement-time-stack">
+            <div class="placement-time-row">
+              <span>开始时间</span>
+              <el-date-picker v-model="placementForm.startTime" class="placement-time-input" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm" placeholder="选择开始时间" :disabled="!selectedIsManual || !canUpdateSchedule" />
+              <div v-if="selectedIsManual && canUpdateSchedule" class="time-stepper">
+                <el-tooltip content="增加 1 小时" placement="right"><button type="button" aria-label="开始时间增加1小时" @click="shiftPlacementTime('startTime', 1)"><AppIcon class="step-up-icon" name="chevron" :size="13" /></button></el-tooltip>
+                <el-tooltip content="减少 1 小时" placement="right"><button type="button" aria-label="开始时间减少1小时" @click="shiftPlacementTime('startTime', -1)"><AppIcon class="step-down-icon" name="chevron" :size="13" /></button></el-tooltip>
+              </div>
+            </div>
+            <div class="placement-time-row">
+              <span>结束时间</span>
+              <el-date-picker v-model="placementForm.endTime" class="placement-time-input" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm" placeholder="选择结束时间" :disabled="!selectedIsManual || !canUpdateSchedule" />
+              <div v-if="selectedIsManual && canUpdateSchedule" class="time-stepper">
+                <el-tooltip content="增加 1 小时" placement="right"><button type="button" aria-label="结束时间增加1小时" @click="shiftPlacementTime('endTime', 1)"><AppIcon class="step-up-icon" name="chevron" :size="13" /></button></el-tooltip>
+                <el-tooltip content="减少 1 小时" placement="right"><button type="button" aria-label="结束时间减少1小时" @click="shiftPlacementTime('endTime', -1)"><AppIcon class="step-down-icon" name="chevron" :size="13" /></button></el-tooltip>
+              </div>
+            </div>
+          </div>
+        </el-form-item>
+        <el-form-item label="备注"><el-input v-model="placementForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit :disabled="!selectedIsManual || !canUpdateSchedule" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <div v-if="selectedIsManual" class="drawer-actions placement-drawer-actions">
+          <el-button v-if="canDeleteSchedule" class="placement-remove-button" type="danger" plain aria-label="移出安排" :loading="removingItem" :disabled="savingPlacement || confirmingItem" @click="removeItem"><AppIcon name="trash" :size="15" /><span class="placement-remove-label">移出安排</span></el-button>
+          <span class="placement-action-spacer" />
+          <el-button class="placement-cancel-button" :disabled="removingItem || savingPlacement || confirmingItem" @click="placementOpen = false">取消</el-button>
+          <el-button v-if="canUpdateSchedule" class="placement-save-button" type="primary" :loading="savingPlacement" :disabled="removingItem || confirmingItem" @click="savePlacement">保存临时安排</el-button>
+          <el-button v-if="canConfirmSchedule" class="placement-confirm-button" type="success" :loading="confirmingItem" :disabled="removingItem || savingPlacement || selectedItem?.status === 'CONFLICT'" @click="confirmPlan"><AppIcon name="check" :size="15" />确认并生成计划</el-button>
+        </div>
+        <div v-else class="drawer-actions plan-detail-actions"><el-button @click="placementOpen = false">关闭</el-button></div>
+      </template>
+    </el-drawer>
+
+    <el-dialog v-model="addLineOpen" title="添加时间轴产线" width="min(420px, calc(100vw - 32px))" destroy-on-close><el-select v-model="lineToAdd" class="full-width" filterable placeholder="选择现有产线"><el-option v-for="line in lineOptions" :key="line.value" :label="line.label" :value="String(line.value)" /></el-select><template #footer><el-button @click="addLineOpen = false">取消</el-button><el-button type="primary" @click="addVisibleLine">添加</el-button></template></el-dialog>
+
   </div>
 </template>
 
 <style scoped>
-.workbench-header,.workbench-heading,.workbench-actions,.mes-panel-header>div,.timeline-actions,.timeline-toolbar,.timeline-toolbar>div,.risk-actions{display:flex;align-items:center}.workbench-header{justify-content:space-between;gap:16px}.workbench-heading{gap:12px}.workbench-heading-icon{display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;color:var(--mes-primary);border:1px solid var(--mes-primary-border);border-radius:6px;background:var(--mes-primary-soft)}.workbench-actions{gap:8px}.scenario-selector{width:250px}.workbench-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(250px,1.6fr);margin-bottom:14px;border:1px solid var(--mes-border);border-left:3px solid var(--mes-primary);background:var(--mes-surface)}.workbench-summary>div{display:flex;min-width:0;flex-direction:column;justify-content:center;gap:3px;padding:12px 16px;border-right:1px solid var(--mes-border)}.workbench-summary>div:last-child{border:0}.workbench-summary span,.workbench-summary small{color:var(--mes-text-muted);font-size:10px}.workbench-summary strong{overflow:hidden;font-size:17px;text-overflow:ellipsis;white-space:nowrap}.workbench-summary .danger{color:var(--mes-danger)}.workbench-summary .warning{color:var(--mes-warning)}.top-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(330px,.9fr);gap:14px;margin-bottom:14px}.mes-panel{overflow:hidden;border-radius:var(--mes-radius)}.mes-panel-header{display:flex;min-height:52px;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--mes-border)}.mes-panel-header>div{min-width:0;gap:8px}.mes-panel-header span,.mes-panel-header small{overflow:hidden;color:var(--mes-text-muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.filter-row{display:flex;gap:7px;padding:8px 12px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.filter-row :deep(.el-input){min-width:0;flex:1}.filter-row :deep(.el-select){width:145px}.filter-row :deep(.el-date-editor){width:118px}.compact-table{width:100%}.compact-table :deep(.el-table__cell){padding:7px 0}.compact-table strong,.compact-table small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact-table small{margin-top:2px;color:var(--mes-text-muted);font-size:10px}.detail-panel{display:flex;min-height:358px;flex-direction:column}.detail-panel>:deep(.app-icon){color:var(--mes-primary)}.advice-content{flex:1;padding:14px;color:var(--mes-text-secondary);font-size:12px;line-height:1.7;white-space:pre-line}.advice-content p{margin:0}.advice-content ul{margin:10px 0;padding-left:18px}.advice-content li+li{margin-top:4px}.advice-content small{display:block;margin-top:12px;color:var(--mes-text-muted);font-size:10px}.panel-loading{padding:14px}.risk-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding:12px 14px;border-top:1px solid var(--mes-border);background:var(--mes-surface-muted)}.risk-footer>div:first-child{display:flex;min-width:0;flex-direction:column;gap:3px}.risk-footer strong{font-size:12px}.risk-footer span{color:var(--mes-text-muted);font-size:10px}.risk-actions{flex:none;gap:7px}.risk-actions :deep(.el-button)>span,.timeline-actions :deep(.el-button)>span{display:inline-flex;align-items:center;gap:5px}.timeline-panel{min-height:540px}.timeline-toolbar{justify-content:space-between;gap:12px;padding:8px 14px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-toolbar>span{color:var(--mes-text-secondary);font-size:11px}.timeline-toolbar>div{gap:5px}.timeline-toolbar :deep(.el-slider){width:108px;margin:0 3px}.timeline-board{overflow:auto}.timeline-inner{width:max-content;min-width:100%}.timeline-head,.timeline-row{display:grid;grid-template-columns:172px var(--timeline-width,960px)}.timeline-head{position:sticky;top:0;z-index:3;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-corner,.line-label{position:sticky;left:0;z-index:2;display:flex;flex-direction:column;justify-content:center;background:var(--mes-surface)}.timeline-corner{z-index:4;min-height:48px;padding:0 14px;color:var(--mes-text-secondary);font-size:11px;font-weight:650;background:var(--mes-surface-muted)}.timeline-axis{position:relative;height:48px}.axis-tick{position:absolute;bottom:0;display:flex;height:100%;flex-direction:column;justify-content:center;gap:3px;padding-left:4px;border-left:1px solid var(--mes-border);color:var(--mes-text-secondary);font-size:10px}.axis-tick small{color:var(--mes-text-muted);font-size:9px}.timeline-row{min-height:86px;border-bottom:1px solid var(--mes-border)}.line-label{gap:3px;padding:12px 14px;border-right:1px solid var(--mes-border)}.line-label strong{overflow:hidden;max-width:140px;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.line-label small{color:var(--mes-text-muted);font-size:10px}.timeline-lane{position:relative;min-height:calc(var(--tracks,1)*66px + 18px);background:#fff}.timeline-lane>i{position:absolute;top:0;bottom:0;width:1px;background:var(--mes-border);opacity:.7}.timeline-block{position:absolute;display:flex;min-width:154px;height:52px;overflow:hidden;flex-direction:column;justify-content:center;gap:3px;padding:6px 8px;color:#fff;border:1px solid rgb(var(--mes-primary-rgb)/75%);border-radius:5px;background:var(--mes-primary);box-shadow:0 3px 8px rgb(var(--mes-primary-rgb)/16%);font:inherit;text-align:left;cursor:pointer}.timeline-block:disabled{cursor:default}.timeline-block strong,.timeline-block span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.timeline-block strong{font-size:11px}.timeline-block span{color:rgb(255 255 255 / 84%);font-size:10px}.timeline-block.late{border-color:#a96d00;background:var(--mes-warning)}.timeline-block.conflict{border-color:#b24a45;background:var(--mes-danger)}.conflict-strip{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;color:var(--mes-danger);border-top:1px solid var(--mes-border);background:var(--mes-danger-soft);font-size:11px}.dialog-tip,.confirm-copy{margin:0 0 14px;color:var(--mes-text-secondary);font-size:12px;line-height:1.65}.full-width{width:100%}@media(max-width:1050px){.top-grid{grid-template-columns:1fr}.workbench-summary{grid-template-columns:repeat(4,minmax(0,1fr))}.workbench-summary>div:last-child{grid-column:1/-1;border-top:1px solid var(--mes-border)}}@media(max-width:680px){.workbench-header{align-items:flex-start;flex-direction:column}.workbench-actions{width:100%;flex-wrap:wrap;justify-content:flex-start}.scenario-selector{width:min(100%,250px)}.workbench-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.workbench-summary>div{border-bottom:1px solid var(--mes-border)}.filter-row{flex-wrap:wrap}.filter-row :deep(.el-input){min-width:180px}.timeline-actions{width:100%;justify-content:space-between}.mes-panel-header{align-items:flex-start;flex-direction:column}.timeline-head,.timeline-row{grid-template-columns:132px var(--timeline-width,720px)}.line-label{padding:10px}.line-label strong{max-width:106px}.risk-footer{align-items:flex-start;flex-direction:column}.risk-actions{width:100%}.risk-actions :deep(.el-button){flex:1}.timeline-toolbar{align-items:flex-start;flex-direction:column}}
+.capacity-hint{display:flex;align-items:flex-start;gap:9px;margin:0 0 18px;padding:11px 12px;color:var(--mes-primary);border:1px solid var(--mes-primary-border);border-radius:6px;background:var(--mes-primary-soft)}
+.capacity-hint>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:3px}
+.capacity-hint strong{font-size:12px;line-height:1.45}
+.capacity-hint span{color:var(--mes-text-secondary);font-size:11px;line-height:1.55}
+.placement-time-stack{display:flex;width:100%;flex-direction:column;gap:8px}
+.placement-time-row{display:grid;grid-template-columns:58px minmax(0,1fr) 30px;align-items:stretch;gap:8px;min-height:34px}
+.placement-time-row>span{display:flex;align-items:center;color:var(--mes-text-secondary);font-size:11px}
+.placement-time-input{width:100%!important}
+.time-stepper{display:grid;width:30px;overflow:hidden;grid-template-rows:1fr 1fr;border:1px solid var(--mes-border);border-radius:4px;background:var(--mes-surface)}
+.time-stepper button{display:flex;min-height:16px;align-items:center;justify-content:center;padding:0;color:var(--mes-text-secondary);border:0;background:transparent;cursor:pointer}
+.time-stepper button+button{border-top:1px solid var(--mes-border)}
+.time-stepper button:hover{color:var(--mes-primary);background:var(--mes-primary-soft)}
+.step-up-icon{transform:rotate(-90deg)}
+.step-down-icon{transform:rotate(90deg)}
+.drawer-actions.placement-drawer-actions{display:flex;flex-wrap:nowrap;gap:6px}
+.placement-drawer-actions :deep(.el-button){min-width:0;flex:none;margin:0;padding:0 8px;font-size:12px}
+.placement-remove-button{width:94px}
+.placement-action-spacer{min-width:0;flex:1}
+.placement-cancel-button{width:54px}
+.placement-save-button{width:108px}
+.placement-confirm-button{width:132px}
+.drawer-actions.plan-detail-actions{justify-content:flex-end}
+@media(max-width:480px){.placement-remove-button{width:34px;padding:0!important}.placement-remove-label{display:none}.placement-cancel-button{width:50px}.placement-save-button{width:98px}.placement-confirm-button{width:124px}}
+.workbench-header,.workbench-heading,.workbench-actions,.mes-panel-header>div,.timeline-actions,.timeline-toolbar,.timeline-toolbar>div,.drawer-actions,.feasibility-actions{display:flex;align-items:center}.workbench-header{justify-content:space-between;gap:16px}.workbench-heading{gap:12px}.workbench-heading-icon{display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;color:var(--mes-primary);border:1px solid var(--mes-primary-border);border-radius:6px;background:var(--mes-primary-soft)}.workbench-actions,.timeline-actions,.feasibility-actions{gap:8px}.workbench-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(250px,1.6fr);margin-bottom:14px;border:1px solid var(--mes-border);border-left:3px solid var(--mes-primary);background:var(--mes-surface)}.workbench-summary>div{display:flex;min-width:0;flex-direction:column;justify-content:center;gap:3px;padding:12px 16px;border-right:1px solid var(--mes-border)}.workbench-summary>div:last-child{border:0}.workbench-summary span,.workbench-summary small{color:var(--mes-text-muted);font-size:10px}.workbench-summary strong{overflow:hidden;font-size:17px;text-overflow:ellipsis;white-space:nowrap}.workbench-summary .danger{color:var(--mes-danger)}.top-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.75fr);grid-auto-rows:440px;gap:14px;margin-bottom:14px}.mes-panel{overflow:hidden;border-radius:var(--mes-radius)}.mes-panel-header{display:flex;min-height:52px;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--mes-border)}.mes-panel-header>div{min-width:0;gap:8px}.mes-panel-header span,.mes-panel-header small{overflow:hidden;color:var(--mes-text-muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.filter-row{display:flex;gap:7px;padding:8px 12px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.filter-row :deep(.el-input){min-width:0;flex:1}.filter-row :deep(.el-select){width:145px}.filter-row :deep(.el-date-editor){width:118px}.pending-panel,.overview-panel{height:100%;min-height:0}.compact-table{width:100%}.compact-table :deep(.el-table__cell){padding:7px 0}.compact-table :deep(.el-table__header-wrapper th.el-table__cell){height:40px}.compact-table :deep(.el-table__body .el-table__row){height:59px}.compact-table strong,.compact-table small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact-table small{margin-top:2px;color:var(--mes-text-muted);font-size:10px}.overview-panel{display:flex;flex-direction:column}.overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--mes-border)}.overview-grid>div{display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:8px;min-height:88px;padding:14px;background:var(--mes-surface)}.overview-grid small{color:var(--mes-text-muted);font-size:11px}.overview-grid strong{font-size:20px}.overview-mark{width:9px;height:36px;border-radius:3px;background:var(--mes-primary)}.overview-mark.formal{background:#1b8f5a}.overview-mark.pending{background:#7d8793}.overview-mark.risk{background:var(--mes-danger)}.overview-lines{display:flex;flex:1;align-items:center;justify-content:space-between;padding:18px 16px;border-top:1px solid var(--mes-border);color:var(--mes-text-secondary)}.overview-lines strong{font-size:24px}.timeline-actions :deep(.el-button)>span,.drawer-actions :deep(.el-button)>span,.feasibility-actions :deep(.el-button)>span{display:inline-flex;align-items:center;gap:5px}.timeline-panel{min-height:0}.timeline-toolbar{justify-content:space-between;gap:12px;padding:8px 14px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-toolbar>div{gap:5px}.timeline-toolbar :deep(.el-slider){width:108px;margin:0 3px}.timeline-legend{display:flex;align-items:center;gap:14px}.timeline-legend span{display:flex;align-items:center;gap:5px;color:var(--mes-text-secondary);font-size:10px}.timeline-legend i{width:14px;height:6px;border-radius:2px;background:var(--mes-primary)}.timeline-legend i.formal{background:#1b8f5a}.timeline-legend i.risk{background:var(--mes-danger)}.zoom-value{width:36px;flex:none;color:var(--mes-text-muted);font-size:10px;text-align:center}.timeline-board{overflow:auto}.timeline-inner{width:max-content;min-width:100%}.timeline-head,.timeline-row{display:grid;grid-template-columns:172px var(--timeline-width,960px)}.timeline-head{position:sticky;top:0;z-index:3;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-corner,.line-label{position:sticky;left:0;z-index:2;display:flex;flex-direction:column;justify-content:center;background:var(--mes-surface)}.timeline-corner{z-index:4;min-height:48px;padding:0 14px;color:var(--mes-text-secondary);font-size:11px;font-weight:650;background:var(--mes-surface-muted)}.timeline-axis{position:relative;height:48px}.axis-tick{position:absolute;bottom:0;display:flex;height:100%;flex-direction:column;justify-content:center;gap:3px;padding-left:4px;border-left:1px solid var(--mes-border);color:var(--mes-text-secondary);font-size:10px}.axis-tick small{color:var(--mes-text-muted);font-size:9px}.axis-tick:not(.has-date) small{color:var(--mes-text-secondary);font-size:10px}.timeline-row{min-height:86px;border-bottom:1px solid var(--mes-border)}.line-label{gap:3px;padding:12px 14px;border-right:1px solid var(--mes-border)}.line-label strong{overflow:hidden;max-width:140px;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.line-label small{color:var(--mes-text-muted);font-size:10px}.timeline-lane{position:relative;min-height:calc(var(--tracks,1)*66px + 18px);background:#fff}.timeline-lane>i{position:absolute;top:0;bottom:0;width:1px;background:var(--mes-border);opacity:.7}.timeline-block{position:absolute;display:flex;min-width:154px;height:52px;overflow:hidden;flex-direction:column;justify-content:center;gap:3px;padding:6px 8px;color:#fff;border:1px solid rgb(var(--mes-primary-rgb)/75%);border-radius:5px;background:var(--mes-primary);box-shadow:0 3px 8px rgb(var(--mes-primary-rgb)/16%);font:inherit;text-align:left;cursor:pointer}.timeline-block.formal{border-color:#16764b;background:#1b8f5a}.timeline-block.late{border-color:#a96d00;background:var(--mes-warning)}.timeline-block.conflict{border-color:#b24a45;background:var(--mes-danger)}.timeline-block strong,.timeline-block span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.timeline-block strong{font-size:11px}.timeline-block span{color:rgb(255 255 255 / 84%);font-size:10px}.conflict-strip{display:flex;align-items:flex-start;gap:8px;padding:10px 14px;color:var(--mes-danger);border-top:1px solid var(--mes-border);background:var(--mes-danger-soft);font-size:11px}.conflict-strip>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:5px}.conflict-strip button{overflow:hidden;padding:0;color:inherit;border:0;background:transparent;font:inherit;text-align:left;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.conflict-strip button:hover{text-decoration:underline}.dialog-tip{margin:0 0 14px;color:var(--mes-text-secondary);font-size:12px}.full-width{width:100%}.drawer-actions{width:100%;gap:8px}.drawer-actions>span{flex:1}.feasibility-panel{margin-top:14px}.feasibility-body{min-height:154px;padding:16px}.feasibility-loading{padding:0}.feasibility-result{max-height:360px;overflow:auto;overflow-wrap:anywhere;color:var(--mes-text-secondary);font-size:13px;line-height:1.75;white-space:pre-line}.feasibility-result p{margin:0}.feasibility-result ul{margin:14px 0;padding-left:20px}.feasibility-result li+li{margin-top:6px}.feasibility-result small{display:block;margin-top:14px;color:var(--mes-text-muted);font-size:10px}.feasibility-stale{display:flex;align-items:flex-start;gap:7px;margin-bottom:12px;padding:9px 10px;color:var(--mes-warning);border:1px solid rgb(169 109 0 / 28%);border-radius:5px;background:var(--mes-warning-soft);font-size:11px;line-height:1.55}@media(max-width:1050px){.top-grid{grid-template-columns:1fr;grid-auto-rows:auto}.pending-panel{height:500px}.overview-panel{min-height:360px}.workbench-summary{grid-template-columns:repeat(4,minmax(0,1fr))}.workbench-summary>div:last-child{grid-column:1/-1;border-top:1px solid var(--mes-border)}}@media(max-width:680px){.workbench-header{align-items:flex-start;flex-direction:column}.workbench-actions{width:100%;justify-content:space-between}.workbench-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.workbench-summary>div{border-bottom:1px solid var(--mes-border)}.filter-row{flex-wrap:wrap}.filter-row :deep(.el-input){min-width:180px}.timeline-actions,.feasibility-actions{width:100%;justify-content:space-between}.mes-panel-header{align-items:flex-start;flex-direction:column}.timeline-toolbar{align-items:flex-start;flex-direction:column}.timeline-head,.timeline-row{grid-template-columns:132px var(--timeline-width,720px)}.line-label{padding:10px}.line-label strong{max-width:106px}.drawer-actions{flex-wrap:wrap}.drawer-actions>span{display:none}.drawer-actions :deep(.el-button){flex:1}.conflict-strip button{white-space:normal}}
+.overview-panel{height:100%;min-height:0;align-self:stretch;background:var(--mes-surface)}.overview-grid{gap:1px;background:var(--mes-border)}.overview-grid>div,.overview-window>div,.overview-lines{--overview-color:var(--mes-primary);display:grid;min-width:0;grid-template-columns:48px minmax(0,1fr);align-items:center;gap:10px;background:var(--mes-surface)}.overview-grid>div{min-height:88px;padding:11px 13px}.overview-grid .tone-pending{--overview-color:#7d8793}.overview-grid .tone-formal{--overview-color:#1b8f5a}.overview-grid .tone-manual{--overview-color:var(--mes-primary)}.overview-grid .tone-risk{--overview-color:var(--mes-danger)}.overview-icon{display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center;color:var(--overview-color);border:1px solid color-mix(in srgb,var(--overview-color) 24%,white);border-radius:6px;background:color-mix(in srgb,var(--overview-color) 10%,white)}.overview-copy{display:flex;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px}.overview-copy small{overflow:hidden;max-width:100%;color:var(--mes-text-muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.overview-copy strong{display:flex;max-width:100%;align-items:baseline;gap:4px;overflow:hidden;color:var(--mes-text);font-size:20px;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}.overview-copy em{color:var(--mes-text-secondary);font-size:10px;font-style:normal;font-weight:600}.overview-window{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--mes-border);background:var(--mes-border)}.overview-window>div{min-height:83px;padding:11px 13px}.overview-window>div+div{border-left:1px solid var(--mes-border)}.overview-window .tone-start{--overview-color:#2d8cf0}.overview-window .tone-end{--overview-color:#174a73}.overview-window .overview-copy strong{font-size:13px}.overview-lines{--overview-color:#59748a;min-height:72px;flex:1;padding:12px 14px;border-top:1px solid var(--mes-border);color:var(--mes-text)}.overview-lines .overview-copy strong{font-size:20px}@media(max-width:680px){.overview-grid>div,.overview-window>div,.overview-lines{grid-template-columns:42px minmax(0,1fr);gap:8px}.overview-icon{width:36px;height:36px}.overview-window>div{min-height:76px;padding:9px 10px}.overview-window .overview-copy strong{font-size:12px}.overview-lines{min-height:68px;padding:10px 12px}}
+.timeline-inner{width:max(100%,calc(172px + var(--timeline-width,960px)))}.timeline-head,.timeline-row{grid-template-columns:172px minmax(var(--timeline-width,960px),1fr)}.timeline-axis{width:100%;min-width:var(--timeline-width,960px);box-sizing:border-box}.timeline-lane{width:100%;min-width:var(--timeline-width,960px);box-sizing:border-box;background:var(--mes-surface)}.timeline-axis::after,.timeline-lane::after{position:absolute;top:0;right:0;bottom:0;width:1px;background:var(--mes-border);content:''}@media(max-width:680px){.timeline-inner{width:max(100%,calc(132px + var(--timeline-width,720px)))}.timeline-head,.timeline-row{grid-template-columns:132px minmax(var(--timeline-width,720px),1fr)}.timeline-axis,.timeline-lane{min-width:var(--timeline-width,720px)}}
+.timeline-block{box-sizing:border-box;min-width:0}
+.timeline-zoom-controls{gap:8px!important;padding:3px 5px;border:1px solid var(--mes-border);border-radius:6px;background:var(--mes-surface)}
+.timeline-zoom-controls :deep(.el-button){width:28px;height:28px;transition:color .16s ease,border-color .16s ease,background .16s ease}
+.timeline-zoom-controls :deep(.el-slider){width:140px;margin:0 4px}
+.timeline-zoom-controls :deep(.el-slider__runway){height:4px;margin:0;background:var(--mes-border)}
+.timeline-zoom-controls :deep(.el-slider__bar){height:4px}
+.timeline-zoom-controls :deep(.el-slider__button-wrapper){width:24px;height:24px;top:-10px}
+.timeline-zoom-controls :deep(.el-slider__button){width:12px;height:12px;box-shadow:0 1px 3px rgb(33 43 54 / 20%);transition:transform .16s ease,box-shadow .16s ease}
+.timeline-zoom-controls :deep(.el-slider__button-wrapper:focus-visible){outline:none}
+.timeline-zoom-controls :deep(.el-slider__button-wrapper:focus-visible .el-slider__button){box-shadow:0 0 0 3px rgb(var(--mes-primary-rgb) / 22%)}
+.timeline-zoom-controls :deep(.el-slider__button:hover){transform:scale(1.1)}
+.timeline-head,.timeline-row{transition:grid-template-columns .16s ease-out}
+.timeline-axis,.timeline-lane{transition:width .16s ease-out,min-width .16s ease-out}
+.axis-tick,.timeline-lane>i{transition:left .16s ease-out}
+.timeline-block{transition:left .16s ease-out,width .16s ease-out,box-shadow .16s ease-out}
+@media(prefers-reduced-motion:reduce){.timeline-head,.timeline-row,.timeline-axis,.timeline-lane,.axis-tick,.timeline-lane>i,.timeline-block,.timeline-zoom-controls :deep(.el-button),.timeline-zoom-controls :deep(.el-slider__button){transition:none}}
+:global(.timeline-plan-tooltip){display:flex;min-width:178px;flex-direction:column;gap:4px;font-size:12px;line-height:1.45}
+:global(.timeline-plan-tooltip strong){margin-bottom:2px;font-size:12px}
+:global(.timeline-plan-tooltip span){color:rgb(255 255 255 / 84%)}
+.ai-advice-panel{margin-top:14px}
+.ai-advice-actions{display:flex;align-items:center;gap:8px}
+.ai-advice-actions :deep(.el-button)>span{display:inline-flex;align-items:center;gap:5px}
+.ai-advice-body{min-height:154px;padding:16px}
+.ai-advice-loading{padding:0}
+.ai-advice-result{max-height:420px;overflow:auto;overflow-wrap:anywhere;color:var(--mes-text-secondary);font-size:13px;line-height:1.75}
+.ai-advice-answer{display:grid;gap:12px}
+.ai-advice-answer p{margin:0;white-space:pre-line}
+.ai-advice-result ul{margin:14px 0;padding-left:20px}
+.ai-advice-result li+li{margin-top:6px}
+.ai-advice-result small{display:block;margin-top:14px;color:var(--mes-text-muted);font-size:10px}
+.ai-advice-stale{display:flex;align-items:flex-start;gap:7px;margin-bottom:12px;padding:9px 10px;color:var(--mes-warning);border:1px solid rgb(169 109 0 / 28%);border-radius:5px;background:var(--mes-warning-soft);font-size:11px;line-height:1.55}
+.ai-advice-references{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:14px 0;border:1px solid var(--mes-border);background:var(--mes-border);white-space:normal}
+.ai-advice-references-title{grid-column:1/-1;padding:7px 10px;color:var(--mes-text-secondary);background:var(--mes-surface-muted);font-size:11px;font-weight:600}
+.ai-advice-reference{display:grid;min-width:0;grid-template-columns:34px minmax(0,1fr);gap:1px 8px;padding:8px 10px;background:var(--mes-surface)}
+.ai-advice-reference strong{display:flex;grid-row:1/3;align-items:center;justify-content:center;color:var(--mes-primary);border-right:1px solid var(--mes-border);font-size:11px}
+.ai-advice-reference span,.ai-advice-reference small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-advice-reference span{color:var(--mes-text);font-size:12px;font-weight:600}
+.ai-advice-reference small{margin:0;color:var(--mes-text-muted);font-size:10px}
+@media(max-width:680px){.ai-advice-actions{width:100%;justify-content:space-between}.ai-advice-references{grid-template-columns:1fr}}
 </style>

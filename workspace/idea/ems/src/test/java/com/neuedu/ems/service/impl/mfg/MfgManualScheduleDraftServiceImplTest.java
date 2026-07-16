@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -43,7 +45,25 @@ class MfgManualScheduleDraftServiceImplTest {
         existing.setAlgorithmCode("MANUAL_BOARD");
         existing.setStatus("DRAFT");
         existing.setCreatedBy(7L);
-        when(scenarioMapper.selectOne(any())).thenReturn(existing);
+        when(scenarioMapper.selectList(any())).thenReturn(List.of(existing));
+
+        MfgScheduleScenario result = service.openManualDraft(7L);
+
+        assertSame(existing, result);
+        verify(scenarioMapper, never()).insert(any(MfgScheduleScenario.class));
+        verify(operationLogMapper, never()).insert(any(SysOperationLog.class));
+    }
+
+    @Test
+    void reusesCalculatedManualDraftForCurrentOperator() {
+        MfgScheduleScenario existing = new MfgScheduleScenario();
+        existing.setScenarioId(23L);
+        existing.setScenarioNo("MANUAL-7-CALCULATED");
+        existing.setAlgorithmCode("MANUAL_BOARD");
+        existing.setStatus("CALCULATED");
+        existing.setCreatedBy(7L);
+        existing.setOrderCount(1);
+        when(scenarioMapper.selectList(any())).thenReturn(List.of(existing));
 
         MfgScheduleScenario result = service.openManualDraft(7L);
 
@@ -54,7 +74,7 @@ class MfgManualScheduleDraftServiceImplTest {
 
     @Test
     void createsManualBoardDraftAndWritesAuditLog() {
-        when(scenarioMapper.selectOne(any())).thenReturn(null);
+        when(scenarioMapper.selectList(any())).thenReturn(List.of());
         doAnswer(invocation -> {
             MfgScheduleScenario scenario = invocation.getArgument(0);
             scenario.setScenarioId(22L);

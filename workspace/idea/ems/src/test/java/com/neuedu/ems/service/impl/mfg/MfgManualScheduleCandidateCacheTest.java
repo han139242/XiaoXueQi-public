@@ -5,6 +5,7 @@ import com.neuedu.ems.entity.factory.FactoryLine;
 import com.neuedu.ems.entity.mfg.MfgLineCalendarRule;
 import com.neuedu.ems.entity.mfg.MfgLineProductCapability;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
+import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgScheduleItem;
 import com.neuedu.ems.entity.mfg.MfgScheduleScenario;
 import com.neuedu.ems.entity.org.OrgShift;
@@ -22,6 +23,7 @@ import com.neuedu.ems.mapper.org.OrgShiftMapper;
 import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
 import com.neuedu.ems.mapper.process.ProcessRouteMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
+import com.neuedu.ems.vo.mfg.ManualScheduleCandidateLine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -45,6 +47,7 @@ class MfgManualScheduleCandidateCacheTest {
 
     private MfgScheduleScenarioServiceImpl service;
     private MfgScheduleItemMapper itemMapper;
+    private MfgProductionPlanMapper planMapper;
     private MfgLineProductCapabilityMapper capabilityMapper;
     private FactoryLineMapper lineMapper;
     private ProcessRouteMapper routeMapper;
@@ -58,7 +61,7 @@ class MfgManualScheduleCandidateCacheTest {
         MfgScheduleScenarioMapper scenarioMapper = mock(MfgScheduleScenarioMapper.class);
         itemMapper = mock(MfgScheduleItemMapper.class);
         MfgProductionOrderMapper orderMapper = mock(MfgProductionOrderMapper.class);
-        MfgProductionPlanMapper planMapper = mock(MfgProductionPlanMapper.class);
+        planMapper = mock(MfgProductionPlanMapper.class);
         SysOperationLogMapper operationLogMapper = mock(SysOperationLogMapper.class);
         capabilityMapper = mock(MfgLineProductCapabilityMapper.class);
         lineMapper = mock(FactoryLineMapper.class);
@@ -97,6 +100,7 @@ class MfgManualScheduleCandidateCacheTest {
         order.setStatus(BusinessStatus.Document.RELEASED);
         when(orderMapper.selectOne(any())).thenReturn(order);
         when(planMapper.selectCount(any())).thenReturn(0L);
+        when(planMapper.selectList(any())).thenReturn(List.of());
         when(itemMapper.selectList(any())).thenReturn(List.of());
         doAnswer(invocation -> {
             MfgScheduleItem item = invocation.getArgument(0);
@@ -150,19 +154,51 @@ class MfgManualScheduleCandidateCacheTest {
     }
 
     @Test
-    void reusesRecentlyCalculatedCandidateWhenAddingOrder() {
+    void recalculatesCandidateWhenAddingOrder() {
         assertEquals(1, service.listEligibleLines(101L, 201L).size());
         assertEquals(1, service.listEligibleLines(101L, 201L).size());
 
         MfgScheduleItem result = service.addManualItem(101L, 0, 201L, 601L, 1L);
 
         assertEquals(601L, result.getLineId());
-        verify(capabilityMapper, times(1)).selectList(any());
-        verify(lineMapper, times(1)).selectList(any());
-        verify(routeMapper, times(1)).selectList(any());
-        verify(routeItemMapper, times(1)).selectList(any());
-        verify(calendarRuleMapper, times(1)).selectList(any());
-        verify(shiftMapper, times(1)).selectList(any());
+        verify(capabilityMapper, times(2)).selectList(any());
+        verify(lineMapper, times(2)).selectList(any());
+        verify(routeMapper, times(2)).selectList(any());
+        verify(routeItemMapper, times(2)).selectList(any());
+        verify(calendarRuleMapper, times(2)).selectList(any());
+        verify(shiftMapper, times(2)).selectList(any());
+    }
+
+    @Test
+    void placesCandidateAfterExistingProductionPlanOnSameLine() {
+        LocalDate today = LocalDate.now();
+        MfgProductionPlan plan = new MfgProductionPlan();
+        plan.setLineId(601L);
+        plan.setStatus("RELEASED");
+        plan.setPlannedStartTime(today.atTime(8, 0));
+        plan.setPlannedEndTime(today.atTime(10, 0));
+        when(planMapper.selectList(any())).thenReturn(List.of(plan));
+
+        ManualScheduleCandidateLine candidate = service.listEligibleLines(101L, 201L).getFirst();
+
+        assertEquals(today.atTime(10, 0), candidate.getEarliestStartTime());
+    }
+
+    @Test
+    void returnsWorkingMinutesWithoutCountingNonWorkingTime() {
+        ManualScheduleCandidateLine candidate = service.listEligibleLines(101L, 201L).getFirst();
+
+        assertEquals(6L, candidate.getMinimumWorkingMinutes());
+    }
+
+    @Test
+    void validatesByAvailableLineCapacityInsteadOfRouteMinutes() {
+        LocalDate futureDate = LocalDate.now().plusDays(7);
+
+        ManualScheduleCandidateLine result = service.validatePlanningPlacement(201L, 601L,
+                futureDate.atTime(8, 0), futureDate.atTime(8, 6));
+
+        assertEquals(601L, result.getLineId());
     }
 
     @Test

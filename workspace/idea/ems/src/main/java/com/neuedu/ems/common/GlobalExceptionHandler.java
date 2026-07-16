@@ -78,7 +78,8 @@ public class GlobalExceptionHandler {
             message = resultCode.getMessage();
         }
         log.info("业务请求被拒绝：{}", message);
-        return ResultData.fail(resultCode, Map.of("message", message));
+        return ResultData.fail(resultCode,
+                Map.of("message", message, "businessCode", e.getCode()));
     }
 
     /**

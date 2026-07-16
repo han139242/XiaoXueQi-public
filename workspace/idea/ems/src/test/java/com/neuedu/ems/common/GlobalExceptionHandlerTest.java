@@ -55,6 +55,19 @@ class GlobalExceptionHandlerTest {
         assertEquals(ResultCode.PARAM_ERROR.getCode(), result.get("code"));
         assertEquals(ResultCode.PARAM_ERROR.getMessage(), result.get("msg"));
         assertEquals("撤回原因不能为空", ((Map<?, ?>) result.get("data")).get("message"));
+        assertEquals(ResultCode.PARAM_ERROR.getCode(), ((Map<?, ?>) result.get("data")).get("businessCode"));
+    }
+
+    @Test
+    void preservesSafeBusinessMessageAndOriginalCode() {
+        ResultData result = handler.handleBusinessException(
+                new BusinessException(ResultCode.DATA_CONFLICT.getCode(), "手工排程草案已被其他用户修改，请刷新后重试"));
+
+        assertEquals(ResultCode.DATA_CONFLICT.getCode(), result.get("code"));
+        assertEquals(ResultCode.DATA_CONFLICT.getMessage(), result.get("msg"));
+        assertEquals(Map.of(
+                "message", "手工排程草案已被其他用户修改，请刷新后重试",
+                "businessCode", ResultCode.DATA_CONFLICT.getCode()), result.get("data"));
     }
 
     private void assertAccountStatusResult(ResultCode resultCode) {

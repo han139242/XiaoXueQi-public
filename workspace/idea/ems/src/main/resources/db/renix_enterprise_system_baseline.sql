@@ -437,6 +437,20 @@ ON DUPLICATE KEY UPDATE
   `parent_id` = VALUES(`parent_id`), `menu_name` = VALUES(`menu_name`), `menu_type` = 'BUTTON',
   `remark` = VALUES(`remark`), `updated_by` = @admin_user_id, `updated_time` = @system_time, `deleted_flag` = 0;
 
+-- 已撤下 AI 业务草稿功能：保留历史数据表，但停用旧权限节点及角色授权。
+UPDATE `sys_role_menu` relation
+JOIN `sys_menu` menu ON menu.`menu_id` = relation.`menu_id`
+SET relation.`deleted_flag` = 1
+WHERE menu.`permission_code` LIKE 'ai:business-draft:%'
+  AND relation.`deleted_flag` = 0;
+
+UPDATE `sys_menu`
+SET `updated_by` = @admin_user_id,
+    `updated_time` = @system_time,
+    `deleted_flag` = 1
+WHERE `permission_code` LIKE 'ai:business-draft:%'
+  AND `deleted_flag` = 0;
+
 -- 5. 角色权限关系。先恢复本数据集关系，再按最小权限矩阵补齐。
 UPDATE `sys_role_menu` relation
 JOIN `sys_role` role ON role.`role_id` = relation.`role_id`

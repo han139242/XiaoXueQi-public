@@ -57,6 +57,12 @@ a:focus-visible,
   outline-offset: 2px;
 }
 
+.el-input__inner:focus-visible,
+.el-select__input:focus-visible,
+.el-range-input:focus-visible {
+  outline: none;
+}
+
 ::selection {
   color: #fff;
   background: var(--mes-primary);
