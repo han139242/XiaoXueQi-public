@@ -193,6 +193,32 @@ class AiServiceImplTest {
         verifyNoInteractions(dashboardService);
     }
 
+    @Test
+    void manualBoardAdviceRequiresCurrentStateAndPendingPlacementSections() {
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        AiServiceImpl service = createService(enabledProperties(), responseClient(200,
+                upstreamResponse("{\"answer\":\"建议先安排 P1\",\"suggestions\":[]}"), request -> {
+                    Buffer buffer = new Buffer();
+                    request.body().writeTo(buffer);
+                    requestBody.set(buffer.readUtf8());
+                }), mock(DashboardService.class));
+
+        service.getScheduleScenarioAdvice(Map.of(
+                "analysisType", "MANUAL_SCHEDULE_BOARD_ADVICE",
+                "pendingPlacementOptions", List.of(Map.of(
+                        "reference", "P1",
+                        "candidateLineOptions", "LINE-A：最早可排 07-18 08:00，预计完成 07-18 14:00，建议预留 360 分钟产线工时，优先级 1"))));
+
+        assertTrue(requestBody.get().contains("当前排产状态"));
+        assertTrue(requestBody.get().contains("待排订单安排建议"));
+        assertTrue(requestBody.get().contains("P1"));
+        assertTrue(requestBody.get().contains("LINE-A：最早可排 07-18 08:00"));
+        assertTrue(requestBody.get().contains("每个待排订单及风险与优化建议必须各自独立成段，并以空行分隔"));
+        assertTrue(requestBody.get().contains("不得描述字段、脱敏、上下文、接口、系统错误或内部处理"));
+        assertFalse(requestBody.get().contains("[内容过深，已省略]"));
+        assertTrue(requestBody.get().contains("不得声称已创建、调整或确认任何计划"));
+    }
+
     private AiServiceImpl createService(AiProperties properties, OkHttpClient client,
                                         DashboardService dashboardService) {
         return new AiServiceImpl(properties, client, objectMapper, dashboardService);

@@ -27,7 +27,7 @@ public interface MfgScheduleScenarioService extends IService<MfgScheduleScenario
 
     ManualScheduleBoard getManualScheduleBoard(Long operatorId);
 
-    AiResponse analyzeManualScheduleBoard(Long operatorId);
+    AiResponse generateManualScheduleBoardAdvice(Long operatorId);
 
     List<ManualScheduleCandidateLine> listEligibleLines(Long scenarioId, Long productionOrderId);
 

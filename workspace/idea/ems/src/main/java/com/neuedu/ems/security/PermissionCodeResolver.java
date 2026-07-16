@@ -60,7 +60,7 @@ public class PermissionCodeResolver {
             rule("POST", "/api/mfg/schedule-scenario/[^/]+/validate", "mfg:schedule-scenario:validate"),
             rule("POST", "/api/mfg/schedule-scenario/[^/]+/orders/[^/]+/ai-advice", "mfg:schedule-scenario:ai-advice"),
             rule("POST", "/api/mfg/schedule-scenario/[^/]+/ai-advice", "mfg:schedule-scenario:ai-advice"),
-            rule("POST", "/api/mfg/schedule-scenario/manual-board/feasibility", "mfg:schedule-scenario:ai-advice"),
+            rule("POST", "/api/mfg/schedule-scenario/manual-board/ai-advice", "mfg:schedule-scenario:ai-advice"),
             rule("PUT", "/api/mfg/schedule-scenario/[^/]+/confirm", "mfg:schedule-scenario:confirm"),
             rule("PUT", "/api/mfg/schedule-scenario/[^/]+/items/[^/]+/confirm", "mfg:schedule-scenario:confirm"),
             rule("PUT", "/api/wms/inbound-order/[^/]+/confirm", "wms:inbound-order:confirm"),

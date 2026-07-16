@@ -61,10 +61,10 @@ public class MfgScheduleScenarioController {
                 mfgScheduleScenarioService.getManualScheduleBoard(operatorId));
     }
 
-    @PostMapping("/manual-board/feasibility")
-    public ResultData analyzeManualBoard(@RequestAttribute("userId") Long operatorId) {
+    @PostMapping("/manual-board/ai-advice")
+    public ResultData generateManualBoardAdvice(@RequestAttribute("userId") Long operatorId) {
         return ResultData.success(ResultCode.SUCCESS,
-                mfgScheduleScenarioService.analyzeManualScheduleBoard(operatorId));
+                mfgScheduleScenarioService.generateManualScheduleBoardAdvice(operatorId));
     }
 
     @GetMapping("/{scenarioId}/orders/{productionOrderId}/eligible-lines")

@@ -38,7 +38,7 @@ const specialRules = [
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/validate$/, 'mfg:schedule-scenario:validate'],
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/orders\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
-  ['post', /^\/api\/mfg\/schedule-scenario\/manual-board\/feasibility$/, 'mfg:schedule-scenario:ai-advice'],
+  ['post', /^\/api\/mfg\/schedule-scenario\/manual-board\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
   ['put', /^\/api\/mfg\/schedule-scenario\/[^/]+\/confirm$/, 'mfg:schedule-scenario:confirm'],
   ['put', /^\/api\/mfg\/schedule-scenario\/[^/]+\/items\/[^/]+\/confirm$/, 'mfg:schedule-scenario:confirm'],
   ['put', /^\/api\/wms\/inbound-order\/[^/]+\/confirm$/, 'wms:inbound-order:confirm'],

@@ -5,10 +5,16 @@ import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgScheduleItem;
 import com.neuedu.ems.entity.mfg.MfgScheduleScenario;
+import com.neuedu.ems.mapper.factory.FactoryLineMapper;
+import com.neuedu.ems.mapper.mfg.MfgLineCalendarRuleMapper;
+import com.neuedu.ems.mapper.mfg.MfgLineProductCapabilityMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgScheduleItemMapper;
 import com.neuedu.ems.mapper.mfg.MfgScheduleScenarioMapper;
+import com.neuedu.ems.mapper.org.OrgShiftMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteMapper;
 import com.neuedu.ems.service.ai.AiService;
 import com.neuedu.ems.vo.mfg.ManualScheduleBoard;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +30,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -37,6 +44,12 @@ class MfgManualScheduleBoardServiceImplTest {
     private MfgProductionOrderMapper orderMapper;
     private MfgProductionPlanMapper planMapper;
     private AiService aiService;
+    private MfgLineProductCapabilityMapper capabilityMapper;
+    private MfgLineCalendarRuleMapper calendarRuleMapper;
+    private FactoryLineMapper lineMapper;
+    private ProcessRouteMapper routeMapper;
+    private ProcessRouteItemMapper routeItemMapper;
+    private OrgShiftMapper shiftMapper;
 
     @BeforeEach
     void setUp() {
@@ -46,15 +59,33 @@ class MfgManualScheduleBoardServiceImplTest {
         orderMapper = mock(MfgProductionOrderMapper.class);
         planMapper = mock(MfgProductionPlanMapper.class);
         aiService = mock(AiService.class);
+        capabilityMapper = mock(MfgLineProductCapabilityMapper.class);
+        calendarRuleMapper = mock(MfgLineCalendarRuleMapper.class);
+        lineMapper = mock(FactoryLineMapper.class);
+        routeMapper = mock(ProcessRouteMapper.class);
+        routeItemMapper = mock(ProcessRouteItemMapper.class);
+        shiftMapper = mock(OrgShiftMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", scenarioMapper);
         ReflectionTestUtils.setField(service, "mfgScheduleItemMapper", itemMapper);
         ReflectionTestUtils.setField(service, "mfgProductionOrderMapper", orderMapper);
         ReflectionTestUtils.setField(service, "mfgProductionPlanMapper", planMapper);
         ReflectionTestUtils.setField(service, "aiService", aiService);
+        ReflectionTestUtils.setField(service, "mfgLineProductCapabilityMapper", capabilityMapper);
+        ReflectionTestUtils.setField(service, "mfgLineCalendarRuleMapper", calendarRuleMapper);
+        ReflectionTestUtils.setField(service, "factoryLineMapper", lineMapper);
+        ReflectionTestUtils.setField(service, "processRouteMapper", routeMapper);
+        ReflectionTestUtils.setField(service, "processRouteItemMapper", routeItemMapper);
+        ReflectionTestUtils.setField(service, "orgShiftMapper", shiftMapper);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of());
+        when(calendarRuleMapper.selectList(any())).thenReturn(List.of());
+        when(lineMapper.selectList(any())).thenReturn(List.of());
+        when(routeMapper.selectList(any())).thenReturn(List.of());
+        when(routeItemMapper.selectList(any())).thenReturn(List.of());
+        when(shiftMapper.selectList(any())).thenReturn(List.of());
     }
 
     @Test
-    void mergesEditableManualItemsAndProductionPlansAndLeavesOnlyPendingOrders() {
+    void keepsManuallyScheduledOrdersInPendingOrdersUntilFormalPlanExists() {
         stubBoardData();
 
         ManualScheduleBoard board = service.getManualScheduleBoard(7L);
@@ -62,8 +93,9 @@ class MfgManualScheduleBoardServiceImplTest {
         assertEquals(2, board.getTimelineItems().size());
         assertEquals(1, board.getManualItemCount());
         assertEquals(1, board.getProductionPlanCount());
-        assertEquals(1, board.getPendingOrders().size());
-        assertEquals(303L, board.getPendingOrders().getFirst().getProductionOrderId());
+        assertEquals(2, board.getPendingOrders().size());
+        assertEquals(List.of(101L, 303L), board.getPendingOrders().stream()
+                .map(MfgProductionOrder::getProductionOrderId).toList());
         assertEquals(1L, board.getWorkspaceDraft().getScenarioId());
         assertEquals("MANUAL", board.getTimelineItems().getFirst().getSourceType());
         assertEquals("PLAN", board.getTimelineItems().get(1).getSourceType());
@@ -76,16 +108,21 @@ class MfgManualScheduleBoardServiceImplTest {
         response.setAnswer("当前排产可行，建议优先处理临近交期订单");
         when(aiService.getScheduleScenarioAdvice(any())).thenReturn(response);
 
-        AiResponse result = service.analyzeManualScheduleBoard(7L);
+        AiResponse result = service.generateManualScheduleBoardAdvice(7L);
 
         assertSame(response, result);
         ArgumentCaptor<Map<String, Object>> summaryCaptor = ArgumentCaptor.forClass(Map.class);
         verify(aiService).getScheduleScenarioAdvice(summaryCaptor.capture());
-        assertEquals("MANUAL_SCHEDULE_BOARD_FEASIBILITY", summaryCaptor.getValue().get("analysisType"));
+        assertEquals("MANUAL_SCHEDULE_BOARD_ADVICE", summaryCaptor.getValue().get("analysisType"));
         Map<?, ?> scope = (Map<?, ?>) summaryCaptor.getValue().get("scope");
         assertEquals(1, scope.get("manualItemCount"));
         assertEquals(1, scope.get("productionPlanCount"));
         assertEquals(1, scope.get("pendingOrderCount"));
+        List<?> placementOptions = (List<?>) summaryCaptor.getValue().get("pendingPlacementOptions");
+        assertEquals(1, placementOptions.size());
+        Map<?, ?> placementOption = (Map<?, ?>) placementOptions.getFirst();
+        assertEquals("P1", placementOption.get("reference"));
+        assertTrue(placementOption.get("candidateLineOptions").toString().contains("当前没有可直接安排的产线窗口"));
     }
 
     @Test

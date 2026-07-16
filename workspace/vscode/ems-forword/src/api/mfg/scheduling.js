@@ -23,8 +23,8 @@ export function getManualScheduleBoard() {
   return request.get(`${BASE_URL}/manual-board`)
 }
 
-export function analyzeManualScheduleBoard() {
-  return request.post(`${BASE_URL}/manual-board/feasibility`, undefined, { timeout: AI_ADVICE_TIMEOUT })
+export function getManualBoardAiAdvice() {
+  return request.post(`${BASE_URL}/manual-board/ai-advice`, undefined, { timeout: AI_ADVICE_TIMEOUT })
 }
 
 export function getManualEligibleLines(scenarioId, productionOrderId) {

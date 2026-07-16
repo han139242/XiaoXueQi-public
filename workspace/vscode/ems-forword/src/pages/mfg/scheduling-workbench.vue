@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppIcon from '@/components/common/AppIcon.vue'
 import {
   addManualScheduleItem,
-  analyzeManualScheduleBoard,
+  getManualBoardAiAdvice,
   confirmManualScheduleItem,
   getManualEligibleLines,
   getManualScheduleBoard,
@@ -29,7 +29,7 @@ const addingLineId = ref(null)
 const savingPlacement = ref(false)
 const removingItem = ref(false)
 const confirmingItem = ref(false)
-const feasibilityLoading = ref(false)
+const aiAdviceLoading = ref(false)
 const candidateOpen = ref(false)
 const placementOpen = ref(false)
 const addLineOpen = ref(false)
@@ -37,12 +37,15 @@ const selectedOrder = ref(null)
 const selectedItem = ref(null)
 const candidates = ref([])
 const candidateError = ref('')
-const feasibility = ref(null)
-const feasibilityStale = ref(false)
-const feasibilityGeneratedAt = ref('')
+const aiAdvice = ref(null)
+const aiAdviceStale = ref(false)
+const aiAdviceGeneratedAt = ref('')
 const boardFingerprint = ref('')
 const visibleLineIds = ref([])
-const timelineZoom = ref(1.5)
+const TIMELINE_ZOOM_MIN = 0.75
+const TIMELINE_ZOOM_MAX = 3
+const TIMELINE_ZOOM_DEFAULT = 1.5
+const timelineZoom = ref(TIMELINE_ZOOM_DEFAULT)
 const pendingFilter = reactive({ keyword: '', productId: '', deliveryDate: '' })
 const placementForm = reactive({ lineId: '', startTime: '', endTime: '', remark: '' })
 const lineToAdd = ref('')
@@ -68,6 +71,15 @@ const filteredPendingOrders = computed(() => {
 })
 const manualItems = computed(() => timelineItems.value.filter((item) => item.sourceType === 'MANUAL'))
 const productionPlanItems = computed(() => timelineItems.value.filter((item) => item.sourceType === 'PLAN'))
+const manuallyScheduledOrderIds = computed(() => new Set(manualItems.value
+  .map((item) => String(item.productionOrderId)).filter(Boolean)))
+const unscheduledPendingOrders = computed(() => pendingOrders.value
+  .filter((order) => !manuallyScheduledOrderIds.value.has(String(order.productionOrderId))))
+const aiAdviceOrderReferences = computed(() => [...unscheduledPendingOrders.value]
+  .sort((left, right) => String(left.deliveryDate || '9999-12-31').localeCompare(String(right.deliveryDate || '9999-12-31'))
+    || String(left.productionOrderNo || '').localeCompare(String(right.productionOrderNo || '')))
+  .slice(0, 12))
+const aiAdviceParagraphs = computed(() => formatAiAdviceParagraphs(aiAdvice.value?.answer))
 const conflictItems = computed(() => manualItems.value.filter((item) => item.status === 'CONFLICT'))
 const selectedIsManual = computed(() => selectedItem.value?.sourceType === 'MANUAL')
 const canCreateSchedule = computed(() => hasPermission('mfg:schedule-scenario:create'))
@@ -103,32 +115,58 @@ const lineGroups = computed(() => {
   }).sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'))
 })
 const horizonStart = computed(() => dayjs(board.value?.horizonStart))
-const horizonEnd = computed(() => dayjs(board.value?.horizonEnd))
-const timelineCanvasWidth = computed(() => {
-  if (!horizonStart.value.isValid() || !horizonEnd.value.isValid()) return 960
-  const totalDays = Math.max(1, horizonEnd.value.diff(horizonStart.value, 'hour', true) / 24)
-  const baseWidth = Math.max(960, totalDays * 300)
-  return Math.max(640, Math.round(baseWidth * timelineZoom.value / 1.5))
+const horizonEnd = computed(() => scheduledItems.value.reduce((latestEnd, item) => {
+  const itemEnd = dayjs(item.plannedEndTime)
+  return itemEnd.isValid() && (!latestEnd.isValid() || itemEnd.isAfter(latestEnd)) ? itemEnd : latestEnd
+}, dayjs(board.value?.horizonEnd)))
+const timelineEnd = computed(() => {
+  if (!horizonEnd.value.isValid()) return horizonEnd.value
+  const dayStart = horizonEnd.value.startOf('day')
+  const elapsedMinutes = horizonEnd.value.diff(dayStart, 'minute', true)
+  return dayStart.add((Math.floor(elapsedMinutes / 720) + 1) * 720, 'minute')
 })
-const timelineZoomPercent = computed(() => Math.round(timelineZoom.value / 1.5 * 100))
+const timelineViewScale = computed(() => Math.max(1, TIMELINE_ZOOM_DEFAULT / timelineZoom.value))
+const timelineViewStart = computed(() => {
+  if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return horizonStart.value
+  const range = timelineEnd.value.diff(horizonStart.value)
+  const padding = (range * timelineViewScale.value - range) / 2
+  return horizonStart.value.subtract(padding, 'millisecond')
+})
+const timelineViewEnd = computed(() => {
+  if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return timelineEnd.value
+  const range = timelineEnd.value.diff(horizonStart.value)
+  const padding = (range * timelineViewScale.value - range) / 2
+  return timelineEnd.value.add(padding, 'millisecond')
+})
+const timelineCanvasWidth = computed(() => {
+  if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return 960
+  const totalDays = Math.max(1, timelineEnd.value.diff(horizonStart.value, 'hour', true) / 24)
+  const baseWidth = Math.max(960, totalDays * 300)
+  return Math.round(baseWidth * Math.max(1, timelineZoom.value / TIMELINE_ZOOM_DEFAULT))
+})
+const timelineZoomPercent = computed(() => Math.round(timelineZoom.value / TIMELINE_ZOOM_DEFAULT * 100))
 const timelineTicks = computed(() => {
-  if (!horizonStart.value.isValid() || !horizonEnd.value.isValid() || !horizonEnd.value.isAfter(horizonStart.value)) return []
-  const totalHours = horizonEnd.value.diff(horizonStart.value, 'hour', true)
+  if (!timelineViewStart.value.isValid() || !timelineViewEnd.value.isValid() || !timelineViewEnd.value.isAfter(timelineViewStart.value)) return []
+  const totalHours = timelineViewEnd.value.diff(timelineViewStart.value, 'hour', true)
   const targetTickCount = Math.max(2, Math.floor(timelineCanvasWidth.value / 100))
   const desiredStep = totalHours / targetTickCount
   const stepHours = timelineTickSteps.find((step) => step >= desiredStep) || timelineTickSteps.at(-1)
   const ticks = []
-  let point = horizonStart.value
+  let point = timelineViewStart.value.startOf('day')
+  while (point.isBefore(timelineViewStart.value)) point = point.add(stepHours, 'hour')
   let previousDate = ''
-  while (point.isBefore(horizonEnd.value) || point.isSame(horizonEnd.value)) {
-    const dateKey = point.format('YYYY-MM-DD')
+  const appendTick = (tickPoint) => {
+    const dateKey = tickPoint.format('YYYY-MM-DD')
     ticks.push({
-      key: point.valueOf(),
-      left: `${Math.min(100, Math.max(0, point.diff(horizonStart.value) / horizonEnd.value.diff(horizonStart.value) * 100))}%`,
-      date: dateKey === previousDate ? '' : point.format('MM-DD'),
-      detail: point.format('HH:mm')
+      key: tickPoint.valueOf(),
+      left: `${Math.min(100, Math.max(0, tickPoint.diff(timelineViewStart.value) / timelineViewEnd.value.diff(timelineViewStart.value) * 100))}%`,
+      date: dateKey === previousDate ? '' : tickPoint.format('MM-DD'),
+      detail: tickPoint.format('HH:mm')
     })
     previousDate = dateKey
+  }
+  while (point.isBefore(timelineViewEnd.value) || point.isSame(timelineViewEnd.value)) {
+    appendTick(point)
     point = point.add(stepHours, 'hour')
   }
   return ticks
@@ -153,6 +191,27 @@ function scheduledOrderLabel(item) {
 function scheduledProductLabel(item) {
   const productId = item?.productId || scheduledOrder(item)?.productId
   return productId ? productLabel(productId) : '型号待补充'
+}
+
+function formatAiAdviceParagraphs(answer) {
+  const text = String(answer || '').trim()
+  if (!text) return []
+  const paragraphStarts = '(?:当前排产状态[：:]|待排订单安排建议(?:如下)?[：:]|风险与优化建议[：:]|[一二三四五六七八九十]+、)'
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(new RegExp(`\\s*(?=${paragraphStarts})`, 'g'), '\n\n')
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+}
+
+function isManuallyScheduled(order) {
+  return manuallyScheduledOrderIds.value.has(String(order?.productionOrderId))
+}
+
+function openPendingOrderPlacement(order) {
+  const manualItem = manualItems.value.find((item) => String(item.productionOrderId) === String(order?.productionOrderId))
+  if (manualItem) openPlacement(manualItem)
 }
 
 function itemKey(item) {
@@ -195,14 +254,20 @@ function shiftPlacementTime(field, hours) {
   placementForm[field] = current.add(hours, 'hour').format('YYYY-MM-DDTHH:mm:ss')
 }
 
+function changeTimelineZoom(delta) {
+  timelineZoom.value = Number(Math.min(TIMELINE_ZOOM_MAX,
+    Math.max(TIMELINE_ZOOM_MIN, timelineZoom.value + delta)).toFixed(2))
+}
+
 function timelineGeometry(item) {
   const start = dayjs(item.plannedStartTime)
   const end = dayjs(item.plannedEndTime)
-  const total = horizonEnd.value.diff(horizonStart.value)
+  const total = timelineViewEnd.value.diff(timelineViewStart.value)
   if (!start.isValid() || !end.isValid() || total <= 0) return { start: 0, width: 0, end: 0 }
-  const left = Math.max(0, Math.min(100, start.diff(horizonStart.value) / total * 100))
+  const left = Math.max(0, Math.min(100, start.diff(timelineViewStart.value) / total * 100))
   const rawWidth = end.diff(start) / total * 100
-  const width = Math.min(100 - left, Math.max((154 / timelineCanvasWidth.value) * 100, rawWidth))
+  // Block width must match the scheduled duration; details remain available on hover when space is limited.
+  const width = Math.min(100 - left, Math.max(0, rawWidth))
   return { start: left, width, end: Math.min(100, left + width) }
 }
 
@@ -234,8 +299,8 @@ async function loadBoard({ open = false } = {}) {
     const result = await getManualScheduleBoard()
     const nextBoard = result?.data || null
     const nextFingerprint = createBoardFingerprint(nextBoard)
-    if (feasibility.value && boardFingerprint.value && nextFingerprint !== boardFingerprint.value) {
-      feasibilityStale.value = true
+    if (aiAdvice.value && boardFingerprint.value && nextFingerprint !== boardFingerprint.value) {
+      aiAdviceStale.value = true
     }
     boardFingerprint.value = nextFingerprint
     board.value = nextBoard
@@ -483,16 +548,16 @@ async function confirmPlan() {
   }
 }
 
-async function runFeasibility() {
-  if (!canRequestAdvice.value || feasibilityLoading.value) return
-  feasibilityLoading.value = true
+async function runAiAdvice() {
+  if (!canRequestAdvice.value || aiAdviceLoading.value) return
+  aiAdviceLoading.value = true
   try {
-    const result = await analyzeManualScheduleBoard()
-    feasibility.value = result?.data || null
-    feasibilityGeneratedAt.value = dayjs().format('YYYY-MM-DD HH:mm')
-    feasibilityStale.value = false
+    const result = await getManualBoardAiAdvice()
+    aiAdvice.value = result?.data || null
+    aiAdviceGeneratedAt.value = dayjs().format('YYYY-MM-DD HH:mm')
+    aiAdviceStale.value = false
   } finally {
-    feasibilityLoading.value = false
+    aiAdviceLoading.value = false
   }
 }
 
@@ -521,7 +586,7 @@ onMounted(refreshWorkbench)
 
     <section class="top-grid">
       <section class="mes-panel pending-panel">
-        <div class="mes-panel-header"><div><h2 class="mes-panel-title">待排生产订单</h2><span>未进入手工安排或生产计划</span></div><small>{{ filteredPendingOrders.length }} 条</small></div>
+        <div class="mes-panel-header"><div><h2 class="mes-panel-title">待排生产订单</h2><span>含已排但尚未确认生产计划的订单</span></div><small>{{ filteredPendingOrders.length }} 条</small></div>
         <div class="filter-row">
           <el-input v-model="pendingFilter.keyword" clearable placeholder="订单号或型号" />
           <el-select v-model="pendingFilter.productId" clearable placeholder="产品"><el-option v-for="item in productOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select>
@@ -533,16 +598,16 @@ onMounted(refreshWorkbench)
           <el-table-column label="订单 / 型号" min-width="180"><template #default="{ row }"><strong>{{ row.productionOrderNo }}</strong><small>{{ productLabel(row.productId) }}</small></template></el-table-column>
           <el-table-column label="数量" width="92" align="right"><template #default="{ row }">{{ formatNumber(row.orderQuantity, 4) }}</template></el-table-column>
           <el-table-column label="交期" width="104"><template #default="{ row }">{{ row.deliveryDate || '--' }}</template></el-table-column>
-          <el-table-column label="状态" width="76"><template #default><el-tag size="small" effect="plain" type="info">待排</el-tag></template></el-table-column>
-          <el-table-column label="操作" width="70" fixed="right"><template #default="{ row }"><el-tooltip v-if="canCreateSchedule" content="添加到产线" placement="top"><el-button link type="primary" aria-label="添加到产线" :disabled="!draft" @click="openCandidates(row)"><AppIcon name="plus" :size="16" /></el-button></el-tooltip></template></el-table-column>
-          <template #empty><el-empty description="暂无待排订单" :image-size="54" /></template>
+          <el-table-column label="状态" width="76"><template #default="{ row }"><el-tag size="small" :effect="isManuallyScheduled(row) ? 'light' : 'plain'" :type="isManuallyScheduled(row) ? 'primary' : 'info'">{{ isManuallyScheduled(row) ? '已排' : '待排' }}</el-tag></template></el-table-column>
+          <el-table-column label="操作" width="70" fixed="right"><template #default="{ row }"><el-tooltip v-if="isManuallyScheduled(row)" content="查看已排安排" placement="top"><el-button link type="primary" aria-label="查看已排安排" @click="openPendingOrderPlacement(row)"><AppIcon name="eye" :size="16" /></el-button></el-tooltip><el-tooltip v-else-if="canCreateSchedule" content="添加到产线" placement="top"><el-button link type="primary" aria-label="添加到产线" :disabled="!draft" @click="openCandidates(row)"><AppIcon name="plus" :size="16" /></el-button></el-tooltip></template></el-table-column>
+          <template #empty><el-empty description="暂无待确认生产计划的订单" :image-size="54" /></template>
         </el-table>
       </section>
 
       <section class="mes-panel overview-panel">
         <div class="mes-panel-header"><div><h2 class="mes-panel-title">排产状态</h2><span>当前全局负荷</span></div><AppIcon name="activity" :size="18" /></div>
         <div class="overview-grid">
-          <div class="tone-pending"><span class="overview-icon"><AppIcon name="clipboard" :size="22" /></span><span class="overview-copy"><small>待排订单</small><strong>{{ pendingOrders.length }}<em>单</em></strong></span></div>
+          <div class="tone-pending"><span class="overview-icon"><AppIcon name="clipboard" :size="22" /></span><span class="overview-copy"><small>待排订单</small><strong>{{ unscheduledPendingOrders.length }}<em>单</em></strong></span></div>
           <div class="tone-formal"><span class="overview-icon"><AppIcon name="factory" :size="22" /></span><span class="overview-copy"><small>生产计划</small><strong>{{ productionPlanItems.length }}<em>项</em></strong></span></div>
           <div class="tone-manual"><span class="overview-icon"><AppIcon name="edit" :size="22" /></span><span class="overview-copy"><small>手工安排</small><strong>{{ manualItems.length }}<em>项</em></strong></span></div>
           <div class="tone-risk"><span class="overview-icon"><AppIcon name="alert" :size="22" /></span><span class="overview-copy"><small>冲突 / 延期</small><strong>{{ board?.conflictCount || 0 }} / {{ board?.lateCount || 0 }}</strong></span></div>
@@ -556,27 +621,49 @@ onMounted(refreshWorkbench)
     </section>
 
     <section class="mes-panel timeline-panel">
-      <div class="mes-panel-header"><div><h2 class="mes-panel-title">生产排程总览</h2><span>{{ formatDateTime(board?.horizonStart) }} 至 {{ formatDateTime(board?.horizonEnd) }}</span></div><div class="timeline-actions"><el-button @click="addLineOpen = true"><AppIcon name="plus" :size="15" />添加产线</el-button></div></div>
-      <div class="timeline-toolbar"><div class="timeline-legend"><span><i class="manual" />手工安排</span><span><i class="formal" />生产计划</span><span><i class="risk" />风险安排</span></div><div><el-button circle size="small" aria-label="缩小时间轴" :disabled="timelineZoom <= .75" @click="timelineZoom = Number(Math.max(.75, timelineZoom - .25).toFixed(2))"><AppIcon name="zoom-out" :size="14" /></el-button><el-slider v-model="timelineZoom" :min=".75" :max="3" :step=".25" :show-tooltip="false" /><span class="zoom-value">{{ timelineZoomPercent }}%</span><el-button circle size="small" aria-label="放大时间轴" :disabled="timelineZoom >= 3" @click="timelineZoom = Number(Math.min(3, timelineZoom + .25).toFixed(2))"><AppIcon name="zoom-in" :size="14" /></el-button></div></div>
-      <div v-if="lineGroups.length" class="timeline-board"><div class="timeline-inner" :style="{ '--timeline-width': `${timelineCanvasWidth}px` }"><div class="timeline-head"><div class="timeline-corner">产线</div><div class="timeline-axis"><span v-for="tick in timelineTicks" :key="tick.key" class="axis-tick" :class="{ 'has-date': tick.date }" :style="{ left: tick.left }"><b v-if="tick.date">{{ tick.date }}</b><small>{{ tick.detail }}</small></span></div></div><div v-for="group in lineGroups" :key="group.lineId" class="timeline-row"><div class="line-label"><strong>{{ group.label }}</strong><small>{{ group.items.length }} 个计划</small></div><div class="timeline-lane" :style="{ '--tracks': group.trackCount }"><i v-for="tick in timelineTicks" :key="tick.key" :style="{ left: tick.left }" /><button v-for="item in group.items" :key="itemKey(item)" type="button" class="timeline-block" :class="{ formal: item.sourceType === 'PLAN', conflict: item.status === 'CONFLICT', late: Number(item.tardinessMinutes || 0) > 0 }" :style="timelineBlockStyle(item)" @click="openPlacement(item)"><strong>{{ scheduledOrderLabel(item) }}</strong><span>{{ scheduledProductLabel(item) }} · {{ formatDateTime(item.plannedStartTime) }}</span></button></div></div></div></div>
+      <div class="mes-panel-header"><div><h2 class="mes-panel-title">生产排程总览</h2><span>{{ formatDateTime(horizonStart) }} 至 {{ formatDateTime(horizonEnd) }}</span></div><div class="timeline-actions"><el-button @click="addLineOpen = true"><AppIcon name="plus" :size="15" />添加产线</el-button></div></div>
+      <div class="timeline-toolbar"><div class="timeline-legend"><span><i class="manual" />手工安排</span><span><i class="formal" />生产计划</span><span><i class="risk" />风险安排</span></div><div class="timeline-zoom-controls" aria-label="时间轴缩放"><el-tooltip content="缩小时间轴" placement="top"><el-button circle size="small" aria-label="缩小时间轴" :disabled="timelineZoom <= TIMELINE_ZOOM_MIN" @click="changeTimelineZoom(-.1)"><AppIcon name="zoom-out" :size="14" /></el-button></el-tooltip><el-slider v-model="timelineZoom" :min="TIMELINE_ZOOM_MIN" :max="TIMELINE_ZOOM_MAX" :step=".05" :show-tooltip="false" /><span class="zoom-value">{{ timelineZoomPercent }}%</span><el-tooltip content="放大时间轴" placement="top"><el-button circle size="small" aria-label="放大时间轴" :disabled="timelineZoom >= TIMELINE_ZOOM_MAX" @click="changeTimelineZoom(.1)"><AppIcon name="zoom-in" :size="14" /></el-button></el-tooltip></div></div>
+      <div v-if="lineGroups.length" class="timeline-board">
+        <div class="timeline-inner" :style="{ '--timeline-width': `${timelineCanvasWidth}px` }">
+          <div class="timeline-head">
+            <div class="timeline-corner">产线</div>
+            <div class="timeline-axis"><span v-for="tick in timelineTicks" :key="tick.key" class="axis-tick" :class="{ 'has-date': tick.date }" :style="{ left: tick.left }"><b v-if="tick.date">{{ tick.date }}</b><small>{{ tick.detail }}</small></span></div>
+          </div>
+          <div v-for="group in lineGroups" :key="group.lineId" class="timeline-row">
+            <div class="line-label"><strong>{{ group.label }}</strong><small>{{ group.items.length }} 个计划</small></div>
+            <div class="timeline-lane" :style="{ '--tracks': group.trackCount }">
+              <i v-for="tick in timelineTicks" :key="tick.key" :style="{ left: tick.left }" />
+              <el-tooltip v-for="item in group.items" :key="itemKey(item)" placement="top" :show-after="180" popper-class="timeline-plan-tooltip">
+                <template #content>
+                  <strong>{{ scheduledOrderLabel(item) }}</strong>
+                  <span>开始：{{ formatDateTime(item.plannedStartTime) }}</span>
+                  <span>结束：{{ formatDateTime(item.plannedEndTime) }}</span>
+                </template>
+                <button type="button" class="timeline-block" :class="{ formal: item.sourceType === 'PLAN', conflict: item.status === 'CONFLICT', late: Number(item.tardinessMinutes || 0) > 0 }" :style="timelineBlockStyle(item)" @click="openPlacement(item)"><strong>{{ scheduledOrderLabel(item) }}</strong><span>{{ scheduledProductLabel(item) }} · {{ formatDateTime(item.plannedStartTime) }}</span></button>
+              </el-tooltip>
+            </div>
+          </div>
+        </div>
+      </div>
       <el-empty v-else description="暂无排产安排" :image-size="62" />
       <div v-if="conflictItems.length" class="conflict-strip"><AppIcon name="alert" :size="16" /><div><strong>当前风险安排</strong><button v-for="item in conflictItems" :key="itemKey(item)" type="button" @click="openPlacement(item)">{{ scheduledOrderLabel(item) }}：{{ item.conflictReason || '存在排程冲突' }}</button></div></div>
     </section>
 
-    <section class="mes-panel feasibility-panel">
+    <section class="mes-panel ai-advice-panel">
       <div class="mes-panel-header">
-        <div><h2 class="mes-panel-title">AI 排产建议</h2><span>{{ feasibilityGeneratedAt ? `最近校验 ${feasibilityGeneratedAt}` : '尚未校验' }}</span></div>
-        <div class="feasibility-actions"><el-tag v-if="feasibilityStale" type="warning" effect="plain">排程已调整</el-tag><el-button v-if="canRequestAdvice" type="primary" :loading="feasibilityLoading" @click="runFeasibility"><AppIcon name="bot" :size="15" />AI 校验可行性</el-button></div>
+        <div><h2 class="mes-panel-title">AI 建议</h2><span>{{ aiAdviceGeneratedAt ? `最近生成 ${aiAdviceGeneratedAt}` : '尚未生成建议' }}</span></div>
+        <div class="ai-advice-actions"><el-tag v-if="aiAdviceStale" type="warning" effect="plain">排程已调整</el-tag><el-button v-if="canRequestAdvice" type="primary" :loading="aiAdviceLoading" @click="runAiAdvice"><AppIcon name="bot" :size="15" />生成 AI 建议</el-button></div>
       </div>
-      <div class="feasibility-body">
-        <div v-if="feasibilityLoading" class="feasibility-loading"><el-skeleton :rows="5" animated /></div>
-        <div v-else-if="feasibility" class="feasibility-result">
-          <div v-if="feasibilityStale" class="feasibility-stale"><AppIcon name="alert" :size="15" /><span>排程内容已经调整，以下建议来自上一次校验，请重新校验后再作为当前排产依据。</span></div>
-          <p>{{ feasibility.answer }}</p>
-          <ul v-if="feasibility.suggestions?.length"><li v-for="item in feasibility.suggestions" :key="item">{{ item }}</li></ul>
-          <small v-if="feasibility.disclaimer">{{ feasibility.disclaimer }}</small>
+      <div class="ai-advice-body">
+        <div v-if="aiAdviceLoading" class="ai-advice-loading"><el-skeleton :rows="5" animated /></div>
+        <div v-else-if="aiAdvice" class="ai-advice-result">
+          <div v-if="aiAdviceStale" class="ai-advice-stale"><AppIcon name="alert" :size="15" /><span>排程内容已经调整，以下建议来自上一次分析，请重新生成 AI 建议后再作为当前排产依据。</span></div>
+          <div class="ai-advice-answer"><p v-for="(paragraph, index) in aiAdviceParagraphs" :key="`${index}-${paragraph}`">{{ paragraph }}</p></div>
+          <div v-if="aiAdviceOrderReferences.length" class="ai-advice-references"><span class="ai-advice-references-title">待排订单建议编号对照</span><div v-for="(order, index) in aiAdviceOrderReferences" :key="order.productionOrderId" class="ai-advice-reference"><strong>P{{ index + 1 }}</strong><span>{{ order.productionOrderNo }}</span><small>{{ productLabel(order.productId) }} · {{ formatNumber(order.orderQuantity, 4) }} · 交期 {{ order.deliveryDate || '--' }}</small></div></div>
+          <ul v-if="aiAdvice.suggestions?.length"><li v-for="item in aiAdvice.suggestions" :key="item">{{ item }}</li></ul>
+          <small v-if="aiAdvice.disclaimer">{{ aiAdvice.disclaimer }}</small>
         </div>
-        <el-empty v-else description="暂无分析结果" :image-size="54" />
+        <el-empty v-else description="暂无 AI 建议" :image-size="54" />
       </div>
     </section>
 
@@ -618,7 +705,16 @@ onMounted(refreshWorkbench)
         </el-form-item>
         <el-form-item label="备注"><el-input v-model="placementForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit :disabled="!selectedIsManual || !canUpdateSchedule" /></el-form-item>
       </el-form>
-      <template #footer><div v-if="selectedIsManual" class="drawer-actions"><el-button v-if="canDeleteSchedule" type="danger" plain :loading="removingItem" :disabled="savingPlacement || confirmingItem" @click="removeItem"><AppIcon name="trash" :size="15" />移出安排</el-button><span /><el-button :disabled="removingItem || savingPlacement || confirmingItem" @click="placementOpen = false">取消</el-button><el-button v-if="canUpdateSchedule" type="primary" :loading="savingPlacement" :disabled="removingItem || confirmingItem" @click="savePlacement">保存临时安排</el-button><el-button v-if="canConfirmSchedule" type="success" :loading="confirmingItem" :disabled="removingItem || savingPlacement || selectedItem?.status === 'CONFLICT'" @click="confirmPlan"><AppIcon name="check" :size="15" />确认并生成计划</el-button></div><div v-else class="drawer-actions"><span /><el-button @click="placementOpen = false">关闭</el-button></div></template>
+      <template #footer>
+        <div v-if="selectedIsManual" class="drawer-actions placement-drawer-actions">
+          <el-button v-if="canDeleteSchedule" class="placement-remove-button" type="danger" plain aria-label="移出安排" :loading="removingItem" :disabled="savingPlacement || confirmingItem" @click="removeItem"><AppIcon name="trash" :size="15" /><span class="placement-remove-label">移出安排</span></el-button>
+          <span class="placement-action-spacer" />
+          <el-button class="placement-cancel-button" :disabled="removingItem || savingPlacement || confirmingItem" @click="placementOpen = false">取消</el-button>
+          <el-button v-if="canUpdateSchedule" class="placement-save-button" type="primary" :loading="savingPlacement" :disabled="removingItem || confirmingItem" @click="savePlacement">保存临时安排</el-button>
+          <el-button v-if="canConfirmSchedule" class="placement-confirm-button" type="success" :loading="confirmingItem" :disabled="removingItem || savingPlacement || selectedItem?.status === 'CONFLICT'" @click="confirmPlan"><AppIcon name="check" :size="15" />确认并生成计划</el-button>
+        </div>
+        <div v-else class="drawer-actions plan-detail-actions"><el-button @click="placementOpen = false">关闭</el-button></div>
+      </template>
     </el-drawer>
 
     <el-dialog v-model="addLineOpen" title="添加时间轴产线" width="min(420px, calc(100vw - 32px))" destroy-on-close><el-select v-model="lineToAdd" class="full-width" filterable placeholder="选择现有产线"><el-option v-for="line in lineOptions" :key="line.value" :label="line.label" :value="String(line.value)" /></el-select><template #footer><el-button @click="addLineOpen = false">取消</el-button><el-button type="primary" @click="addVisibleLine">添加</el-button></template></el-dialog>
@@ -641,7 +737,55 @@ onMounted(refreshWorkbench)
 .time-stepper button:hover{color:var(--mes-primary);background:var(--mes-primary-soft)}
 .step-up-icon{transform:rotate(-90deg)}
 .step-down-icon{transform:rotate(90deg)}
+.drawer-actions.placement-drawer-actions{display:flex;flex-wrap:nowrap;gap:6px}
+.placement-drawer-actions :deep(.el-button){min-width:0;flex:none;margin:0;padding:0 8px;font-size:12px}
+.placement-remove-button{width:94px}
+.placement-action-spacer{min-width:0;flex:1}
+.placement-cancel-button{width:54px}
+.placement-save-button{width:108px}
+.placement-confirm-button{width:132px}
+.drawer-actions.plan-detail-actions{justify-content:flex-end}
+@media(max-width:480px){.placement-remove-button{width:34px;padding:0!important}.placement-remove-label{display:none}.placement-cancel-button{width:50px}.placement-save-button{width:98px}.placement-confirm-button{width:124px}}
 .workbench-header,.workbench-heading,.workbench-actions,.mes-panel-header>div,.timeline-actions,.timeline-toolbar,.timeline-toolbar>div,.drawer-actions,.feasibility-actions{display:flex;align-items:center}.workbench-header{justify-content:space-between;gap:16px}.workbench-heading{gap:12px}.workbench-heading-icon{display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;color:var(--mes-primary);border:1px solid var(--mes-primary-border);border-radius:6px;background:var(--mes-primary-soft)}.workbench-actions,.timeline-actions,.feasibility-actions{gap:8px}.workbench-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(250px,1.6fr);margin-bottom:14px;border:1px solid var(--mes-border);border-left:3px solid var(--mes-primary);background:var(--mes-surface)}.workbench-summary>div{display:flex;min-width:0;flex-direction:column;justify-content:center;gap:3px;padding:12px 16px;border-right:1px solid var(--mes-border)}.workbench-summary>div:last-child{border:0}.workbench-summary span,.workbench-summary small{color:var(--mes-text-muted);font-size:10px}.workbench-summary strong{overflow:hidden;font-size:17px;text-overflow:ellipsis;white-space:nowrap}.workbench-summary .danger{color:var(--mes-danger)}.top-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.75fr);grid-auto-rows:440px;gap:14px;margin-bottom:14px}.mes-panel{overflow:hidden;border-radius:var(--mes-radius)}.mes-panel-header{display:flex;min-height:52px;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--mes-border)}.mes-panel-header>div{min-width:0;gap:8px}.mes-panel-header span,.mes-panel-header small{overflow:hidden;color:var(--mes-text-muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.filter-row{display:flex;gap:7px;padding:8px 12px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.filter-row :deep(.el-input){min-width:0;flex:1}.filter-row :deep(.el-select){width:145px}.filter-row :deep(.el-date-editor){width:118px}.pending-panel,.overview-panel{height:100%;min-height:0}.compact-table{width:100%}.compact-table :deep(.el-table__cell){padding:7px 0}.compact-table :deep(.el-table__header-wrapper th.el-table__cell){height:40px}.compact-table :deep(.el-table__body .el-table__row){height:59px}.compact-table strong,.compact-table small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact-table small{margin-top:2px;color:var(--mes-text-muted);font-size:10px}.overview-panel{display:flex;flex-direction:column}.overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--mes-border)}.overview-grid>div{display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:8px;min-height:88px;padding:14px;background:var(--mes-surface)}.overview-grid small{color:var(--mes-text-muted);font-size:11px}.overview-grid strong{font-size:20px}.overview-mark{width:9px;height:36px;border-radius:3px;background:var(--mes-primary)}.overview-mark.formal{background:#1b8f5a}.overview-mark.pending{background:#7d8793}.overview-mark.risk{background:var(--mes-danger)}.overview-lines{display:flex;flex:1;align-items:center;justify-content:space-between;padding:18px 16px;border-top:1px solid var(--mes-border);color:var(--mes-text-secondary)}.overview-lines strong{font-size:24px}.timeline-actions :deep(.el-button)>span,.drawer-actions :deep(.el-button)>span,.feasibility-actions :deep(.el-button)>span{display:inline-flex;align-items:center;gap:5px}.timeline-panel{min-height:0}.timeline-toolbar{justify-content:space-between;gap:12px;padding:8px 14px;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-toolbar>div{gap:5px}.timeline-toolbar :deep(.el-slider){width:108px;margin:0 3px}.timeline-legend{display:flex;align-items:center;gap:14px}.timeline-legend span{display:flex;align-items:center;gap:5px;color:var(--mes-text-secondary);font-size:10px}.timeline-legend i{width:14px;height:6px;border-radius:2px;background:var(--mes-primary)}.timeline-legend i.formal{background:#1b8f5a}.timeline-legend i.risk{background:var(--mes-danger)}.zoom-value{width:36px;flex:none;color:var(--mes-text-muted);font-size:10px;text-align:center}.timeline-board{overflow:auto}.timeline-inner{width:max-content;min-width:100%}.timeline-head,.timeline-row{display:grid;grid-template-columns:172px var(--timeline-width,960px)}.timeline-head{position:sticky;top:0;z-index:3;border-bottom:1px solid var(--mes-border);background:var(--mes-surface-muted)}.timeline-corner,.line-label{position:sticky;left:0;z-index:2;display:flex;flex-direction:column;justify-content:center;background:var(--mes-surface)}.timeline-corner{z-index:4;min-height:48px;padding:0 14px;color:var(--mes-text-secondary);font-size:11px;font-weight:650;background:var(--mes-surface-muted)}.timeline-axis{position:relative;height:48px}.axis-tick{position:absolute;bottom:0;display:flex;height:100%;flex-direction:column;justify-content:center;gap:3px;padding-left:4px;border-left:1px solid var(--mes-border);color:var(--mes-text-secondary);font-size:10px}.axis-tick small{color:var(--mes-text-muted);font-size:9px}.axis-tick:not(.has-date) small{color:var(--mes-text-secondary);font-size:10px}.timeline-row{min-height:86px;border-bottom:1px solid var(--mes-border)}.line-label{gap:3px;padding:12px 14px;border-right:1px solid var(--mes-border)}.line-label strong{overflow:hidden;max-width:140px;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.line-label small{color:var(--mes-text-muted);font-size:10px}.timeline-lane{position:relative;min-height:calc(var(--tracks,1)*66px + 18px);background:#fff}.timeline-lane>i{position:absolute;top:0;bottom:0;width:1px;background:var(--mes-border);opacity:.7}.timeline-block{position:absolute;display:flex;min-width:154px;height:52px;overflow:hidden;flex-direction:column;justify-content:center;gap:3px;padding:6px 8px;color:#fff;border:1px solid rgb(var(--mes-primary-rgb)/75%);border-radius:5px;background:var(--mes-primary);box-shadow:0 3px 8px rgb(var(--mes-primary-rgb)/16%);font:inherit;text-align:left;cursor:pointer}.timeline-block.formal{border-color:#16764b;background:#1b8f5a}.timeline-block.late{border-color:#a96d00;background:var(--mes-warning)}.timeline-block.conflict{border-color:#b24a45;background:var(--mes-danger)}.timeline-block strong,.timeline-block span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.timeline-block strong{font-size:11px}.timeline-block span{color:rgb(255 255 255 / 84%);font-size:10px}.conflict-strip{display:flex;align-items:flex-start;gap:8px;padding:10px 14px;color:var(--mes-danger);border-top:1px solid var(--mes-border);background:var(--mes-danger-soft);font-size:11px}.conflict-strip>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:5px}.conflict-strip button{overflow:hidden;padding:0;color:inherit;border:0;background:transparent;font:inherit;text-align:left;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.conflict-strip button:hover{text-decoration:underline}.dialog-tip{margin:0 0 14px;color:var(--mes-text-secondary);font-size:12px}.full-width{width:100%}.drawer-actions{width:100%;gap:8px}.drawer-actions>span{flex:1}.feasibility-panel{margin-top:14px}.feasibility-body{min-height:154px;padding:16px}.feasibility-loading{padding:0}.feasibility-result{max-height:360px;overflow:auto;overflow-wrap:anywhere;color:var(--mes-text-secondary);font-size:13px;line-height:1.75;white-space:pre-line}.feasibility-result p{margin:0}.feasibility-result ul{margin:14px 0;padding-left:20px}.feasibility-result li+li{margin-top:6px}.feasibility-result small{display:block;margin-top:14px;color:var(--mes-text-muted);font-size:10px}.feasibility-stale{display:flex;align-items:flex-start;gap:7px;margin-bottom:12px;padding:9px 10px;color:var(--mes-warning);border:1px solid rgb(169 109 0 / 28%);border-radius:5px;background:var(--mes-warning-soft);font-size:11px;line-height:1.55}@media(max-width:1050px){.top-grid{grid-template-columns:1fr;grid-auto-rows:auto}.pending-panel{height:500px}.overview-panel{min-height:360px}.workbench-summary{grid-template-columns:repeat(4,minmax(0,1fr))}.workbench-summary>div:last-child{grid-column:1/-1;border-top:1px solid var(--mes-border)}}@media(max-width:680px){.workbench-header{align-items:flex-start;flex-direction:column}.workbench-actions{width:100%;justify-content:space-between}.workbench-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.workbench-summary>div{border-bottom:1px solid var(--mes-border)}.filter-row{flex-wrap:wrap}.filter-row :deep(.el-input){min-width:180px}.timeline-actions,.feasibility-actions{width:100%;justify-content:space-between}.mes-panel-header{align-items:flex-start;flex-direction:column}.timeline-toolbar{align-items:flex-start;flex-direction:column}.timeline-head,.timeline-row{grid-template-columns:132px var(--timeline-width,720px)}.line-label{padding:10px}.line-label strong{max-width:106px}.drawer-actions{flex-wrap:wrap}.drawer-actions>span{display:none}.drawer-actions :deep(.el-button){flex:1}.conflict-strip button{white-space:normal}}
 .overview-panel{height:100%;min-height:0;align-self:stretch;background:var(--mes-surface)}.overview-grid{gap:1px;background:var(--mes-border)}.overview-grid>div,.overview-window>div,.overview-lines{--overview-color:var(--mes-primary);display:grid;min-width:0;grid-template-columns:48px minmax(0,1fr);align-items:center;gap:10px;background:var(--mes-surface)}.overview-grid>div{min-height:88px;padding:11px 13px}.overview-grid .tone-pending{--overview-color:#7d8793}.overview-grid .tone-formal{--overview-color:#1b8f5a}.overview-grid .tone-manual{--overview-color:var(--mes-primary)}.overview-grid .tone-risk{--overview-color:var(--mes-danger)}.overview-icon{display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center;color:var(--overview-color);border:1px solid color-mix(in srgb,var(--overview-color) 24%,white);border-radius:6px;background:color-mix(in srgb,var(--overview-color) 10%,white)}.overview-copy{display:flex;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px}.overview-copy small{overflow:hidden;max-width:100%;color:var(--mes-text-muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.overview-copy strong{display:flex;max-width:100%;align-items:baseline;gap:4px;overflow:hidden;color:var(--mes-text);font-size:20px;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}.overview-copy em{color:var(--mes-text-secondary);font-size:10px;font-style:normal;font-weight:600}.overview-window{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--mes-border);background:var(--mes-border)}.overview-window>div{min-height:83px;padding:11px 13px}.overview-window>div+div{border-left:1px solid var(--mes-border)}.overview-window .tone-start{--overview-color:#2d8cf0}.overview-window .tone-end{--overview-color:#174a73}.overview-window .overview-copy strong{font-size:13px}.overview-lines{--overview-color:#59748a;min-height:72px;flex:1;padding:12px 14px;border-top:1px solid var(--mes-border);color:var(--mes-text)}.overview-lines .overview-copy strong{font-size:20px}@media(max-width:680px){.overview-grid>div,.overview-window>div,.overview-lines{grid-template-columns:42px minmax(0,1fr);gap:8px}.overview-icon{width:36px;height:36px}.overview-window>div{min-height:76px;padding:9px 10px}.overview-window .overview-copy strong{font-size:12px}.overview-lines{min-height:68px;padding:10px 12px}}
 .timeline-inner{width:max(100%,calc(172px + var(--timeline-width,960px)))}.timeline-head,.timeline-row{grid-template-columns:172px minmax(var(--timeline-width,960px),1fr)}.timeline-axis{width:100%;min-width:var(--timeline-width,960px);box-sizing:border-box}.timeline-lane{width:100%;min-width:var(--timeline-width,960px);box-sizing:border-box;background:var(--mes-surface)}.timeline-axis::after,.timeline-lane::after{position:absolute;top:0;right:0;bottom:0;width:1px;background:var(--mes-border);content:''}@media(max-width:680px){.timeline-inner{width:max(100%,calc(132px + var(--timeline-width,720px)))}.timeline-head,.timeline-row{grid-template-columns:132px minmax(var(--timeline-width,720px),1fr)}.timeline-axis,.timeline-lane{min-width:var(--timeline-width,720px)}}
+.timeline-block{box-sizing:border-box;min-width:0}
+.timeline-zoom-controls{gap:8px!important;padding:3px 5px;border:1px solid var(--mes-border);border-radius:6px;background:var(--mes-surface)}
+.timeline-zoom-controls :deep(.el-button){width:28px;height:28px;transition:color .16s ease,border-color .16s ease,background .16s ease}
+.timeline-zoom-controls :deep(.el-slider){width:140px;margin:0 4px}
+.timeline-zoom-controls :deep(.el-slider__runway){height:4px;margin:0;background:var(--mes-border)}
+.timeline-zoom-controls :deep(.el-slider__bar){height:4px}
+.timeline-zoom-controls :deep(.el-slider__button-wrapper){width:24px;height:24px;top:-10px}
+.timeline-zoom-controls :deep(.el-slider__button){width:12px;height:12px;box-shadow:0 1px 3px rgb(33 43 54 / 20%);transition:transform .16s ease,box-shadow .16s ease}
+.timeline-zoom-controls :deep(.el-slider__button-wrapper:focus-visible){outline:none}
+.timeline-zoom-controls :deep(.el-slider__button-wrapper:focus-visible .el-slider__button){box-shadow:0 0 0 3px rgb(var(--mes-primary-rgb) / 22%)}
+.timeline-zoom-controls :deep(.el-slider__button:hover){transform:scale(1.1)}
+.timeline-head,.timeline-row{transition:grid-template-columns .16s ease-out}
+.timeline-axis,.timeline-lane{transition:width .16s ease-out,min-width .16s ease-out}
+.axis-tick,.timeline-lane>i{transition:left .16s ease-out}
+.timeline-block{transition:left .16s ease-out,width .16s ease-out,box-shadow .16s ease-out}
+@media(prefers-reduced-motion:reduce){.timeline-head,.timeline-row,.timeline-axis,.timeline-lane,.axis-tick,.timeline-lane>i,.timeline-block,.timeline-zoom-controls :deep(.el-button),.timeline-zoom-controls :deep(.el-slider__button){transition:none}}
+:global(.timeline-plan-tooltip){display:flex;min-width:178px;flex-direction:column;gap:4px;font-size:12px;line-height:1.45}
+:global(.timeline-plan-tooltip strong){margin-bottom:2px;font-size:12px}
+:global(.timeline-plan-tooltip span){color:rgb(255 255 255 / 84%)}
+.ai-advice-panel{margin-top:14px}
+.ai-advice-actions{display:flex;align-items:center;gap:8px}
+.ai-advice-actions :deep(.el-button)>span{display:inline-flex;align-items:center;gap:5px}
+.ai-advice-body{min-height:154px;padding:16px}
+.ai-advice-loading{padding:0}
+.ai-advice-result{max-height:420px;overflow:auto;overflow-wrap:anywhere;color:var(--mes-text-secondary);font-size:13px;line-height:1.75}
+.ai-advice-answer{display:grid;gap:12px}
+.ai-advice-answer p{margin:0;white-space:pre-line}
+.ai-advice-result ul{margin:14px 0;padding-left:20px}
+.ai-advice-result li+li{margin-top:6px}
+.ai-advice-result small{display:block;margin-top:14px;color:var(--mes-text-muted);font-size:10px}
+.ai-advice-stale{display:flex;align-items:flex-start;gap:7px;margin-bottom:12px;padding:9px 10px;color:var(--mes-warning);border:1px solid rgb(169 109 0 / 28%);border-radius:5px;background:var(--mes-warning-soft);font-size:11px;line-height:1.55}
+.ai-advice-references{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:14px 0;border:1px solid var(--mes-border);background:var(--mes-border);white-space:normal}
+.ai-advice-references-title{grid-column:1/-1;padding:7px 10px;color:var(--mes-text-secondary);background:var(--mes-surface-muted);font-size:11px;font-weight:600}
+.ai-advice-reference{display:grid;min-width:0;grid-template-columns:34px minmax(0,1fr);gap:1px 8px;padding:8px 10px;background:var(--mes-surface)}
+.ai-advice-reference strong{display:flex;grid-row:1/3;align-items:center;justify-content:center;color:var(--mes-primary);border-right:1px solid var(--mes-border);font-size:11px}
+.ai-advice-reference span,.ai-advice-reference small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-advice-reference span{color:var(--mes-text);font-size:12px;font-weight:600}
+.ai-advice-reference small{margin:0;color:var(--mes-text-muted);font-size:10px}
+@media(max-width:680px){.ai-advice-actions{width:100%;justify-content:space-between}.ai-advice-references{grid-template-columns:1fr}}
 </style>

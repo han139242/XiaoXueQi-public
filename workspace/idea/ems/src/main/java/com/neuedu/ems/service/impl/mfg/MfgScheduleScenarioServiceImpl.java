@@ -50,6 +50,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -91,6 +92,10 @@ public class MfgScheduleScenarioServiceImpl
     private static final int CAPACITY_SCALE = 8;
     private static final long MANUAL_CANDIDATE_CACHE_TTL_NANOS = Duration.ofSeconds(30).toNanos();
     private static final int MANUAL_CANDIDATE_CACHE_MAX_SIZE = 2048;
+    private static final int MANUAL_BOARD_AI_ADVICE_ORDER_LIMIT = 12;
+    private static final int MANUAL_BOARD_AI_ADVICE_LINE_LIMIT = 3;
+    private static final DateTimeFormatter MANUAL_BOARD_AI_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("MM-dd HH:mm");
 
     private final Map<ManualCandidateGroupKey, ManualCandidateListCacheEntry> manualCandidateListCache =
             new ConcurrentHashMap<>();
@@ -254,12 +259,9 @@ public class MfgScheduleScenarioServiceImpl
                 .thenComparing(ManualScheduleBoardItem::getSourceType)
                 .thenComparing(item -> item.getScheduleItemId() == null ? Long.MAX_VALUE : item.getScheduleItemId()));
 
-        Set<Long> scheduledOrderIds = visibleManualItems.stream().map(MfgScheduleItem::getProductionOrderId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
         Set<Long> plannedOrderIds = allPlans.stream().map(MfgProductionPlan::getProductionOrderId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         List<MfgProductionOrder> pendingOrders = listDraftOrders().stream()
-                .filter(order -> !scheduledOrderIds.contains(order.getProductionOrderId()))
                 .filter(order -> !plannedOrderIds.contains(order.getProductionOrderId()))
                 .toList();
 
@@ -288,7 +290,7 @@ public class MfgScheduleScenarioServiceImpl
     }
 
     @Override
-    public AiResponse analyzeManualScheduleBoard(Long operatorId) {
+    public AiResponse generateManualScheduleBoardAdvice(Long operatorId) {
         ManualScheduleBoard board = getManualScheduleBoard(operatorId);
         return aiService.getScheduleScenarioAdvice(buildManualBoardAiSummary(board));
     }
@@ -934,13 +936,21 @@ public class MfgScheduleScenarioServiceImpl
             }
         }
 
-        BigDecimal pendingQuantity = board.getPendingOrders().stream()
+        Set<Long> manualOrderIds = board.getTimelineItems().stream()
+                .filter(item -> "MANUAL".equals(item.getSourceType()))
+                .map(ManualScheduleBoardItem::getProductionOrderId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        List<MfgProductionOrder> unassignedPendingOrders = board.getPendingOrders().stream()
+                .filter(order -> !manualOrderIds.contains(order.getProductionOrderId()))
+                .toList();
+        BigDecimal pendingQuantity = unassignedPendingOrders.stream()
                 .map(MfgProductionOrder::getOrderQuantity).filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        LocalDate earliestDeliveryDate = board.getPendingOrders().stream()
+        LocalDate earliestDeliveryDate = unassignedPendingOrders.stream()
                 .map(MfgProductionOrder::getDeliveryDate).filter(Objects::nonNull)
                 .min(LocalDate::compareTo).orElse(null);
-        long pendingProductCount = board.getPendingOrders().stream()
+        long pendingProductCount = unassignedPendingOrders.stream()
                 .map(MfgProductionOrder::getProductId).filter(Objects::nonNull).distinct().count();
 
         Map<String, Object> scope = new LinkedHashMap<>();
@@ -948,23 +958,92 @@ public class MfgScheduleScenarioServiceImpl
         scope.put("horizonEnd", board.getHorizonEnd());
         scope.put("manualItemCount", board.getManualItemCount());
         scope.put("productionPlanCount", board.getProductionPlanCount());
-        scope.put("pendingOrderCount", board.getPendingOrders().size());
+        scope.put("pendingOrderCount", unassignedPendingOrders.size());
         scope.put("conflictCount", board.getConflictCount());
         scope.put("lateCount", board.getLateCount());
 
         Map<String, Object> pending = new LinkedHashMap<>();
-        pending.put("orderCount", board.getPendingOrders().size());
+        pending.put("orderCount", unassignedPendingOrders.size());
         pending.put("productCount", pendingProductCount);
         pending.put("totalQuantity", pendingQuantity);
         pending.put("earliestDeliveryDate", earliestDeliveryDate);
 
+        List<Map<String, Object>> pendingPlacementOptions = buildManualBoardPendingPlacementOptions(board,
+                unassignedPendingOrders);
+
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("analysisType", "MANUAL_SCHEDULE_BOARD_FEASIBILITY");
+        summary.put("analysisType", "MANUAL_SCHEDULE_BOARD_ADVICE");
         summary.put("scope", scope);
         summary.put("lineLoads", loadsByLine.values().stream().map(BoardLineAiLoad::toSummary).toList());
         summary.put("pendingOrders", pending);
+        summary.put("pendingPlacementOptions", pendingPlacementOptions);
         summary.put("conflictReasons", conflictReasons);
         return summary;
+    }
+
+    private List<Map<String, Object>> buildManualBoardPendingPlacementOptions(ManualScheduleBoard board,
+                                                                                List<MfgProductionOrder> orders) {
+        if (orders.isEmpty()) {
+            return List.of();
+        }
+        MfgScheduleScenario adviceScenario = board.getWorkspaceDraft();
+        if (adviceScenario == null) {
+            adviceScenario = new MfgScheduleScenario();
+            adviceScenario.setHorizonStart(board.getHorizonStart());
+            adviceScenario.setHorizonEnd(board.getHorizonEnd());
+        }
+        List<MfgScheduleItem> globalManualItems = listGlobalEditableManualItems();
+        List<MfgProductionOrder> prioritizedOrders = orders.stream()
+                .sorted(Comparator.comparing(MfgProductionOrder::getDeliveryDate,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(MfgProductionOrder::getProductionOrderNo,
+                                Comparator.nullsLast(String::compareTo)))
+                .limit(MANUAL_BOARD_AI_ADVICE_ORDER_LIMIT)
+                .toList();
+        List<Map<String, Object>> options = new ArrayList<>();
+        for (int index = 0; index < prioritizedOrders.size(); index++) {
+            MfgProductionOrder order = prioritizedOrders.get(index);
+            List<ManualScheduleCandidateLine> candidates = buildEligibleLines(adviceScenario, order, globalManualItems).stream()
+                    .limit(MANUAL_BOARD_AI_ADVICE_LINE_LIMIT)
+                    .toList();
+            Map<String, Object> option = new LinkedHashMap<>();
+            option.put("reference", "P" + (index + 1));
+            option.put("productId", order.getProductId());
+            option.put("orderQuantity", order.getOrderQuantity());
+            option.put("deliveryDate", order.getDeliveryDate());
+            option.put("candidateLineOptions", formatManualBoardAiCandidateOptions(candidates));
+            options.add(option);
+        }
+        return options;
+    }
+
+    private String formatManualBoardAiCandidateOptions(List<ManualScheduleCandidateLine> candidates) {
+        if (candidates.isEmpty()) {
+            return "当前没有可直接安排的产线窗口；请优先释放最早可用产线，或协调可替代产线后再安排。";
+        }
+        return candidates.stream()
+                .map(candidate -> {
+                    String line = StringUtils.hasText(candidate.getLineCode())
+                            ? candidate.getLineCode()
+                            : "产线" + candidate.getLineId();
+                    String startTime = formatManualBoardAiTime(candidate.getEarliestStartTime());
+                    String endTime = formatManualBoardAiTime(candidate.getEarliestEndTime());
+                    String workingMinutes = candidate.getMinimumWorkingMinutes() == null
+                            ? "--"
+                            : candidate.getMinimumWorkingMinutes().toString();
+                    String priority = candidate.getPriorityLevel() == null
+                            ? "--"
+                            : candidate.getPriorityLevel().toString();
+                    return line + "：最早可排 " + startTime
+                            + "，预计完成 " + endTime
+                            + "，建议预留 " + workingMinutes + " 分钟产线工时"
+                            + "，优先级 " + priority;
+                })
+                .collect(Collectors.joining("；"));
+    }
+
+    private String formatManualBoardAiTime(LocalDateTime time) {
+        return time == null ? "--" : time.format(MANUAL_BOARD_AI_TIME_FORMATTER);
     }
 
     private List<ConfirmationEntry> validateAndLoadConfirmationEntries(List<MfgScheduleItem> items) {
