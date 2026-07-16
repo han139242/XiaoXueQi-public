@@ -95,13 +95,17 @@ const reportPassRate = computed(() => todayOutput.value
   : null)
 // 读取当前质量检验总次数。
 const inspectionCount = computed(() => Number(quality.value.inspectionCount || 0))
-// 有检验数据时使用后端统计的检验合格率。
-const inspectionPassRate = computed(() => inspectionCount.value
-  ? Number(quality.value.qualifiedRate || 0)
+const qualifiedInspectionCount = computed(() => Number(quality.value.qualifiedCount || 0))
+const unqualifiedInspectionCount = computed(() => Number(quality.value.unqualifiedCount || 0))
+const evaluatedInspectionCount = computed(() => qualifiedInspectionCount.value + unqualifiedInspectionCount.value)
+const pendingInspectionCount = computed(() => Math.max(0, inspectionCount.value - evaluatedInspectionCount.value))
+// 一次检验合格率只使用已经判定为合格或不合格的质检单，待判定单不进入分母。
+const inspectionPassRate = computed(() => evaluatedInspectionCount.value
+  ? (qualifiedInspectionCount.value / evaluatedInspectionCount.value) * 100
   : null)
-// 有不合格处理数据时优先展示异常闭环率；权限不足或无异常时回退到一次检验合格率。
+// 有不合格处理数据时优先展示处理完成率；权限不足或无异常时回退到一次检验合格率。
 const qualityFocusRate = computed(() => qualityClosure.value.rate ?? inspectionPassRate.value)
-const qualityFocusLabel = computed(() => qualityClosure.value.rate === null ? '一次检验合格率' : '异常闭环率')
+const qualityFocusLabel = computed(() => qualityClosure.value.rate === null ? '一次检验合格率' : '不合格处理完成率')
 // 把质量主读数限制在0到100之间，供环形进度使用。
 const qualityProgressWidth = computed(() => Math.min(100, Math.max(0, qualityFocusRate.value || 0)))
 // 将百分比换算为圆形质量仪表盘需要的角度CSS变量。
@@ -1030,8 +1034,8 @@ onBeforeUnmount(() => {
           <article class="screen-panel quality-panel">
             <header class="panel-header compact">
               <div>
-                <strong>近 7 日质量闭环</strong>
-                <span>一次检验结果与异常处置情况</span>
+                <strong>近 7 日质量情况</strong>
+                <span>质检结果与不合格处理进度</span>
               </div>
               <button class="panel-link" type="button" title="打开检验单明细" aria-label="打开检验单明细" @click="openModule('/qms/inspection-orders')">
                 <AppIcon name="arrow" :size="20" />
@@ -1039,20 +1043,26 @@ onBeforeUnmount(() => {
             </header>
             <div class="quality-main">
               <div class="quality-dial-stack">
-                <div class="quality-dial" :class="{ 'is-empty': qualityFocusRate === null }" :style="qualityDialStyle">
+                <strong class="quality-focus-title">{{ qualityFocusLabel }}</strong>
+                <div
+                  class="quality-dial"
+                  :class="{ 'is-empty': qualityFocusRate === null }"
+                  :style="qualityDialStyle"
+                  :title="qualityClosure.rate === null ? '合格质检单数 ÷ 已判定质检单数' : '已完成处理的不合格单数 ÷ 需要处理的不合格单数'"
+                >
                   <div>
-                    <span>{{ qualityFocusLabel }}</span>
                     <strong>{{ formatPercent(qualityFocusRate) }}<small v-if="qualityFocusRate !== null">%</small></strong>
                   </div>
                 </div>
-                <small v-if="qualityClosure.rate !== null" class="quality-first-pass">一次检验 {{ formatPercent(inspectionPassRate) }}%</small>
+                <small v-if="qualityClosure.rate !== null" class="quality-dial-summary">{{ qualityClosure.closed }}/{{ qualityClosure.total }} 已完成</small>
+                <small v-else-if="evaluatedInspectionCount" class="quality-dial-summary">{{ qualifiedInspectionCount }}/{{ evaluatedInspectionCount }} 已判定合格</small>
               </div>
               <div class="quality-counts">
                 <div><span>质检单</span><b>{{ formatNumber(inspectionCount) }}</b></div>
-                <div><span>合格</span><b>{{ formatNumber(quality.qualifiedCount) }}</b></div>
-                <div><span>不合格</span><b>{{ formatNumber(quality.unqualifiedCount) }}</b></div>
-                <div><span>待判定</span><b>{{ formatNumber(quality.pendingCount) }}</b></div>
-                <div v-if="qualityClosure.total"><span>异常关闭</span><b>{{ qualityClosure.closed }}/{{ qualityClosure.total }}</b></div>
+                <div><span>已判定</span><b>{{ formatNumber(evaluatedInspectionCount) }}</b></div>
+                <div><span>检验合格</span><b>{{ formatNumber(qualifiedInspectionCount) }}</b></div>
+                <div><span>检验不合格</span><b>{{ formatNumber(unqualifiedInspectionCount) }}</b></div>
+                <div><span>待判定</span><b>{{ formatNumber(pendingInspectionCount) }}</b></div>
               </div>
             </div>
           </article>
@@ -1944,24 +1954,24 @@ onBeforeUnmount(() => {
 .production-stat-row strong { color: #fff; font-size: 24px; }
 
 .quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px 12px; box-sizing: border-box; }
-.quality-dial-stack { display: grid; justify-items: center; gap: 8px; }
+.quality-dial-stack { display: grid; justify-items: center; gap: 4px; }
+.quality-focus-title { color: #aebfcb; font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; }
 .quality-dial {
   position: relative;
   display: grid;
-  width: 118px;
-  height: 118px;
+  width: 100px;
+  height: 100px;
   place-items: center;
   border-radius: 50%;
   background: conic-gradient(#4bc58a var(--quality-angle), #1b3548 0);
 }
-.quality-dial::after { position: absolute; inset: 11px; border: 1px solid #33566f; border-radius: 50%; background: #0b1e2e; content: ''; }
-.quality-dial::before { position: absolute; inset: -4px; border: 1px solid rgb(78 172 207 / 24%); border-radius: 50%; content: ''; }
+.quality-dial::after { position: absolute; inset: 10px; border: 1px solid #33566f; border-radius: 50%; background: #0b1e2e; content: ''; }
+.quality-dial::before { position: absolute; inset: -3px; border: 1px solid rgb(78 172 207 / 24%); border-radius: 50%; content: ''; }
 .quality-dial.is-empty { background: #1b3548; }
-.quality-dial > div { position: relative; z-index: 1; display: grid; justify-items: center; gap: 4px; }
-.quality-dial span { color: #93a9b8; font-size: 13px; }
-.quality-dial strong { color: #fff; font-size: 31px; line-height: 1; }
+.quality-dial > div { position: relative; z-index: 1; display: grid; justify-items: center; }
+.quality-dial strong { color: #fff; font-size: 28px; line-height: 1; }
 .quality-dial strong small { margin-left: 2px; color: #94a8b6; font-size: 15px; }
-.quality-first-pass { color: #95a9b7; font-size: 13px; white-space: nowrap; }
+.quality-dial-summary { color: #95a9b7; font-size: 13px; white-space: nowrap; }
 .quality-counts { display: grid; grid-template-columns: 1fr; gap: 0; border-left: 1px solid #365066; }
 .quality-counts > div { display: flex; min-height: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 9px; }
 .quality-counts > div + div { border-top: 1px solid rgb(54 80 102 / 76%); }
