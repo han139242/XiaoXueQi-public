@@ -67,5 +67,7 @@ public interface MfgDispatchOrderService extends IService<MfgDispatchOrder> {
 
     List<MfgTask> releaseDispatchOrder(Long dispatchId, Long operatorId, String remark);
 
+    void refreshMaterialReadiness(Long workOrderId, Long operatorId);
+
     void withdrawDispatchOrder(Long dispatchId, Long operatorId, String remark);
 }

@@ -246,6 +246,21 @@ class MfgDispatchOrderServiceImplTest {
         verify(taskMapper, never()).insert(any(MfgTask.class));
     }
 
+    @Test
+    void refreshMaterialReadinessUpdatesActiveDispatchAfterIssue() {
+        MfgDispatchOrder dispatch = dispatch(BusinessStatus.Document.RELEASED);
+        dispatch.setMaterialReadyStatus("WAIT_READY");
+        when(dispatchMapper.selectList(any())).thenReturn(List.of(dispatch));
+        when(dispatchMapper.updateById(any(MfgDispatchOrder.class))).thenReturn(1);
+
+        service.refreshMaterialReadiness(3L, 9L);
+
+        ArgumentCaptor<MfgDispatchOrder> update = ArgumentCaptor.forClass(MfgDispatchOrder.class);
+        verify(dispatchMapper).updateById(update.capture());
+        assertEquals("READY", update.getValue().getMaterialReadyStatus());
+        assertEquals(9L, update.getValue().getUpdatedBy());
+    }
+
     private MfgWorkOrder workOrder() {
         MfgWorkOrder workOrder = new MfgWorkOrder();
         workOrder.setWorkOrderId(3L);

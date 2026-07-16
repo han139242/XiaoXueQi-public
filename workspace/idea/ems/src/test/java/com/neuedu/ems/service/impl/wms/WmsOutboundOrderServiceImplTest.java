@@ -18,6 +18,7 @@ import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.mapper.wms.WmsOutboundDetailMapper;
 import com.neuedu.ems.mapper.wms.WmsOutboundOrderMapper;
 import com.neuedu.ems.mapper.wms.WmsStockMovementMapper;
+import com.neuedu.ems.service.mfg.MfgDispatchOrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -47,6 +48,7 @@ class WmsOutboundOrderServiceImplTest {
     private WmsMaterialBatchMapper batchMapper;
     private WmsStockMovementMapper movementMapper;
     private MfgWorkOrderMaterialMapper materialMapper;
+    private MfgDispatchOrderService dispatchOrderService;
     private WmsResponsibilityNotificationService notificationService;
 
     @BeforeEach
@@ -58,6 +60,7 @@ class WmsOutboundOrderServiceImplTest {
         batchMapper = mock(WmsMaterialBatchMapper.class);
         movementMapper = mock(WmsStockMovementMapper.class);
         materialMapper = mock(MfgWorkOrderMaterialMapper.class);
+        dispatchOrderService = mock(MfgDispatchOrderService.class);
         SysStatusChangeLogMapper statusLogMapper = mock(SysStatusChangeLogMapper.class);
         SysOperationLogMapper operationLogMapper = mock(SysOperationLogMapper.class);
         notificationService = mock(WmsResponsibilityNotificationService.class);
@@ -68,6 +71,7 @@ class WmsOutboundOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "wmsMaterialBatchMapper", batchMapper);
         ReflectionTestUtils.setField(service, "wmsStockMovementMapper", movementMapper);
         ReflectionTestUtils.setField(service, "workOrderMaterialMapper", materialMapper);
+        ReflectionTestUtils.setField(service, "mfgDispatchOrderService", dispatchOrderService);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
         ReflectionTestUtils.setField(service, "responsibilityNotificationService", notificationService);
@@ -163,6 +167,7 @@ class WmsOutboundOrderServiceImplTest {
         assertEquals(new BigDecimal("10.0000"), update.getValue().getIssuedQuantity());
         assertEquals(new BigDecimal("0.0000"), update.getValue().getShortageQuantity());
         assertEquals("READY", update.getValue().getStatus());
+        verify(dispatchOrderService).refreshMaterialReadiness(3L, 9L);
     }
 
     @Test

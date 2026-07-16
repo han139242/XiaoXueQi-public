@@ -22,6 +22,7 @@ import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.mapper.wms.WmsOutboundDetailMapper;
 import com.neuedu.ems.mapper.wms.WmsOutboundOrderMapper;
 import com.neuedu.ems.mapper.wms.WmsStockMovementMapper;
+import com.neuedu.ems.service.mfg.MfgDispatchOrderService;
 import com.neuedu.ems.service.wms.WmsOutboundOrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -72,6 +73,9 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
 
     @Autowired
     private MfgWorkOrderMaterialMapper workOrderMaterialMapper;
+
+    @Autowired
+    private MfgDispatchOrderService mfgDispatchOrderService;
 
     /**
      * 分页查询出库单，支持单号、类型、仓库、工单、申请人和审核状态筛选。
@@ -334,6 +338,9 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
             insertOutboundMovement(outboundOrder, detail, operatorId, remark, now);
         }
         applyMaterialIssueUpdates(materialIssueUpdates, operatorId, now);
+        if (MATERIAL_ISSUE_TYPE.equals(outboundOrder.getOutboundType())) {
+            mfgDispatchOrderService.refreshMaterialReadiness(outboundOrder.getWorkOrderId(), operatorId);
+        }
         insertStatusChangeLog(outboundOrder.getOutboundId(), outboundOrder.getAuditStatus(), APPROVED_STATUS,
                 "WMS_OUTBOUND_ORDER", "CONFIRM_OUTBOUND", operatorId, remark, now);
         insertOperationLog(outboundOrder.getOutboundId(), "CONFIRM_OUTBOUND", "wms_outbound_order", operatorId, remark, now);

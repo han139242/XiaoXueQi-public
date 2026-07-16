@@ -425,6 +425,42 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         return new MaterialReadiness(status, shortageCount);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void refreshMaterialReadiness(Long workOrderId, Long operatorId) {
+        if (workOrderId == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "生产工单和操作人不能为空");
+        }
+        MaterialReadiness readiness = calculateMaterialReadiness(workOrderId);
+        List<MfgDispatchOrder> dispatchOrders = baseMapper.selectList(
+                new LambdaQueryWrapper<MfgDispatchOrder>()
+                        .eq(MfgDispatchOrder::getWorkOrderId, workOrderId)
+                        .eq(MfgDispatchOrder::getDeletedFlag, 0)
+                        .notIn(MfgDispatchOrder::getStatus,
+                                BusinessStatus.Document.CLOSED,
+                                BusinessStatus.Document.REJECTED,
+                                BusinessStatus.Production.FINISHED));
+        LocalDateTime now = LocalDateTime.now();
+        for (MfgDispatchOrder dispatchOrder : dispatchOrders) {
+            if (java.util.Objects.equals(dispatchOrder.getMaterialReadyStatus(), readiness.status())) {
+                continue;
+            }
+            MfgDispatchOrder update = new MfgDispatchOrder();
+            update.setDispatchId(dispatchOrder.getDispatchId());
+            update.setVersion(dispatchOrder.getVersion());
+            update.setMaterialReadyStatus(readiness.status());
+            update.setUpdatedBy(operatorId);
+            update.setUpdatedTime(now);
+            if (baseMapper.updateById(update) == 0) {
+                throw business(ResultCode.DATA_CONFLICT, "派工单齐套状态已变化，请刷新后重试");
+            }
+            audit("MFG_DISPATCH_ORDER", "mfg_dispatch_order", dispatchOrder.getDispatchId(),
+                    dispatchOrder.getMaterialReadyStatus(), readiness.status(),
+                    "REFRESH_MATERIAL_READINESS", operatorId,
+                    "确认生产领料后同步工单齐套状态", now);
+        }
+    }
+
     private OrgTeam activeTeam(Long teamId) {
         return teamId == null ? null : teamMapper.selectOne(new LambdaQueryWrapper<OrgTeam>()
                 .eq(OrgTeam::getTeamId, teamId)
