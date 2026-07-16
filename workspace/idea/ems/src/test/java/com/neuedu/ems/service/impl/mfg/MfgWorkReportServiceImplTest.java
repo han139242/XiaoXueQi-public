@@ -152,7 +152,7 @@ class MfgWorkReportServiceImplTest {
     }
 
     @Test
-    void approvedReportRollsCompletionUpToWorkOrderPlanAndOrder() {
+    void approvedFinalReportCreatesPendingQualityChainWithoutPrematureCompletion() {
         MfgWorkReport report = report("100");
         MfgReportMaterial reportMaterial = new MfgReportMaterial();
         reportMaterial.setMaterialId(11L);
@@ -167,31 +167,14 @@ class MfgWorkReportServiceImplTest {
         when(reportMapper.updateById(any(MfgWorkReport.class))).thenReturn(1);
         when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
 
-        MfgWorkOrder finishedWorkOrder = workOrder();
-        finishedWorkOrder.setStatus(BusinessStatus.Production.FINISHED);
-        when(workOrderMapper.selectList(any())).thenReturn(List.of(finishedWorkOrder));
-        when(planMapper.selectOne(any())).thenReturn(plan());
-        when(planMapper.updateById(any(MfgProductionPlan.class))).thenReturn(1);
-        MfgProductionPlan finishedPlan = plan();
-        finishedPlan.setStatus(BusinessStatus.Production.FINISHED);
-        when(planMapper.selectList(any())).thenReturn(List.of(finishedPlan));
-        when(orderMapper.selectOne(any())).thenReturn(order());
-        when(orderMapper.updateById(any(MfgProductionOrder.class))).thenReturn(1);
-
         service.auditWorkReport(1L, " approved ", "审核通过", 9L);
 
         ArgumentCaptor<MfgWorkOrder> workOrderUpdate = ArgumentCaptor.forClass(MfgWorkOrder.class);
         verify(workOrderMapper).updateById(workOrderUpdate.capture());
-        assertEquals(new BigDecimal("100"), workOrderUpdate.getValue().getCompletedQuantity());
-        assertEquals(BusinessStatus.Production.FINISHED, workOrderUpdate.getValue().getStatus());
-
-        ArgumentCaptor<MfgProductionPlan> planUpdate = ArgumentCaptor.forClass(MfgProductionPlan.class);
-        verify(planMapper).updateById(planUpdate.capture());
-        assertEquals(BusinessStatus.Production.FINISHED, planUpdate.getValue().getStatus());
-
-        ArgumentCaptor<MfgProductionOrder> orderUpdate = ArgumentCaptor.forClass(MfgProductionOrder.class);
-        verify(orderMapper).updateById(orderUpdate.capture());
-        assertEquals(BusinessStatus.Production.FINISHED, orderUpdate.getValue().getStatus());
+        assertEquals(BigDecimal.ZERO, workOrderUpdate.getValue().getCompletedQuantity());
+        assertEquals(BusinessStatus.Document.RELEASED, workOrderUpdate.getValue().getStatus());
+        verify(planMapper, never()).updateById(any(MfgProductionPlan.class));
+        verify(orderMapper, never()).updateById(any(MfgProductionOrder.class));
 
         ArgumentCaptor<TraceProductLot> productLot = ArgumentCaptor.forClass(TraceProductLot.class);
         verify(productLotMapper).insert(productLot.capture());
@@ -263,6 +246,7 @@ class MfgWorkReportServiceImplTest {
         when(taskMapper.selectOne(any())).thenReturn(intermediateTask);
         when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
         when(reportMapper.selectList(any())).thenReturn(List.of());
+        when(inspectionSchemeMapper.selectList(any())).thenReturn(List.of());
         when(reportMapper.updateById(any(MfgWorkReport.class))).thenReturn(1);
         when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
 
@@ -275,19 +259,140 @@ class MfgWorkReportServiceImplTest {
     }
 
     @Test
-    void concurrentApprovalOverPlanRaisesExceptionForTransactionRollback() {
+    void concurrentWorkOrderAggregateConflictRaisesExceptionForTransactionRollback() {
         MfgWorkReport candidate = report("20");
         when(reportMapper.selectOne(any())).thenReturn(candidate);
         when(taskMapper.selectOne(any())).thenReturn(task());
         when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
-        when(reportMapper.selectList(any())).thenReturn(
-                List.of(approvedReport("80")),
-                List.of(approvedReport("90"), candidate));
+        when(reportMapper.selectList(any())).thenReturn(List.of(approvedReport("80")));
         when(reportMapper.updateById(any(MfgWorkReport.class))).thenReturn(1);
+        when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(0);
 
         assertThrows(BusinessException.class,
                 () -> service.auditWorkReport(1L, BusinessStatus.Document.APPROVED, null, 9L));
 
+        verify(reportMapper).updateById(any(MfgWorkReport.class));
+        verify(workOrderMapper).updateById(any(MfgWorkOrder.class));
+    }
+
+    @Test
+    void releasedProductLotRollsCompletionUpToWorkOrderPlanAndOrder() {
+        MfgWorkOrder workOrder = workOrder();
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder);
+        TraceProductLot releasedLot = new TraceProductLot();
+        releasedLot.setWorkOrderId(3L);
+        releasedLot.setQualifiedQuantity(new BigDecimal("100"));
+        releasedLot.setStatus(BusinessStatus.Quality.PASS);
+        when(productLotMapper.selectList(any())).thenReturn(List.of(releasedLot));
+        when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
+
+        MfgWorkOrder finishedWorkOrder = workOrder();
+        finishedWorkOrder.setStatus(BusinessStatus.Production.FINISHED);
+        when(workOrderMapper.selectList(any())).thenReturn(List.of(finishedWorkOrder));
+        when(planMapper.selectOne(any())).thenReturn(plan());
+        when(planMapper.updateById(any(MfgProductionPlan.class))).thenReturn(1);
+        MfgProductionPlan finishedPlan = plan();
+        finishedPlan.setStatus(BusinessStatus.Production.FINISHED);
+        when(planMapper.selectList(any())).thenReturn(List.of(finishedPlan));
+        when(orderMapper.selectOne(any())).thenReturn(order());
+        when(orderMapper.updateById(any(MfgProductionOrder.class))).thenReturn(1);
+
+        service.recalculateWorkOrderCompletion(3L, 9L, "终检放行");
+
+        ArgumentCaptor<MfgWorkOrder> workOrderUpdate = ArgumentCaptor.forClass(MfgWorkOrder.class);
+        verify(workOrderMapper).updateById(workOrderUpdate.capture());
+        assertEquals(new BigDecimal("100"), workOrderUpdate.getValue().getCompletedQuantity());
+        assertEquals(BusinessStatus.Production.FINISHED, workOrderUpdate.getValue().getStatus());
+        verify(planMapper).updateById(any(MfgProductionPlan.class));
+        verify(orderMapper).updateById(any(MfgProductionOrder.class));
+    }
+
+    @Test
+    void dispositionedLotsCountReleasedConformingAndConcessionQuantities() {
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
+        TraceProductLot scrappedLot = new TraceProductLot();
+        scrappedLot.setQualifiedQuantity(new BigDecimal("90"));
+        scrappedLot.setDefectQuantity(new BigDecimal("10"));
+        scrappedLot.setBatchQuantity(new BigDecimal("100"));
+        scrappedLot.setStatus("SCRAPPED");
+        TraceProductLot concessionLot = new TraceProductLot();
+        concessionLot.setQualifiedQuantity(new BigDecimal("8"));
+        concessionLot.setDefectQuantity(new BigDecimal("2"));
+        concessionLot.setBatchQuantity(new BigDecimal("10"));
+        concessionLot.setStatus(BusinessStatus.Quality.CONCESSION);
+        when(productLotMapper.selectList(any())).thenReturn(List.of(scrappedLot, concessionLot));
+        when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
+
+        service.recalculateWorkOrderCompletion(3L, 9L, "处置完成");
+
+        ArgumentCaptor<MfgWorkOrder> update = ArgumentCaptor.forClass(MfgWorkOrder.class);
+        verify(workOrderMapper).updateById(update.capture());
+        assertEquals(new BigDecimal("100"), update.getValue().getCompletedQuantity());
+        assertEquals(BusinessStatus.Production.FINISHED, update.getValue().getStatus());
+    }
+
+    @Test
+    void intermediateOperationWithReleasedSchemeCreatesProcessInspection() {
+        MfgWorkReport candidate = report("40");
+        MfgTask intermediateTask = task();
+        intermediateTask.setOperationId(4L);
+        ProcessRouteItem intermediate = new ProcessRouteItem();
+        intermediate.setRouteId(6L);
+        intermediate.setOperationId(4L);
+        intermediate.setSequenceNo(10);
+        ProcessRouteItem terminal = new ProcessRouteItem();
+        terminal.setRouteId(6L);
+        terminal.setOperationId(5L);
+        terminal.setSequenceNo(20);
+        when(routeItemMapper.selectList(any())).thenReturn(List.of(terminal, intermediate));
+        when(reportMapper.selectOne(any())).thenReturn(candidate);
+        when(taskMapper.selectOne(any())).thenReturn(intermediateTask);
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
+        when(reportMapper.selectList(any())).thenReturn(List.of());
+        when(reportMapper.updateById(any(MfgWorkReport.class))).thenReturn(1);
+        when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
+        QmsInspectionScheme processScheme = new QmsInspectionScheme();
+        processScheme.setSchemeId(22L);
+        processScheme.setInspectionType("PROCESS");
+        processScheme.setStatus(BusinessStatus.Document.RELEASED);
+        when(inspectionSchemeMapper.selectList(any())).thenReturn(List.of(processScheme));
+
+        service.auditWorkReport(1L, BusinessStatus.Document.APPROVED, null, 9L);
+
+        ArgumentCaptor<QmsInspectionOrder> inspection = ArgumentCaptor.forClass(QmsInspectionOrder.class);
+        verify(inspectionOrderMapper).insert(inspection.capture());
+        assertEquals("PROCESS", inspection.getValue().getInspectionType());
+        assertEquals(1L, inspection.getValue().getReportId());
+        assertEquals(intermediateTask.getTaskId(), inspection.getValue().getTaskId());
+    }
+
+    @Test
+    void multipleReleasedProcessSchemesBlockApprovalTransaction() {
+        MfgWorkReport candidate = report("40");
+        MfgTask intermediateTask = task();
+        intermediateTask.setOperationId(4L);
+        ProcessRouteItem intermediate = new ProcessRouteItem();
+        intermediate.setOperationId(4L);
+        intermediate.setSequenceNo(10);
+        ProcessRouteItem terminal = new ProcessRouteItem();
+        terminal.setOperationId(5L);
+        terminal.setSequenceNo(20);
+        when(routeItemMapper.selectList(any())).thenReturn(List.of(terminal, intermediate));
+        when(reportMapper.selectOne(any())).thenReturn(candidate);
+        when(taskMapper.selectOne(any())).thenReturn(intermediateTask);
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
+        when(reportMapper.selectList(any())).thenReturn(List.of());
+        when(reportMapper.updateById(any(MfgWorkReport.class))).thenReturn(1);
+        QmsInspectionScheme first = new QmsInspectionScheme();
+        first.setSchemeId(22L);
+        QmsInspectionScheme second = new QmsInspectionScheme();
+        second.setSchemeId(23L);
+        when(inspectionSchemeMapper.selectList(any())).thenReturn(List.of(first, second));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.auditWorkReport(1L, BusinessStatus.Document.APPROVED, null, 9L));
+
+        assertTrue(exception.getMessage().contains("多个已发布过程检方案"));
         verify(reportMapper).updateById(any(MfgWorkReport.class));
         verify(workOrderMapper, never()).updateById(any(MfgWorkOrder.class));
     }

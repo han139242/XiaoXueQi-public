@@ -1030,6 +1030,9 @@ CREATE TABLE `mfg_task` (
   `planned_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '计划数量。',
   `completed_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '完成数量。',
   `defect_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '不良数量。',
+  `task_type` VARCHAR(32) NOT NULL DEFAULT 'NORMAL' COMMENT 'NORMAL:正常任务，REWORK:返工任务，SUPPLEMENT:补产或续作任务。',
+  `source_task_id` BIGINT UNSIGNED NULL COMMENT '补偿任务的来源任务 ID。',
+  `source_ncr_id` BIGINT UNSIGNED NULL COMMENT '质量补偿任务的来源不合格品处理单 ID。',
   `status` VARCHAR(32) NULL COMMENT 'WAIT_START:待开工，RUNNING:生产中，PAUSED:暂停，FINISHED:已完工，CLOSED:已关闭。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
@@ -1043,7 +1046,9 @@ CREATE TABLE `mfg_task` (
   KEY `idx_mfg_task_dispatch_id` (`dispatch_id`),
   KEY `idx_mfg_task_work_order_id` (`work_order_id`),
   KEY `idx_mfg_task_operation_id` (`operation_id`),
-  KEY `idx_mfg_task_station_id` (`station_id`)
+  KEY `idx_mfg_task_station_id` (`station_id`),
+  KEY `idx_mfg_task_source_task_id` (`source_task_id`),
+  KEY `idx_mfg_task_source_ncr_id` (`source_ncr_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='生产任务单表';
 
 CREATE TABLE `mfg_task_operator` (

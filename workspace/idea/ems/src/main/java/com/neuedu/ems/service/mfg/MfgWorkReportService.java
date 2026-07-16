@@ -99,4 +99,6 @@ public interface MfgWorkReportService extends IService<MfgWorkReport> {
      * @return 是否成功
      */
     boolean auditWorkReport(Long reportId, String auditResult, String auditComment, Long operatorId);
+
+    void recalculateWorkOrderCompletion(Long workOrderId, Long operatorId, String reason);
 }

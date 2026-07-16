@@ -297,6 +297,39 @@ class MfgWorkOrderServiceImplTest {
         verify(workOrderMapper, never()).updateById(any(MfgWorkOrder.class));
     }
 
+    @Test
+    void supplementMaterialRequirementUsesBomLossAndExistingIssuedQuantity() {
+        MfgWorkOrder workOrder = request("100");
+        workOrder.setWorkOrderId(5L);
+        workOrder.setStatus(BusinessStatus.Production.RUNNING);
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder);
+        when(materialMapper.updateById(any(MfgWorkOrderMaterial.class))).thenReturn(1);
+
+        service.addSupplementMaterialRequirements(5L, new BigDecimal("10"), 9L, "报废补产");
+
+        ArgumentCaptor<MfgWorkOrderMaterial> update = ArgumentCaptor.forClass(MfgWorkOrderMaterial.class);
+        verify(materialMapper).updateById(update.capture());
+        assertEquals(new BigDecimal("120.6000"), update.getValue().getRequiredQuantity());
+        assertEquals(new BigDecimal("20.6000"), update.getValue().getShortageQuantity());
+        assertEquals("PARTIAL_READY", update.getValue().getStatus());
+    }
+
+    @Test
+    void supplementMaterialRequirementRejectsNegativeBomLossRate() {
+        MfgWorkOrder workOrder = request("100");
+        workOrder.setWorkOrderId(5L);
+        workOrder.setStatus(BusinessStatus.Production.RUNNING);
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder);
+        MdmBomItem invalid = bomItem();
+        invalid.setLossRate(new BigDecimal("-0.01"));
+        when(bomItemMapper.selectList(any())).thenReturn(List.of(invalid));
+
+        assertThrows(BusinessException.class,
+                () -> service.addSupplementMaterialRequirements(5L, BigDecimal.TEN, 9L, "返工补料"));
+
+        verify(materialMapper, never()).updateById(any(MfgWorkOrderMaterial.class));
+    }
+
     private MfgProductionPlan plan() {
         MfgProductionPlan plan = new MfgProductionPlan();
         plan.setPlanId(2L);

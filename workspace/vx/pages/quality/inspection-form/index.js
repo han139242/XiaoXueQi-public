@@ -1,4 +1,5 @@
 const guard = require('../../../utils/guard')
+const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')
 const reportApi = require('../../../api/work-report')
 const lookupApi = require('../../../api/lookup')
@@ -174,7 +175,8 @@ Page({
             remark: this.data.remark.trim()
           })
           wx.showToast({ title: '检验记录已提交', icon: 'success' })
-          if (values.inspectionResult === 'FAIL') {
+          if (values.inspectionResult === 'FAIL'
+            && auth.hasPermission('qms:nonconforming-order:generate')) {
             wx.redirectTo({
               url: '/pages/quality/defect-form/index?inspectionId=' + encodeURIComponent(this.data.inspectionId)
             })

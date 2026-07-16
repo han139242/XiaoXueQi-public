@@ -375,8 +375,8 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
                 operatorId, auditComment, now);
         insertOperationLog(reportId, "AUDIT_WORK_REPORT", "mfg_work_report", operatorId, auditComment, now);
         if (workOrder != null) {
+            generateQualityChain(existing, workOrder, operatorId, now);
             aggregateWorkOrder(workOrder, operatorId, now);
-            generateFinalQualityChain(existing, workOrder, operatorId, now);
         }
         if (responsibilityNotificationService != null) {
             responsibilityNotificationService.cancelWorkReportSubmitted(reportId, operatorId);
@@ -396,10 +396,11 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
                 .contains(workOrder.getStatus())) {
             throw business(ResultCode.BUSINESS_ERROR, "报工关联的生产工单不存在或当前状态不可审核");
         }
-        BigDecimal currentApproved = approvedQuantity(workOrder);
-        BigDecimal candidate = isFinalOperation(workOrder, task.getOperationId())
-                ? currentApproved.add(zero(report.getQualifiedQuantity()))
-                : currentApproved;
+        BigDecimal currentApproved = normalFinalReportedQuantity(workOrder);
+        boolean normalFinalTask = isFinalOperation(workOrder, task.getOperationId())
+                && (!StringUtils.hasText(task.getTaskType()) || "NORMAL".equals(task.getTaskType()));
+        BigDecimal candidate = normalFinalTask
+                ? currentApproved.add(zero(report.getQualifiedQuantity())) : currentApproved;
         if (candidate.compareTo(workOrder.getPlannedQuantity()) > 0) {
             throw business(ResultCode.BUSINESS_ERROR, "累计审核合格数量不能超过工单计划数量");
         }
@@ -407,14 +408,15 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
     }
 
     private void aggregateWorkOrder(MfgWorkOrder workOrder, Long operatorId, LocalDateTime now) {
-        BigDecimal completed = approvedQuantity(workOrder);
+        BigDecimal completed = acceptedProductLotQuantity(workOrder);
         if (completed.compareTo(workOrder.getPlannedQuantity()) > 0) {
-            throw business(ResultCode.BUSINESS_ERROR, "累计审核合格数量不能超过工单计划数量");
+            throw business(ResultCode.BUSINESS_ERROR, "累计质量放行数量不能超过工单计划数量");
         }
         String oldStatus = workOrder.getStatus();
         String newStatus = completed.compareTo(workOrder.getPlannedQuantity()) >= 0
                 ? BusinessStatus.Production.FINISHED
-                : completed.signum() > 0 ? BusinessStatus.Production.RUNNING : oldStatus;
+                : completed.signum() > 0 || BusinessStatus.Production.FINISHED.equals(oldStatus)
+                ? BusinessStatus.Production.RUNNING : oldStatus;
         MfgWorkOrder update = new MfgWorkOrder();
         update.setWorkOrderId(workOrder.getWorkOrderId());
         update.setCompletedQuantity(completed);
@@ -427,13 +429,29 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
         if (!java.util.Objects.equals(oldStatus, newStatus)) {
             insertStatusChangeLog(workOrder.getWorkOrderId(), oldStatus, newStatus, "MFG_WORK_ORDER",
-                    "AGGREGATE_APPROVED_WORK_REPORT", operatorId, null, now);
+                    "AGGREGATE_RELEASED_PRODUCT_LOTS", operatorId, null, now);
         }
-        insertOperationLog(workOrder.getWorkOrderId(), "AGGREGATE_WORK_ORDER_QUANTITY", "mfg_work_order",
-                operatorId, "审核报工后重算完成数量=" + completed.toPlainString(), now);
+        insertOperationLog(workOrder.getWorkOrderId(), "AGGREGATE_WORK_ORDER_ACCEPTED_QUANTITY", "mfg_work_order",
+                operatorId, "按质量放行产品批次重算完成数量=" + completed.toPlainString(), now);
         if (BusinessStatus.Production.FINISHED.equals(newStatus)) {
             finishPlanAndOrderIfComplete(workOrder.getPlanId(), operatorId, now);
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void recalculateWorkOrderCompletion(Long workOrderId, Long operatorId, String reason) {
+        if (workOrderId == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "生产工单和操作人不能为空");
+        }
+        MfgWorkOrder workOrder = activeWorkOrder(workOrderId);
+        if (workOrder == null || BusinessStatus.Document.CLOSED.equals(workOrder.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单不存在或已关闭，不能重新计算完成数量");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        aggregateWorkOrder(workOrder, operatorId, now);
+        insertOperationLog(workOrderId, "RECALCULATE_WORK_ORDER_AFTER_QUALITY", "mfg_work_order",
+                operatorId, reason, now);
     }
 
     private void finishPlanAndOrderIfComplete(Long planId, Long operatorId, LocalDateTime now) {
@@ -499,18 +517,101 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
     }
 
-    private BigDecimal approvedQuantity(MfgWorkOrder workOrder) {
+    private BigDecimal normalFinalReportedQuantity(MfgWorkOrder workOrder) {
         Long finalOperationId = finalOperationId(workOrder);
         LambdaQueryWrapper<MfgWorkReport> query = new LambdaQueryWrapper<>();
         query.eq(MfgWorkReport::getDeletedFlag, 0)
                 .eq(MfgWorkReport::getAuditStatus, APPROVED_STATUS)
                 .inSql(MfgWorkReport::getTaskId,
                         "SELECT task_id FROM mfg_task WHERE deleted_flag = 0 AND work_order_id = "
-                                + workOrder.getWorkOrderId() + " AND operation_id = " + finalOperationId);
+                                + workOrder.getWorkOrderId() + " AND operation_id = " + finalOperationId
+                                + " AND COALESCE(task_type, 'NORMAL') = 'NORMAL'");
         return baseMapper.selectList(query).stream()
                 .map(MfgWorkReport::getQualifiedQuantity)
                 .map(this::zero)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal acceptedProductLotQuantity(MfgWorkOrder workOrder) {
+        return traceProductLotMapper.selectList(new LambdaQueryWrapper<TraceProductLot>()
+                        .eq(TraceProductLot::getWorkOrderId, workOrder.getWorkOrderId())
+                        .eq(TraceProductLot::getDeletedFlag, 0)
+                        .in(TraceProductLot::getStatus, BusinessStatus.Quality.PASS,
+                                BusinessStatus.Quality.CONCESSION, BusinessStatus.Quality.REWORK,
+                                BusinessStatus.Quality.DOWNGRADE, "SCRAPPED", "STORED"))
+                .stream().map(this::acceptedProductLotQuantity).map(this::zero)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal acceptedProductLotQuantity(TraceProductLot productLot) {
+        if (BusinessStatus.Quality.CONCESSION.equals(productLot.getStatus())) {
+            BigDecimal batchQuantity = productLot.getBatchQuantity();
+            return batchQuantity == null
+                    ? zero(productLot.getQualifiedQuantity()).add(zero(productLot.getDefectQuantity()))
+                    : batchQuantity;
+        }
+        return productLot.getQualifiedQuantity();
+    }
+
+    private void generateQualityChain(MfgWorkReport report, MfgWorkOrder workOrder,
+                                      Long operatorId, LocalDateTime now) {
+        MfgTask task = activeTask(report.getTaskId());
+        if (task == null) return;
+        if (isFinalOperation(workOrder, task.getOperationId())) {
+            generateFinalQualityChain(report, workOrder, operatorId, now);
+        } else {
+            generateProcessInspection(report, task, workOrder, operatorId, now);
+        }
+    }
+
+    private void generateProcessInspection(MfgWorkReport report, MfgTask task, MfgWorkOrder workOrder,
+                                           Long operatorId, LocalDateTime now) {
+        if (zero(report.getQualifiedQuantity()).add(zero(report.getDefectQuantity())).signum() <= 0) return;
+        long activeInspection = qmsInspectionOrderMapper.selectCount(new LambdaQueryWrapper<QmsInspectionOrder>()
+                .eq(QmsInspectionOrder::getReportId, report.getReportId())
+                .eq(QmsInspectionOrder::getInspectionType, "PROCESS")
+                .eq(QmsInspectionOrder::getDeletedFlag, 0)
+                .ne(QmsInspectionOrder::getStatus, BusinessStatus.Document.CLOSED));
+        if (activeInspection > 0) return;
+        List<QmsInspectionScheme> schemes = qmsInspectionSchemeMapper.selectList(
+                new LambdaQueryWrapper<QmsInspectionScheme>()
+                        .eq(QmsInspectionScheme::getProductId, workOrder.getProductId())
+                        .eq(QmsInspectionScheme::getOperationId, task.getOperationId())
+                        .eq(QmsInspectionScheme::getInspectionType, "PROCESS")
+                        .eq(QmsInspectionScheme::getStatus, BusinessStatus.Document.RELEASED)
+                        .eq(QmsInspectionScheme::getDeletedFlag, 0));
+        if (schemes.isEmpty()) return;
+        if (schemes.size() > 1) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "当前工序存在多个已发布过程检方案，请先消除主数据歧义");
+        }
+        QmsInspectionOrder inspection = new QmsInspectionOrder();
+        inspection.setInspectionNo("QI-PROCESS-" + report.getReportId());
+        inspection.setInspectionType("PROCESS");
+        inspection.setSchemeId(schemes.get(0).getSchemeId());
+        inspection.setWorkOrderId(workOrder.getWorkOrderId());
+        inspection.setTaskId(task.getTaskId());
+        inspection.setReportId(report.getReportId());
+        inspection.setSampleQuantity(BigDecimal.ZERO);
+        inspection.setQualifiedQuantity(BigDecimal.ZERO);
+        inspection.setUnqualifiedQuantity(BigDecimal.ZERO);
+        inspection.setStatus(BusinessStatus.Document.DRAFT);
+        inspection.setRemark("由需检工序审核报工自动生成过程检单");
+        inspection.setVersion(0);
+        inspection.setCreatedBy(operatorId);
+        inspection.setCreatedTime(now);
+        inspection.setUpdatedBy(operatorId);
+        inspection.setUpdatedTime(now);
+        inspection.setDeletedFlag(0);
+        if (qmsInspectionOrderMapper.insert(inspection) == 0 || inspection.getInspectionId() == null) {
+            throw business(ResultCode.FAILED, "过程检单生成失败");
+        }
+        insertStatusChangeLog(inspection.getInspectionId(), null, BusinessStatus.Document.DRAFT,
+                "QMS_INSPECTION_ORDER", "GENERATE_PROCESS_INSPECTION_FROM_REPORT", operatorId,
+                "来源报工ID=" + report.getReportId(), now);
+        if (qmsResponsibilityNotificationService != null) {
+            qmsResponsibilityNotificationService.publishOpenInspection(inspection, operatorId);
+        }
     }
 
     private boolean isFinalOperation(MfgWorkOrder workOrder, Long operationId) {
@@ -543,7 +644,7 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
                                            Long operatorId, LocalDateTime now) {
         MfgTask task = activeTask(report.getTaskId());
         if (task == null || !isFinalOperation(workOrder, task.getOperationId())
-                || zero(report.getQualifiedQuantity()).signum() <= 0) {
+                || zero(report.getQualifiedQuantity()).add(zero(report.getDefectQuantity())).signum() <= 0) {
             return;
         }
         TraceProductLot productLot = traceProductLotMapper.selectOne(new LambdaQueryWrapper<TraceProductLot>()

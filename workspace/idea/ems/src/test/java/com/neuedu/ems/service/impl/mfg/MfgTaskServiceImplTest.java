@@ -9,9 +9,11 @@ import com.neuedu.ems.entity.factory.FactoryStation;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.entity.mfg.MfgDispatchOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
+import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.mfg.MfgTaskOperator;
 import com.neuedu.ems.entity.org.OrgEmployee;
 import com.neuedu.ems.entity.process.ProcessRouteItem;
 import com.neuedu.ems.entity.sys.SysUser;
@@ -24,6 +26,7 @@ import com.neuedu.ems.mapper.factory.FactoryStationOperationMapper;
 import com.neuedu.ems.mapper.mfg.MfgAndonAlertMapper;
 import com.neuedu.ems.mapper.mfg.MfgDispatchOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
+import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskOperatorMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
@@ -50,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -71,6 +75,7 @@ class MfgTaskServiceImplTest {
     private FactoryStationMapper stationMapper;
     private FactoryStationOperationMapper stationOperationMapper;
     private MfgProductionPlanMapper productionPlanMapper;
+    private MfgProductionOrderMapper productionOrderMapper;
     private EamEquipmentMapper equipmentMapper;
     private MfgAndonAlertMapper andonAlertMapper;
 
@@ -91,6 +96,7 @@ class MfgTaskServiceImplTest {
         stationMapper = mock(FactoryStationMapper.class);
         stationOperationMapper = mock(FactoryStationOperationMapper.class);
         productionPlanMapper = mock(MfgProductionPlanMapper.class);
+        productionOrderMapper = mock(MfgProductionOrderMapper.class);
         equipmentMapper = mock(EamEquipmentMapper.class);
         andonAlertMapper = mock(MfgAndonAlertMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", taskMapper);
@@ -107,6 +113,7 @@ class MfgTaskServiceImplTest {
         ReflectionTestUtils.setField(service, "factoryStationMapper", stationMapper);
         ReflectionTestUtils.setField(service, "factoryStationOperationMapper", stationOperationMapper);
         ReflectionTestUtils.setField(service, "mfgProductionPlanMapper", productionPlanMapper);
+        ReflectionTestUtils.setField(service, "mfgProductionOrderMapper", productionOrderMapper);
         ReflectionTestUtils.setField(service, "eamEquipmentMapper", equipmentMapper);
         ReflectionTestUtils.setField(service, "mfgAndonAlertMapper", andonAlertMapper);
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
@@ -321,6 +328,105 @@ class MfgTaskServiceImplTest {
         assertEquals(new BigDecimal("3"), result.getReportedDefectQuantity());
     }
 
+    @Test
+    void controlledCloseCreatesSupplementTaskCopiesOperatorsAndReopensParents() {
+        MfgTask source = task(BusinessStatus.Production.RUNNING);
+        source.setTaskNo("TASK-001");
+        source.setVersion(2);
+        when(taskMapper.selectOne(any())).thenReturn(source);
+        when(taskMapper.selectList(any())).thenReturn(List.of());
+        when(taskMapper.update(any(MfgTask.class), any())).thenReturn(1);
+        doAnswer(invocation -> {
+            MfgTask inserted = invocation.getArgument(0);
+            inserted.setTaskId(99L);
+            return 1;
+        }).when(taskMapper).insert(any(MfgTask.class));
+        when(workReportMapper.selectList(any())).thenReturn(List.of(
+                report("25", "5", BusinessStatus.Document.APPROVED)));
+
+        MfgWorkOrder workOrder = workOrder(BusinessStatus.Production.FINISHED, 2);
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder);
+        when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
+        MfgProductionPlan plan = new MfgProductionPlan();
+        plan.setPlanId(7L);
+        plan.setProductionOrderId(8L);
+        plan.setStatus(BusinessStatus.Production.FINISHED);
+        plan.setVersion(3);
+        when(productionPlanMapper.selectOne(any())).thenReturn(plan);
+        when(productionPlanMapper.updateById(any(MfgProductionPlan.class))).thenReturn(1);
+        MfgProductionOrder order = new MfgProductionOrder();
+        order.setProductionOrderId(8L);
+        order.setStatus(BusinessStatus.Production.FINISHED);
+        order.setVersion(4);
+        when(productionOrderMapper.selectOne(any())).thenReturn(order);
+        when(productionOrderMapper.updateById(any(MfgProductionOrder.class))).thenReturn(1);
+
+        MfgTaskOperator sourceOperator = new MfgTaskOperator();
+        sourceOperator.setEmployeeId(10L);
+        sourceOperator.setRoleInTask("PRIMARY");
+        when(taskOperatorMapper.selectList(any())).thenReturn(List.of(sourceOperator));
+        when(taskOperatorMapper.insert(any(MfgTaskOperator.class))).thenReturn(1);
+
+        MfgTask compensation = service.controlledCloseTask(1L, 9L, "设备异常转线续作");
+
+        assertEquals(99L, compensation.getTaskId());
+        assertEquals("SUPPLEMENT", compensation.getTaskType());
+        assertEquals(1L, compensation.getSourceTaskId());
+        assertEquals(new BigDecimal("70"), compensation.getPlannedQuantity());
+        assertEquals(BusinessStatus.Production.WAIT_START, compensation.getStatus());
+        ArgumentCaptor<MfgTaskOperator> assignment = ArgumentCaptor.forClass(MfgTaskOperator.class);
+        verify(taskOperatorMapper).insert(assignment.capture());
+        assertEquals(99L, assignment.getValue().getTaskId());
+        assertEquals(10L, assignment.getValue().getEmployeeId());
+
+        ArgumentCaptor<MfgWorkOrder> reopenedWorkOrder = ArgumentCaptor.forClass(MfgWorkOrder.class);
+        verify(workOrderMapper).updateById(reopenedWorkOrder.capture());
+        assertEquals(BusinessStatus.Production.RUNNING, reopenedWorkOrder.getValue().getStatus());
+        ArgumentCaptor<MfgProductionPlan> reopenedPlan = ArgumentCaptor.forClass(MfgProductionPlan.class);
+        verify(productionPlanMapper).updateById(reopenedPlan.capture());
+        assertEquals(BusinessStatus.Document.RELEASED, reopenedPlan.getValue().getStatus());
+        ArgumentCaptor<MfgProductionOrder> reopenedOrder = ArgumentCaptor.forClass(MfgProductionOrder.class);
+        verify(productionOrderMapper).updateById(reopenedOrder.capture());
+        assertEquals(BusinessStatus.Document.RELEASED, reopenedOrder.getValue().getStatus());
+
+        ArgumentCaptor<SysStatusChangeLog> statusLogs = ArgumentCaptor.forClass(SysStatusChangeLog.class);
+        verify(statusLogMapper, org.mockito.Mockito.atLeast(5)).insert(statusLogs.capture());
+        List<String> bizTypes = statusLogs.getAllValues().stream().map(SysStatusChangeLog::getBizType).toList();
+        assertTrue(bizTypes.containsAll(List.of(
+                "MFG_TASK", "MFG_WORK_ORDER", "MFG_PRODUCTION_PLAN", "MFG_PRODUCTION_ORDER")));
+    }
+
+    @Test
+    void controlledCloseRejectsPendingReportBeforeAnyMutation() {
+        MfgTask source = task(BusinessStatus.Production.RUNNING);
+        when(taskMapper.selectOne(any())).thenReturn(source);
+        when(workReportMapper.selectCount(any())).thenReturn(1L);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.controlledCloseTask(1L, 9L, "班次结束"));
+
+        assertTrue(exception.getMessage().contains("待审核报工"));
+        verify(taskMapper, never()).update(any(MfgTask.class), any());
+        verify(taskMapper, never()).insert(any(MfgTask.class));
+    }
+
+    @Test
+    void repeatedControlledCloseReturnsExistingSupplementWithoutDuplicateInsert() {
+        MfgTask closed = task(BusinessStatus.Document.CLOSED);
+        MfgTask existing = task(BusinessStatus.Production.WAIT_START);
+        existing.setTaskId(99L);
+        existing.setTaskType("SUPPLEMENT");
+        existing.setSourceTaskId(1L);
+        when(taskMapper.selectOne(any())).thenReturn(closed);
+        when(taskMapper.selectList(any())).thenReturn(List.of(existing));
+
+        MfgTask result = service.controlledCloseTask(1L, 9L, "重复提交");
+
+        assertEquals(99L, result.getTaskId());
+        verify(taskMapper, never()).insert(any(MfgTask.class));
+        verify(workOrderMapper, never()).updateById(any(MfgWorkOrder.class));
+    }
+
     private MfgTask task(String status) {
         MfgTask task = new MfgTask();
         task.setTaskId(1L);
@@ -331,6 +437,15 @@ class MfgTaskServiceImplTest {
         task.setPlannedQuantity(new BigDecimal("100"));
         task.setStatus(status);
         return task;
+    }
+
+    private MfgWorkOrder workOrder(String status, int version) {
+        MfgWorkOrder workOrder = new MfgWorkOrder();
+        workOrder.setWorkOrderId(3L);
+        workOrder.setPlanId(7L);
+        workOrder.setStatus(status);
+        workOrder.setVersion(version);
+        return workOrder;
     }
 
     private void prepareStartGate() {

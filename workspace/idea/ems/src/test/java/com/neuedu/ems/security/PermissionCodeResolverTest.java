@@ -64,12 +64,18 @@ class PermissionCodeResolverTest {
                 resolver.resolve("PUT", "/api/mfg/dispatch-order/7/withdraw").orElseThrow());
         assertEquals("mfg:task:withdraw",
                 resolver.resolve("PUT", "/api/mfg/task/8/withdraw").orElseThrow());
+        assertEquals("mfg:task:controlled-close",
+                resolver.resolve("PUT", "/api/mfg/task/8/controlled-close").orElseThrow());
         assertEquals("mfg:work-report:withdraw",
                 resolver.resolve("PUT", "/api/mfg/work-report/9/withdraw").orElseThrow());
         assertEquals("wms:outbound-order:withdraw",
                 resolver.resolve("PUT", "/api/wms/outbound-order/10/withdraw").orElseThrow());
         assertEquals("qms:inspection-order:withdraw",
                 resolver.resolve("PUT", "/api/qms/inspection-order/11/withdraw").orElseThrow());
+        assertEquals("qms:nonconforming-order:generate",
+                resolver.resolve("POST", "/api/qms/nonconforming-order/generate-from-inspection/11").orElseThrow());
+        assertEquals("qms:nonconforming-order:complete",
+                resolver.resolve("PUT", "/api/qms/nonconforming-order/12/complete-disposition").orElseThrow());
         assertEquals("mfg:production-plan:generate",
                 resolver.resolve("POST", "/api/mfg/production-plan/generate/5").orElseThrow());
         assertEquals("mfg:production-plan:release",

@@ -289,6 +289,7 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
             task.setPlannedQuantity(dispatch.getPlannedQuantity());
             task.setCompletedQuantity(java.math.BigDecimal.ZERO);
             task.setDefectQuantity(java.math.BigDecimal.ZERO);
+            task.setTaskType("NORMAL");
             task.setStatus(BusinessStatus.Production.WAIT_START);
             task.setRemark(routeItem.getRemark());
             task.setVersion(0);

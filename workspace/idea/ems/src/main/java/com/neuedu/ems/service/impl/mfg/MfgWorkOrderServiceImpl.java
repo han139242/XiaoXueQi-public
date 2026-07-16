@@ -419,6 +419,93 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
         return getWorkOrderById(workOrderId);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addSupplementMaterialRequirements(Long workOrderId, BigDecimal supplementQuantity,
+                                                  Long operatorId, String reason) {
+        if (workOrderId == null || operatorId == null || supplementQuantity == null
+                || supplementQuantity.signum() <= 0 || !StringUtils.hasText(reason)) {
+            throw business(ResultCode.PARAM_ERROR, "工单、补投数量、操作人和补投原因不能为空");
+        }
+        MfgWorkOrder workOrder = baseMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, workOrderId)
+                .eq(MfgWorkOrder::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (workOrder == null || BusinessStatus.Document.CLOSED.equals(workOrder.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单不存在或已关闭，不能增加补投物料");
+        }
+        List<MdmBomItem> bomItems = bomItemMapper.selectList(new LambdaQueryWrapper<MdmBomItem>()
+                .eq(MdmBomItem::getBomId, workOrder.getBomId())
+                .eq(MdmBomItem::getDeletedFlag, 0)
+                .orderByAsc(MdmBomItem::getSequenceNo, MdmBomItem::getBomItemId));
+        if (bomItems.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单的物料清单没有有效明细，不能计算补投需求");
+        }
+        Map<Long, BigDecimal> additionalByMaterial = new LinkedHashMap<>();
+        for (MdmBomItem item : bomItems) {
+            if (item.getMaterialId() == null || item.getQuantity() == null || item.getQuantity().signum() <= 0
+                    || (item.getLossRate() != null && item.getLossRate().signum() < 0)) {
+                throw business(ResultCode.BUSINESS_ERROR, "物料清单存在无效物料、用量或损耗率，不能计算补投需求");
+            }
+            BigDecimal lossRate = item.getLossRate() == null ? BigDecimal.ZERO : item.getLossRate();
+            BigDecimal additional = supplementQuantity.multiply(item.getQuantity())
+                    .multiply(BigDecimal.ONE.add(lossRate)).setScale(4, RoundingMode.HALF_UP);
+            additionalByMaterial.merge(item.getMaterialId(), additional, BigDecimal::add);
+        }
+        List<MfgWorkOrderMaterial> requirements = workOrderMaterialMapper.selectList(
+                new LambdaQueryWrapper<MfgWorkOrderMaterial>()
+                        .eq(MfgWorkOrderMaterial::getWorkOrderId, workOrderId)
+                        .eq(MfgWorkOrderMaterial::getDeletedFlag, 0)
+                        .last("FOR UPDATE"));
+        Map<Long, MfgWorkOrderMaterial> requirementByMaterial = new LinkedHashMap<>();
+        requirements.forEach(item -> requirementByMaterial.put(item.getMaterialId(), item));
+        LocalDateTime now = LocalDateTime.now();
+        for (Map.Entry<Long, BigDecimal> entry : additionalByMaterial.entrySet()) {
+            MfgWorkOrderMaterial existing = requirementByMaterial.get(entry.getKey());
+            BigDecimal issued = existing == null || existing.getIssuedQuantity() == null
+                    ? BigDecimal.ZERO : existing.getIssuedQuantity();
+            BigDecimal required = (existing == null || existing.getRequiredQuantity() == null
+                    ? BigDecimal.ZERO : existing.getRequiredQuantity()).add(entry.getValue()).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal shortage = required.subtract(issued).max(BigDecimal.ZERO).setScale(4, RoundingMode.HALF_UP);
+            String readiness = shortage.signum() == 0 ? "READY"
+                    : issued.signum() > 0 ? "PARTIAL_READY" : "WAIT_READY";
+            if (existing == null) {
+                MfgWorkOrderMaterial created = new MfgWorkOrderMaterial();
+                created.setWorkOrderId(workOrderId);
+                created.setMaterialId(entry.getKey());
+                created.setRequiredQuantity(required);
+                created.setIssuedQuantity(BigDecimal.ZERO.setScale(4));
+                created.setShortageQuantity(shortage);
+                created.setStatus(readiness);
+                created.setRemark("质量/生产补偿新增物料需求：" + reason.trim());
+                created.setVersion(0);
+                created.setCreatedBy(operatorId);
+                created.setCreatedTime(now);
+                created.setUpdatedBy(operatorId);
+                created.setUpdatedTime(now);
+                created.setDeletedFlag(0);
+                if (workOrderMaterialMapper.insert(created) == 0) {
+                    throw business(ResultCode.FAILED, "补投物料需求新增失败");
+                }
+            } else {
+                MfgWorkOrderMaterial update = new MfgWorkOrderMaterial();
+                update.setRequirementId(existing.getRequirementId());
+                update.setVersion(existing.getVersion());
+                update.setRequiredQuantity(required);
+                update.setShortageQuantity(shortage);
+                update.setStatus(readiness);
+                update.setRemark("质量/生产补偿增加 " + entry.getValue().toPlainString() + "：" + reason.trim());
+                update.setUpdatedBy(operatorId);
+                update.setUpdatedTime(now);
+                if (workOrderMaterialMapper.updateById(update) == 0) {
+                    throw business(ResultCode.DATA_CONFLICT, "补投物料需求已被其他用户修改，请刷新后重试");
+                }
+            }
+        }
+        insertOperationLog(workOrderId, "ADD_SUPPLEMENT_MATERIAL_REQUIREMENTS", operatorId,
+                "补产/返工数量=" + supplementQuantity.toPlainString() + "；" + reason.trim(), now);
+    }
+
     /**
      * 查询生产工单列表，支持关键字搜索、状态筛选、生产计划筛选和产品筛选。
      * @param keyword 关键字（匹配工单编号）

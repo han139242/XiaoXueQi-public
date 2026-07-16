@@ -967,11 +967,11 @@ function createNonconformingOrder(data) {
     ncrNo: 'NCR-20260713-' + String(ncrId).slice(-3),
     inspectionId: Number(data.inspectionId),
     inspectionNo: inspection.inspectionNo,
-    productLotId: data.productLotId ? Number(data.productLotId) : 0,
+    productLotId: inspection.productLotId ? Number(inspection.productLotId) : 0,
     defectReason: String(data.defectReason || '').trim(),
     dispositionType,
-    approvalStatus: 'PENDING',
-    status: 'OPEN',
+    approvalStatus: 'SUBMITTED',
+    status: 'SUBMITTED',
     remark: data.remark || '',
     createdTime,
     updatedTime: createdTime
@@ -1102,7 +1102,10 @@ function route(config) {
   if (url === '/api/mfg/work-report/submit') return submitReport(data)
   if (url === '/api/qms/inspection-order/page') return pageInspectionOrders(data)
   if (url === '/api/qms/nonconforming-order/page') return pageNonconformingOrders(data)
-  if (url === '/api/qms/nonconforming-order') return createNonconformingOrder(data)
+  const generateNonconforming = url.match(/^\/api\/qms\/nonconforming-order\/generate-from-inspection\/(\d+)$/)
+  if (generateNonconforming && method === 'POST') {
+    return createNonconformingOrder({ ...(data || {}), inspectionId: generateNonconforming[1] })
+  }
   if (url === '/api/wms/inventory/page') return pageInventories(data)
   if (url === '/api/wms/inbound-order/page') return pageInboundOrders(data)
   if (url === '/api/wms/outbound-order/page') return pageOutboundOrders(data)

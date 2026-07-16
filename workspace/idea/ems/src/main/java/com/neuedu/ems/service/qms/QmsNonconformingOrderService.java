@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.neuedu.ems.entity.qms.QmsNonconformingDetail;
 import com.neuedu.ems.entity.qms.QmsNonconformingOrder;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -93,4 +94,10 @@ public interface QmsNonconformingOrderService extends IService<QmsNonconformingO
      * @return 是否成功
      */
     boolean approveNonconformingOrder(Long ncrId, String approvalResult, String approvalComment, Long operatorId);
+
+    QmsNonconformingOrder generateFromInspection(Long inspectionId, String dispositionType,
+                                                 String defectReason, BigDecimal defectQuantity,
+                                                 Long operatorId, String remark);
+
+    Long completeDisposition(Long ncrId, boolean requireAdditionalMaterial, Long operatorId, String remark);
 }

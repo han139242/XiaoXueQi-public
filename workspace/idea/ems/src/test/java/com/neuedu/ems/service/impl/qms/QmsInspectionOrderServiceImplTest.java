@@ -15,6 +15,7 @@ import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.mapper.trace.TraceProductLotMapper;
 import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
+import com.neuedu.ems.service.mfg.MfgWorkReportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -43,6 +44,7 @@ class QmsInspectionOrderServiceImplTest {
     private SysOperationLogMapper operationLogMapper;
     private QmsInspectionResultMapper resultMapper;
     private TraceProductLotMapper productLotMapper;
+    private MfgWorkReportService mfgWorkReportService;
 
     @BeforeEach
     void setUp() {
@@ -52,6 +54,7 @@ class QmsInspectionOrderServiceImplTest {
         statusLogMapper = mock(SysStatusChangeLogMapper.class);
         operationLogMapper = mock(SysOperationLogMapper.class);
         productLotMapper = mock(TraceProductLotMapper.class);
+        mfgWorkReportService = mock(MfgWorkReportService.class);
         ReflectionTestUtils.setField(service, "baseMapper", orderMapper);
         resultMapper = mock(QmsInspectionResultMapper.class);
         ReflectionTestUtils.setField(service, "qmsInspectionResultMapper", resultMapper);
@@ -60,6 +63,7 @@ class QmsInspectionOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
         ReflectionTestUtils.setField(service, "wmsMaterialBatchMapper", batchMapper);
         ReflectionTestUtils.setField(service, "traceProductLotMapper", productLotMapper);
+        ReflectionTestUtils.setField(service, "mfgWorkReportService", mfgWorkReportService);
         ReflectionTestUtils.setField(service, "responsibilityNotificationService",
                 mock(QmsResponsibilityNotificationService.class));
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
@@ -252,6 +256,7 @@ class QmsInspectionOrderServiceImplTest {
         assertEquals(BusinessStatus.Quality.PASS, update.getValue().getStatus());
         assertEquals(2, update.getValue().getVersion());
         verify(batchMapper, never()).updateById(any(WmsMaterialBatch.class));
+        verify(mfgWorkReportService).recalculateWorkOrderCompletion(3L, 9L, "终检单 1 提交结果 PASS");
     }
 
     @Test

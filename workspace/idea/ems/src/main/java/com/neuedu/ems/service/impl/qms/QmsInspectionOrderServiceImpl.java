@@ -20,6 +20,7 @@ import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.mapper.trace.TraceProductLotMapper;
 import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.service.qms.QmsInspectionOrderService;
+import com.neuedu.ems.service.mfg.MfgWorkReportService;
 import com.neuedu.ems.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -63,6 +64,9 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
 
     @Autowired
     private QmsResponsibilityNotificationService responsibilityNotificationService;
+
+    @Autowired
+    private MfgWorkReportService mfgWorkReportService;
 
     /**
      * 分页查询检验单，支持单号、类型、方案、工单、任务、报工、批次、检验员、状态和结果筛选。
@@ -362,6 +366,8 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         }
         if (productLot != null) {
             synchronizeProductLotQuality(productLot, normalizedInspectionResult, inspectionId, operatorId, inspectionTime);
+            mfgWorkReportService.recalculateWorkOrderCompletion(existing.getWorkOrderId(), operatorId,
+                    "终检单 " + inspectionId + " 提交结果 " + normalizedInspectionResult);
         }
         responsibilityNotificationService.cancelOpenInspection(inspectionId, operatorId);
         responsibilityNotificationService.publishInspectionCompleted(existing, normalizedInspectionResult, operatorId);

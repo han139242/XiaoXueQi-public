@@ -22,11 +22,28 @@ FROM (
           AND INDEX_NAME IN ('idx_mfg_schedule_item_production_order_id',
                              'idx_mfg_schedule_item_product_id', 'idx_mfg_schedule_item_route_id'))
   UNION ALL SELECT 'count', 'foundation line capabilities', 5,
-         (SELECT COUNT(*) FROM mfg_line_product_capability WHERE deleted_flag=0
-          AND remark LIKE CONCAT(@scheduling_marker, ':%'))
+         (SELECT COUNT(*) FROM mfg_line_product_capability capability
+          JOIN factory_line line ON line.line_id=capability.line_id AND line.deleted_flag=0
+          JOIN mdm_product product ON product.product_id=capability.product_id AND product.deleted_flag=0
+          JOIN process_route route ON route.route_id=capability.route_id AND route.deleted_flag=0
+          WHERE capability.deleted_flag=0 AND capability.status='ENABLE'
+            AND ((line.line_code='LINE-TRAIN-01' AND product.product_code='PROD-LNX-T300-76'
+                  AND route.route_code='ROUTE-LNX-T300-76-V1')
+              OR (line.line_code='LINE-TRAIN-01' AND product.product_code='PROD-LNX-T300-77'
+                  AND route.route_code='ROUTE-LNX-T300-77-V1')
+              OR (line.line_code='LINE-TRAIN-01' AND product.product_code='PROD-OEM-XY-C500-77'
+                  AND route.route_code='ROUTE-OEM-XY-C500-77-V1')
+              OR (line.line_code='LINE-MATCH-01' AND product.product_code='PROD-LNX-M700-77'
+                  AND route.route_code='ROUTE-LNX-M700-77-V1')
+              OR (line.line_code='LINE-MATCH-01' AND product.product_code='PROD-LNX-M700-78'
+                  AND route.route_code='ROUTE-LNX-M700-78-V1')))
   UNION ALL SELECT 'count', 'foundation calendar rules', 12,
-         (SELECT COUNT(*) FROM mfg_line_calendar_rule WHERE deleted_flag=0
-          AND remark LIKE CONCAT(@scheduling_marker, ':%'))
+         (SELECT COUNT(*) FROM mfg_line_calendar_rule calendar_rule
+          JOIN factory_line line ON line.line_id=calendar_rule.line_id AND line.deleted_flag=0
+          JOIN org_shift shift_record ON shift_record.shift_id=calendar_rule.shift_id AND shift_record.deleted_flag=0
+          WHERE calendar_rule.deleted_flag=0 AND calendar_rule.status='ENABLE'
+            AND line.line_code IN ('LINE-TRAIN-01', 'LINE-MATCH-01')
+            AND shift_record.shift_code='SHIFT-DAY' AND calendar_rule.day_of_week BETWEEN 1 AND 6)
   UNION ALL SELECT 'reference', 'capability orphan/mismatched rows', 0,
          (SELECT COUNT(*) FROM mfg_line_product_capability capability
           LEFT JOIN factory_line line ON line.line_id=capability.line_id AND line.deleted_flag=0

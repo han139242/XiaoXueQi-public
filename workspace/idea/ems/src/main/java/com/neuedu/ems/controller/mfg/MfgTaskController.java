@@ -141,6 +141,16 @@ public class MfgTaskController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PutMapping("/{taskId}/controlled-close")
+    public ResultData controlledClose(@PathVariable("taskId") Long taskId,
+                                      @RequestAttribute("userId") Long userId,
+                                      @RequestBody Map<String, Object> request) {
+        MfgTask compensationTask = mfgTaskService.controlledCloseTask(
+                taskId, userId, getString(request, "reason"));
+        return ResultData.success(ResultCode.SUCCESS,
+                Map.of("compensationTaskId", compensationTask.getTaskId()));
+    }
+
     @PutMapping("/{taskId}/withdraw")
     public ResultData withdraw(@PathVariable Long taskId,
                                @RequestAttribute("userId") Long userId,

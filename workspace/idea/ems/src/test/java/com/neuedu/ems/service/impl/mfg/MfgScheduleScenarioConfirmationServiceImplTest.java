@@ -170,6 +170,19 @@ class MfgScheduleScenarioConfirmationServiceImplTest {
     }
 
     @Test
+    void rejectsRepeatedConfirmationBeforeCreatingAnotherPlan() {
+        MfgScheduleScenario confirmed = calculatedScenario();
+        confirmed.setStatus("CONFIRMED");
+        when(scenarioMapper.selectOne(any())).thenReturn(confirmed);
+
+        assertThrows(BusinessException.class, () -> service.confirmScenario(1L, 0, 7L, null));
+
+        verify(itemMapper, never()).selectList(any());
+        verify(planMapper, never()).insert(any(MfgProductionPlan.class));
+        verify(scenarioMapper, never()).updateById(any(MfgScheduleScenario.class));
+    }
+
+    @Test
     void propagatesItemUpdateFailureForTransactionalRollback() throws NoSuchMethodException {
         when(scenarioMapper.selectOne(any())).thenReturn(calculatedScenario());
         when(itemMapper.selectList(any())).thenReturn(List.of(scheduledItem()));
