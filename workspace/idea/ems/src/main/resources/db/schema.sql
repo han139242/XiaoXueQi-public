@@ -333,7 +333,7 @@ CREATE TABLE `sys_event_outbox` (
 CREATE TABLE `sys_operation_log` (
   `log_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '日志主键。',
   `user_id` BIGINT UNSIGNED NULL COMMENT '操作用户。',
-  `operation_type` VARCHAR(32) NULL COMMENT '操作类型。',
+  `operation_type` VARCHAR(64) NULL COMMENT '操作类型。',
   `module_code` VARCHAR(64) NULL COMMENT '模块编码。',
   `biz_id` BIGINT UNSIGNED NULL COMMENT '业务 ID。',
   `request_ip` VARCHAR(64) NULL COMMENT '请求 IP。',
@@ -1391,8 +1391,10 @@ CREATE TABLE `wms_return_order` (
 CREATE TABLE `wms_return_detail` (
   `detail_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '明细主键。',
   `return_id` BIGINT UNSIGNED NULL COMMENT '退料单 ID。',
+  `outbound_detail_id` BIGINT UNSIGNED NULL COMMENT '来源生产领料明细 ID。',
   `material_id` BIGINT UNSIGNED NULL COMMENT '物料 ID。',
   `batch_id` BIGINT UNSIGNED NULL COMMENT '批次 ID。',
+  `location_id` BIGINT UNSIGNED NULL COMMENT '退回库位 ID，必须与来源领料明细一致。',
   `return_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '退回数量。',
   `return_reason` VARCHAR(255) NULL COMMENT '退回原因。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
@@ -1404,8 +1406,10 @@ CREATE TABLE `wms_return_detail` (
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`detail_id`),
   KEY `idx_wms_return_detail_return_id` (`return_id`),
+  KEY `idx_wms_return_detail_outbound_detail_id` (`outbound_detail_id`),
   KEY `idx_wms_return_detail_material_id` (`material_id`),
-  KEY `idx_wms_return_detail_batch_id` (`batch_id`)
+  KEY `idx_wms_return_detail_batch_id` (`batch_id`),
+  KEY `idx_wms_return_detail_location_id` (`location_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='退料/退库明细表';
 
 CREATE TABLE `wms_stocktake_order` (

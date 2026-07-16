@@ -740,7 +740,8 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             insertStatusLog("MFG_PRODUCTION_PLAN", plan.getPlanId(), plan.getStatus(),
                     BusinessStatus.Document.RELEASED, "REOPEN_PLAN_FOR_COMPENSATION",
                     operatorId, remark, now);
-        } else if (!BusinessStatus.Document.RELEASED.equals(plan.getStatus())) {
+        } else if (!List.of(BusinessStatus.Document.RELEASED, BusinessStatus.Production.RUNNING)
+                .contains(plan.getStatus())) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
                     "来源生产计划当前状态不允许生成补偿任务");
         }
@@ -768,7 +769,8 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             insertStatusLog("MFG_PRODUCTION_ORDER", order.getProductionOrderId(), order.getStatus(),
                     BusinessStatus.Document.RELEASED, "REOPEN_ORDER_FOR_COMPENSATION",
                     operatorId, remark, now);
-        } else if (!BusinessStatus.Document.RELEASED.equals(order.getStatus())) {
+        } else if (!List.of(BusinessStatus.Document.RELEASED, BusinessStatus.Production.RUNNING)
+                .contains(order.getStatus())) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
                     "来源生产订单当前状态不允许生成补偿任务");
         }

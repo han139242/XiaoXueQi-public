@@ -926,6 +926,13 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         if (task == null || task.getWorkOrderId() == null) {
             throw business(ResultCode.BUSINESS_ERROR, "报工未关联有效工单，不能登记实际用料");
         }
+        MfgWorkOrder workOrder = mfgWorkOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, task.getWorkOrderId())
+                .eq(MfgWorkOrder::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (workOrder == null || BusinessStatus.Document.CLOSED.equals(workOrder.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "报工关联的生产工单不存在或已关闭");
+        }
         Map<String, BigDecimal> requested = new HashMap<>();
         for (MfgReportMaterial material : materials) {
             BigDecimal used = zero(material.getUsedQuantity());
@@ -963,7 +970,7 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
                             .eq(WmsReturnDetail::getDeletedFlag, 0)
                             .inSql(WmsReturnDetail::getReturnId,
                                     "SELECT return_id FROM wms_return_order WHERE deleted_flag = 0 "
-                                            + "AND audit_status = 'APPROVED' AND work_order_id = "
+                                            + "AND audit_status IN ('SUBMITTED','APPROVED') AND work_order_id = "
                                             + task.getWorkOrderId()))
                     .stream().map(WmsReturnDetail::getReturnQuantity).map(this::zero)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);

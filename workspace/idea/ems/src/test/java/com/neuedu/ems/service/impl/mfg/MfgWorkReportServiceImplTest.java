@@ -491,6 +491,7 @@ class MfgWorkReportServiceImplTest {
         batch.setBatchId(12L);
         batch.setMaterialId(11L);
         when(materialBatchMapper.selectOne(any())).thenReturn(batch);
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
         WmsOutboundDetail issued = new WmsOutboundDetail();
         issued.setMaterialId(11L);
         issued.setBatchId(12L);

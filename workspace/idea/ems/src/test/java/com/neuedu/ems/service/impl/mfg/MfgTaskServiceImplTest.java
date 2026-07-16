@@ -397,6 +397,25 @@ class MfgTaskServiceImplTest {
     }
 
     @Test
+    void compensationAcceptsParentsAlreadyRunningWithoutRedundantStatusUpdates() {
+        MfgProductionPlan plan = new MfgProductionPlan();
+        plan.setPlanId(7L);
+        plan.setProductionOrderId(8L);
+        plan.setStatus(BusinessStatus.Production.RUNNING);
+        MfgProductionOrder order = new MfgProductionOrder();
+        order.setProductionOrderId(8L);
+        order.setStatus(BusinessStatus.Production.RUNNING);
+        when(productionPlanMapper.selectOne(any())).thenReturn(plan);
+        when(productionOrderMapper.selectOne(any())).thenReturn(order);
+
+        ReflectionTestUtils.invokeMethod(service, "reopenPlanAndOrderForCompensation",
+                7L, 9L, "运行中补偿", java.time.LocalDateTime.now());
+
+        verify(productionPlanMapper, never()).updateById(any(MfgProductionPlan.class));
+        verify(productionOrderMapper, never()).updateById(any(MfgProductionOrder.class));
+    }
+
+    @Test
     void controlledCloseRejectsPendingReportBeforeAnyMutation() {
         MfgTask source = task(BusinessStatus.Production.RUNNING);
         when(taskMapper.selectOne(any())).thenReturn(source);
