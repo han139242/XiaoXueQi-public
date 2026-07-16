@@ -3,7 +3,10 @@ package com.neuedu.ems.controller.mdm;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.common.ResultData;
+import com.neuedu.ems.dto.mdm.MdmCustomerRequest;
+import com.neuedu.ems.dto.mdm.MdmCustomerView;
 import com.neuedu.ems.entity.mdm.MdmCustomer;
+import com.neuedu.ems.security.phone.SensitivePhoneDtoMapper;
 import com.neuedu.ems.service.mdm.MdmCustomerService;
 import com.neuedu.ems.util.ExcelExportUtil;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,6 +33,9 @@ public class MdmCustomerController {
     @Autowired
     private ExcelExportUtil excelExportUtil;
 
+    @Autowired
+    private SensitivePhoneDtoMapper sensitivePhoneDtoMapper;
+
     /**
      * 分页查询客户列表。
      */
@@ -38,8 +44,8 @@ public class MdmCustomerController {
                            @RequestParam(defaultValue = "10") Integer size,
                            @RequestParam(required = false) String keyword,
                            @RequestParam(required = false) String status) {
-        Page<MdmCustomer> result = mdmCustomerService.pageCustomers(current, size, keyword, status);
-        return ResultData.success(ResultCode.SUCCESS, result);
+        return ResultData.success(ResultCode.SUCCESS,
+                toViewPage(mdmCustomerService.pageCustomers(current, size, keyword, status)));
     }
 
     /**
@@ -48,15 +54,15 @@ public class MdmCustomerController {
     @GetMapping("/{customerId}")
     public ResultData getCustomer(@PathVariable("customerId") Long id) {
         MdmCustomer customer = mdmCustomerService.getCustomerById(id);
-        return ResultData.success(ResultCode.SUCCESS, customer);
+        return ResultData.success(ResultCode.SUCCESS, sensitivePhoneDtoMapper.toView(customer));
     }
 
     /**
      * 新增客户。
      */
     @PostMapping
-    public ResultData save(@RequestBody MdmCustomer customer) {
-        boolean flag = mdmCustomerService.saveCustomer(customer);
+    public ResultData save(@RequestBody MdmCustomerRequest customer) {
+        boolean flag = mdmCustomerService.saveCustomer(sensitivePhoneDtoMapper.toEntity(customer), customer.getContactPhone());
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -64,8 +70,8 @@ public class MdmCustomerController {
      * 更新客户。
      */
     @PutMapping
-    public ResultData update(@RequestBody MdmCustomer customer) {
-        boolean flag = mdmCustomerService.updateCustomer(customer);
+    public ResultData update(@RequestBody MdmCustomerRequest customer) {
+        boolean flag = mdmCustomerService.updateCustomer(sensitivePhoneDtoMapper.toEntity(customer), customer.getContactPhone());
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -85,7 +91,15 @@ public class MdmCustomerController {
     public void excel(HttpServletResponse response,
                       @RequestParam(required = false) String keyword,
                       @RequestParam(required = false) String status) {
-        List<MdmCustomer> customers = mdmCustomerService.listCustomers(keyword, status);
-        excelExportUtil.exportExcel(response, customers, MdmCustomer.class, "客户列表", "客户列表");
+        List<MdmCustomerView> customers = mdmCustomerService.listCustomers(keyword, status).stream()
+                .map(sensitivePhoneDtoMapper::toView)
+                .toList();
+        excelExportUtil.exportExcel(response, customers, MdmCustomerView.class, "客户列表", "客户列表");
+    }
+
+    private Page<MdmCustomerView> toViewPage(Page<MdmCustomer> source) {
+        Page<MdmCustomerView> page = new Page<>(source.getCurrent(), source.getSize(), source.getTotal());
+        page.setRecords(source.getRecords().stream().map(sensitivePhoneDtoMapper::toView).toList());
+        return page;
     }
 }

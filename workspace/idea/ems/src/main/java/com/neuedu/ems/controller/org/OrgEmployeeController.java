@@ -3,7 +3,10 @@ package com.neuedu.ems.controller.org;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.common.ResultData;
+import com.neuedu.ems.dto.org.OrgEmployeeRequest;
+import com.neuedu.ems.dto.org.OrgEmployeeView;
 import com.neuedu.ems.entity.org.OrgEmployee;
+import com.neuedu.ems.security.phone.SensitivePhoneDtoMapper;
 import com.neuedu.ems.service.org.OrgEmployeeService;
 import com.neuedu.ems.util.ExcelExportUtil;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,6 +33,9 @@ public class OrgEmployeeController {
     @Autowired
     private ExcelExportUtil excelExportUtil;
 
+    @Autowired
+    private SensitivePhoneDtoMapper sensitivePhoneDtoMapper;
+
     /**
      * 分页查询员工列表。
      */
@@ -39,8 +45,8 @@ public class OrgEmployeeController {
                            @RequestParam(required = false) String keyword,
                            @RequestParam(required = false) Long departmentId,
                            @RequestParam(required = false) String status) {
-        Page<OrgEmployee> result = orgEmployeeService.pageEmployees(current, size, keyword, departmentId, status);
-        return ResultData.success(ResultCode.SUCCESS, result);
+        return ResultData.success(ResultCode.SUCCESS,
+                toViewPage(orgEmployeeService.pageEmployees(current, size, keyword, departmentId, status)));
     }
 
     /**
@@ -49,15 +55,15 @@ public class OrgEmployeeController {
     @GetMapping("/{employeeId}")
     public ResultData getEmployee(@PathVariable("employeeId") Long id) {
         OrgEmployee employee = orgEmployeeService.getEmployeeById(id);
-        return ResultData.success(ResultCode.SUCCESS, employee);
+        return ResultData.success(ResultCode.SUCCESS, sensitivePhoneDtoMapper.toView(employee));
     }
 
     /**
      * 新增员工。
      */
     @PostMapping
-    public ResultData save(@RequestBody OrgEmployee employee) {
-        boolean flag = orgEmployeeService.saveEmployee(employee);
+    public ResultData save(@RequestBody OrgEmployeeRequest employee) {
+        boolean flag = orgEmployeeService.saveEmployee(sensitivePhoneDtoMapper.toEntity(employee), employee.getPhone());
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -65,8 +71,8 @@ public class OrgEmployeeController {
      * 更新员工。
      */
     @PutMapping
-    public ResultData update(@RequestBody OrgEmployee employee) {
-        boolean flag = orgEmployeeService.updateEmployee(employee);
+    public ResultData update(@RequestBody OrgEmployeeRequest employee) {
+        boolean flag = orgEmployeeService.updateEmployee(sensitivePhoneDtoMapper.toEntity(employee), employee.getPhone());
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -87,7 +93,15 @@ public class OrgEmployeeController {
                       @RequestParam(required = false) String keyword,
                       @RequestParam(required = false) Long departmentId,
                       @RequestParam(required = false) String status) {
-        List<OrgEmployee> employees = orgEmployeeService.listEmployees(keyword, departmentId, status);
-        excelExportUtil.exportExcel(response, employees, OrgEmployee.class, "员工列表", "员工列表");
+        List<OrgEmployeeView> employees = orgEmployeeService.listEmployees(keyword, departmentId, status).stream()
+                .map(sensitivePhoneDtoMapper::toView)
+                .toList();
+        excelExportUtil.exportExcel(response, employees, OrgEmployeeView.class, "员工列表", "员工列表");
+    }
+
+    private Page<OrgEmployeeView> toViewPage(Page<OrgEmployee> source) {
+        Page<OrgEmployeeView> page = new Page<>(source.getCurrent(), source.getSize(), source.getTotal());
+        page.setRecords(source.getRecords().stream().map(sensitivePhoneDtoMapper::toView).toList());
+        return page;
     }
 }

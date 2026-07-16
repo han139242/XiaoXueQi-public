@@ -15,6 +15,7 @@ export default [
     overrides: {
       employeeNo: { required: true }, employeeName: { required: true }, departmentId: { required: true },
       skillLevel: { type: 'select', options: values([['BEGINNER', '初级', 'info'], ['INTERMEDIATE', '中级', 'primary'], ['ADVANCED', '高级', 'success'], ['EXPERT', '专家', 'warning']]) },
+      phone: { type: 'tel', writePermission: 'org:employee:phone:write' },
       status: { type: 'select', options: optionSets.employeeStatus }, createdTime: { form: false, width: 170 }
     }
   }),

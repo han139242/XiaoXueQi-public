@@ -98,7 +98,10 @@ const formFields = computed(() => config.value.fields.filter((item) => {
   if (formMode.value === 'create' && item.create === false) return false
   if (formMode.value === 'edit' && item.edit === false) return false
   return true
-}))
+}).map((item) => ({
+  ...item,
+  disabled: item.disabled || Boolean(item.writePermission && !hasPermission(item.writePermission))
+})))
 // 根据新增或编辑模式生成弹窗标题。
 const formTitle = computed(() => `${formMode.value === 'create' ? '新增' : '编辑'}${config.value.title.replace('管理', '')}`)
 // fullChild存在时取得子表资源配置，否则当前资源没有一体化子表。
@@ -645,13 +648,17 @@ function validateChildren() {
 // 只保留后端允许提交的表单字段，并在需要时附带version和子表数组。
 function submitPayload() {
   const allowed = new Set([...formFields.value.map((item) => item.prop), config.value.idField])
+  const protectedReadOnlyFields = new Set(formFields.value
+    .filter((item) => item.writePermission && item.disabled)
+    .map((item) => item.prop))
   if (formMode.value === 'edit' && formModel.value.version !== null && formModel.value.version !== undefined) {
     allowed.add('version')
   }
   if (formMode.value === 'create') {
     Object.keys(config.value.defaults || {}).forEach((key) => allowed.add(key))
   }
-  const payload = Object.fromEntries(Object.entries(formModel.value).filter(([key]) => allowed.has(key)))
+  const payload = Object.fromEntries(Object.entries(formModel.value)
+    .filter(([key]) => allowed.has(key) && !protectedReadOnlyFields.has(key)))
   if (config.value.fullChild) {
     payload[config.value.fullChild.property] = childRows.value.map(({ _clientId, ...item }) => item)
   }
@@ -1092,6 +1099,7 @@ onMounted(initialize)
       </div>
 
       <el-table
+        v-live-column-resize
         ref="mainTableRef"
         v-loading="loading"
         :data="rows"
@@ -1200,6 +1208,7 @@ onMounted(initialize)
           <el-button type="danger" plain size="small" @click="loadMasterDetail(selectedRow)"><AppIcon name="refresh" :size="14" />重新加载</el-button>
         </div>
         <el-table
+          v-live-column-resize
           v-loading="detailLoading"
           :data="detailRows"
           :row-key="detailResourceConfig.idField"
@@ -1251,7 +1260,7 @@ onMounted(initialize)
 
           <section v-if="config.fullChild" class="child-editor">
             <div class="child-editor-head"><div><strong>{{ config.fullChild.title }}</strong><span>{{ childRows.length }} 条</span></div><el-button v-if="formMode !== 'view'" type="primary" plain @click="addChild"><AppIcon name="plus" :size="15" />添加明细</el-button></div>
-            <el-table :data="childRows" border size="small" empty-text="暂无明细">
+            <el-table v-live-column-resize :data="childRows" border size="small" empty-text="暂无明细">
               <el-table-column type="index" width="48" align="center" />
               <el-table-column v-for="item in childFields" :key="item.prop" :label="item.label" :min-width="item.type === 'textarea' ? 180 : 145">
                 <template #default="scope">
@@ -1293,7 +1302,7 @@ onMounted(initialize)
         <main class="drawer-content trace-content">
           <section v-for="([key, value]) in traceEntries" :key="key" class="trace-section">
             <h3>{{ key }}</h3>
-            <el-table v-if="Array.isArray(value)" :data="value" border size="small"><el-table-column v-for="column in Object.keys(value[0] || {})" :key="column" :prop="column" :label="column" min-width="120" show-overflow-tooltip /></el-table>
+            <el-table v-if="Array.isArray(value)" v-live-column-resize :data="value" border size="small"><el-table-column v-for="column in Object.keys(value[0] || {})" :key="column" :prop="column" :label="column" min-width="120" show-overflow-tooltip /></el-table>
             <el-descriptions v-else-if="value && typeof value === 'object'" :column="1" border><el-descriptions-item v-for="(childValue, childKey) in value" :key="childKey" :label="childKey">{{ typeof childValue === 'object' ? JSON.stringify(childValue) : childValue }}</el-descriptions-item></el-descriptions>
             <p v-else>{{ value ?? '--' }}</p>
           </section>

@@ -3,7 +3,10 @@ package com.neuedu.ems.controller.mdm;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.common.ResultData;
+import com.neuedu.ems.dto.mdm.MdmSupplierRequest;
+import com.neuedu.ems.dto.mdm.MdmSupplierView;
 import com.neuedu.ems.entity.mdm.MdmSupplier;
+import com.neuedu.ems.security.phone.SensitivePhoneDtoMapper;
 import com.neuedu.ems.service.mdm.MdmSupplierService;
 import com.neuedu.ems.util.ExcelExportUtil;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,6 +33,9 @@ public class MdmSupplierController {
     @Autowired
     private ExcelExportUtil excelExportUtil;
 
+    @Autowired
+    private SensitivePhoneDtoMapper sensitivePhoneDtoMapper;
+
     /**
      * 分页查询供应商列表。
      */
@@ -38,8 +44,8 @@ public class MdmSupplierController {
                            @RequestParam(defaultValue = "10") Integer size,
                            @RequestParam(required = false) String keyword,
                            @RequestParam(required = false) String status) {
-        Page<MdmSupplier> result = mdmSupplierService.pageSuppliers(current, size, keyword, status);
-        return ResultData.success(ResultCode.SUCCESS, result);
+        return ResultData.success(ResultCode.SUCCESS,
+                toViewPage(mdmSupplierService.pageSuppliers(current, size, keyword, status)));
     }
 
     /**
@@ -48,15 +54,15 @@ public class MdmSupplierController {
     @GetMapping("/{supplierId}")
     public ResultData getSupplier(@PathVariable("supplierId") Long id) {
         MdmSupplier supplier = mdmSupplierService.getSupplierById(id);
-        return ResultData.success(ResultCode.SUCCESS, supplier);
+        return ResultData.success(ResultCode.SUCCESS, sensitivePhoneDtoMapper.toView(supplier));
     }
 
     /**
      * 新增供应商。
      */
     @PostMapping
-    public ResultData save(@RequestBody MdmSupplier supplier) {
-        boolean flag = mdmSupplierService.saveSupplier(supplier);
+    public ResultData save(@RequestBody MdmSupplierRequest supplier) {
+        boolean flag = mdmSupplierService.saveSupplier(sensitivePhoneDtoMapper.toEntity(supplier), supplier.getContactPhone());
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -64,8 +70,8 @@ public class MdmSupplierController {
      * 更新供应商。
      */
     @PutMapping
-    public ResultData update(@RequestBody MdmSupplier supplier) {
-        boolean flag = mdmSupplierService.updateSupplier(supplier);
+    public ResultData update(@RequestBody MdmSupplierRequest supplier) {
+        boolean flag = mdmSupplierService.updateSupplier(sensitivePhoneDtoMapper.toEntity(supplier), supplier.getContactPhone());
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -85,7 +91,15 @@ public class MdmSupplierController {
     public void excel(HttpServletResponse response,
                       @RequestParam(required = false) String keyword,
                       @RequestParam(required = false) String status) {
-        List<MdmSupplier> suppliers = mdmSupplierService.listSuppliers(keyword, status);
-        excelExportUtil.exportExcel(response, suppliers, MdmSupplier.class, "供应商列表", "供应商列表");
+        List<MdmSupplierView> suppliers = mdmSupplierService.listSuppliers(keyword, status).stream()
+                .map(sensitivePhoneDtoMapper::toView)
+                .toList();
+        excelExportUtil.exportExcel(response, suppliers, MdmSupplierView.class, "供应商列表", "供应商列表");
+    }
+
+    private Page<MdmSupplierView> toViewPage(Page<MdmSupplier> source) {
+        Page<MdmSupplierView> page = new Page<>(source.getCurrent(), source.getSize(), source.getTotal());
+        page.setRecords(source.getRecords().stream().map(sensitivePhoneDtoMapper::toView).toList());
+        return page;
     }
 }

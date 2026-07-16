@@ -1,10 +1,14 @@
 package com.neuedu.ems.service.impl.org;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.org.OrgEmployee;
 import com.neuedu.ems.mapper.org.OrgEmployeeMapper;
+import com.neuedu.ems.security.phone.PhoneWriteValue;
+import com.neuedu.ems.security.phone.SensitivePhoneField;
+import com.neuedu.ems.security.phone.SensitivePhoneService;
 import com.neuedu.ems.service.org.OrgEmployeeService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -32,19 +36,30 @@ public class OrgEmployeeServiceImpl extends ServiceImpl<OrgEmployeeMapper, OrgEm
     }
 
     @Override
-    public boolean saveEmployee(OrgEmployee employee) {
+    public boolean saveEmployee(OrgEmployee employee, String rawPhone) {
         if (employee.getDeletedFlag() == null) {
             employee.setDeletedFlag(0);
         }
+        applyPhone(employee, sensitivePhoneService.prepareCreate(SensitivePhoneField.EMPLOYEE, rawPhone));
         return baseMapper.insert(employee) > 0;
     }
 
     @Override
-    public boolean updateEmployee(OrgEmployee employee) {
+    public boolean updateEmployee(OrgEmployee employee, String rawPhone) {
         if (employee.getEmployeeId() == null) {
             return false;
         }
+        PhoneWriteValue phoneWrite = sensitivePhoneService.prepareUpdate(SensitivePhoneField.EMPLOYEE, rawPhone);
+        applyPhone(employee, phoneWrite);
         employee.setDeletedFlag(null);
+        if (phoneWrite.clear()) {
+            UpdateWrapper<OrgEmployee> wrapper = new UpdateWrapper<OrgEmployee>()
+                    .eq("employee_id", employee.getEmployeeId())
+                    .eq("deleted_flag", 0)
+                    .set("phone", null)
+                    .set("phone_lookup_hash", null);
+            return baseMapper.update(employee, wrapper) > 0;
+        }
         return baseMapper.updateById(employee) > 0;
     }
 
@@ -65,11 +80,12 @@ public class OrgEmployeeServiceImpl extends ServiceImpl<OrgEmployeeMapper, OrgEm
         QueryWrapper<OrgEmployee> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted_flag", 0);
         if (StringUtils.hasText(keyword)) {
+            String phoneLookupHash = sensitivePhoneService.lookupHash(keyword).orElse(null);
             wrapper.and(item -> item.like("employee_no", keyword)
                     .or()
                     .like("employee_name", keyword)
-                    .or()
-                    .like("phone", keyword));
+                    .or(phoneLookupHash != null)
+                    .eq(phoneLookupHash != null, "phone_lookup_hash", phoneLookupHash));
         }
         if (departmentId != null) {
             wrapper.eq("department_id", departmentId);
@@ -79,5 +95,16 @@ public class OrgEmployeeServiceImpl extends ServiceImpl<OrgEmployeeMapper, OrgEm
         }
         wrapper.orderByDesc("employee_id");
         return wrapper;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private SensitivePhoneService sensitivePhoneService;
+
+    private void applyPhone(OrgEmployee employee, PhoneWriteValue phoneWrite) {
+        if (!phoneWrite.changed() || phoneWrite.clear()) {
+            return;
+        }
+        employee.setPhone(phoneWrite.encryptedValue());
+        employee.setPhoneLookupHash(phoneWrite.lookupHash());
     }
 }

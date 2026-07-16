@@ -1,6 +1,7 @@
 package com.neuedu.ems.config;
 
 import com.neuedu.ems.entity.sys.SysUser;
+import com.neuedu.ems.PhoneCryptoTestProperties;
 import com.neuedu.ems.exception.OptimisticLockConflictException;
 import com.neuedu.ems.mapper.sys.SysUserMapper;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@SpringBootTest(properties = "mes.notification.scheduling-enabled=false")
+@SpringBootTest(properties = {
+        "mes.notification.scheduling-enabled=false",
+        PhoneCryptoTestProperties.ACTIVE_KEY,
+        PhoneCryptoTestProperties.KEY_IDS,
+        PhoneCryptoTestProperties.ENCRYPTION_KEY,
+        PhoneCryptoTestProperties.LOOKUP_HMAC_KEY
+})
 @Transactional
 @EnabledIfEnvironmentVariable(named = "DB_URL", matches = ".+")
 class OptimisticLockIntegrationTest {

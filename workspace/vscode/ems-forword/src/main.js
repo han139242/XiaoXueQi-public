@@ -10,6 +10,7 @@ import App from './App.vue'
 // router 管理 URL 与 Vue 页面之间的对应关系。
 import router from './router'
 import { initTheme } from './utils/theme'
+import liveColumnResize from './directives/live-column-resize'
 
 // 先读取并应用用户保存的主题，避免页面出现主题闪烁。
 initTheme()
@@ -20,6 +21,8 @@ const app = createApp(App)
 // use() 用于安装全局插件：router 提供路由，ElementPlus 提供 UI 组件。
 app.use(router)
 app.use(ElementPlus, { locale: zhCn })
+
+app.directive('live-column-resize', liveColumnResize)
 
 // 把 Vue 应用挂载到 index.html 中 <div id="app"></div> 的位置。
 // CSS 选择器中“#”表示按 id 查找，所以 #app 表示 id="app" 的元素。

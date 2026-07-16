@@ -92,7 +92,7 @@ defineProps({
   <el-input
     v-else
     v-model="model"
-    :type="field.type === 'password' ? 'password' : 'text'"
+    :type="field.type === 'password' ? 'password' : field.type === 'tel' ? 'tel' : 'text'"
     :show-password="field.type === 'password'"
     :maxlength="field.maxLength || 255"
     clearable

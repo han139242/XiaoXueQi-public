@@ -15,9 +15,9 @@ public interface MdmSupplierService extends IService<MdmSupplier> {
 
     MdmSupplier getSupplierById(Long supplierId);
 
-    boolean saveSupplier(MdmSupplier supplier);
+    boolean saveSupplier(MdmSupplier supplier, String rawContactPhone);
 
-    boolean updateSupplier(MdmSupplier supplier);
+    boolean updateSupplier(MdmSupplier supplier, String rawContactPhone);
 
     boolean removeSupplierById(Long supplierId);
 

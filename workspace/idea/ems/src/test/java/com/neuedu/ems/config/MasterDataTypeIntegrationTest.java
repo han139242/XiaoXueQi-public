@@ -1,6 +1,7 @@
 package com.neuedu.ems.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.neuedu.ems.PhoneCryptoTestProperties;
 import com.neuedu.ems.entity.org.OrgShift;
 import com.neuedu.ems.entity.process.ProcessOperation;
 import com.neuedu.ems.entity.process.ProcessRouteItem;
@@ -19,7 +20,13 @@ import java.time.LocalTime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest(properties = "mes.notification.scheduling-enabled=false")
+@SpringBootTest(properties = {
+        "mes.notification.scheduling-enabled=false",
+        PhoneCryptoTestProperties.ACTIVE_KEY,
+        PhoneCryptoTestProperties.KEY_IDS,
+        PhoneCryptoTestProperties.ENCRYPTION_KEY,
+        PhoneCryptoTestProperties.LOOKUP_HMAC_KEY
+})
 @Transactional
 @EnabledIfEnvironmentVariable(named = "DB_URL", matches = ".+")
 class MasterDataTypeIntegrationTest {

@@ -417,7 +417,8 @@ CREATE TABLE `org_employee` (
   `department_id` BIGINT UNSIGNED NULL COMMENT '所属部门。',
   `position_name` VARCHAR(128) NULL COMMENT '岗位名称。',
   `skill_level` VARCHAR(64) NULL COMMENT '技能等级。',
-  `phone` VARCHAR(64) NULL COMMENT '联系方式。',
+  `phone` VARCHAR(255) NULL COMMENT '联系方式 AES-GCM 密文。',
+  `phone_lookup_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL COMMENT '联系电话 HMAC-SHA-256 精确检索哈希。',
   `status` VARCHAR(32) NULL COMMENT 'ENABLE:在职，RESIGNED:离职，DISABLE:停用。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
@@ -428,7 +429,8 @@ CREATE TABLE `org_employee` (
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`employee_id`),
   UNIQUE KEY `uk_org_employee_employee_no` (`employee_no`),
-  KEY `idx_org_employee_department_id` (`department_id`)
+  KEY `idx_org_employee_department_id` (`department_id`),
+  KEY `idx_org_employee_phone_lookup_hash` (`phone_lookup_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='员工表';
 
 CREATE TABLE `org_team` (
@@ -504,7 +506,8 @@ CREATE TABLE `mdm_supplier` (
   `supplier_code` VARCHAR(64) NULL COMMENT '供应商编码。',
   `supplier_name` VARCHAR(128) NULL COMMENT '供应商名称。',
   `contact_name` VARCHAR(128) NULL COMMENT '联系人。',
-  `contact_phone` VARCHAR(64) NULL COMMENT '联系电话。',
+  `contact_phone` VARCHAR(255) NULL COMMENT '联系电话 AES-GCM 密文。',
+  `contact_phone_lookup_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL COMMENT '联系电话 HMAC-SHA-256 精确检索哈希。',
   `status` VARCHAR(32) NULL COMMENT 'ENABLE:合作中，DISABLE:停止合作。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
@@ -514,7 +517,8 @@ CREATE TABLE `mdm_supplier` (
   `updated_time` DATETIME NULL COMMENT '更新时间',
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`supplier_id`),
-  UNIQUE KEY `uk_mdm_supplier_supplier_code` (`supplier_code`)
+  UNIQUE KEY `uk_mdm_supplier_supplier_code` (`supplier_code`),
+  KEY `idx_mdm_supplier_contact_phone_lookup_hash` (`contact_phone_lookup_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='供应商表';
 
 CREATE TABLE `mdm_customer` (
@@ -522,7 +526,8 @@ CREATE TABLE `mdm_customer` (
   `customer_code` VARCHAR(64) NULL COMMENT '客户编码。',
   `customer_name` VARCHAR(128) NULL COMMENT '客户名称。',
   `contact_name` VARCHAR(128) NULL COMMENT '联系人。',
-  `contact_phone` VARCHAR(64) NULL COMMENT '联系电话。',
+  `contact_phone` VARCHAR(255) NULL COMMENT '联系电话 AES-GCM 密文。',
+  `contact_phone_lookup_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL COMMENT '联系电话 HMAC-SHA-256 精确检索哈希。',
   `status` VARCHAR(32) NULL COMMENT 'ENABLE:启用，DISABLE:停用。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
@@ -532,7 +537,8 @@ CREATE TABLE `mdm_customer` (
   `updated_time` DATETIME NULL COMMENT '更新时间',
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`customer_id`),
-  UNIQUE KEY `uk_mdm_customer_customer_code` (`customer_code`)
+  UNIQUE KEY `uk_mdm_customer_customer_code` (`customer_code`),
+  KEY `idx_mdm_customer_contact_phone_lookup_hash` (`contact_phone_lookup_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='客户表';
 
 CREATE TABLE `mdm_material_category` (

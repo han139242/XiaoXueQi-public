@@ -2,6 +2,27 @@
 import { domainDefinitions, getDomainResources } from '@/config/resources'
 import { hasPermission, resourcePermission } from '@/utils/permission'
 
+const mfgNavigationOrder = new Map([
+  'mfg-production-order',
+  'mfg-production-plan',
+  'mfg-work-order',
+  'mfg-dispatch-order',
+  'mfg-task',
+  'mfg-work-report',
+  'mfg-exception',
+  'mfg-andon-alert',
+  'mfg-line-product-capability',
+  'mfg-line-calendar-rule'
+].map((key, index) => [key, index]))
+
+function orderedDomainResources(domain) {
+  const resources = getDomainResources(domain)
+  if (domain !== 'mfg') return resources
+  return [...resources].sort((left, right) =>
+    (mfgNavigationOrder.get(left.key) ?? Number.MAX_SAFE_INTEGER)
+    - (mfgNavigationOrder.get(right.key) ?? Number.MAX_SAFE_INTEGER))
+}
+
 // 将某个业务域下的资源配置转换成可点击菜单项。
 function domainEntries(domain) {
   // 智能排产是独立开发的特殊页面，因此在mfg模块中额外加入。
@@ -10,7 +31,7 @@ function domainEntries(domain) {
     : []
   return [
     ...specialEntries,
-    ...getDomainResources(domain).map((resource) => ({
+    ...orderedDomainResources(domain).map((resource) => ({
       label: resource.title,
       icon: resource.icon,
       path: resource.routePath,
