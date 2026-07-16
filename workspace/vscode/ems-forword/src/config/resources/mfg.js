@@ -114,10 +114,18 @@ export default [
         key: 'materials', title: '用料需求', resource: 'mfg-work-order-material', parentField: 'workOrderId',
         endpoint: (row) => `/api/mfg/work-order-material/work-order/${row.workOrderId}`,
         label: (row) => row.workOrderNo || `生产工单 #${row.workOrderId}`
+      },
+      {
+        key: 'materialIssues', title: '生产领料', resource: 'wms-outbound-order', parentField: 'workOrderId',
+        endpoint: () => '/api/wms/outbound-order/page',
+        params: (row) => ({ current: 1, size: 100, workOrderId: row.workOrderId, outboundType: 'MATERIAL_ISSUE' }),
+        label: (row) => row.workOrderNo || `生产工单 #${row.workOrderId}`
       }
     ],
     actions: [
       { key: 'release', label: '下达工单', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-order/${row.workOrderId}/release`, visible: (row) => ['DRAFT', 'APPROVED'].includes(row.status), fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) },
+      { key: 'generate-material-issue', label: '发起领料', icon: 'package', method: 'post', type: 'primary', path: (row) => `/api/mfg/work-order/${row.workOrderId}/generate-material-issue`, visible: (row) => ['RELEASED', 'RUNNING'].includes(row.status), fields: [field('warehouseId', { required: true, type: 'reference', reference: 'wms-warehouse' }), field('remark', { type: 'textarea' })], successNavigate: { targetResource: 'wms-outbound-order', query: (data, row) => ({ workOrderId: row.workOrderId, outboundType: 'MATERIAL_ISSUE', focus: data?.outboundId, from: row.workOrderNo }) } },
+      { key: 'view-material-issues', label: '领料详情', icon: 'arrow', kind: 'navigate', detailKey: 'materialIssues', detailCount: 'positive', targetResource: 'wms-outbound-order', query: (row) => ({ workOrderId: row.workOrderId, outboundType: 'MATERIAL_ISSUE', from: row.workOrderNo }) },
       { key: 'generate-dispatch', label: '生成派工单', icon: 'users', method: 'post', type: 'primary', detailKey: 'dispatches', detailCount: 'zero', path: (row) => `/api/mfg/dispatch-order/generate/${row.workOrderId}`, visible: (row) => row.status === 'RELEASED', fields: [field('teamId', { required: true, type: 'reference', reference: 'org-team' }), field('dueTime', { required: true, type: 'datetime' }), field('remark', { type: 'textarea' })] },
       { key: 'view-dispatches', label: '派工详情', icon: 'arrow', kind: 'navigate', detailKey: 'dispatches', detailCount: 'positive', targetResource: 'mfg-dispatch-order', query: (row) => ({ workOrderId: row.workOrderId, from: row.workOrderNo }) },
       { key: 'view-tasks', label: '生产任务详情', icon: 'arrow', kind: 'navigate', detailKey: 'tasks', detailCount: 'positive', targetResource: 'mfg-task', query: (row) => ({ workOrderId: row.workOrderId, from: row.workOrderNo }) },

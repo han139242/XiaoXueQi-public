@@ -62,6 +62,8 @@ public interface WmsOutboundOrderService extends IService<WmsOutboundOrder> {
      */
     Long saveOutboundOrderFull(WmsOutboundOrder outboundOrder, List<WmsOutboundDetail> details);
 
+    WmsOutboundOrder generateMaterialIssue(Long workOrderId, Long warehouseId, Long operatorId, String remark);
+
     /**
      * 更新出库单。
      * @param outboundOrder 出库单实体

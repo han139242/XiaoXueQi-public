@@ -7,21 +7,25 @@ import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
 import com.neuedu.ems.entity.wms.WmsInventory;
 import com.neuedu.ems.entity.wms.WmsMaterialBatch;
 import com.neuedu.ems.entity.wms.WmsOutboundDetail;
 import com.neuedu.ems.entity.wms.WmsOutboundOrder;
 import com.neuedu.ems.entity.wms.WmsStockMovement;
+import com.neuedu.ems.entity.wms.WmsWarehouse;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.wms.WmsInventoryMapper;
 import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.mapper.wms.WmsOutboundDetailMapper;
 import com.neuedu.ems.mapper.wms.WmsOutboundOrderMapper;
 import com.neuedu.ems.mapper.wms.WmsStockMovementMapper;
+import com.neuedu.ems.mapper.wms.WmsWarehouseMapper;
 import com.neuedu.ems.service.mfg.MfgDispatchOrderService;
 import com.neuedu.ems.service.wms.WmsOutboundOrderService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +35,9 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +56,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
     private static final Set<String> RELEASED_QUALITY_STATUSES = Set.of(
             BusinessStatus.Quality.PASS, BusinessStatus.Quality.CONCESSION);
     private static final Set<String> ISSUABLE_BATCH_STATUSES = Set.of("AVAILABLE", "ENABLE");
+    private static final DateTimeFormatter ISSUE_NUMBER_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     @Autowired
     private WmsOutboundDetailMapper wmsOutboundDetailMapper;
@@ -73,6 +81,12 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
 
     @Autowired
     private MfgWorkOrderMaterialMapper workOrderMaterialMapper;
+
+    @Autowired
+    private MfgWorkOrderMapper workOrderMapper;
+
+    @Autowired
+    private WmsWarehouseMapper wmsWarehouseMapper;
 
     @Autowired
     private MfgDispatchOrderService mfgDispatchOrderService;
@@ -110,6 +124,127 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
     public List<WmsOutboundOrder> listOutboundOrders(String keyword, String outboundType, Long warehouseId,
                                                      Long workOrderId, Long applicantId, String auditStatus) {
         return baseMapper.selectList(buildOutboundOrderQuery(keyword, outboundType, warehouseId, workOrderId, applicantId, auditStatus));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public WmsOutboundOrder generateMaterialIssue(Long workOrderId, Long warehouseId,
+                                                   Long operatorId, String remark) {
+        if (workOrderId == null || warehouseId == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "生产工单、领料仓库和操作人不能为空");
+        }
+        MfgWorkOrder workOrder = workOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, workOrderId)
+                .eq(MfgWorkOrder::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (workOrder == null) {
+            throw business(ResultCode.NOT_FOUND, "生产工单不存在或已删除");
+        }
+        if (!Set.of(BusinessStatus.Document.RELEASED, BusinessStatus.Production.RUNNING)
+                .contains(workOrder.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有已下达或生产中的工单可以发起领料");
+        }
+        WmsWarehouse warehouse = wmsWarehouseMapper.selectOne(new LambdaQueryWrapper<WmsWarehouse>()
+                .eq(WmsWarehouse::getWarehouseId, warehouseId)
+                .eq(WmsWarehouse::getStatus, BusinessStatus.Common.ENABLE)
+                .eq(WmsWarehouse::getDeletedFlag, 0));
+        if (warehouse == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "目标领料仓库不存在、已停用或已删除");
+        }
+        List<WmsOutboundOrder> pendingOrders = baseMapper.selectList(new LambdaQueryWrapper<WmsOutboundOrder>()
+                .eq(WmsOutboundOrder::getOutboundType, MATERIAL_ISSUE_TYPE)
+                .eq(WmsOutboundOrder::getWorkOrderId, workOrderId)
+                .eq(WmsOutboundOrder::getAuditStatus, SUBMITTED_STATUS)
+                .eq(WmsOutboundOrder::getDeletedFlag, 0));
+        if (pendingOrders.size() > 1) {
+            throw business(ResultCode.DATA_CONFLICT, "该工单存在多张待确认生产领料单，请先处理重复数据");
+        }
+        if (pendingOrders.size() == 1) {
+            return pendingOrders.get(0);
+        }
+        List<MfgWorkOrderMaterial> requirements = workOrderMaterialMapper.selectList(
+                new LambdaQueryWrapper<MfgWorkOrderMaterial>()
+                        .eq(MfgWorkOrderMaterial::getWorkOrderId, workOrderId)
+                        .eq(MfgWorkOrderMaterial::getDeletedFlag, 0)
+                        .orderByAsc(MfgWorkOrderMaterial::getRequirementId)
+                        .last("FOR UPDATE"));
+        Map<Long, BigDecimal> outstandingByMaterial = new LinkedHashMap<>();
+        for (MfgWorkOrderMaterial requirement : requirements) {
+            BigDecimal outstanding = zero(requirement.getRequiredQuantity())
+                    .subtract(zero(requirement.getIssuedQuantity())).max(BigDecimal.ZERO);
+            if (requirement.getMaterialId() != null && outstanding.signum() > 0) {
+                outstandingByMaterial.merge(requirement.getMaterialId(), outstanding, BigDecimal::add);
+            }
+        }
+        if (outstandingByMaterial.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "该工单物料已全部足额领用，无需重复发起领料");
+        }
+        List<WmsOutboundDetail> details = allocateMaterialIssueDetails(
+                warehouseId, outstandingByMaterial, workOrderId, operatorId);
+        if (details.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "目标仓库没有可用于该工单的已放行库存，不能生成领料单");
+        }
+        WmsOutboundOrder order = new WmsOutboundOrder();
+        order.setOutboundNo("MI-WO" + workOrderId + "-" + LocalDateTime.now().format(ISSUE_NUMBER_TIME));
+        order.setOutboundType(MATERIAL_ISSUE_TYPE);
+        order.setWarehouseId(warehouseId);
+        order.setWorkOrderId(workOrderId);
+        order.setApplicantId(operatorId);
+        order.setRemark(StringUtils.hasText(remark) ? remark.trim() : "从生产工单用料需求自动生成");
+        order.setCreatedBy(operatorId);
+        order.setUpdatedBy(operatorId);
+        saveOutboundOrderFull(order, details);
+        return order;
+    }
+
+    private List<WmsOutboundDetail> allocateMaterialIssueDetails(Long warehouseId,
+                                                                  Map<Long, BigDecimal> outstandingByMaterial,
+                                                                  Long workOrderId, Long operatorId) {
+        List<WmsOutboundDetail> details = new ArrayList<>();
+        for (Map.Entry<Long, BigDecimal> request : outstandingByMaterial.entrySet()) {
+            List<MaterialIssueSource> sources = new ArrayList<>();
+            List<WmsInventory> inventories = wmsInventoryMapper.selectList(new LambdaQueryWrapper<WmsInventory>()
+                    .eq(WmsInventory::getWarehouseId, warehouseId)
+                    .eq(WmsInventory::getMaterialId, request.getKey())
+                    .gt(WmsInventory::getAvailableQuantity, BigDecimal.ZERO)
+                    .eq(WmsInventory::getDeletedFlag, 0));
+            for (WmsInventory inventory : inventories) {
+                if (inventory.getBatchId() == null || inventory.getLocationId() == null) {
+                    continue;
+                }
+                WmsMaterialBatch batch = getActiveBatch(inventory.getBatchId());
+                if (batch != null && Objects.equals(batch.getMaterialId(), request.getKey())
+                        && RELEASED_QUALITY_STATUSES.contains(batch.getQualityStatus())
+                        && ISSUABLE_BATCH_STATUSES.contains(batch.getStatus())) {
+                    sources.add(new MaterialIssueSource(inventory, batch));
+                }
+            }
+            sources.sort(Comparator
+                    .comparing((MaterialIssueSource source) -> source.batch().getReceivedDate(),
+                            Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(source -> source.batch().getBatchId()));
+            BigDecimal remaining = request.getValue();
+            for (MaterialIssueSource source : sources) {
+                if (remaining.signum() <= 0) {
+                    break;
+                }
+                BigDecimal allocated = remaining.min(zero(source.inventory().getAvailableQuantity()));
+                if (allocated.signum() <= 0) {
+                    continue;
+                }
+                WmsOutboundDetail detail = new WmsOutboundDetail();
+                detail.setMaterialId(request.getKey());
+                detail.setBatchId(source.batch().getBatchId());
+                detail.setLocationId(source.inventory().getLocationId());
+                detail.setOutboundQuantity(allocated);
+                detail.setRemark("工单 " + workOrderId + " 按 FIFO 自动预分配");
+                detail.setCreatedBy(operatorId);
+                detail.setUpdatedBy(operatorId);
+                details.add(detail);
+                remaining = remaining.subtract(allocated);
+            }
+        }
+        return details;
     }
 
     /**
@@ -658,5 +793,8 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
 
     private record MaterialIssueUpdate(MfgWorkOrderMaterial requirement, BigDecimal issuedQuantity,
                                        BigDecimal shortageQuantity, String status) {
+    }
+
+    private record MaterialIssueSource(WmsInventory inventory, WmsMaterialBatch batch) {
     }
 }

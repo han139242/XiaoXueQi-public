@@ -26,6 +26,7 @@ const specialRules = [
   ['put', /^\/api\/mfg\/production-plan\/[^/]+\/release$/, 'mfg:production-plan:release'],
   ['put', /^\/api\/mfg\/production-plan\/[^/]+\/withdraw$/, 'mfg:production-plan:withdraw'],
   ['post', /^\/api\/mfg\/work-order\/generate\/[^/]+$/, 'mfg:work-order:generate'],
+  ['post', /^\/api\/mfg\/work-order\/[^/]+\/generate-material-issue$/, 'mfg:work-order:material-issue'],
   ['put', /^\/api\/mfg\/work-order\/[^/]+\/release$/, 'mfg:work-order:release'],
   ['put', /^\/api\/mfg\/work-order\/[^/]+\/withdraw$/, 'mfg:work-order:withdraw'],
   ['post', /^\/api\/mfg\/dispatch-order\/generate\/[^/]+$/, 'mfg:dispatch-order:generate'],

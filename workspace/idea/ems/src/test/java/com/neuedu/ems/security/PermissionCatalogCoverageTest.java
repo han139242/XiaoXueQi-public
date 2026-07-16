@@ -43,6 +43,8 @@ class PermissionCatalogCoverageTest {
             "sys:notification:ack",
             "sys:notification:audit");
 
+    private static final String WORK_ORDER_MATERIAL_ISSUE_PERMISSION = "mfg:work-order:material-issue";
+
     @Test
     void schedulingPermissionsExistInBaselineAndRepairMigration() throws IOException {
         String baseline = readResource("/db/renix_enterprise_system_baseline.sql");
@@ -75,6 +77,17 @@ class PermissionCatalogCoverageTest {
             assertTrue(baseline.contains(permission), () -> permission + " missing from enterprise baseline");
             assertTrue(migration.contains(permission), () -> permission + " missing from notification migration");
         }
+    }
+
+    @Test
+    void workOrderMaterialIssuePermissionExistsInBaselineAndMigration() throws IOException {
+        String baseline = readResource("/db/renix_enterprise_system_baseline.sql");
+        String migration = readResource("/db/work_order_material_issue_permission_v1.sql");
+
+        assertTrue(baseline.contains(WORK_ORDER_MATERIAL_ISSUE_PERMISSION),
+                () -> WORK_ORDER_MATERIAL_ISSUE_PERMISSION + " missing from enterprise baseline");
+        assertTrue(migration.contains(WORK_ORDER_MATERIAL_ISSUE_PERMISSION),
+                () -> WORK_ORDER_MATERIAL_ISSUE_PERMISSION + " missing from permission migration");
     }
 
     private boolean baselineContainsGeneratedPermission(String baseline, String permission) {
