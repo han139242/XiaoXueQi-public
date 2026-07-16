@@ -159,15 +159,28 @@ class MfgTaskServiceImplTest {
         when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.RUNNING));
         when(taskMapper.update(any(MfgTask.class), any())).thenReturn(1);
         when(workReportMapper.selectList(any())).thenReturn(List.of(
-                report("10", "1", BusinessStatus.Document.APPROVED)));
+                report("99", "1", BusinessStatus.Document.APPROVED)));
 
         assertTrue(service.finishTask(1L, null, null, "完成", 9L));
 
         ArgumentCaptor<MfgTask> update = ArgumentCaptor.forClass(MfgTask.class);
         verify(taskMapper).update(update.capture(), any());
         assertEquals(BusinessStatus.Production.FINISHED, update.getValue().getStatus());
-        assertEquals(BigDecimal.TEN, update.getValue().getCompletedQuantity());
+        assertEquals(new BigDecimal("99"), update.getValue().getCompletedQuantity());
         assertEquals(BigDecimal.ONE, update.getValue().getDefectQuantity());
+    }
+
+    @Test
+    void finishRejectsPartialReportedQuantityWithoutControlledEarlyClose() {
+        when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.RUNNING));
+        when(workReportMapper.selectList(any())).thenReturn(List.of(
+                report("10", "1", BusinessStatus.Document.APPROVED)));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.finishTask(1L, null, null, null, 9L));
+
+        assertTrue(exception.getMessage().contains("尚有 89 未报工"));
+        verify(taskMapper, never()).update(any(MfgTask.class), any());
     }
 
     @Test

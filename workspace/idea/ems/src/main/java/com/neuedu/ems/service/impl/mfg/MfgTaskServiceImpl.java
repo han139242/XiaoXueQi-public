@@ -501,10 +501,19 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 .map(this::zeroIfNull).reduce(BigDecimal.ZERO, BigDecimal::add);
         defectQuantity = approvedReports.stream().map(MfgWorkReport::getDefectQuantity)
                 .map(this::zeroIfNull).reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (existing.getPlannedQuantity() != null
-                && completedQuantity.add(defectQuantity).compareTo(existing.getPlannedQuantity()) > 0) {
-            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
-                    "任务累计审核报工数量超过任务计划数量，不能确认完工");
+        if (existing.getPlannedQuantity() != null) {
+            BigDecimal reportedQuantity = completedQuantity.add(defectQuantity);
+            int quantityComparison = reportedQuantity.compareTo(existing.getPlannedQuantity());
+            if (quantityComparison > 0) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                        "任务累计审核报工数量超过任务计划数量，不能确认完工");
+            }
+            if (quantityComparison < 0) {
+                BigDecimal remaining = existing.getPlannedQuantity().subtract(reportedQuantity);
+                throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                        "任务尚有 " + remaining.stripTrailingZeros().toPlainString()
+                                + " 未报工，不能普通完工；请继续报工，提前关闭需走受控异常流程");
+            }
         }
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
