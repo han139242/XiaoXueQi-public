@@ -44,7 +44,8 @@ let refreshTimer
 // 后端状态编码在大屏中转换为中文标签和CSS色调。
 const scheduleStatusMeta = {
   DRAFT: { label: '待生效', tone: 'draft' },
-  RELEASED: { label: '已生效', tone: 'released' },
+  RELEASED: { label: '待执行', tone: 'released' },
+  RUNNING: { label: '生产中', tone: 'running' },
   FINISHED: { label: '已完成', tone: 'finished' },
   CLOSED: { label: '已取消', tone: 'closed' }
 }
@@ -110,9 +111,6 @@ const equipmentTotal = computed(() => ['running', 'idle', 'stopped', 'fault', 'm
 const warningCount = computed(() => Number(summary.value.inventoryWarningCount || 0))
 // 读取设备故障数量。
 const faultCount = computed(() => Number(summary.value.equipmentFaultCount || 0))
-// 统计设备、库存和质量三类风险中有多少类当前非零。
-const riskCategoryCount = computed(() => [faultCount.value, warningCount.value, todayDefect.value]
-  .filter((value) => value > 0).length)
 // 将七日趋势原始记录补充总产量、日期、星期和合格率。
 const trendRows = computed(() => trend.value.map((item) => {
   // 给后端趋势记录补充总产量、日期文本、星期和当日合格率，便于表格与图表复用。
@@ -133,16 +131,44 @@ const hasTrendData = computed(() => trendRows.value.some((item) => item.output >
 // 汇总七日总报工产量。
 const sevenDayOutput = computed(() => trendRows.value.reduce((total, item) => total + item.output, 0))
 
-// 排期只保留时间有效的数据，并按开始时间排序。
+// 已超过结束时间且仍未完成/关闭的计划需要作为生产异常重点提示。
+function isOverduePlan(item) {
+  const end = dayjs(item.plannedEndTime)
+  return end.isValid()
+    && end.isBefore(now.value)
+    && !['FINISHED', 'CLOSED'].includes(item.status)
+}
+
+// 统计全部已加载计划中的逾期项，不受主时间轴的近7日显示窗口限制。
+const overduePlans = computed(() => schedulePlans.value
+  .filter(isOverduePlan)
+  .sort((a, b) => dayjs(a.plannedEndTime).valueOf() - dayjs(b.plannedEndTime).valueOf()))
+const overduePlanCount = computed(() => overduePlans.value.length)
+
+// 统计计划、设备、库存和质量四类风险中有多少类当前非零。
+const riskCategoryCount = computed(() => [overduePlanCount.value, faultCount.value, warningCount.value, todayDefect.value]
+  .filter((value) => value > 0).length)
+
+// 排期保留今天的正常计划、未来计划以及近7日仍未闭环的逾期计划，并按开始时间排序。
 const scheduleRows = computed(() => schedulePlans.value
   .filter((item) => {
     const start = dayjs(item.plannedStartTime)
     const end = dayjs(item.plannedEndTime)
+    const recentRiskBoundary = now.value.subtract(6, 'day').startOf('day')
     return start.isValid()
       && end.isValid()
       && end.isAfter(start)
       && item.status !== 'CLOSED'
-      && !end.isBefore(now.value.startOf('day'))
+      && (isOverduePlan(item)
+        ? !end.isBefore(recentRiskBoundary)
+        : !end.isBefore(now.value.startOf('day')))
+  })
+  .map((item) => {
+    if (isOverduePlan(item)) {
+      return { ...item, statusLabel: '已逾期', statusTone: 'overdue' }
+    }
+    const status = scheduleStatusMeta[item.status] || { label: item.status || '未知状态', tone: 'closed' }
+    return { ...item, statusLabel: status.label, statusTone: status.tone }
   })
   .sort((a, b) => dayjs(a.plannedStartTime).valueOf() - dayjs(b.plannedStartTime).valueOf()))
 // 同一产线的多个计划共用一条时间轴，避免计划多时重复显示产线名称。
@@ -163,7 +189,17 @@ const scheduleLineRows = computed(() => {
     grouped.get(key).plans.push(plan)
   })
   return [...grouped.values()]
-    .sort((a, b) => String(a.lineCode || a.lineName).localeCompare(String(b.lineCode || b.lineName), 'zh-CN'))
+    .sort((a, b) => {
+      const priority = (line) => {
+        if (line.plans.some((plan) => plan.statusTone === 'overdue')) return 0
+        if (line.plans.some((plan) => plan.status === 'RUNNING')) return 1
+        if (line.plans.length) return 2
+        if (line.stationCount === 0) return 4
+        return 3
+      }
+      return priority(a) - priority(b)
+        || String(a.lineCode || a.lineName).localeCompare(String(b.lineCode || b.lineName), 'zh-CN')
+    })
 })
 
 const visibleScheduleLineRows = computed(() => scheduleLineRows.value.slice(0, 5))
@@ -172,14 +208,18 @@ const expandedScheduleLineRows = computed(() => scheduleLineRows.value)
 // 产线状态只使用真实产线与真实生产计划，不用排期时间推导虚假的生产进度。
 const lineStatusRows = computed(() => productionLines.value.map((line) => {
   const plans = scheduleRows.value.filter((plan) => String(plan.lineId) === String(line.lineId))
+  const lineOverduePlans = plans.filter((plan) => plan.statusTone === 'overdue')
   const currentPlan = plans.find((plan) => {
     const current = now.value.valueOf()
     return current >= dayjs(plan.plannedStartTime).valueOf() && current <= dayjs(plan.plannedEndTime).valueOf()
   })
-  const nextPlan = currentPlan || plans.find((plan) => dayjs(plan.plannedStartTime).isAfter(now.value)) || plans[0]
+  const nextPlan = plans.find((plan) => dayjs(plan.plannedStartTime).isAfter(now.value))
+  const focusPlan = lineOverduePlans[0] || currentPlan || nextPlan || null
   const status = line.stationCount === 0
     ? { label: '配置不完整', tone: 'incomplete' }
-    : (lineStatusMeta[line.status] || { label: line.status || '状态未知', tone: 'idle' })
+    : lineOverduePlans.length
+      ? { label: `${lineOverduePlans.length}项计划逾期`, tone: 'overdue' }
+      : (lineStatusMeta[line.status] || { label: line.status || '状态未知', tone: 'idle' })
   return {
     ...line,
     statusLabel: status.label,
@@ -187,9 +227,22 @@ const lineStatusRows = computed(() => productionLines.value.map((line) => {
     planCount: plans.length,
     scheduledQuantity: plans.reduce((total, plan) => total + Number(plan.plannedQuantity || 0), 0),
     currentPlan: currentPlan || null,
-    nextPlan: nextPlan || null
+    nextPlan: nextPlan || null,
+    focusPlan,
+    focusLabel: lineOverduePlans.length ? '逾期计划' : (currentPlan ? '当前计划' : '下一计划'),
+    overduePlanCount: lineOverduePlans.length
   }
-}).sort((a, b) => String(a.lineCode || a.lineName).localeCompare(String(b.lineCode || b.lineName), 'zh-CN')))
+}).sort((a, b) => {
+  const priority = (line) => {
+    if (line.overduePlanCount) return 0
+    if (line.currentPlan) return 1
+    if (line.nextPlan) return 2
+    if (line.stationCount === 0) return 4
+    return 3
+  }
+  return priority(a) - priority(b)
+    || String(a.lineCode || a.lineName).localeCompare(String(b.lineCode || b.lineName), 'zh-CN')
+}))
 
 // 根据展开产线数动态计算弹窗高度，并限制最小和最大值。
 const scheduleModalStyle = computed(() => ({
@@ -210,7 +263,7 @@ const scheduleWindow = computed(() => {
     end = start.add(8, 'hour')
   }
   const duration = end.valueOf() - start.valueOf()
-  const tickFormat = duration <= 36 * 60 * 60 * 1000 ? 'HH:mm' : 'MM-DD'
+  const tickFormat = duration <= 36 * 60 * 60 * 1000 ? 'HH:mm' : 'MM-DD HH:mm'
   const ticks = Array.from({ length: 7 }, (_, index) => {
     const ratio = index / 6
     return {
@@ -273,12 +326,12 @@ const kpis = computed(() => [
     tone: 'steel'
   },
   {
-    label: '今日不良报工',
-    value: formatNumber(todayDefect.value),
-    unit: '件',
-    description: todayDefect.value > 0 ? '进入报工明细复核原因' : '今日暂无不良报工',
+    label: '逾期生产计划',
+    value: formatNumber(overduePlanCount.value),
+    unit: '项',
+    description: overduePlanCount.value > 0 ? '已超过计划结束时间' : '当前没有逾期计划',
     icon: 'alert',
-    tone: todayDefect.value > 0 ? 'red' : 'muted'
+    tone: overduePlanCount.value > 0 ? 'red' : 'muted'
   }
 ])
 
@@ -313,8 +366,16 @@ const equipmentItems = computed(() => [
   { key: 'fault', label: '故障', value: Number(equipment.value.fault || 0), tone: 'red' }
 ])
 
-// 将设备、库存和不良数据整理为可点击的风险关注事项。
+// 将计划、设备、库存和不良数据整理为可点击的风险关注事项。
 const attentionItems = computed(() => [
+  {
+    label: '逾期生产计划',
+    value: overduePlanCount.value,
+    note: overduePlanCount.value > 0 ? '需确认执行、完工或调整计划' : '当前没有逾期生产计划',
+    icon: 'calendar',
+    tone: overduePlanCount.value > 0 ? 'danger' : 'normal',
+    path: '/mfg/production-plans'
+  },
   {
     label: '故障设备',
     value: faultCount.value,
@@ -473,7 +534,7 @@ function formatScheduleTime(item) {
 async function loadProductionSchedule() {
   // 计划表只存关联ID，因此并行查询订单、产线、产品，再用Map补齐可读名称。
   const [planResult, orderResult, lineResult, stationResult, productResult] = await Promise.allSettled([
-    getResourcePage('/api/mfg/production-plan', { current: 1, size: 50 }),
+    getResourcePage('/api/mfg/production-plan', { current: 1, size: 200 }),
     getResourcePage('/api/mfg/production-order', { current: 1, size: 200 }),
     getResourcePage('/api/factory/line', { current: 1, size: 200 }),
     getResourcePage('/api/factory/station', { current: 1, size: 500 }),
@@ -771,6 +832,7 @@ onBeforeUnmount(() => {
                 <span>按产线汇总订单计划与执行窗口</span>
               </div>
               <aside class="panel-tools">
+                <span v-if="overduePlanCount" class="overdue-badge"><AppIcon name="alert" :size="14" />{{ overduePlanCount }} 项逾期</span>
                 <span class="schedule-range">{{ scheduleRangeLabel }}</span>
                 <button class="panel-link" type="button" title="放大生产计划排期" aria-label="放大生产计划排期" @click="openSchedule">
                   <AppIcon name="fullscreen" :size="19" />
@@ -801,7 +863,9 @@ onBeforeUnmount(() => {
                 <div v-for="line in visibleScheduleLineRows" :key="line.lineId || line.lineName" class="schedule-row">
                   <div class="schedule-row-meta">
                     <strong>{{ line.lineName }}</strong>
-                    <span>{{ line.plans.length }} 项计划 · 日产能 {{ formatNumber(line.dailyCapacity) }}</span>
+                    <span :class="{ 'has-overdue': line.plans.some((plan) => plan.statusTone === 'overdue') }">
+                      {{ line.plans.length }} 项计划<span v-if="line.plans.some((plan) => plan.statusTone === 'overdue')"> / {{ line.plans.filter((plan) => plan.statusTone === 'overdue').length }} 项逾期</span> · 日产能 {{ formatNumber(line.dailyCapacity) }}
+                    </span>
                   </div>
                   <div class="schedule-row-track">
                     <span v-if="!line.plans.length" class="schedule-row-empty">暂无有效计划</span>
@@ -852,8 +916,8 @@ onBeforeUnmount(() => {
                 <span class="line-status-icon"><AppIcon name="factory" :size="22" /></span>
                 <div class="line-status-copy">
                   <div><strong>{{ line.lineName }}</strong><span><i />{{ line.statusLabel }}</span></div>
-                  <p v-if="line.nextPlan">
-                    {{ line.currentPlan ? '当前' : '下一计划' }}：{{ line.nextPlan.orderNo }} · {{ formatNumber(line.nextPlan.plannedQuantity) }} 件
+                  <p v-if="line.focusPlan">
+                    {{ line.focusLabel }}：{{ line.focusPlan.orderNo }} · {{ formatNumber(line.focusPlan.plannedQuantity) }} 件
                   </p>
                   <p v-else>当前没有有效生产计划</p>
                   <small>日产能 {{ formatNumber(line.dailyCapacity) }} · 排期 {{ line.planCount }} 项 / {{ formatNumber(line.scheduledQuantity) }} 件</small>
@@ -874,7 +938,7 @@ onBeforeUnmount(() => {
                 <span>今日报工结果与当前生产台账</span>
               </div>
               <aside class="panel-tools">
-                <span class="live-badge"><i />实时</span>
+                <span class="live-badge"><i />60 秒刷新</span>
                 <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
                   <AppIcon name="arrow" :size="20" />
                 </button>
@@ -998,7 +1062,7 @@ onBeforeUnmount(() => {
             <header class="panel-header compact">
               <div>
                 <strong>需关注事项</strong>
-                <span>设备故障、补货预警与不良报工</span>
+                <span>计划、设备、仓储与质量异常</span>
               </div>
               <strong class="attention-total" :class="{ 'has-warning': riskCategoryCount > 0 }">{{ riskCategoryCount }}<small>类关注</small></strong>
             </header>
@@ -1054,7 +1118,9 @@ onBeforeUnmount(() => {
               <div v-for="line in expandedScheduleLineRows" :key="`expanded-${line.lineId || line.lineName}`" class="schedule-row">
                 <div class="schedule-row-meta">
                   <strong>{{ line.lineName }}</strong>
-                  <span>{{ line.plans.length }} 项计划 · 日产能 {{ formatNumber(line.dailyCapacity) }}</span>
+                  <span :class="{ 'has-overdue': line.plans.some((plan) => plan.statusTone === 'overdue') }">
+                    {{ line.plans.length }} 项计划<span v-if="line.plans.some((plan) => plan.statusTone === 'overdue')"> / {{ line.plans.filter((plan) => plan.statusTone === 'overdue').length }} 项逾期</span> · 日产能 {{ formatNumber(line.dailyCapacity) }}
+                  </span>
                   <small>{{ line.plans.map(formatScheduleTime).join(' / ') }}</small>
                 </div>
                 <div class="schedule-row-track">
@@ -1087,8 +1153,10 @@ onBeforeUnmount(() => {
 
           <footer class="schedule-modal-footer">
             <span><i class="is-draft" />待生效</span>
-            <span><i class="is-released" />已生效</span>
+            <span><i class="is-released" />待执行</span>
+            <span><i class="is-running" />生产中</span>
             <span><i class="is-finished" />已完成</span>
+            <span><i class="is-overdue" />已逾期</span>
             <b>显示 {{ expandedScheduleLineRows.length }} 条产线 / {{ scheduleRows.length }} 项有效计划</b>
           </footer>
         </section>
@@ -1415,6 +1483,20 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.overdue-badge {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  color: #ffb0a6;
+  border: 1px solid rgb(226 99 104 / 38%);
+  border-radius: 3px;
+  background: rgb(173 49 57 / 18%);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
 
 .schedule-board {
   position: relative;
@@ -1489,6 +1571,7 @@ onBeforeUnmount(() => {
 }
 .schedule-row-meta strong { color: #dbe8f0; font-size: 17px; font-weight: 680; }
 .schedule-row-meta span { color: #829caf; font-size: 14px; }
+.schedule-row-meta span.has-overdue { color: #e88d82; }
 .schedule-row-track {
   position: relative;
   min-width: 0;
@@ -1523,8 +1606,10 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
   white-space: nowrap;
 }
-.schedule-bar.is-released { border-color: rgb(83 194 139 / 58%); background: #26704f; }
+.schedule-bar.is-released { border-color: rgb(90 169 209 / 60%); background: #2b6288; }
+.schedule-bar.is-running { border-color: rgb(83 194 139 / 58%); background: #26704f; }
 .schedule-bar.is-finished { border-color: rgb(215 166 83 / 58%); background: #765726; }
+.schedule-bar.is-overdue { border-color: rgb(238 105 111 / 72%); background: #8a3942; box-shadow: 0 4px 16px rgb(175 46 56 / 26%); }
 .schedule-bar.is-closed { border-color: rgb(130 149 164 / 48%); background: #485765; }
 .schedule-bar b,
 .schedule-bar small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1647,8 +1732,10 @@ onBeforeUnmount(() => {
 }
 .schedule-modal-footer span { display: inline-flex; align-items: center; gap: 7px; }
 .schedule-modal-footer i { width: 11px; height: 11px; border-radius: 2px; background: #315d88; }
-.schedule-modal-footer i.is-released { background: #26704f; }
+.schedule-modal-footer i.is-released { background: #2b6288; }
+.schedule-modal-footer i.is-running { background: #26704f; }
 .schedule-modal-footer i.is-finished { background: #765726; }
+.schedule-modal-footer i.is-overdue { background: #8a3942; }
 .schedule-modal-footer i.is-closed { background: #485765; }
 .schedule-modal-footer b { margin-left: auto; color: #c9d8e2; font-size: 14px; font-weight: 650; }
 
@@ -1714,6 +1801,7 @@ onBeforeUnmount(() => {
 .line-status-row.is-stopped::after { background: #df6972; }
 .line-status-row.is-maintenance::after { background: #d99a55; }
 .line-status-row.is-incomplete::after { background: #e07e57; }
+.line-status-row.is-overdue::after { background: #e26368; }
 .line-status-icon {
   display: inline-flex;
   width: 38px;
@@ -1729,6 +1817,7 @@ onBeforeUnmount(() => {
 .line-status-row.is-stopped .line-status-icon { color: #ed7a82; border-color: rgb(223 105 114 / 30%); background: rgb(223 105 114 / 11%); }
 .line-status-row.is-maintenance .line-status-icon { color: #e6a65d; border-color: rgb(217 154 85 / 30%); background: rgb(217 154 85 / 11%); }
 .line-status-row.is-incomplete .line-status-icon { color: #e88864; border-color: rgb(224 126 87 / 30%); background: rgb(224 126 87 / 11%); }
+.line-status-row.is-overdue .line-status-icon { color: #ed7b80; border-color: rgb(226 99 104 / 34%); background: rgb(226 99 104 / 12%); }
 .line-status-copy { display: grid; min-width: 0; gap: 3px; }
 .line-status-copy > div { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
 .line-status-copy strong,
@@ -1741,6 +1830,7 @@ onBeforeUnmount(() => {
 .line-status-row.is-stopped .line-status-copy > div > span { color: #ee858c; }
 .line-status-row.is-maintenance .line-status-copy > div > span { color: #e5aa67; }
 .line-status-row.is-incomplete .line-status-copy > div > span { color: #ed916e; }
+.line-status-row.is-overdue .line-status-copy > div > span { color: #ee8589; }
 .line-status-copy p { margin: 0; color: #a7bac7; font-size: 13px; }
 .line-status-copy small { color: #7893a6; font-size: 12px; }
 .line-status-empty {
@@ -1871,7 +1961,7 @@ onBeforeUnmount(() => {
 .equipment-grid b { color: #eef5f9; font-size: 26px; }
 .inline-empty { position: absolute; top: 52px; right: 22px; margin: 0; color: #91a5b3; font-size: 16px; }
 
-.attention-list { display: grid; height: calc(100% - 68px); align-content: center; padding: 4px 18px 8px; box-sizing: border-box; }
+.attention-list { display: grid; height: calc(100% - 68px); grid-auto-rows: minmax(0, 1fr); align-content: stretch; padding: 4px 18px 8px; box-sizing: border-box; }
 .attention-row {
   display: grid;
   width: 100%;
@@ -1879,7 +1969,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 8px 4px;
+  padding: 4px;
   color: inherit;
   border: 0;
   border-bottom: 1px solid #29445a;
@@ -1889,14 +1979,14 @@ onBeforeUnmount(() => {
 }
 .attention-row:last-child { border-bottom: 0; }
 .attention-row:hover { background: rgb(75 111 137 / 10%); }
-.attention-icon { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; color: #65c793; border-radius: 4px; background: rgb(75 197 138 / 12%); }
+.attention-icon { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; color: #65c793; border-radius: 4px; background: rgb(75 197 138 / 12%); }
 .attention-row.is-warning .attention-icon { color: #e4a65d; background: rgb(228 166 93 / 13%); }
 .attention-row.is-danger .attention-icon { color: #e2747c; background: rgb(226 116 124 / 13%); }
 .attention-copy { display: grid; min-width: 0; gap: 2px; }
-.attention-copy b { color: #dbe7ef; font-size: 17px; line-height: 1.25; }
-.attention-copy small { overflow: hidden; color: #95a9b7; font-size: 16px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.attention-copy b { color: #dbe7ef; font-size: 16px; line-height: 1.2; }
+.attention-copy small { overflow: hidden; color: #95a9b7; font-size: 13px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .attention-value { display: inline-flex; min-width: 68px; align-items: center; justify-content: flex-end; gap: 8px; color: #7891a3; }
-.attention-value strong { min-width: 42px; color: #edf5fa; font-size: 28px; text-align: right; }
+.attention-value strong { min-width: 42px; color: #edf5fa; font-size: 25px; text-align: right; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
