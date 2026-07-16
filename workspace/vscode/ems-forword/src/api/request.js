@@ -11,6 +11,7 @@ let lastMessageAt = 0
 
 const GENERIC_FAILURE_MESSAGES = new Set(['操作失败', '业务处理异常', '请求处理失败'])
 
+// 弹出错误消息，并在1.5秒内拦截完全相同的重复提示。
 function showError(message) {
   const now = Date.now()
   if (message === lastMessage && now - lastMessageAt < 1500) {
@@ -21,6 +22,7 @@ function showError(message) {
   ElMessage.error(message)
 }
 
+// 后端只返回通用错误时，根据请求方法和接口动作补充更具体的操作建议。
 function resolveOperationFallback(config) {
   const method = String(config?.method || '').toLowerCase()
   const url = String(config?.url || '').split('?', 1)[0]
@@ -33,6 +35,7 @@ function resolveOperationFallback(config) {
   return ''
 }
 
+// 按“后端详细信息 -> ResultData.msg -> 前端操作兜底”的优先级选出最终错误文案。
 function resolveResultMessage(result, config) {
   const detail = result?.data?.message
   const detailMessage = typeof detail === 'string' ? detail.trim() : ''
@@ -123,4 +126,5 @@ request.interceptors.response.use(
   }
 )
 
+// 默认导出统一Axios实例，其他API文件可以用任意本地名称import它。
 export default request

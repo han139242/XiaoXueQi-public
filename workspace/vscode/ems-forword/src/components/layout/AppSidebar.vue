@@ -5,19 +5,26 @@ import AppIcon from '@/components/common/AppIcon.vue'
 import { getNavigationGroups, getNavigationItems } from '@/config/navigation'
 import { openAiAssistant } from '@/utils/app-events'
 
+// collapsed控制桌面端折叠；mobile表示当前使用移动端抽屉布局。
 const props = defineProps({
   collapsed: { type: Boolean, default: false },
   mobile: { type: Boolean, default: false }
 })
 
+// 点击菜单后通知父布局关闭移动端抽屉。
 const emit = defineEmits(['navigate'])
 const route = useRoute()
 const router = useRouter()
+// navigation.js已按当前用户权限过滤菜单，这里分别取得扁平搜索列表和分组展示列表。
 const navigationItems = computed(() => getNavigationItems())
+// 分组菜单用于正常侧边栏展示。
 const navigationGroups = computed(() => getNavigationGroups())
+// 当前路由路径交给Element Plus高亮正在访问的菜单项。
 const activePath = computed(() => route.path)
+// 移动端始终显示完整抽屉菜单，只有桌面端collapsed才折叠为图标栏。
 const menuCollapsed = computed(() => props.collapsed && !props.mobile)
 const searchKeyword = ref('')
+// 菜单搜索同时匹配标题和业务说明，computed会随输入内容自动更新。
 const searchResults = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
   if (!keyword) return []
@@ -25,11 +32,15 @@ const searchResults = computed(() => {
     .some((value) => String(value || '').toLowerCase().includes(keyword)))
 })
 
+// 为Element Plus菜单生成唯一index：路由项使用path，动作项使用action前缀。
 function itemIndex(item) {
+  // Element Plus菜单需要唯一index；普通菜单用路径，AI按钮用action前缀区分。
   return item.path || `action:${item.action}`
 }
 
+// 处理菜单选择：普通项跳转路由，AI项广播打开助手事件，最后通知移动端关闭菜单。
 function handleSelect(index) {
+  // 根据index找回菜单配置，再决定打开AI助手还是执行路由跳转。
   const item = navigationItems.value.find((candidate) => itemIndex(candidate) === index)
   if (!item) return
 
@@ -42,6 +53,7 @@ function handleSelect(index) {
   emit('navigate')
 }
 
+// 在菜单搜索框按Enter时直接打开第一条匹配结果。
 function openFirstSearchResult() {
   const first = searchResults.value[0]
   if (first) handleSelect(itemIndex(first))
@@ -49,6 +61,7 @@ function openFirstSearchResult() {
 </script>
 
 <template>
+  <!-- 搜索时显示扁平结果；正常状态按navigationGroups渲染多级Element Plus菜单。 -->
   <aside class="app-sidebar" :class="{ 'is-collapsed': menuCollapsed }">
     <div class="sidebar-brand">
       <span class="sidebar-logo" aria-hidden="true">
@@ -121,6 +134,7 @@ function openFirstSearchResult() {
 </template>
 
 <style scoped>
+/* 侧边栏样式：控制品牌区、搜索、菜单层级、折叠状态和移动端展示。 */
 .app-sidebar {
   display: flex;
   width: 100%;

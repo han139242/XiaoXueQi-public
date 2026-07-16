@@ -102,6 +102,7 @@ defineProps({
 </template>
 
 <style scoped>
+/* 所有动态表单控件统一占满表单列宽。 */
 .el-select,
 .el-input,
 .el-input-number,

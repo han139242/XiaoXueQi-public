@@ -6,8 +6,10 @@ import AppIcon from '@/components/common/AppIcon.vue'
 import { chatWithAi, getAiStatus, getDashboardInsight, getModuleSuggestion } from '@/api/ai'
 import { isFrameworkPreview } from '@/utils/auth'
 
+// AI工作台提供多会话、多能力模式的只读分析；对话保存在当前浏览器localStorage中。
 const STORAGE_KEY = 'mes_ai_workbench_conversations_v1'
 const previewMode = isFrameworkPreview()
+// DOM引用用于输入框聚焦和消息滚动，其余ref保存输入、发送状态、服务状态和当前会话ID。
 const conversationScroll = ref()
 const composer = ref()
 const question = ref('')
@@ -24,6 +26,8 @@ const status = ref({
 })
 let abortController
 
+// 每种能力定义标题、图标、后端接口类型、模块上下文、数据范围和快捷问题。
+// endpoint只决定调用哪个AI接口，不允许AI直接修改或下发MES业务单据。
 const capabilities = [
   {
     id: 'general',
@@ -104,11 +108,15 @@ const capabilities = [
   }
 ]
 
+// 根据能力ID找到对应配置，找不到时回退到通用问答。
 function capabilityById(id) {
+  // 找不到旧能力ID时回退到通用问答，兼容localStorage中的历史数据。
   return capabilities.find((item) => item.id === id) || capabilities[0]
 }
 
+// 创建一条空白本地会话，包含唯一ID、能力类型、时间和消息数组。
 function createConversation(capabilityId = 'general') {
+  // 前端生成唯一会话ID；会话本身不写入后端数据库。
   const now = dayjs().toISOString()
   return {
     id: `conversation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -121,7 +129,9 @@ function createConversation(capabilityId = 'general') {
   }
 }
 
+// 从localStorage读取、校验并压缩历史会话，异常时返回一条新会话。
 function loadConversations() {
+  // 读取并校验本地会话，最多保留24个会话、每个会话最近60条消息。
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
     if (!Array.isArray(stored)) return [createConversation()]
@@ -149,30 +159,40 @@ function loadConversations() {
 }
 
 const conversations = ref(loadConversations())
+// 根据当前ID取得活动会话，并按归档状态拆分最近会话与历史会话。
 const activeConversation = computed(() => conversations.value.find((item) => item.id === activeConversationId.value) || conversations.value[0])
+// 当前会话选择的AI能力配置。
 const activeCapability = computed(() => capabilityById(activeConversation.value?.capabilityId))
+// 未归档且有消息的会话按最近更新时间倒序排列。
 const recentConversations = computed(() => conversations.value
   .filter((item) => !item.archived && item.messages.length > 0)
   .sort((left, right) => dayjs(right.updatedAt).valueOf() - dayjs(left.updatedAt).valueOf()))
+// 已归档且有消息的会话单独形成历史列表。
 const archivedConversations = computed(() => conversations.value
   .filter((item) => item.archived && item.messages.length > 0)
   .sort((left, right) => dayjs(right.updatedAt).valueOf() - dayjs(left.updatedAt).valueOf()))
+// 当前会话没有任何消息时显示欢迎页和能力选择。
 const showWelcome = computed(() => !activeConversation.value?.messages?.length)
+// 将AI状态编码转换成中文服务状态。
 const statusLabel = computed(() => {
   if (status.value.state === 'READY') return '服务就绪'
   if (status.value.state === 'MISCONFIGURED') return '服务配置不完整'
   return '服务未启用'
 })
+// 将AI状态转换成界面使用的颜色语义。
 const statusTone = computed(() => {
   if (status.value.state === 'READY') return 'ready'
   if (status.value.state === 'MISCONFIGURED') return 'warning'
   return 'offline'
 })
+// 服务可用时使用当前能力的推荐问题，否则提示检查服务。
 const inputPlaceholder = computed(() => status.value.available
   ? activeCapability.value.quickPrompts[0]
   : 'AI 服务暂不可用，请先检查服务状态')
 
+// 把最多24条会话写入localStorage，供刷新页面后恢复。
 function persistConversations() {
+  // 每次对话变化后写回localStorage；存储不可用只影响刷新后的历史记录。
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.value.slice(0, 24)))
   } catch {
@@ -180,7 +200,9 @@ function persistConversations() {
   }
 }
 
+// 保证发送前存在活动会话，并返回该会话对象。
 function ensureActiveConversation() {
+  // 任何发送动作都保证至少存在一条当前会话。
   if (!activeConversation.value) {
     const next = createConversation()
     conversations.value.unshift(next)
@@ -189,7 +211,9 @@ function ensureActiveConversation() {
   return activeConversation.value
 }
 
+// 新建或复用空白草稿会话，并聚焦输入框。
 function newConversation(capabilityId = 'general') {
+  // 优先复用尚未发送消息的空白草稿，避免连续点击产生很多空会话。
   let draft = conversations.value.find((item) => !item.archived && item.messages.length === 0)
   if (!draft) {
     draft = createConversation(capabilityId)
@@ -205,6 +229,7 @@ function newConversation(capabilityId = 'general') {
   nextTick(() => composer.value?.focus?.())
 }
 
+// 切换当前会话；若会话已归档则同时恢复它。
 function selectConversation(id) {
   const target = conversations.value.find((item) => item.id === id)
   if (!target) return
@@ -215,7 +240,9 @@ function selectConversation(id) {
   scrollToLatest()
 }
 
+// 切换AI能力；已有消息时新建会话，空会话则直接修改能力。
 function selectCapability(id) {
+  // 已有消息时切换能力会新建会话，防止同一上下文中途更换分析口径。
   const conversation = ensureActiveConversation()
   if (conversation.messages.length) {
     newConversation(id)
@@ -228,12 +255,15 @@ function selectCapability(id) {
   nextTick(() => composer.value?.focus?.())
 }
 
+// 将快捷问题填入输入框并聚焦，仍由用户确认发送。
 function selectQuickPrompt(prompt) {
   question.value = prompt
   nextTick(() => composer.value?.focus?.())
 }
 
+// 把会话标记为归档并从最近列表移到历史列表。
 function archiveConversation(id) {
+  // 归档只隐藏在最近列表中，数据仍可在历史区域恢复。
   const conversation = conversations.value.find((item) => item.id === id)
   if (!conversation) return
   conversation.archived = true
@@ -242,7 +272,9 @@ function archiveConversation(id) {
   persistConversations()
 }
 
+// 二次确认后从本地会话数组中永久删除指定会话。
 async function removeConversation(id) {
+  // 物理删除本地会话前二次确认；删除最后一个会话后自动创建空会话。
   const conversation = conversations.value.find((item) => item.id === id)
   if (!conversation) return
   try {
@@ -260,6 +292,7 @@ async function removeConversation(id) {
   persistConversations()
 }
 
+// 取消归档并把会话设为当前活动会话。
 function restoreConversation(id) {
   const conversation = conversations.value.find((item) => item.id === id)
   if (!conversation) return
@@ -269,12 +302,14 @@ function restoreConversation(id) {
   persistConversations()
 }
 
+// 今天的会话显示时分，更早的会话显示月日。
 function conversationTime(value) {
   const time = dayjs(value)
   if (!time.isValid()) return ''
   return time.isSame(dayjs(), 'day') ? time.format('HH:mm') : time.format('MM-DD')
 }
 
+// 从后端详情、请求拦截器消息和默认文案中整理AI错误说明。
 function resolveAiErrorMessage(error) {
   const detail = error?.data?.message
   if (typeof detail === 'string' && detail.trim()) return detail.trim()
@@ -282,7 +317,9 @@ function resolveAiErrorMessage(error) {
   return '本次分析未完成，请稍后重试。'
 }
 
+// 查询后端AI是否启用、配置完整以及当前模型是否可用。
 async function loadStatus() {
+  // 查询后端AI开关、配置和模型可用性；预览模式明确不连接模型。
   if (previewMode) {
     status.value = { ...status.value, available: false, state: 'DISABLED' }
     return
@@ -298,13 +335,17 @@ async function loadStatus() {
   }
 }
 
+// 根据能力endpoint选择看板解读、模块建议或通用聊天接口。
 function requestAi(capability, payload, signal) {
+  // 根据能力配置路由到看板解读、模块建议或普通聊天接口。
   if (capability.endpoint === 'dashboard') return getDashboardInsight(payload, signal)
   if (capability.endpoint === 'module') return getModuleSuggestion(payload, signal)
   return chatWithAi(payload, signal)
 }
 
+// 发送问题、保存用户消息、调用AI接口并追加回答或失败消息。
 async function sendQuestion() {
+  // 先验证输入和服务状态，再立即把用户消息写入当前会话，提供即时界面反馈。
   const content = question.value.trim()
   const conversation = ensureActiveConversation()
   if (!content || sending.value || !status.value.available || !conversation) return
@@ -326,6 +367,7 @@ async function sendQuestion() {
   abortController = new AbortController()
 
   try {
+    // capability.module和context帮助后端选择提示词及限制可读取的数据范围。
     const result = await requestAi(capability, {
       question: content,
       module: capability.module,
@@ -357,6 +399,7 @@ async function sendQuestion() {
       })
     }
   } finally {
+    // 无论成功、失败或取消，都结束加载状态、保存会话并滚动到最新消息。
     conversation.updatedAt = dayjs().toISOString()
     sending.value = false
     abortController = null
@@ -365,41 +408,53 @@ async function sendQuestion() {
   }
 }
 
+// 通过AbortController取消当前正在等待的AI请求。
 function cancelRequest() {
+  // 取消后Axios返回ERR_CANCELED，不会在会话中追加失败消息。
   abortController?.abort()
 }
 
+// 读取失败消息保存的原问题并重新发送。
 function retryMessage(message) {
   if (sending.value || !status.value.available || !message.retryQuestion) return
   question.value = message.retryQuestion
   sendQuestion()
 }
 
+// 处理输入框键盘操作：Enter发送，Shift+Enter换行，输入法组合时不触发。
 function handleKeydown(event) {
+  // 中文输入法组合阶段不提交；Enter发送，Shift+Enter保留为换行。
   if (event.isComposing || event.shiftKey || event.key !== 'Enter') return
   event.preventDefault()
   sendQuestion()
 }
 
+// Vue更新消息DOM后，把Element Plus会话滚动区移动到最底部。
 function scrollToLatest() {
+  // 等待Vue完成DOM更新后，把Element Plus滚动容器移动到最底部。
   nextTick(() => {
     const wrap = conversationScroll.value?.wrapRef || conversationScroll.value?.$el?.querySelector('.el-scrollbar__wrap')
     if (wrap) wrap.scrollTop = wrap.scrollHeight
   })
 }
 
+// 挂载时恢复最近会话、持久化清理后的数据并检查AI服务。
 onMounted(() => {
+  // 优先打开最近活动会话，然后检查AI服务状态。
   activeConversationId.value = recentConversations.value[0]?.id || conversations.value[0]?.id || ''
   persistConversations()
   loadStatus()
 })
 
+// 离开页面时取消仍在进行的模型请求。
 onBeforeUnmount(() => {
+  // 离开工作台时取消仍在生成的模型请求。
   cancelRequest()
 })
 </script>
 
 <template>
+  <!-- 左侧管理能力与会话，中间展示消息，底部输入区负责发送、停止和重试。 -->
   <section class="ai-workbench">
     <div class="workbench-frame">
       <aside class="conversation-sidebar">
@@ -586,6 +641,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* AI工作台样式：控制能力导航、会话侧栏、消息区域、输入区和响应式布局。 */
 .ai-workbench {
   width: 100%;
   min-height: calc(100dvh - var(--mes-header-height) - var(--mes-tabs-height) - 36px);

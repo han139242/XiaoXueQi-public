@@ -21,6 +21,7 @@ function domainEntries(domain) {
   ]
 }
 
+// 把业务域定义转换成一个可展开的父菜单，并挂载该域下的资源子菜单。
 function moduleEntry(domain) {
   // 一个moduleEntry对应侧边栏中的一个可展开模块，例如生产制造或仓储库存。
   const definition = domainDefinitions[domain]
@@ -33,6 +34,7 @@ function moduleEntry(domain) {
   }
 }
 
+// 将业务域定义整理成模块目录，模块导航页可直接根据key读取完整入口。
 export const moduleCatalog = Object.fromEntries(Object.entries(domainDefinitions).map(([key, definition]) => [
   key,
   {
@@ -52,6 +54,7 @@ moduleCatalog.ai = {
   entries: [{ label: '进入 AI 工作台', path: '/ai/workbench', icon: 'bot', permission: 'ai:assistant:use' }]
 }
 
+// 侧边栏菜单的业务分组顺序，最终还会经过filterItem递归权限过滤。
 export const navigationGroups = [
   {
     label: '重点能力',
@@ -85,6 +88,7 @@ export function getModuleDefinition(moduleKey) {
   return { ...definition, entries: (definition.entries || []).filter((item) => !item.permission || hasPermission(item.permission)) }
 }
 
+// 递归把多级菜单转成扁平数组，供顶部搜索和侧边栏搜索使用。
 function flattenItems(items) {
   return items.flatMap((item) => [
     ...(item.path || item.action ? [item] : []),
@@ -92,10 +96,12 @@ function flattenItems(items) {
   ])
 }
 
+// 获取当前用户最终可见的全部菜单入口，并展开为一维数组。
 export function getNavigationItems() {
   return getNavigationGroups().flatMap((group) => flattenItems(group.items))
 }
 
+// 逐组执行权限过滤，删除没有任何可见子项的空分组。
 export function getNavigationGroups() {
   return navigationGroups.map((group) => ({
     ...group,

@@ -1,5 +1,8 @@
 import { defineResource, optionSets, values } from './helpers'
 
+// 工厂建模资源：车间 -> 产线 -> 工位 -> 工位可执行工序。
+// 每个defineResource对象都会被通用资源页转换为路由、菜单、查询表格和编辑表单。
+// 默认导出该业务域的资源数组，由resources/index.js统一汇总。
 export default [
   defineResource({
     key: 'factory-workshop', domain: 'factory', route: 'factory/workshops', title: '车间管理', icon: 'factory', baseUrl: '/api/factory/workshop', idField: 'workshopId',

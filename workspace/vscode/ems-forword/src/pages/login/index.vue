@@ -37,6 +37,7 @@ function resolveTarget() {
   return redirect.startsWith('/') ? redirect : '/dashboard'
 }
 
+// 执行表单校验、调用登录接口、保存Token和用户权限，最后进入原目标页面。
 async function handleLogin() {
   // 第一步先执行前端表单验证，验证不通过或正在登录时不重复发送请求。
   const valid = await formRef.value?.validate().catch(() => false)
@@ -60,12 +61,13 @@ async function handleLogin() {
     // replace 不会把登录页留在浏览器历史中，按“返回”不会再次回到登录页。
     await router.replace(resolveTarget())
   } catch {
-    // Request errors are presented by the shared Axios interceptor.
+    // 请求错误已经由共享Axios响应拦截器统一提示，这里不重复弹窗。
   } finally {
     loading.value = false
   }
 }
 
+// 开发环境下建立不访问后端的框架预览会话并进入首页。
 async function enterPreview() {
   // 仅开发环境提供框架预览，不请求真实登录接口。
   if (startFrameworkPreview()) {
@@ -75,6 +77,7 @@ async function enterPreview() {
 </script>
 
 <template>
+  <!-- 登录页由品牌背景区和登录表单区组成，表单提交统一进入handleLogin。 -->
   <main class="login-page" :style="{ '--shuttlecock-image': `url(${shuttlecockImage})` }">
     <section class="brand-panel" aria-label="羽毛球制造执行系统介绍">
       <div class="brand-shell">
@@ -149,6 +152,7 @@ async function enterPreview() {
 </template>
 
 <style scoped>
+/* 登录页样式：控制全屏背景、品牌文字、登录卡片、表单控件和移动端适配。 */
 .login-page {
   position: relative;
   min-height: 100dvh;

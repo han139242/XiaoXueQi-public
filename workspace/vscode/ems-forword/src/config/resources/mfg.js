@@ -1,9 +1,12 @@
 import { defineResource, field, optionSets, values } from './helpers'
 
+// MFG生产执行资源，覆盖产能日历、订单、计划、工单、派工、任务、报工、异常和安灯。
+// 这里的actions和masterDetails共同描述“订单 -> 计划 -> 工单 -> 派工 -> 任务 -> 报工”流程。
 const sourceTypes = values([['ERP', 'ERP 同步', 'primary'], ['MANUAL', '手工创建', 'success']])
 const alertTypes = values([['MATERIAL', '缺料', 'warning'], ['EQUIPMENT', '设备', 'danger'], ['QUALITY', '质量', 'danger'], ['SAFETY', '安全', 'danger'], ['OTHER', '其他', 'info']])
 const weekdays = values([[1, '周一', 'primary'], [2, '周二', 'primary'], [3, '周三', 'primary'], [4, '周四', 'primary'], [5, '周五', 'primary'], [6, '周六', 'warning'], [7, '周日', 'info']])
 
+// 默认导出生产制造资源数组，由resources/index.js统一汇总并生成路由菜单。
 export default [
   defineResource({
     key: 'mfg-line-product-capability', domain: 'mfg', route: 'mfg/line-product-capabilities', title: '产线产品能力', icon: 'route', baseUrl: '/api/mfg/line-product-capability', idField: 'capabilityId',

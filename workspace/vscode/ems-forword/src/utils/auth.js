@@ -15,6 +15,7 @@ export function getToken() {
   return Cookies.get(TOKEN_KEY) || ''
 }
 
+// 保存后端签发的JWT；remember决定使用7天Cookie还是仅当前浏览器会话有效。
 export function setToken(token, remember = true) {
   // remember=true时Cookie保存7天，否则关闭浏览器会话后失效。
   const options = { sameSite: 'Lax' }
@@ -33,6 +34,7 @@ export function getCurrentUser() {
   }
 }
 
+// 保存当前用户的展示、角色和权限信息，同时移除不应落盘的敏感字段。
 export function setCurrentUser(user = {}) {
   // 浏览器只保存展示和鉴权需要的信息，密码、密钥和Token等敏感字段必须排除。
   const {
@@ -64,6 +66,7 @@ export function startFrameworkPreview() {
   return true
 }
 
+// 判断是否处于仅开发环境可用的框架预览会话。
 export function isFrameworkPreview() {
   return import.meta.env.DEV && sessionStorage.getItem(PREVIEW_KEY) === 'true'
 }

@@ -16,7 +16,9 @@ import { openAiAssistant } from '@/utils/app-events'
 import { activeTheme } from '@/utils/theme'
 import { hasPermission } from '@/utils/permission'
 
+// 首页仪表盘将生产、质量、设备等多个后端统计接口汇总成指标卡和ECharts图表。
 const router = useRouter()
+// 日期范围改变后重新查询；四个ref分别保存各块接口返回的数据。
 const loading = ref(false)
 const loadError = ref('')
 const previewMode = isFrameworkPreview()
@@ -26,17 +28,23 @@ const trend = ref([])
 const quality = ref({})
 const equipment = ref({})
 const currentUser = getCurrentUser()
+// 根据权限控制首页AI助手入口是否显示。
 const canUseAi = computed(() => hasPermission('ai:assistant:use'))
+// 根据权限控制生产大屏入口是否显示。
 const canOpenBigScreen = computed(() => hasPermission('dashboard:big-screen:view'))
 
+// 框架预览模式使用固定演示数据，不访问后端。
 const previewPayload = createDashboardPreview()
 
+// 生成首页欢迎区显示的当前日期和星期。
 const dateSubtitle = computed(() => {
   const week = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][dayjs().day()]
   return `${dayjs().format('YYYY年MM月DD日')} ${week}`
 })
 
+// 按真实姓名、昵称、用户名的顺序选择欢迎语中的用户名称。
 const displayName = computed(() => currentUser.realName || currentUser.nickname || currentUser.username || 'MES 用户')
+// 根据当前小时生成夜间值守、上午好、下午好或晚上好。
 const greeting = computed(() => {
   const hour = dayjs().hour()
   if (hour < 6) return '夜间值守'
@@ -44,8 +52,10 @@ const greeting = computed(() => {
   if (hour < 18) return '下午好'
   return '晚上好'
 })
+// 当前主题变化时同步取得该主题的图表配色。
 const chartPalette = computed(() => activeTheme.value.chart)
 
+// 将接口原始统计值转换为模板循环渲染的统一指标卡结构。
 const numberStats = computed(() => [
   {
     label: '区间生产订单',
@@ -91,6 +101,7 @@ const numberStats = computed(() => [
   }
 ])
 
+// 首页常用业务入口，点击后直接跳到相应资源页面。
 const quickCommands = [
   { label: '生产任务', description: '开工与完工', icon: 'activity', path: '/mfg/tasks', color: '#4f92d3' },
   { label: '生产报工', description: '提交产量与用料', icon: 'clipboard', path: '/mfg/work-reports', color: '#3aa0f3' },
@@ -100,6 +111,7 @@ const quickCommands = [
   { label: '批次追溯', description: '查询产品去向', icon: 'scan', path: '/trace/product-lots', color: '#144a78' }
 ]
 
+// 只展示需要管理人员关注的库存、设备和质量风险，并携带对应处理页面路径。
 const attentionItems = computed(() => [
   {
     label: '库存预警',
@@ -124,6 +136,7 @@ const attentionItems = computed(() => [
   }
 ])
 
+// 以下三个computed生成ECharts option，数据或主题变化时MesChart会自动重新绘制。
 const trendOption = computed(() => ({
   animationDuration: 500,
   color: [chartPalette.value.data, '#c44842'],
@@ -180,6 +193,7 @@ const trendOption = computed(() => ({
   ]
 }))
 
+// 根据质量统计生成合格/不合格环形饼图配置，无数据时显示灰色占位。
 const qualityOption = computed(() => {
   const qualified = Number(quality.value.qualifiedCount || 0)
   const unqualified = Number(quality.value.unqualifiedCount || 0)
@@ -224,6 +238,7 @@ const qualityOption = computed(() => {
   }
 })
 
+// 根据设备状态数量生成横向柱状图配置。
 const equipmentOption = computed(() => ({
   animationDuration: 500,
   color: [chartPalette.value.primary],
@@ -260,6 +275,7 @@ const equipmentOption = computed(() => ({
   }]
 }))
 
+// 生产执行主流程入口，帮助用户按订单到追溯的顺序进入各模块。
 const processSteps = [
   { label: '订单', icon: 'clipboard', path: '/mfg/production-orders' },
   { label: '工单', icon: 'package', path: '/mfg/work-orders' },
@@ -270,18 +286,23 @@ const processSteps = [
   { label: '追溯', icon: 'scan', path: '/trace/product-lots' }
 ]
 
+// 统一使用中文千分位格式展示数量，避免模板中重复格式化逻辑。
 function formatNumber(value) {
   return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(Number(value || 0))
 }
 
+// 将日期选择器的Date对象转换为后端需要的beginDate和endDate字符串。
 function queryParams() {
+  // Element Plus日期范围保存Date对象，调用后端前转换为YYYY-MM-DD查询参数。
   return {
     beginDate: dayjs(dateRange.value[0]).format('YYYY-MM-DD'),
     endDate: dayjs(dateRange.value[1]).format('YYYY-MM-DD')
   }
 }
 
+// 预览模式读取本地数据；真实模式并行请求四个统计接口并更新图表。
 async function loadDashboard() {
+  // 预览模式直接赋值；真实模式并行请求四块统计数据，全部完成后响应式更新界面。
   if (previewMode) {
     summary.value = previewPayload.summary
     trend.value = previewPayload.trend
@@ -311,10 +332,12 @@ async function loadDashboard() {
   }
 }
 
+// 首页组件挂载完成后加载第一屏统计数据。
 onMounted(loadDashboard)
 </script>
 
 <template>
+  <!-- 页面由工具栏、指标卡、趋势/质量/设备图表、快捷入口和业务流程入口组成。 -->
   <div class="mes-page dashboard-page" v-loading="loading">
     <header class="mes-page-header dashboard-toolbar">
       <div class="command-copy">
@@ -502,6 +525,7 @@ onMounted(loadDashboard)
 </template>
 
 <style scoped>
+/* 首页样式：控制指标卡、图表区、快捷入口、风险事项和小屏响应式排列。 */
 .dashboard-page {
   min-height: 100%;
   padding-bottom: 12px;

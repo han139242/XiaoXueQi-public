@@ -1,7 +1,10 @@
 import { defineResource, field, optionSets, values } from './helpers'
 
+// TRACE追溯资源：条码、产品批次和物料使用记录。
+// trace类型的action会调用正向或反向追溯接口，并在通用资源页弹窗展示结果。
 const barcodeTypes = values([['MATERIAL', '物料码', 'primary'], ['BATCH', '批次码', 'warning'], ['PRODUCT', '产品码', 'success'], ['DOCUMENT', '单据码', 'info']])
 
+// 默认导出追溯资源数组，由resources/index.js统一汇总并生成路由菜单。
 export default [
   defineResource({
     key: 'trace-barcode', domain: 'trace', route: 'trace/barcodes', title: '条码管理', icon: 'scan', baseUrl: '/api/trace/barcode', idField: 'barcodeId',

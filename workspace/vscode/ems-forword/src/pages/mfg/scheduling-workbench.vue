@@ -55,15 +55,19 @@ const lineToAdd = ref('')
 // 候选产线请求序号用于丢弃过期响应，避免快速切换订单时旧请求覆盖新订单数据。
 let candidateRequestSequence = 0
 
+// 时间轴可选择的刻度间隔，单位为小时；系统按当前宽度挑选最接近的一项。
 const timelineTickSteps = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168]
 // 将下拉选项数组转成Map，使页面按ID查名称时不必每次遍历整个数组。
 const lineMap = computed(() => new Map(lineOptions.value.map((item) => [String(item.value), item.label])))
+// 建立产品ID到产品名称的快速映射。
 const productMap = computed(() => new Map(productOptions.value.map((item) => [String(item.value), item.label])))
+// 合并选项、待排订单和时间轴数据，建立订单ID到订单详情的映射。
 const orderMap = computed(() => new Map([
   ...orderOptions.value.map((item) => [String(item.value), item.row || {}]),
   ...pendingOrders.value.map((item) => [String(item.productionOrderId), item]),
   ...timelineItems.value.map((item) => [String(item.productionOrderId), item])
 ]))
+// 根据关键词、产品和交期实时筛选待排订单。
 const filteredPendingOrders = computed(() => {
   // 待排订单支持订单号/产品名称、产品ID和交期组合筛选。
   const keyword = pendingFilter.keyword.trim().toLocaleLowerCase()
@@ -75,28 +79,42 @@ const filteredPendingOrders = computed(() => {
       && (!pendingFilter.deliveryDate || order.deliveryDate === pendingFilter.deliveryDate)
   })
 })
+// 从时间轴中筛出仍可编辑的人工草稿项。
 const manualItems = computed(() => timelineItems.value.filter((item) => item.sourceType === 'MANUAL'))
 // PLAN是正式计划，MANUAL是尚可调整的人工草稿项，两者在同一时间轴用不同样式展示。
 const productionPlanItems = computed(() => timelineItems.value.filter((item) => item.sourceType === 'PLAN'))
+// 收集已经加入人工排产的订单ID，便于快速判断重复安排。
 const manuallyScheduledOrderIds = computed(() => new Set(manualItems.value
   .map((item) => String(item.productionOrderId)).filter(Boolean)))
+// 从待排订单中排除已经存在人工排产项的订单。
 const unscheduledPendingOrders = computed(() => pendingOrders.value
   .filter((order) => !manuallyScheduledOrderIds.value.has(String(order.productionOrderId))))
+// 按交期和订单号排序，选取最多12条待排订单作为AI建议引用。
 const aiAdviceOrderReferences = computed(() => [...unscheduledPendingOrders.value]
   .sort((left, right) => String(left.deliveryDate || '9999-12-31').localeCompare(String(right.deliveryDate || '9999-12-31'))
     || String(left.productionOrderNo || '').localeCompare(String(right.productionOrderNo || '')))
   .slice(0, 12))
+// 将AI回答转换为模板可循环的段落数组。
 const aiAdviceParagraphs = computed(() => formatAiAdviceParagraphs(aiAdvice.value?.answer))
+// 筛出后端标记为时间或产能冲突的人工排产项。
 const conflictItems = computed(() => manualItems.value.filter((item) => item.status === 'CONFLICT'))
 // 每类操作分别判断后端权限码，按钮显示和实际请求保持一致。
 const selectedIsManual = computed(() => selectedItem.value?.sourceType === 'MANUAL')
+// 以下五项分别控制新增、修改、删除、AI建议和确认计划按钮权限。
 const canCreateSchedule = computed(() => hasPermission('mfg:schedule-scenario:create'))
+// 判断当前账号能否调整人工排产位置。
 const canUpdateSchedule = computed(() => hasPermission('mfg:schedule-scenario:update'))
+// 判断当前账号能否移出人工排产项。
 const canDeleteSchedule = computed(() => hasPermission('mfg:schedule-scenario:delete'))
+// 判断当前账号能否请求AI排产建议。
 const canRequestAdvice = computed(() => hasPermission('mfg:schedule-scenario:ai-advice'))
+// 判断当前账号能否确认并生成正式生产计划。
 const canConfirmSchedule = computed(() => hasPermission('mfg:schedule-scenario:confirm'))
+// 根据表单选择的产线取得对应候选产线完整信息。
 const placementLine = computed(() => candidates.value.find((item) => String(item.lineId) === String(placementForm.lineId)))
+// 读取候选产线计算出的最短工作分钟数，供弹窗校验和提示使用。
 const placementMinimumWorkingMinutes = computed(() => Math.max(0, Number(placementLine.value?.minimumWorkingMinutes || 0)))
+// 比较表单和原排产项，判断是否存在尚未保存的调整。
 const placementChanged = computed(() => {
   // 比较弹窗表单和原始排产项，只有发生修改时才需要先保存再确认。
   if (!selectedIsManual.value || !selectedItem.value) return false
@@ -105,6 +123,7 @@ const placementChanged = computed(() => {
     || normalizeDateTime(placementForm.endTime) !== normalizeDateTime(selectedItem.value.plannedEndTime)
     || placementForm.remark.trim() !== String(selectedItem.value.remark || '').trim()
 })
+// 只保留产线和起止时间完整的项目进入时间轴布局计算。
 const scheduledItems = computed(() => timelineItems.value.filter((item) => item.lineId && item.plannedStartTime && item.plannedEndTime))
 // 按产线分组并计算重叠任务的轨道编号，避免同一产线的时间块互相遮挡。
 const lineGroups = computed(() => {
@@ -122,40 +141,48 @@ const lineGroups = computed(() => {
       return { ...item, geometry, timelineTrack }
     })
     return { lineId, label: lineLabel(lineId), items: layoutItems, trackCount: Math.max(1, trackEnds.length) }
-  }).sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'))
+}).sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'))
 })
+// 将后端看板起点转换为dayjs对象，方便后续时间计算。
 const horizonStart = computed(() => dayjs(board.value?.horizonStart))
 // 时间轴结束时间至少覆盖后端视窗，并自动延伸到最晚计划的结束时间。
 const horizonEnd = computed(() => scheduledItems.value.reduce((latestEnd, item) => {
   const itemEnd = dayjs(item.plannedEndTime)
   return itemEnd.isValid() && (!latestEnd.isValid() || itemEnd.isAfter(latestEnd)) ? itemEnd : latestEnd
 }, dayjs(board.value?.horizonEnd)))
+// 把最终时间轴结束点向后取整到12小时边界，给最后一项留出可视空间。
 const timelineEnd = computed(() => {
   if (!horizonEnd.value.isValid()) return horizonEnd.value
   const dayStart = horizonEnd.value.startOf('day')
   const elapsedMinutes = horizonEnd.value.diff(dayStart, 'minute', true)
   return dayStart.add((Math.floor(elapsedMinutes / 720) + 1) * 720, 'minute')
 })
+// 缩小时扩大可视时间范围，放大时保持基础范围。
 const timelineViewScale = computed(() => Math.max(1, TIMELINE_ZOOM_DEFAULT / timelineZoom.value))
+// 根据缩放比例向前扩展时间轴可视起点。
 const timelineViewStart = computed(() => {
   if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return horizonStart.value
   const range = timelineEnd.value.diff(horizonStart.value)
   const padding = (range * timelineViewScale.value - range) / 2
   return horizonStart.value.subtract(padding, 'millisecond')
 })
+// 根据缩放比例向后扩展时间轴可视终点。
 const timelineViewEnd = computed(() => {
   if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return timelineEnd.value
   const range = timelineEnd.value.diff(horizonStart.value)
   const padding = (range * timelineViewScale.value - range) / 2
   return timelineEnd.value.add(padding, 'millisecond')
 })
+// 根据排产总天数和缩放比例计算横向画布像素宽度。
 const timelineCanvasWidth = computed(() => {
   if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return 960
   const totalDays = Math.max(1, timelineEnd.value.diff(horizonStart.value, 'hour', true) / 24)
   const baseWidth = Math.max(960, totalDays * 300)
   return Math.round(baseWidth * Math.max(1, timelineZoom.value / TIMELINE_ZOOM_DEFAULT))
 })
+// 将内部缩放值转换为用户看到的百分比。
 const timelineZoomPercent = computed(() => Math.round(timelineZoom.value / TIMELINE_ZOOM_DEFAULT * 100))
+// 根据可视范围和画布宽度动态生成日期时间刻度。
 const timelineTicks = computed(() => {
   // 根据可视时间范围和画布宽度选择合适刻度，缩放后仍保持刻度数量可读。
   if (!timelineViewStart.value.isValid() || !timelineViewEnd.value.isValid() || !timelineViewEnd.value.isAfter(timelineViewStart.value)) return []
@@ -184,27 +211,33 @@ const timelineTicks = computed(() => {
   return ticks
 })
 
+// 根据产品ID读取产品名称，找不到时显示带ID的兜底文字。
 function productLabel(productId) {
   return productMap.value.get(String(productId)) || `产品 #${productId || '--'}`
 }
 
+// 根据产线ID读取产线名称，找不到时显示带ID的兜底文字。
 function lineLabel(lineId) {
   return lineMap.value.get(String(lineId)) || `产线 #${lineId}`
 }
 
+// 从订单Map中取得某个排产项关联的完整生产订单。
 function scheduledOrder(item) {
   return orderMap.value.get(String(item?.productionOrderId)) || null
 }
 
+// 优先显示排产项已有订单号，否则从订单Map补充。
 function scheduledOrderLabel(item) {
   return item?.productionOrderNo || scheduledOrder(item)?.productionOrderNo || `订单 #${item?.productionOrderId || '--'}`
 }
 
+// 根据排产项或关联订单的产品ID得到产品名称。
 function scheduledProductLabel(item) {
   const productId = item?.productId || scheduledOrder(item)?.productId
   return productId ? productLabel(productId) : '型号待补充'
 }
 
+// 将AI返回的连续中文文本按标题和空行切成可读段落。
 function formatAiAdviceParagraphs(answer) {
   // 后端AI可能返回连续文本，这里按常见中文标题拆成段落供模板逐段显示。
   const text = String(answer || '').trim()
@@ -218,23 +251,28 @@ function formatAiAdviceParagraphs(answer) {
     .filter(Boolean)
 }
 
+// 判断待排订单是否已经存在对应的人工排产项。
 function isManuallyScheduled(order) {
   return manuallyScheduledOrderIds.value.has(String(order?.productionOrderId))
 }
 
+// 已排订单点击时直接打开它在时间轴上的安排详情。
 function openPendingOrderPlacement(order) {
   const manualItem = manualItems.value.find((item) => String(item.productionOrderId) === String(order?.productionOrderId))
   if (manualItem) openPlacement(manualItem)
 }
 
+// 为PLAN和MANUAL两种来源的时间轴项生成稳定且不冲突的Vue key。
 function itemKey(item) {
   return `${item.sourceType}-${item.scheduleItemId || item.planId}`
 }
 
+// 将任意合法时间统一格式化为后端需要的ISO本地日期时间字符串。
 function normalizeDateTime(value) {
   return dayjs(value).isValid() ? dayjs(value).format('YYYY-MM-DDTHH:mm:ss') : ''
 }
 
+// 提取看板关键字段生成JSON指纹，用于判断AI建议是否已过期。
 function createBoardFingerprint(value) {
   // 只提取影响排产结果的字段生成指纹；看板变化后标记旧AI建议已经过期。
   return JSON.stringify({
@@ -246,14 +284,17 @@ function createBoardFingerprint(value) {
   })
 }
 
+// 将数量格式化为中文千分位，并限制最大小数位。
 function formatNumber(value, digits = 2) {
   return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: digits }).format(Number(value || 0))
 }
 
+// 把后端日期时间格式化为时间轴和弹窗使用的月日时分。
 function formatDateTime(value) {
   return dayjs(value).isValid() ? dayjs(value).format('MM-DD HH:mm') : '--'
 }
 
+// 将分钟数换算成小时，并按较适合阅读的精度显示。
 function formatDurationHours(minutes) {
   const value = Number(minutes || 0)
   if (value <= 0) return '--'
@@ -261,6 +302,7 @@ function formatDurationHours(minutes) {
     .format(Math.ceil(value / 6) / 10)
 }
 
+// 将安排的开始或结束时间按指定小时数前后微调。
 function shiftPlacementTime(field, hours) {
   if (!canUpdateSchedule.value || !selectedIsManual.value || !['startTime', 'endTime'].includes(field)) return
   const current = dayjs(placementForm[field])
@@ -268,11 +310,13 @@ function shiftPlacementTime(field, hours) {
   placementForm[field] = current.add(hours, 'hour').format('YYYY-MM-DDTHH:mm:ss')
 }
 
+// 在最小和最大范围内调整时间轴缩放比例。
 function changeTimelineZoom(delta) {
   timelineZoom.value = Number(Math.min(TIMELINE_ZOOM_MAX,
     Math.max(TIMELINE_ZOOM_MIN, timelineZoom.value + delta)).toFixed(2))
 }
 
+// 把排产项时间转换为时间轴百分比位置和长度。
 function timelineGeometry(item) {
   // 把计划开始/结束时间换算为时间轴上的百分比位置和宽度。
   const start = dayjs(item.plannedStartTime)
@@ -281,21 +325,24 @@ function timelineGeometry(item) {
   if (!start.isValid() || !end.isValid() || total <= 0) return { start: 0, width: 0, end: 0 }
   const left = Math.max(0, Math.min(100, start.diff(timelineViewStart.value) / total * 100))
   const rawWidth = end.diff(start) / total * 100
-  // Block width must match the scheduled duration; details remain available on hover when space is limited.
+  // 时间块宽度必须与计划时长一致；空间不足时，完整信息仍可通过悬停查看。
   const width = Math.min(100 - left, Math.max(0, rawWidth))
   return { start: left, width, end: Math.min(100, left + width) }
 }
 
+// 根据几何信息和重叠轨道号生成时间块行内样式。
 function timelineBlockStyle(item) {
   return { left: `${item.geometry.start}%`, width: `${item.geometry.width}%`, top: `${14 + item.timelineTrack * 66}px` }
 }
 
+// 清空待排订单的关键词、产品和交期筛选条件。
 function resetPendingFilters() {
   pendingFilter.keyword = ''
   pendingFilter.productId = ''
   pendingFilter.deliveryDate = ''
 }
 
+// 并行加载产线、产品和生产订单关联选项。
 async function loadReferenceData() {
   // 并行加载产线、产品和订单名称，用于把数据库ID显示成可读文字。
   const results = await Promise.allSettled([
@@ -308,6 +355,7 @@ async function loadReferenceData() {
   if (results[2].status === 'fulfilled') orderOptions.value = results[2].value
 }
 
+// 打开草稿并加载人工排产统一看板，拆分为时间轴和待排订单数据。
 async function loadBoard({ open = false } = {}) {
   // 有创建权限时先打开可编辑草稿，再获取统一看板并拆分到各个响应式状态。
   loading.value = true
@@ -331,11 +379,13 @@ async function loadBoard({ open = false } = {}) {
   }
 }
 
+// 并行刷新排产看板与关联名称数据。
 async function refreshWorkbench() {
   // 看板数据和关联名称没有依赖关系，因此并行刷新。
   await Promise.all([loadBoard({ open: true }), loadReferenceData()])
 }
 
+// 查询所选订单满足能力和产能约束的候选产线并打开候选弹窗。
 async function openCandidates(order) {
   // 选择待排订单后向后端查询满足产品能力、日历和产能要求的候选产线。
   if (!canCreateSchedule.value || !draft.value) return
@@ -357,6 +407,7 @@ async function openCandidates(order) {
   }
 }
 
+// 把选中的待排订单加入指定产线草稿，并重新加载后端看板。
 async function addToLine(candidate) {
   // 后端创建草稿项后重新加载看板，确保版本号、冲突状态和计算时间以服务端为准。
   if (!canCreateSchedule.value || !draft.value || !selectedOrder.value || addingLineId.value !== null) return
@@ -378,6 +429,7 @@ async function addToLine(candidate) {
   }
 }
 
+// 将当前产线下拉项转换为候选产线结构，保证编辑弹窗至少能显示原产线。
 function currentLineCandidate(item) {
   const option = lineOptions.value.find((line) => String(line.value) === String(item?.lineId))
   const row = option?.row || {}
@@ -391,6 +443,7 @@ function currentLineCandidate(item) {
   }
 }
 
+// 打开排产详情；人工项额外查询候选产线以支持编辑。
 async function openPlacement(item) {
   // 正式PLAN只允许查看；MANUAL项还会加载候选产线并允许调整位置。
   selectedItem.value = item
@@ -417,6 +470,7 @@ async function openPlacement(item) {
   }
 }
 
+// 提交产线、时间和版本号保存人工安排，可选择保存后是否关闭弹窗。
 async function persistPlacement(closeAfterSave) {
   // 同时提交方案版本和明细版本，后端通过乐观锁阻止多人排产互相覆盖。
   if (!canUpdateSchedule.value || !selectedIsManual.value || !selectedItem.value || !placementForm.lineId
@@ -446,12 +500,14 @@ async function persistPlacement(closeAfterSave) {
   }
 }
 
+// 判断后端错误是否属于多人编辑导致的排程版本冲突。
 function isSchedulingConflict(error) {
   // 业务码1007或版本相关文案都表示当前看板已被其他操作更新。
   const message = String(error?.displayMessage || error?.message || '')
   return Number(error?.code) === 1007 || /排程已更新|其他用户修改|版本/.test(message)
 }
 
+// 将排产业务错误整理为用户可以直接理解的中文处理提示。
 function schedulingErrorMessage(error, fallback) {
   const message = String(error?.displayMessage || error?.message || '').trim()
   if (isSchedulingConflict(error)) return '排程已更新，页面已刷新，请重新选择要操作的安排。'
@@ -459,6 +515,7 @@ function schedulingErrorMessage(error, fallback) {
   return message || fallback
 }
 
+// 版本冲突时先刷新看板，再用阻塞对话框展示明确错误。
 async function showSchedulingError(error, title, fallback) {
   // 版本冲突时先关闭旧弹窗并刷新看板，再告诉用户重新选择，避免继续编辑过期数据。
   const conflict = isSchedulingConflict(error)
@@ -469,7 +526,7 @@ async function showSchedulingError(error, title, fallback) {
     try {
       await refreshWorkbench()
     } catch {
-      // The business error is still shown even when the follow-up refresh is unavailable.
+      // 即使后续刷新失败，下面仍会继续展示最初的排产业务错误。
     }
   }
   try {
@@ -481,10 +538,11 @@ async function showSchedulingError(error, title, fallback) {
       closeOnPressEscape: true
     })
   } catch {
-    // Closing the dialog does not discard unsaved form data unless the board was refreshed for a conflict.
+    // 关闭错误弹窗不会丢弃未保存表单；只有版本冲突触发看板刷新时才会重置。
   }
 }
 
+// 后端已确认但新计划暂未出现在看板时，在本地立即替换为正式PLAN项。
 function ensureConfirmedPlanVisible(plan, manualItem) {
   // 确认接口成功但看板刷新暂未包含新计划时，在本地立即把MANUAL项替换为PLAN项。
   if (!plan?.planId || !manualItem) return
@@ -506,6 +564,7 @@ function ensureConfirmedPlanVisible(plan, manualItem) {
     .sort((left, right) => dayjs(left.plannedStartTime).valueOf() - dayjs(right.plannedStartTime).valueOf())
 }
 
+// 校验产线和起止时间后保存临时安排并关闭弹窗。
 async function savePlacement() {
   if (!placementForm.lineId || !placementForm.startTime || !placementForm.endTime) {
     await showSchedulingError(null, '无法保存临时安排', '请先完整选择生产产线、开始时间和结束时间。')
@@ -514,6 +573,7 @@ async function savePlacement() {
   await persistPlacement(true)
 }
 
+// 二次确认后移除人工排产项，使订单重新回到待排列表。
 async function removeItem() {
   // 移出草稿项前二次确认，成功后订单会重新回到待排列表。
   if (!canDeleteSchedule.value || !selectedIsManual.value || !selectedItem.value || removingItem.value) return
@@ -541,6 +601,7 @@ async function removeItem() {
   }
 }
 
+// 必要时先保存改动，再确认人工项并生成正式生产计划。
 async function confirmPlan() {
   // 若表单有未保存修改则先保存，再调用确认接口生成正式生产计划。
   if (!canConfirmSchedule.value || !selectedIsManual.value || !selectedItem.value || confirmingItem.value) return
@@ -575,6 +636,7 @@ async function confirmPlan() {
   }
 }
 
+// 请求AI分析当前整张排产看板，并记录生成时间和有效状态。
 async function runAiAdvice() {
   // AI建议针对当前整张看板；后续看板变化时通过指纹将建议标记为已过期。
   if (!canRequestAdvice.value || aiAdviceLoading.value) return
@@ -589,6 +651,7 @@ async function runAiAdvice() {
   }
 }
 
+// 将用户选择的空产线加入时间轴可见产线集合。
 function addVisibleLine() {
   if (!lineToAdd.value) return
   visibleLineIds.value = [...new Set([...visibleLineIds.value.map(String), String(lineToAdd.value)])]
@@ -596,6 +659,7 @@ function addVisibleLine() {
   addLineOpen.value = false
 }
 
+// 工作台挂载后执行第一次完整刷新。
 onMounted(refreshWorkbench)
 </script>
 
@@ -752,6 +816,7 @@ onMounted(refreshWorkbench)
 </template>
 
 <style scoped>
+/* 排产工作台样式：控制待排列表、产线时间轴、计划块、候选产线和编辑弹窗。 */
 .capacity-hint{display:flex;align-items:flex-start;gap:9px;margin:0 0 18px;padding:11px 12px;color:var(--mes-primary);border:1px solid var(--mes-primary-border);border-radius:6px;background:var(--mes-primary-soft)}
 .capacity-hint>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:3px}
 .capacity-hint strong{font-size:12px;line-height:1.45}

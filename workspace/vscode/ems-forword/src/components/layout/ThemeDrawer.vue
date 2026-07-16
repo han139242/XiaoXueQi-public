@@ -2,8 +2,10 @@
 import AppIcon from '@/components/common/AppIcon.vue'
 import { activeTheme, activeThemeKey, setTheme, themeOptions } from '@/utils/theme'
 
+// open通过父组件的v-model双向绑定，父组件控制抽屉打开，本组件可以主动关闭。
 const open = defineModel({ type: Boolean, default: false })
 
+// 应用并持久化主题后关闭抽屉；真正修改<html data-theme>由theme.js负责。
 function selectTheme(themeKey) {
   setTheme(themeKey)
   open.value = false
@@ -11,6 +13,7 @@ function selectTheme(themeKey) {
 </script>
 
 <template>
+  <!-- 根据themeOptions循环生成主题预览，不为每套主题重复写一份HTML。 -->
   <el-drawer v-model="open" size="410px" :with-header="false" append-to-body>
     <div class="theme-drawer-shell">
       <header class="theme-drawer-head">
@@ -55,6 +58,7 @@ function selectTheme(themeKey) {
 </template>
 
 <style scoped>
+/* 主题抽屉样式：控制主题预览缩略图、选中状态和抽屉头部。 */
 .theme-drawer-shell {
   min-height: 100%;
   background: #fff;

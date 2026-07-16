@@ -13,7 +13,9 @@ import {
 } from '@/api/sys/notification'
 import { hasPermission } from '@/utils/permission'
 
+// 消息中心集中查询、筛选、阅读和确认当前用户收到的业务通知。
 const router = useRouter()
+// rows/total保存分页结果；unreadTotal/categoryCounts保存顶部未读统计。
 const loading = ref(false)
 const markingAll = ref(false)
 const rows = ref([])
@@ -22,10 +24,14 @@ const unreadTotal = ref(0)
 const categoryCounts = ref({})
 const filter = reactive({ current: 1, size: 20, view: 'UNREAD', category: '', severity: '' })
 
+// 查看、标记已读和确认通知是不同权限，页面据此控制相应操作按钮。
 const canRead = computed(() => hasPermission('sys:notification:read'))
+// 判断当前账号是否可以执行“确认收到”。
 const canAcknowledge = computed(() => hasPermission('sys:notification:ack'))
+// 根据总条数和每页条数计算至少为1的总页数。
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / filter.size)))
 
+// 通知业务分类筛选选项，空值代表全部分类。
 const categoryOptions = [
   { value: '', label: '全部分类' },
   { value: 'MFG', label: '生产' },
@@ -36,6 +42,7 @@ const categoryOptions = [
   { value: 'SYSTEM', label: '系统' }
 ]
 
+// 通知严重程度筛选选项，值与后端severity编码保持一致。
 const severityOptions = [
   { value: '', label: '全部级别' },
   { value: 'INFO', label: '普通' },
@@ -44,7 +51,9 @@ const severityOptions = [
   { value: 'CRITICAL', label: '紧急' }
 ]
 
+// 并行加载当前筛选下的通知分页和全局未读统计，并更新页面响应式数据。
 async function loadData() {
+  // 通知分页和未读统计互不依赖，使用Promise.all并行请求以减少等待时间。
   loading.value = true
   try {
     const [pageResult, unreadResult] = await Promise.all([
@@ -66,17 +75,22 @@ async function loadData() {
   }
 }
 
+// 切换全部/未读视图时重置到第一页并重新查询。
 function changeView() {
+  // 筛选条件改变后回到第一页，避免旧页码超过新结果总页数。
   filter.current = 1
   loadData()
 }
 
+// 修改分类或级别筛选时重置到第一页并重新查询。
 function changeFilter() {
   filter.current = 1
   loadData()
 }
 
+// 打开通知前按权限标记已读，再安全跳转到关联业务页。
 async function openNotification(row) {
+  // 未读消息先更新状态，再跳到通知携带的站内业务页面。
   if (row.readStatus === 'UNREAD' && canRead.value) {
     await markNotificationRead(row.recipientId)
   }
@@ -87,7 +101,9 @@ async function openNotification(row) {
   }
 }
 
+// 将当前分类或全部分类的未读通知批量标记为已读。
 async function markAllRead() {
+  // 有分类筛选时只批量处理该分类，否则处理全部未读通知。
   if (!canRead.value || !unreadTotal.value) return
   markingAll.value = true
   try {
@@ -99,20 +115,25 @@ async function markAllRead() {
   }
 }
 
+// 调用确认接口表示用户已明确收到该条重要通知，然后刷新列表。
 async function acknowledge(row) {
   await acknowledgeNotification(row.recipientId)
   ElMessage.success('已确认收到')
   await loadData()
 }
 
+// 仅允许单斜杠开头的站内地址，拒绝协议相对外部地址。
 function isSafeRoute(path) {
+  // 只允许单斜杠开头的站内路由，防止后端通知配置跳转到外部地址。
   return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')
 }
 
+// 将通知分类编码转换为下拉选项中的中文标签。
 function categoryLabel(value) {
   return categoryOptions.find((item) => item.value === value)?.label || value || '业务'
 }
 
+// 将严重程度编码转换成中文文字和Element Plus标签类型。
 function severityMeta(value) {
   return {
     INFO: { label: '普通', type: 'info' },
@@ -122,14 +143,17 @@ function severityMeta(value) {
   }[value] || { label: value || '普通', type: 'info' }
 }
 
+// 将后端时间格式化为统一的年月日时分显示。
 function formatTime(value) {
   return value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '--'
 }
 
+// 页面挂载后立即执行第一次通知查询。
 onMounted(loadData)
 </script>
 
 <template>
+  <!-- 顶部负责总量和批量操作，下面的筛选条件驱动同一个loadData查询流程。 -->
   <div class="notification-center-page">
     <header class="notification-page-header">
       <div class="notification-page-title">
@@ -223,5 +247,6 @@ onMounted(loadData)
 </template>
 
 <style scoped>
+/* 消息中心样式：控制筛选工具栏、通知列表、未读状态、分页和移动端排列。 */
 .notification-center-page{min-width:0}.notification-page-header,.notification-page-title,.notification-page-actions,.notification-toolbar,.notification-filters,.notification-row-title,.notification-meta,.notification-row-actions,.notification-pagination{display:flex;align-items:center}.notification-page-header{justify-content:space-between;gap:16px;margin-bottom:14px}.notification-page-title{gap:11px}.notification-page-title h1{margin:0;font-size:20px;letter-spacing:0}.notification-page-title span{color:var(--mes-text-muted);font-size:11px}.notification-page-icon{display:inline-flex;width:42px;height:42px;align-items:center;justify-content:center;color:var(--mes-primary);border:1px solid var(--mes-primary-border);border-radius:6px;background:var(--mes-primary-soft)}.notification-page-actions{gap:8px}.notification-page-actions :deep(.el-button>span){display:inline-flex;align-items:center;gap:5px}.notification-toolbar{min-height:52px;justify-content:space-between;gap:16px;padding:0 14px;border:1px solid var(--mes-border);border-bottom:0;background:var(--mes-surface)}.notification-tabs{align-self:stretch}.notification-tabs :deep(.el-tabs__header){height:100%;margin:0}.notification-tabs :deep(.el-tabs__nav-wrap),.notification-tabs :deep(.el-tabs__nav-scroll),.notification-tabs :deep(.el-tabs__nav){height:100%}.notification-tabs :deep(.el-tabs__item){height:100%;font-size:12px}.notification-filters{gap:8px}.notification-filters :deep(.el-select){width:132px}.notification-list{min-height:320px;border:1px solid var(--mes-border);background:var(--mes-surface)}.notification-row{display:grid;width:100%;min-height:92px;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:12px;padding:13px 16px;color:var(--mes-text);border:0;border-bottom:1px solid var(--mes-border);background:transparent;font:inherit;text-align:left;cursor:pointer}.notification-row:hover{background:var(--mes-surface-muted)}.notification-row.unread{background:rgb(var(--mes-primary-rgb)/4%)}.notification-status-dot{width:7px;height:7px;border-radius:50%;background:var(--mes-border-strong)}.notification-row.unread .notification-status-dot{background:var(--mes-primary)}.notification-row-main{display:flex;min-width:0;flex-direction:column;gap:7px}.notification-row-title{min-width:0;gap:6px}.notification-row-title strong{overflow:hidden;margin-right:4px;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.notification-summary{overflow:hidden;color:var(--mes-text-secondary);font-size:12px;text-overflow:ellipsis;white-space:nowrap}.notification-meta{gap:14px;color:var(--mes-text-muted);font-size:10px}.notification-row-actions{gap:10px;color:var(--mes-text-muted)}.notification-pagination{justify-content:space-between;padding:11px 14px;border:1px solid var(--mes-border);border-top:0;background:var(--mes-surface)}.notification-pagination>span{color:var(--mes-text-muted);font-size:11px}@media(max-width:700px){.notification-page-header,.notification-toolbar{align-items:flex-start;flex-direction:column}.notification-page-actions,.notification-filters{width:100%}.notification-toolbar{padding-top:10px}.notification-tabs{width:100%}.notification-filters :deep(.el-select){min-width:0;flex:1}.notification-row{grid-template-columns:8px minmax(0,1fr);padding:12px}.notification-row-actions{grid-column:2;justify-content:flex-end}.notification-row-title{align-items:flex-start;flex-wrap:wrap}.notification-row-title strong{width:100%}.notification-summary{white-space:normal}.notification-meta{align-items:flex-start;flex-direction:column;gap:3px}}
 </style>

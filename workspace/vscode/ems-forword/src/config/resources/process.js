@@ -1,5 +1,8 @@
 import { defineResource, optionSets, values } from './helpers'
 
+// 工艺资源：工序、工艺参数、工艺路线、路线工序和作业指导书。
+// fullChild表示主表和明细可以在同一个表单中一起提交。
+// 默认导出该业务域的资源数组，由resources/index.js统一汇总。
 export default [
   defineResource({
     key: 'process-operation', domain: 'process', route: 'process/operations', title: '工序管理', icon: 'activity', baseUrl: '/api/process/operation', idField: 'operationId',

@@ -6,10 +6,12 @@ import { referencePresentation } from '@/config/resources/helpers'
 // 缓存已经加载过的关联选项，避免一个页面中的多个 productId 下拉框反复请求同一接口。
 const cache = new Map()
 
+// 递归展开树形接口数据，让父节点和所有children都能成为下拉选项。
 function flatten(items) {
   return (items || []).flatMap((item) => [item, ...flatten(item.children)])
 }
 
+// 根据资源的展示字段，把一行数据拼成用户可读的下拉选项名称。
 function labelFor(config, row) {
   // 数据库存的是关联 ID，界面根据 referencePresentation 拼出“名称 + 编码”等可读文字。
   const fields = referencePresentation[config.key] || config.fields.filter((item) => item.type === 'text').slice(0, 2).map((item) => item.prop)
@@ -17,6 +19,7 @@ function labelFor(config, row) {
   return values.length ? values.join(' · ') : `${config.title.replace('管理', '')} #${row[config.idField]}`
 }
 
+// 开发预览或接口回退时生成8条本地下拉选项。
 function previewOptions(config) {
   return Array.from({ length: 8 }, (_, index) => {
     const value = index + 1
@@ -24,10 +27,12 @@ function previewOptions(config) {
   })
 }
 
+// 只有开发环境且环境变量未明确关闭时，才允许真实接口失败后使用模拟数据。
 export function canUseResourceMockFallback() {
   return import.meta.env.DEV && import.meta.env.VITE_RESOURCE_MOCK_FALLBACK !== 'false'
 }
 
+// 加载某类关联资源并转换为value/label选项，同一模式和资源的并发请求共用缓存Promise。
 export async function loadReferenceOptions(resourceKey, previewMode = false) {
   // 读取目标资源配置，再调用通用 API 获取数据，最后转换为 el-select 需要的 value/label。
   const mockFallback = canUseResourceMockFallback()
@@ -59,6 +64,7 @@ export async function loadReferenceOptions(resourceKey, previewMode = false) {
   }
 }
 
+// 新增或修改资源后清除它在三种数据模式下的选项缓存。
 export function clearReferenceOptions(resourceKey) {
   // 新增或修改关联资源后清掉缓存，下次打开下拉框时才能看到最新数据。
   cache.delete(`live:${resourceKey}`)
@@ -66,6 +72,7 @@ export function clearReferenceOptions(resourceKey) {
   cache.delete(`mock-fallback:${resourceKey}`)
 }
 
+// 按字段类型、名称和业务含义生成一条合理的预览值。
 function previewValue(field, index, config) {
   // 开发预览模式没有后端数据时，根据字段类型生成结构合理的演示值。
   if (field.options?.length) return field.options[index % field.options.length].value
@@ -92,6 +99,7 @@ function previewValue(field, index, config) {
   return `${field.label}${index + 1}`
 }
 
+// 根据完整资源字段配置批量生成指定数量的预览表格行。
 export function createPreviewRows(config, count = 12) {
   // 仅供开发预览或明确开启的 mock fallback 使用，不会写入真实数据库。
   return Array.from({ length: count }, (_, index) => {

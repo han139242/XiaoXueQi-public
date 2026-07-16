@@ -30,6 +30,7 @@ export const domainDefinitions = {
   sys: { title: '系统管理', icon: 'settings', tone: 'blue', description: '用户角色、字典参数、文件和审计日志' }
 }
 
+// 根据唯一resourceKey从Map中取得资源完整配置。
 export function getResourceConfig(key) {
   return resourceMap[key]
 }

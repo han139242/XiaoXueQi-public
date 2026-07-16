@@ -68,6 +68,7 @@ const specialRules = [
   ['get', /^\/api\/trace\/material-usage\/batch\/[^/]+$/, 'trace:material-usage:reverse-trace']
 ]
 
+// 从当前用户信息中读取权限数组并转成Set，使权限码查询保持高效。
 export function currentPermissions() {
   // 读取 authRevision.value 是为了让依赖此函数的 computed 在登录信息变化后重新计算。
   authRevision.value

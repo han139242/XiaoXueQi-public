@@ -17,6 +17,7 @@ const mobileMenuOpen = ref(false)
 const viewVersion = ref(0)
 const tabs = ref([{ path: '/dashboard', title: '首页', affix: true }])
 
+// 根据窗口宽度更新移动端状态，并在回到桌面端时关闭移动抽屉。
 function updateViewport() {
   // 根据窗口宽度在桌面侧栏和移动端抽屉菜单之间切换。
   mobile.value = window.innerWidth < 1120
@@ -25,6 +26,7 @@ function updateViewport() {
   }
 }
 
+// 移动端切换抽屉开关，桌面端切换侧边栏折叠状态。
 function toggleSidebar() {
   if (mobile.value) {
     mobileMenuOpen.value = !mobileMenuOpen.value
@@ -33,22 +35,27 @@ function toggleSidebar() {
   collapsed.value = !collapsed.value
 }
 
+// 移动端完成菜单跳转后自动关闭侧边栏抽屉。
 function closeMobileMenu() {
   if (mobile.value) {
     mobileMenuOpen.value = false
   }
 }
 
+// 响应全局AI助手事件并跳转到独立AI工作台。
 function handleOpenAi() {
   router.push('/ai/workbench')
 }
 
+// 监听折叠状态并保存到localStorage，使刷新后保持用户选择。
 watch(collapsed, (value) => {
   localStorage.setItem('mes_sidebar_collapsed', String(value))
 })
 
+// 路由变化时确保移动菜单关闭，不遮挡新页面。
 watch(() => route.fullPath, closeMobileMenu)
 
+// 布局挂载后计算屏幕状态并注册窗口和全局业务事件。
 onMounted(() => {
   // 组件进入页面后注册窗口尺寸和“打开 AI 助手”两个全局事件。
   updateViewport()
@@ -56,6 +63,7 @@ onMounted(() => {
   window.addEventListener(OPEN_AI_ASSISTANT_EVENT, handleOpenAi)
 })
 
+// 布局销毁前移除全部事件监听，避免重复响应。
 onBeforeUnmount(() => {
   // 组件销毁前移除监听，避免重复注册和内存泄漏。
   window.removeEventListener('resize', updateViewport)
@@ -64,6 +72,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <!-- 登录后后台骨架：固定侧栏 + 顶栏 + 标签栏 + 当前子路由内容。 -->
   <div
     class="layout-shell"
     :class="{
@@ -91,6 +100,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* 后台骨架样式：控制侧栏占位、折叠宽度、移动抽屉遮罩和内容区间距。 */
 .layout-shell {
   min-height: 100dvh;
   padding-left: var(--mes-sidebar-width);

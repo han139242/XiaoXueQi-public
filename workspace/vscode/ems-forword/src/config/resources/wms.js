@@ -1,5 +1,7 @@
 import { defineResource, field, optionSets, values } from './helpers'
 
+// WMS仓储资源：仓库、库位、批次、库存余额、出入库、退料、盘点和补货。
+// 库存业务状态变化由后端事务控制，前端配置只决定字段、按钮和请求地址。
 const warehouseTypes = values([['RAW', '原料仓', 'primary'], ['SEMI_FINISHED', '半成品仓', 'warning'], ['FINISHED', '成品仓', 'success'], ['DEFECTIVE', '不良品仓', 'danger']])
 const locationTypes = values([['NORMAL', '正常库位', 'success'], ['INSPECTION', '待检区', 'warning'], ['DEFECTIVE', '不良区', 'danger'], ['FROZEN', '冻结区', 'info']])
 
@@ -19,6 +21,7 @@ const withdrawAction = (kind, idField) => ({
   previewPatch: () => ({ auditStatus: 'CLOSED' })
 })
 
+// 默认导出仓储资源数组，由resources/index.js统一汇总并生成路由菜单。
 export default [
   defineResource({ key: 'wms-warehouse', domain: 'wms', route: 'wms/warehouses', title: '仓库管理', icon: 'warehouse', baseUrl: '/api/wms/warehouse', idField: 'warehouseId', fields: ['warehouseCode', 'warehouseName', 'warehouseType', 'managerId', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status'], defaults: { status: 'ENABLE' }, overrides: { warehouseCode: { required: true }, warehouseName: { required: true }, warehouseType: { required: true, type: 'select', options: warehouseTypes }, status: { type: 'select', options: optionSets.warehouse }, createdTime: { form: false, width: 170 } } }),
   defineResource({ key: 'wms-location', domain: 'wms', route: 'wms/locations', title: '库位管理', icon: 'warehouse', baseUrl: '/api/wms/location', idField: 'locationId', fields: ['locationCode', 'locationName', 'warehouseId', 'locationType', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status'], defaults: { status: 'IDLE' }, overrides: { locationCode: { required: true }, locationName: { required: true }, warehouseId: { required: true }, locationType: { required: true, type: 'select', options: locationTypes }, status: { type: 'select', options: optionSets.location }, createdTime: { form: false, width: 170 } } }),

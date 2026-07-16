@@ -1,5 +1,8 @@
 import { defineResource, optionSets, values } from './helpers'
 
+// 组织资源：部门、员工、班组、班次和班组成员关系。
+// treeEndpoint表示部门使用树形接口，menu:false表示关联表不单独出现在侧边菜单。
+// 默认导出该业务域的资源数组，由resources/index.js统一汇总。
 export default [
   defineResource({
     key: 'org-department', domain: 'org', route: 'org/departments', title: '部门管理', icon: 'factory', baseUrl: '/api/org/department', idField: 'departmentId', treeEndpoint: '/api/org/department/tree',

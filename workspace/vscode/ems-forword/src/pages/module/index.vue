@@ -4,9 +4,12 @@ import { useRoute } from 'vue-router'
 import AppIcon from '@/components/common/AppIcon.vue'
 import { getModuleDefinition } from '@/config/navigation'
 
+// 模块导航页由动态路由参数moduleKey复用，例如/sys、/mfg进入同一个组件但读取不同配置。
 const route = useRoute()
 const keyword = ref('')
+// 根据动态moduleKey取得当前模块标题、图标和有权限的业务入口。
 const definition = computed(() => getModuleDefinition(route.params.moduleKey))
+// 输入关键词后只过滤当前模块内有权限的业务入口。
 const filteredEntries = computed(() => {
   const value = keyword.value.trim()
   if (!value) {
@@ -15,12 +18,16 @@ const filteredEntries = computed(() => {
   return definition.value.entries.filter((entry) => entry.label.includes(value))
 })
 
+// 监听动态模块变化，更新浏览器标题并清空上一个模块的搜索词。
 watch(definition, (value) => {
+  // 切换模块时同步浏览器标题并清空上一个模块的搜索词。
   document.title = `${value.title} - 羽球智造 MES`
   keyword.value = ''
 }, { immediate: true })
 
+// 打开模块中的业务入口；Hash变化会由Vue Router匹配对应页面。
 function openEntry(entry) {
+  // 项目采用Hash路由，修改location.hash会交给Vue Router显示对应页面。
   if (entry.path) {
     window.location.hash = `#${entry.path}`
   }
@@ -28,6 +35,7 @@ function openEntry(entry) {
 </script>
 
 <template>
+  <!-- 根据当前模块配置渲染模块标题、搜索框和可访问业务入口。 -->
   <div class="mes-page module-page">
     <header class="mes-page-header module-header">
       <div class="module-heading">
@@ -75,6 +83,7 @@ function openEntry(entry) {
 </template>
 
 <style scoped>
+/* 模块导航页样式：负责标题区、入口网格、搜索框和小屏响应式布局。 */
 .module-header {
   align-items: center;
 }

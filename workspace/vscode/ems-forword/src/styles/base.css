@@ -1,7 +1,9 @@
+/* 全局盒模型重置：元素声明的宽高包含padding和border，便于稳定计算布局。 */
 * {
   box-sizing: border-box;
 }
 
+/* html、body和Vue挂载点占满页面，并保证最小移动端宽度。 */
 html,
 body,
 #app {
@@ -26,6 +28,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* 表单控件继承全局字体，避免浏览器默认样式与页面不一致。 */
 button,
 input,
 textarea,
@@ -50,6 +53,7 @@ p {
   margin: 0;
 }
 
+/* 只在键盘导航时显示焦点轮廓，兼顾可访问性和鼠标操作观感。 */
 button:focus-visible,
 a:focus-visible,
 [tabindex]:focus-visible {
@@ -68,6 +72,7 @@ a:focus-visible,
   background: var(--mes-primary);
 }
 
+/* MES页面、标题和面板的通用布局类，业务页面可以直接复用。 */
 .mes-page {
   width: 100%;
   max-width: 1760px;
@@ -126,6 +131,7 @@ a:focus-visible,
   padding: 0;
 }
 
+/* 统一覆盖Element Plus的圆角、表格、按钮和遮罩等基础视觉变量。 */
 .el-card,
 .el-dialog,
 .el-drawer {
@@ -155,6 +161,7 @@ a:focus-visible,
   backdrop-filter: blur(2px);
 }
 
+/* 小屏幕下标题区改为上下排列，避免标题和操作按钮互相挤压。 */
 @media (max-width: 768px) {
   .mes-page-header {
     min-height: auto;

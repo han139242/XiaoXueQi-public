@@ -1,5 +1,6 @@
 const option = (value, label, type = 'info') => ({ value, label, type })
 
+// 全项目共享的状态字典，value提交后端，label显示中文，type控制标签颜色。
 export const optionSets = {
   enable: [option('ENABLE', '启用', 'success'), option('DISABLE', '停用', 'info')],
   userStatus: [
@@ -154,6 +155,7 @@ export const optionSets = {
   yesNo: [option(1, '是', 'success'), option(0, '否', 'info')]
 }
 
+// 字段名到中文标题的统一映射，通用表格和表单都从这里取得默认标签。
 const labels = {
   keyword: '关键字', username: '用户名', passwordHash: '初始密码', employeeId: '员工', status: '状态',
   lastLoginTime: '最后登录时间', roleCode: '角色编码', roleName: '角色名称', dataScope: '数据范围',
@@ -250,6 +252,7 @@ function humanize(prop) {
   return labels[prop] || prop.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase())
 }
 
+// 将一个数据库/实体字段名转换为通用页面可以直接使用的完整字段配置。
 export function field(prop, overrides = {}) {
   // 先根据字段名推断关联、日期、数字、长文本等控件类型，再用 overrides 覆盖特殊规则。
   // 最终结果会交给 ResourceField.vue，决定页面显示输入框、下拉框还是日期控件。
@@ -279,6 +282,7 @@ export function field(prop, overrides = {}) {
   }
 }
 
+// 将业务文件中的精简资源声明补全为路由、表格、筛选和表单需要的标准配置。
 export function defineResource(config) {
   // 将 mfg.js 等文件中的精简配置标准化：补齐字段对象、筛选条件、默认权限、路由路径等。
   // 因此业务资源只需描述差异，不必为每个页面重复编写整套表格和表单代码。
@@ -305,6 +309,7 @@ export function defineResource(config) {
 }
 
 // 把 [值, 中文标签, 标签颜色] 的简写数组转换成 Element Plus 下拉选项对象。
+// 把三元组简写批量转换为Element Plus使用的value/label/type选项对象。
 export function values(entries) {
   return entries.map(([value, label, type]) => option(value, label, type))
 }

@@ -30,6 +30,7 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
+// 根据路由传入的resourceKey取得当前业务页面完整配置，配置变化时自动重新计算。
 const config = computed(() => getResourceConfig(props.resourceKey))
 // 下列响应式状态按职责分组：主表数据、筛选分页、编辑表单、主从明细和特殊动作弹窗。
 const previewMode = isFrameworkPreview()
@@ -81,10 +82,15 @@ const permissions = computed(() => {
     export: configured.export && hasRequestPermission('get', `${config.value.baseUrl}/excel`)
   }
 })
+// 过滤当前用户有权限执行的页面级全局动作。
 const visibleGlobalActions = computed(() => (config.value.globalActions || []).filter((action) => canUseAction(action)))
+// 从全部字段中筛出允许出现在主表中的字段。
 const tableFields = computed(() => config.value.fields.filter((item) => item.table !== false))
+// 再结合用户列设置筛出当前实际显示的表格列。
 const visibleTableFields = computed(() => tableFields.value.filter((item) => columnVisibility[item.prop] !== false))
+// 筛选区折叠时只显示前4项，展开后显示全部筛选字段。
 const visibleFilters = computed(() => filterExpanded.value ? config.value.filters : config.value.filters.slice(0, 4))
+// 超过4个筛选字段时才显示展开/收起按钮。
 const hasExtraFilters = computed(() => config.value.filters.length > 4)
 // 同一份 fields 配置既能生成表格，也能按 create/edit 标记筛出当前表单应该显示的字段。
 const formFields = computed(() => config.value.fields.filter((item) => {
@@ -93,26 +99,37 @@ const formFields = computed(() => config.value.fields.filter((item) => {
   if (formMode.value === 'edit' && item.edit === false) return false
   return true
 }))
+// 根据新增或编辑模式生成弹窗标题。
 const formTitle = computed(() => `${formMode.value === 'create' ? '新增' : '编辑'}${config.value.title.replace('管理', '')}`)
+// fullChild存在时取得子表资源配置，否则当前资源没有一体化子表。
 const childConfig = computed(() => config.value.fullChild ? getResourceConfig(config.value.fullChild.resource) : null)
+// 筛出子表表单中可编辑且不是父外键的字段。
 const childFields = computed(() => {
   if (!childConfig.value) return []
   return childConfig.value.fields.filter((item) => item.form !== false && item.prop !== config.value.fullChild.parentField)
 })
+// 将当前业务动作字段转换为动作弹窗的校验规则。
 const actionRules = computed(() => rulesFor(currentAction.value?.fields || [], 'action'))
+// 将当前新增/编辑字段转换为主表表单校验规则。
 const formRules = computed(() => rulesFor(formFields.value, formMode.value))
+// 统计当前启用的非空筛选条件数量，显示在筛选按钮上。
 const activeFilterCount = computed(() => Object.values(filters).filter((value) => value !== '' && value !== null && value !== undefined).length)
+// 将追溯接口返回的对象转换为模板可循环的键值对数组。
 const traceEntries = computed(() => {
   if (!traceData.value || typeof traceData.value !== 'object') return []
   return Object.entries(traceData.value)
 })
+// preview和mock都属于本地数据模式，不应调用真实增删改接口。
 const localDataMode = computed(() => dataMode.value !== 'live')
+// 将内部数据模式转换为页面显示的数据来源文字。
 const dataSourceLabel = computed(() => {
   if (dataMode.value === 'preview') return '开发预览'
   if (dataMode.value === 'mock') return '本地测试数据'
   return '实时接口'
 })
+// 取得当前资源配置的风险提醒规则。
 const alertRules = computed(() => config.value.alerts || [])
+// 给提醒规则补充实际数量，并只保留数量大于0的风险。
 const activeAlerts = computed(() => alertRules.value
   .map((item) => ({ ...item, count: Number(alertCounts[item.key] || 0) }))
   .filter((item) => item.count > 0))
@@ -123,10 +140,13 @@ const detailConfigs = computed(() => {
     .map((item, index) => ({ ...item, key: item.key || item.resource || String(index) }))
     .filter((item) => hasPermission(resourcePermission(item.resource, 'view')))
 })
+// 根据当前标签找到实际生效的明细配置，找不到时回退第一项。
 const detailConfig = computed(() => detailConfigs.value.find((item) => item.key === activeDetailKey.value)
   || detailConfigs.value[0]
   || null)
+// 根据当前明细配置取得明细资源的字段、主键和接口信息。
 const detailResourceConfig = computed(() => detailConfig.value ? getResourceConfig(detailConfig.value.resource) : null)
+// 筛出当前明细表实际展示的字段，并排除父外键。
 const detailTableFields = computed(() => {
   if (!detailResourceConfig.value) return []
   const configuredFields = detailConfig.value.fields
@@ -134,6 +154,7 @@ const detailTableFields = computed(() => {
     && item.prop !== detailConfig.value.parentField
     && (!configuredFields || configuredFields.includes(item.prop)))
 })
+// 汇总所有明细资源中的关联字段，提前加载它们的显示名称。
 const detailReferenceFields = computed(() => detailConfigs.value.flatMap((item) => {
   const resource = getResourceConfig(item.resource)
   const configuredFields = item.fields
@@ -141,7 +162,9 @@ const detailReferenceFields = computed(() => detailConfigs.value.flatMap((item) 
     && fieldItem.prop !== item.parentField
     && (!configuredFields || configuredFields.includes(fieldItem.prop)))
 }))
+// 只要存在经过权限过滤的明细配置，就允许显示主从区域。
 const detailViewAllowed = computed(() => Boolean(detailConfig.value))
+// 生成当前选中主记录的可读标题，供明细区域展示。
 const selectedRowLabel = computed(() => {
   if (!selectedRow.value || !detailConfig.value) return ''
   if (detailConfig.value.label) return detailConfig.value.label(selectedRow.value)
@@ -151,6 +174,7 @@ let detailRequestId = 0
 let detailCountRequestId = 0
 let syncingCurrentRow = false
 
+// 根据字段配置生成Element Plus所需的表单校验规则对象。
 function rulesFor(fields, mode) {
   // 把字段配置中的 required、requiredOnCreate、minLength 转成 Element Plus 表单校验规则。
   return Object.fromEntries(fields.map((item) => {
@@ -162,14 +186,17 @@ function rulesFor(fields, mode) {
   }).filter(([, rules]) => rules.length))
 }
 
+// 取得字段的下拉选项：优先使用字段内静态选项，否则使用接口加载的关联资源选项。
 function optionsFor(field) {
   return field.options || referenceOptions[field.reference] || []
 }
 
+// 根据当前值找到对应选项，主要用于把状态编码或关联ID显示为中文名称。
 function optionFor(field, value) {
   return optionsFor(field).find((item) => String(item.value) === String(value))
 }
 
+// 统一格式化表格单元格，处理空值、字典、日期、数字、数组和普通文本。
 function formatValue(field, value, row) {
   // 将后端原始值转换为表格可读内容，例如状态中文、关联名称和日期格式。
   if (value === null || value === undefined || value === '') return '--'
@@ -184,15 +211,18 @@ function formatValue(field, value, row) {
   return String(value)
 }
 
+// 删除空字符串、null和undefined，避免把无效筛选条件或动作字段发送给后端。
 function cleanParams(source) {
   return Object.fromEntries(Object.entries(source).filter(([, value]) => value !== '' && value !== null && value !== undefined))
 }
 
+// 把资源baseUrl和可选子路径拼成完整接口地址，并自动补充斜杠。
 function resourceUrl(path = '') {
   if (!path) return config.value.baseUrl
   return `${config.value.baseUrl}${String(path).startsWith('/') ? path : `/${path}`}`
 }
 
+// 按字段类型和名称推断合理的默认列宽，配置中显式width的优先级最高。
 function tableColumnWidth(field) {
   if (field.width) return field.width
   if (field.type === 'datetime') return 168
@@ -206,15 +236,18 @@ function tableColumnWidth(field) {
   return 136
 }
 
+// 判断单元格是否允许显示两行，长文本和显式cellLines=2的字段需要更高行高。
 function isMultilineField(field) {
   return field.cellLines === 2 || field.type === 'textarea'
 }
 
+// 读取资源配置返回的行色调，并转换为表格CSS类名。
 function tableRowClassName({ row }) {
   const tone = config.value.rowTone?.(row)
   return tone ? `is-${tone}-row` : ''
 }
 
+// 在开发预览或mock回退模式中生成、筛选本地数据，不请求真实后端。
 function applyLocalRows(mode = 'mock') {
   dataMode.value = mode
   const all = createPreviewRows(config.value, 12)
@@ -229,10 +262,12 @@ function applyLocalRows(mode = 'mock') {
   loadError.value = ''
 }
 
+// 将树形接口返回的children递归展开，用于统计树节点总数。
 function flattenTree(items) {
   return (items || []).flatMap((item) => [item, ...flattenTree(item.children)])
 }
 
+// 根据资源筛选配置和当前路由query初始化查询表单。
 function initFilters() {
   Object.keys(filters).forEach((key) => delete filters[key])
   config.value.filters.forEach((item) => {
@@ -241,6 +276,7 @@ function initFilters() {
   })
 }
 
+// 初始化表格列显示状态，并恢复用户之前保存在localStorage中的选择。
 function initColumns() {
   Object.keys(columnVisibility).forEach((key) => delete columnVisibility[key])
   let stored = {}
@@ -256,10 +292,12 @@ function initColumns() {
   })
 }
 
+// 将当前列显示设置保存到浏览器，不同资源使用独立的存储键。
 function saveColumns() {
   localStorage.setItem(`mes_resource_columns:${config.value.key}`, JSON.stringify(columnVisibility))
 }
 
+// 恢复资源配置规定的默认列，并立即保存新的列设置。
 function resetColumns() {
   tableFields.value.forEach((item) => {
     columnVisibility[item.prop] = item.defaultVisible !== false
@@ -267,6 +305,7 @@ function resetColumns() {
   saveColumns()
 }
 
+// 合并资源默认值、字段默认值和已有行数据，创建新增或编辑表单模型。
 function initForm(row = {}) {
   const model = { ...config.value.defaults }
   config.value.fields.forEach((item) => {
@@ -275,18 +314,21 @@ function initForm(row = {}) {
   formModel.value = { ...model, ...row }
 }
 
+// 汇总主表、筛选、动作、子表和明细中的关联字段，供下拉选项统一加载。
 function collectReferenceFields() {
   const actionFields = [...(config.value.actions || []), ...(config.value.globalActions || [])].flatMap((item) => item.fields || [])
   return [...config.value.fields, ...config.value.filters, ...actionFields, ...childFields.value, ...detailReferenceFields.value]
     .filter((item) => item.type === 'reference' && item.reference)
 }
 
+// 确保当前选中的明细标签仍然存在；不存在时切换到第一个有权限的明细。
 function syncActiveDetailConfig() {
   if (!detailConfigs.value.some((item) => item.key === activeDetailKey.value)) {
     activeDetailKey.value = detailConfigs.value[0]?.key || ''
   }
 }
 
+// 清空主表选中行和全部明细状态，同时递增请求序号使旧响应失效。
 function clearMasterDetail() {
   detailRequestId += 1
   detailCountRequestId += 1
@@ -298,6 +340,7 @@ function clearMasterDetail() {
   mainTableRef.value?.setCurrentRow()
 }
 
+// 加载当前主表记录在当前明细标签下的关联数据。
 async function loadMasterDetail(row) {
   // 用户选中主表记录后，按当前明细配置请求关联数据，例如订单下的计划或工单。
   if (!detailConfig.value || !detailViewAllowed.value || !row) return
@@ -332,6 +375,7 @@ async function loadMasterDetail(row) {
   }
 }
 
+// 后台并行统计其他明细标签的数据条数，用于决定“生成”或“查看详情”按钮。
 async function loadOtherDetailCounts(row) {
   if (!row) return
   const requestId = ++detailCountRequestId
@@ -356,6 +400,7 @@ async function loadOtherDetailCounts(row) {
   }))
 }
 
+// 主表当前行发生变化时，保存选中记录并加载它的明细和各明细数量。
 function handleCurrentRowChange(row) {
   if (!detailConfig.value || !detailViewAllowed.value || syncingCurrentRow) return
   selectedRow.value = row || null
@@ -368,6 +413,7 @@ function handleCurrentRowChange(row) {
   loadOtherDetailCounts(row)
 }
 
+// 切换明细标签时清空旧明细，再按新配置重新请求。
 function handleDetailTabChange(key) {
   activeDetailKey.value = key
   detailRequestId += 1
@@ -377,6 +423,7 @@ function handleDetailTabChange(key) {
   if (selectedRow.value) loadMasterDetail(selectedRow.value)
 }
 
+// 主表刷新后根据主键重新找到原选中行，保持用户的主从查看上下文。
 async function restoreMasterSelection(selectedId) {
   const matched = selectedId === null || selectedId === undefined
     ? null
@@ -395,6 +442,7 @@ async function restoreMasterSelection(selectedId) {
   }
 }
 
+// 并行加载页面所有关联字段的下拉选项，个别失败时提示但不阻止页面使用。
 async function loadReferences() {
   // 一次收集当前页面所有 reference 字段，并行加载它们的下拉选项。
   const keys = [...new Set(collectReferenceFields().map((item) => item.reference))]
@@ -405,6 +453,7 @@ async function loadReferences() {
   if (failed && !previewMode) ElMessage.warning(`${failed} 组关联数据暂未加载，仍可使用编号操作`)
 }
 
+// 查询主表数据，兼容树接口、分页接口、预览数据和开发mock回退。
 async function loadData() {
   // 主查询流程：整理分页和筛选参数，调用树接口或分页接口，再更新表格和总条数。
   const selectedId = selectedRow.value?.[config.value.idField] ?? route.query.focus
@@ -450,6 +499,7 @@ async function loadData() {
   }
 }
 
+// 根据资源alerts配置查询各类风险数量，供页面顶部提醒条使用。
 async function loadAlerts() {
   Object.keys(alertCounts).forEach((key) => delete alertCounts[key])
   if (!alertRules.value.length) return
@@ -475,11 +525,13 @@ async function loadAlerts() {
   })
 }
 
+// 完整刷新由主表查询和风险统计两步组成。
 async function refreshData() {
   await loadData()
   await loadAlerts()
 }
 
+// 点击某条风险提醒时，将它的固定条件写入筛选表单并重新查询第一页。
 function applyAlertFilter(rule) {
   config.value.filters.forEach((item) => {
     filters[item.prop] = ''
@@ -489,17 +541,20 @@ function applyAlertFilter(rule) {
   loadData()
 }
 
+// 执行用户输入的查询条件，并将分页重置为第一页。
 function handleSearch() {
   pagination.current = 1
   loadData()
 }
 
+// 清空筛选条件并恢复路由query中的默认条件，然后重新查询。
 function resetSearch() {
   initFilters()
   pagination.current = 1
   loadData()
 }
 
+// 打开新增弹窗，可接收路由或关联跳转提供的预填字段。
 async function openCreate(prefill = {}) {
   formMode.value = 'create'
   initForm(prefill)
@@ -509,12 +564,14 @@ async function openCreate(prefill = {}) {
   formRef.value?.clearValidate()
 }
 
+// 编辑或查看前查询后端详情；本地数据模式直接复制当前行。
 async function fetchRow(row) {
   if (localDataMode.value) return { ...row }
   const result = await getResourceDetail(config.value.baseUrl, row[config.value.idField])
   return result?.data || { ...row }
 }
 
+// 对配置了fullChild的资源加载随主表一起编辑的子表明细。
 async function loadChildren(row) {
   if (!config.value.fullChild) return
   if (localDataMode.value) {
@@ -526,6 +583,7 @@ async function loadChildren(row) {
   childRows.value = (Array.isArray(data) ? data : data?.records || []).map((item) => ({ ...item, _clientId: crypto.randomUUID() }))
 }
 
+// 查询完整记录和子表后打开编辑弹窗，并清除上一次校验提示。
 async function openEdit(row) {
   formMode.value = 'edit'
   submitting.value = true
@@ -542,6 +600,7 @@ async function openEdit(row) {
   }
 }
 
+// 以只读模式打开记录详情，仍然加载可能存在的子表明细。
 async function openDetail(row) {
   submitting.value = true
   try {
@@ -556,6 +615,7 @@ async function openDetail(row) {
   }
 }
 
+// 在主从一体表单中添加一条仅存在于前端的新子表记录。
 function addChild() {
   const child = { ...childConfig.value.defaults, _clientId: crypto.randomUUID() }
   childConfig.value.fields.forEach((item) => {
@@ -564,10 +624,12 @@ function addChild() {
   childRows.value.push(child)
 }
 
+// 根据数组下标删除尚未提交或正在编辑的子表记录。
 function removeChild(index) {
   childRows.value.splice(index, 1)
 }
 
+// 逐条检查子表必填字段，并明确提示第几条明细缺少哪个字段。
 function validateChildren() {
   if (!config.value.fullChild) return true
   for (const [index, row] of childRows.value.entries()) {
@@ -580,6 +642,7 @@ function validateChildren() {
   return true
 }
 
+// 只保留后端允许提交的表单字段，并在需要时附带version和子表数组。
 function submitPayload() {
   const allowed = new Set([...formFields.value.map((item) => item.prop), config.value.idField])
   if (formMode.value === 'edit' && formModel.value.version !== null && formModel.value.version !== undefined) {
@@ -595,6 +658,7 @@ function submitPayload() {
   return payload
 }
 
+// 校验并提交新增或编辑表单，根据模式调用POST或PUT接口。
 async function submitForm() {
   // 新增和编辑共用同一套表单：先校验，再按模式调用 POST 或 PUT，成功后刷新数据。
   if (formMode.value === 'view') return
@@ -635,6 +699,7 @@ async function submitForm() {
   }
 }
 
+// 二次确认后删除记录；真实模式调用后端软删除接口，本地模式只修改数组。
 async function handleDelete(row) {
   try {
     await ElMessageBox.confirm(`确认删除这条${config.value.title.replace('管理', '')}记录吗？`, '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
@@ -656,6 +721,7 @@ async function handleDelete(row) {
   }
 }
 
+// 按当前筛选条件请求Excel二进制数据，并触发浏览器下载。
 async function handleExport() {
   if (localDataMode.value) {
     ElMessage.info('本地测试数据不生成真实导出文件')
@@ -673,6 +739,7 @@ async function handleExport() {
   }
 }
 
+// 将Axios二进制响应转换为临时下载链接，并优先使用后端响应头中的文件名。
 function saveBlob(response, fallbackName) {
   const blob = response.data instanceof Blob ? response.data : new Blob([response.data])
   const disposition = response.headers?.['content-disposition'] || ''
@@ -686,12 +753,14 @@ function saveBlob(response, fallbackName) {
   URL.revokeObjectURL(url)
 }
 
+// 过滤当前行在状态、明细数量和权限方面都允许显示的业务动作。
 function visibleActions(row) {
   return (config.value.actions || []).filter((item) => (!item.visible || item.visible(row))
     && actionMatchesDetailCount(item, row)
     && canUseAction(item, row))
 }
 
+// 判断动作要求的关联明细数量条件，例如“没有计划时显示生成，有计划时显示查看”。
 function actionMatchesDetailCount(action, row) {
   if (!action.detailKey || !action.detailCount) return true
   const detailAvailable = detailConfigs.value.some((item) => item.key === action.detailKey)
@@ -702,12 +771,14 @@ function actionMatchesDetailCount(action, row) {
   return action.detailCount === 'positive' ? count > 0 : count === 0
 }
 
+// 对需要展示明细数量的动作，在按钮文字后追加实际条数。
 function actionLabel(action) {
   if (action.detailCount !== 'positive' || !action.detailKey) return action.label
   const count = detailCounts[action.detailKey]
   return Number.isFinite(count) ? `${action.label} (${count})` : action.label
 }
 
+// 过滤当前用户有权查看且满足visible条件的关联跳转入口。
 function visibleRelations(row) {
   return (config.value.relations || []).filter((relation) => {
     const relationPermission = resourcePermission(relation.resource, 'view')
@@ -715,6 +786,7 @@ function visibleRelations(row) {
   })
 }
 
+// 根据动作类型检查目标资源权限或具体HTTP请求权限。
 function canUseAction(action, row = null) {
   if (action.kind === 'navigate') {
     return hasPermission(resourcePermission(action.targetResource, action.permissionAction || 'view'))
@@ -724,19 +796,23 @@ function canUseAction(action, row = null) {
   return Boolean(url) && hasRequestPermission(method, url)
 }
 
+// 同时检查资源编辑权限和当前业务状态是否允许编辑。
 function canEditRow(row) {
   return permissions.value.edit && (!config.value.canEdit || config.value.canEdit(row))
 }
 
+// 同时检查资源删除权限和当前业务状态是否允许删除。
 function canDeleteRow(row) {
   return permissions.value.delete && (!config.value.canDelete || config.value.canDelete(row))
 }
 
+// 返回配置提供的锁定原因，未配置时生成统一的不可编辑/删除提示。
 function rowLockReason(row, action) {
   if (typeof config.value.lockedReason === 'function') return config.value.lockedReason(row, action)
   return config.value.lockedReason || `当前状态不可${action === 'edit' ? '编辑' : '删除'}`
 }
 
+// 根据kind分发跳转、下载、追溯、上传和普通状态动作，并准备相应弹窗数据。
 async function openAction(action, row = null) {
   // 配置中的 action 可以表示跳转、下载、追溯、上传或普通业务状态操作。
   // 此处先校验权限，再根据 kind 决定打开弹窗还是直接执行。
@@ -810,6 +886,7 @@ async function openAction(action, row = null) {
   }
 }
 
+// 校验动作表单、整理payload并调用动态业务接口，成功后刷新或跳转下一页面。
 async function submitAction() {
   // 把动作表单转换为对应接口的 payload，执行成功后按配置刷新页面或跳到下一业务页面。
   if (currentAction.value?.fields?.length) {
@@ -848,6 +925,7 @@ async function submitAction() {
   }
 }
 
+// 将用户选择的文件和业务关联信息组装为FormData后上传。
 async function submitUpload() {
   if (!uploadFile.value) return ElMessage.warning('请选择需要上传的文件')
   submitting.value = true
@@ -869,11 +947,13 @@ async function submitUpload() {
   }
 }
 
+// 跳转到配置的关联资源页面，并通过query传递当前主键筛选条件。
 function openRelation(relation, row) {
   const target = getResourceConfig(relation.resource)
   router.push({ path: target.routePath, query: { [relation.parentField]: row[config.value.idField], from: config.value.title } })
 }
 
+// 从底部主从明细跳转到完整资源页，同时保留父记录和焦点记录信息。
 function openMasterDetailRow(row) {
   if (!row || !detailConfig.value || !detailResourceConfig.value || !selectedRow.value) return
   router.push({
@@ -886,17 +966,20 @@ function openMasterDetailRow(row) {
   })
 }
 
+// 页码变化后保存新页码并重新查询主表。
 function handlePageChange(value) {
   pagination.current = value
   loadData()
 }
 
+// 每页条数变化时回到第一页，避免页码超出新范围。
 function handleSizeChange(value) {
   pagination.size = value
   pagination.current = 1
   loadData()
 }
 
+// 页面首次进入或路由参数变化时执行完整初始化流程。
 async function initialize() {
   // 首次进入或路由参数变化时，重建筛选/列配置并同时加载关联选项与主表数据。
   syncActiveDetailConfig()
@@ -913,11 +996,14 @@ async function initialize() {
   }
 }
 
+// 同一组件切换到不同资源或query时重新初始化；首次挂载也执行一次。
 watch(() => route.fullPath, initialize)
+// 组件第一次挂载时执行初始化；watch负责后续路由变化。
 onMounted(initialize)
 </script>
 
 <template>
+  <!-- 通用CRUD界面：依次渲染工具栏、筛选区、主表、分页、明细区和各类弹窗。 -->
   <div v-if="config" class="mes-page resource-page">
     <section class="resource-workspace">
       <header class="resource-commandbar">
@@ -1219,6 +1305,7 @@ onMounted(initialize)
 </template>
 
 <style scoped>
+/* 通用资源页样式：适用于全部配置化表格、表单、主从明细和动作弹窗。 */
 .resource-page { min-width: 0; }
 .resource-workspace { overflow:hidden; border:1px solid var(--mes-border); border-radius:var(--mes-radius); background:var(--mes-surface); box-shadow:var(--mes-shadow-sm); }
 .resource-commandbar,.resource-context,.resource-title-line,.resource-toolbar,.toolbar-primary,.toolbar-secondary,.filter-actions,.row-actions,.drawer-header>div,.child-editor-head,.child-editor-head>div,.data-source,.business-alert-copy,.business-alert-actions,.resource-load-error,.resource-load-error>div,.master-detail-head,.master-detail-head>div,.master-detail-error,.master-detail-error>div { display:flex; align-items:center; }

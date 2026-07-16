@@ -140,4 +140,5 @@ router.afterEach((to) => {
   document.title = title
 })
 
+// 默认导出路由实例，main.js通过app.use(router)把它安装到整个Vue应用。
 export default router

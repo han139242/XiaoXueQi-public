@@ -1,7 +1,10 @@
 import { defineResource, optionSets, values } from './helpers'
 
+// MDM主数据资源：计量单位、供应商、客户、物料、产品和BOM。
+// 主数据会被生产、仓储、质量等业务表通过ID引用，因此应先维护再开展业务。
 const enable = { type: 'select', options: optionSets.enable }
 
+// 默认导出主数据资源数组，由resources/index.js统一汇总并生成路由菜单。
 export default [
   defineResource({ key: 'mdm-unit', domain: 'mdm', route: 'mdm/units', title: '计量单位', icon: 'database', baseUrl: '/api/mdm/unit', idField: 'unitId', fields: ['unitCode', 'unitName', 'precisionScale', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status'], defaults: { status: 'ENABLE', precisionScale: 2 }, overrides: { unitCode: { required: true }, unitName: { required: true }, precisionScale: { type: 'number', min: 0, max: 8 }, status: enable, createdTime: { form: false, width: 170 } } }),
   defineResource({ key: 'mdm-supplier', domain: 'mdm', route: 'mdm/suppliers', title: '供应商管理', icon: 'warehouse', baseUrl: '/api/mdm/supplier', idField: 'supplierId', fields: ['supplierCode', 'supplierName', 'contactName', 'contactPhone', 'status', 'remark', 'createdTime'], filters: ['keyword', 'status'], defaults: { status: 'ENABLE' }, overrides: { supplierCode: { required: true }, supplierName: { required: true }, status: enable, createdTime: { form: false, width: 170 } } }),

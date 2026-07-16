@@ -4,17 +4,21 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/common/AppIcon.vue'
 import { getModuleDefinition } from '@/config/navigation'
 
+// refresh事件交给layout处理，因为重新创建RouterView组件需要由父布局修改key。
 const emit = defineEmits(['refresh'])
 const route = useRoute()
 const router = useRouter()
 
+// tabs与layout中的标签数组双向绑定，新增和关闭标签时父子组件看到同一份状态。
 const tabs = defineModel({
   type: Array,
   default: () => []
 })
 
+// 当前路由完整地址就是当前激活标签的唯一标识，query不同也视为不同标签。
 const activePath = computed(() => route.fullPath)
 
+// 普通页面标题来自route.meta；模块首页需要根据动态moduleKey查询模块名称。
 function routeTitle(currentRoute) {
   if (currentRoute.name === 'ModuleHub') {
     return getModuleDefinition(currentRoute.params.moduleKey).title
@@ -22,6 +26,7 @@ function routeTitle(currentRoute) {
   return currentRoute.meta.title || '未命名页面'
 }
 
+// 每次路由变化都把当前页面加入标签栏；相同fullPath只更新标题，不重复添加。
 function addCurrentRoute(currentRoute) {
   if (!currentRoute.name || currentRoute.meta.public) {
     return
@@ -39,6 +44,7 @@ function addCurrentRoute(currentRoute) {
   }
 }
 
+// 固定首页不能关闭；关闭当前标签后自动跳到右侧、左侧或首页。
 function closeTab(tab) {
   if (tab.affix) {
     return
@@ -51,14 +57,17 @@ function closeTab(tab) {
   }
 }
 
+// 保留固定标签和当前标签，移除其余已打开页面。
 function closeOthers() {
   tabs.value = tabs.value.filter((tab) => tab.affix || tab.path === activePath.value)
 }
 
+// immediate使组件首次加载时也立刻登记当前路由。
 watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
 </script>
 
 <template>
+  <!-- 左侧循环显示已打开页面标签，右侧提供刷新和关闭其他标签操作。 -->
   <div class="app-tabs">
     <div class="tabs-scroll">
       <button
@@ -103,6 +112,7 @@ watch(() => route.fullPath, () => addCurrentRoute(route), { immediate: true })
 </template>
 
 <style scoped>
+/* 多页签栏样式：控制横向滚动、激活状态、关闭按钮和右侧操作区。 */
 .app-tabs {
   display: flex;
   width: 100%;

@@ -1,8 +1,11 @@
 import { defineResource, field, optionSets, values } from './helpers'
 
+// QMS质量资源：检验基础资料、检验单、检验结果和不合格品处置。
+// actions中的visible根据状态控制按钮，previewPatch只负责开发预览时模拟状态变化。
 const inspectionTypes = values([['INCOMING', '来料检', 'primary'], ['PROCESS', '过程检', 'warning'], ['FINAL', '终检', 'success']])
 const dispositionTypes = values([['REWORK', '返工', 'warning'], ['SCRAP', '报废', 'danger'], ['DOWNGRADE', '降级', 'info'], ['CONCESSION', '让步接收', 'primary']])
 
+// 默认导出质量管理资源数组，由resources/index.js统一汇总并生成路由菜单。
 export default [
   defineResource({
     key: 'qms-inspection-item', domain: 'qms', route: 'qms/inspection-items', title: '检验项目', icon: 'check', baseUrl: '/api/qms/inspection-item', idField: 'itemId',

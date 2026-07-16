@@ -14,9 +14,11 @@ import { getResourcePage } from '@/api/resource'
 import { createDashboardPreview } from '@/config/dashboard-preview'
 import { isFrameworkPreview } from '@/utils/auth'
 
+// 生产大屏面向车间看板，以固定1920x1080设计稿等比缩放，并每分钟刷新生产运营数据。
 const router = useRouter()
 const previewMode = isFrameworkPreview()
 
+// scale和offset控制固定画布在不同屏幕上的缩放与居中；其余ref保存接口数据和加载状态。
 const scale = ref(1)
 const offsetX = ref(0)
 const offsetY = ref(0)
@@ -34,9 +36,11 @@ const schedulePlans = ref([])
 const scheduleError = ref('')
 const scheduleExpanded = ref(false)
 
+// 时钟每秒更新，业务数据每60秒更新；离开页面时必须清理。
 let clockTimer
 let refreshTimer
 
+// 后端状态编码在大屏中转换为中文标签和CSS色调。
 const scheduleStatusMeta = {
   DRAFT: { label: '待生效', tone: 'draft' },
   RELEASED: { label: '已生效', tone: 'released' },
@@ -44,15 +48,23 @@ const scheduleStatusMeta = {
   CLOSED: { label: '已取消', tone: 'closed' }
 }
 
+// 生成固定画布当前的平移和缩放CSS transform。
 const stageStyle = computed(() => ({
+  // translate负责居中，scale负责保持1920:1080比例且不超出可视区域。
   transform: `translate3d(${offsetX.value}px, ${offsetY.value}px, 0) scale(${scale.value})`
 }))
 
+// 以下四个计算属性把now和lastUpdated格式化为大屏时钟文字。
 const dateText = computed(() => now.value.format('YYYY-MM-DD'))
+// 将星期数字转换为中文星期。
 const weekdayText = computed(() => ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][now.value.day()])
+// 显示精确到秒的当前时间。
 const timeText = computed(() => now.value.format('HH:mm:ss'))
+// 显示最近一次成功同步数据的时间。
 const updateText = computed(() => lastUpdated.value ? lastUpdated.value.format('HH:mm:ss') : '--:--:--')
+// 综合加载状态和失败接口数量生成数据同步状态文字。
 const syncText = computed(() => {
+  // 根据成功/失败接口数量显示“已同步、部分更新或连接失败”。
   if (previewMode) return '演示数据'
   if (loading.value && !lastUpdated.value) return '正在连接数据'
   if (failedDataCount.value === 4) return '数据连接失败'
@@ -61,27 +73,41 @@ const syncText = computed(() => {
   return '数据已同步'
 })
 
+// 从生产汇总中读取今日合格数量。
 const todayQualified = computed(() => Number(summary.value.todayQualifiedQuantity || 0))
+// 今日产量和报工合格率由合格数、不良数在前端做简单派生计算。
 const todayDefect = computed(() => Number(summary.value.todayDefectQuantity || 0))
+// 今日总报工量等于合格数量加不良数量。
 const todayOutput = computed(() => todayQualified.value + todayDefect.value)
+// 有报工数据时计算今日报工合格率，否则返回null。
 const reportPassRate = computed(() => todayOutput.value
   ? (todayQualified.value / todayOutput.value) * 100
   : null)
+// 读取当前质量检验总次数。
 const inspectionCount = computed(() => Number(quality.value.inspectionCount || 0))
+// 有检验数据时使用后端统计的检验合格率。
 const inspectionPassRate = computed(() => inspectionCount.value
   ? Number(quality.value.qualifiedRate || 0)
   : null)
+// 把质量合格率限制在0到100之间，供进度条使用。
 const qualityProgressWidth = computed(() => Math.min(100, Math.max(0, inspectionPassRate.value || 0)))
+// 将百分比换算为圆形质量仪表盘需要的角度CSS变量。
 const qualityDialStyle = computed(() => ({
   '--quality-angle': `${qualityProgressWidth.value * 3.6}deg`
 }))
+// 汇总运行、停机、故障和维保设备得到设备总数。
 const equipmentTotal = computed(() => ['running', 'stopped', 'fault', 'maintenance']
   .reduce((total, key) => total + Number(equipment.value[key] || 0), 0))
+// 读取库存补货预警数量。
 const warningCount = computed(() => Number(summary.value.inventoryWarningCount || 0))
+// 读取设备故障数量。
 const faultCount = computed(() => Number(summary.value.equipmentFaultCount || 0))
+// 统计设备、库存和质量三类风险中有多少类当前非零。
 const riskCategoryCount = computed(() => [faultCount.value, warningCount.value, todayDefect.value]
   .filter((value) => value > 0).length)
+// 将七日趋势原始记录补充总产量、日期、星期和合格率。
 const trendRows = computed(() => trend.value.map((item) => {
+  // 给后端趋势记录补充总产量、日期文本、星期和当日合格率，便于表格与图表复用。
   const qualifiedQuantity = Number(item.qualifiedQuantity || 0)
   const defectQuantity = Number(item.defectQuantity || 0)
   const output = qualifiedQuantity + defectQuantity
@@ -94,9 +120,12 @@ const trendRows = computed(() => trend.value.map((item) => {
     passRate: output ? Number(((qualifiedQuantity / output) * 100).toFixed(2)) : null
   }
 }))
+// 判断七日趋势中是否至少有一天存在产量数据。
 const hasTrendData = computed(() => trendRows.value.some((item) => item.output > 0))
+// 汇总七日总报工产量。
 const sevenDayOutput = computed(() => trendRows.value.reduce((total, item) => total + item.output, 0))
 
+// 排期只保留时间有效的数据，并按开始时间排序。
 const scheduleRows = computed(() => schedulePlans.value
   .filter((item) => {
     const start = dayjs(item.plannedStartTime)
@@ -104,12 +133,17 @@ const scheduleRows = computed(() => schedulePlans.value
     return start.isValid() && end.isValid() && end.isAfter(start)
   })
   .sort((a, b) => dayjs(a.plannedStartTime).valueOf() - dayjs(b.plannedStartTime).valueOf()))
+// 首页排期卡片最多显示前5条有效计划。
 const visibleScheduleRows = computed(() => scheduleRows.value.slice(0, 5))
+// 展开弹窗最多显示前10条有效计划。
 const expandedScheduleRows = computed(() => scheduleRows.value.slice(0, 10))
+// 根据展开排期条数动态计算弹窗高度，并限制最小和最大值。
 const scheduleModalStyle = computed(() => ({
   '--schedule-modal-height': `${Math.min(940, Math.max(560, 222 + expandedScheduleRows.value.length * 78))}px`
 }))
+// 根据全部有效计划计算统一时间轴起止点、时长和刻度。
 const scheduleWindow = computed(() => {
+  // 找出所有排期的最早开始和最晚结束，生成统一时间轴范围及7个刻度。
   if (!scheduleRows.value.length) {
     return { start: null, end: null, duration: 0, ticks: [] }
   }
@@ -132,6 +166,7 @@ const scheduleWindow = computed(() => {
   })
   return { start, end, duration, ticks }
 })
+// 将时间轴起止点格式化为弹窗顶部的可读范围文字。
 const scheduleRangeLabel = computed(() => {
   const { start, end } = scheduleWindow.value
   if (!start || !end) return '暂无有效排期'
@@ -141,6 +176,7 @@ const scheduleRangeLabel = computed(() => {
   return `${start.format('MM-DD HH:mm')} - ${end.format('MM-DD HH:mm')}`
 })
 
+// 将原始统计组织成模板可循环渲染的KPI、生产状态、设备状态和风险项结构。
 const kpis = computed(() => [
   {
     label: '生产订单',
@@ -192,6 +228,7 @@ const kpis = computed(() => [
   }
 ])
 
+// 把生产订单、工单和执行任务整理为统一统计卡数据。
 const productionStats = computed(() => [
   {
     label: '当前生产订单',
@@ -213,6 +250,7 @@ const productionStats = computed(() => [
   }
 ])
 
+// 把设备状态对象转换为模板可循环的四类状态数组。
 const equipmentItems = computed(() => [
   { key: 'running', label: '运行', value: Number(equipment.value.running || 0), tone: 'green' },
   { key: 'stopped', label: '停机', value: Number(equipment.value.stopped || 0), tone: 'gray' },
@@ -220,6 +258,7 @@ const equipmentItems = computed(() => [
   { key: 'fault', label: '故障', value: Number(equipment.value.fault || 0), tone: 'red' }
 ])
 
+// 将设备、库存和不良数据整理为可点击的风险关注事项。
 const attentionItems = computed(() => [
   {
     label: '故障设备',
@@ -247,6 +286,7 @@ const attentionItems = computed(() => [
   }
 ])
 
+// 生产趋势图同时使用柱状图展示产量、折线图展示合格率，并使用双Y轴。
 const trendOption = computed(() => ({
   animationDuration: 500,
   color: ['#559dd2', '#4bc58a'],
@@ -321,20 +361,26 @@ const trendOption = computed(() => ({
   ]
 }))
 
+// 将数量转换为中文千分位格式，并最多保留一位小数。
 function formatNumber(value) {
   return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(Number(value || 0))
 }
 
+// 将合格率格式化为一位小数，空值显示占位符。
 function formatPercent(value) {
   return value === null || value === undefined ? '--' : Number(value).toFixed(1)
 }
 
+// 从通用接口响应中兼容提取数组或分页records。
 function pageRecords(result) {
+  // 兼容后端直接返回数组和MyBatis-Plus分页对象两种数据结构。
   const data = result?.data
   return Array.isArray(data) ? data : (data?.records || [])
 }
 
+// 把排期起止时间换算成时间轴中的left和width百分比。
 function scheduleBarStyle(item) {
+  // 把计划起止时间换算为展开排期弹窗中的百分比位置和宽度。
   const { start, duration } = scheduleWindow.value
   if (!start || !duration) return { left: '0%', width: '0%' }
   const itemStart = dayjs(item.plannedStartTime).valueOf()
@@ -345,6 +391,7 @@ function scheduleBarStyle(item) {
   return { left: `${left}%`, width: `${width}%` }
 }
 
+// 拼接排期块的悬停提示，包含订单、产品、产线、时间、数量和状态。
 function scheduleBarTitle(item) {
   return [
     item.orderNo,
@@ -356,6 +403,7 @@ function scheduleBarTitle(item) {
   ].join(' · ')
 }
 
+// 格式化排期时间范围，同一天时省略重复结束日期。
 function formatScheduleTime(item) {
   const start = dayjs(item.plannedStartTime)
   const end = dayjs(item.plannedEndTime)
@@ -366,7 +414,9 @@ function formatScheduleTime(item) {
   return `${start.format('MM-DD HH:mm')} - ${end.format('MM-DD HH:mm')}`
 }
 
+// 并行查询计划、订单、产线和产品，再把关联ID补充为可读名称。
 async function loadProductionSchedule() {
+  // 计划表只存关联ID，因此并行查询订单、产线、产品，再用Map补齐可读名称。
   const [planResult, orderResult, lineResult, productResult] = await Promise.allSettled([
     getResourcePage('/api/mfg/production-plan', { current: 1, size: 50 }),
     getResourcePage('/api/mfg/production-order', { current: 1, size: 200 }),
@@ -399,26 +449,33 @@ async function loadProductionSchedule() {
   })
 }
 
+// 打开大屏中的生产排期展开弹窗。
 function openSchedule() {
   scheduleExpanded.value = true
 }
 
+// 关闭生产排期展开弹窗。
 function closeSchedule() {
   scheduleExpanded.value = false
 }
 
+// 关闭弹窗后跳转到完整生产计划管理页面。
 async function openProductionPlans() {
   closeSchedule()
   await openModule('/mfg/production-plans')
 }
 
+// 用户按Escape时只关闭展开排期，不直接退出大屏。
 function handleScreenKeydown(event) {
+  // 排期弹窗打开时，Escape只关闭弹窗而不退出整个大屏。
   if (event.key === 'Escape' && scheduleExpanded.value) {
     closeSchedule()
   }
 }
 
+// 根据实际视口计算1920x1080固定画布的等比缩放和居中偏移。
 function updateScale() {
+  // 以1920x1080为逻辑画布，取宽高缩放比中的较小值，确保内容完整显示。
   const viewport = window.visualViewport
   const viewportWidth = viewport?.width || window.innerWidth
   const viewportHeight = viewport?.height || window.innerHeight
@@ -428,12 +485,15 @@ function updateScale() {
   offsetY.value = Math.max(0, (viewportHeight - 1080 * nextScale) / 2)
 }
 
+// 浏览器全屏状态变化后同步按钮状态并重新计算缩放。
 function handleFullscreenChange() {
   fullscreenActive.value = Boolean(document.fullscreenElement)
   updateScale()
 }
 
+// 调用浏览器Fullscreen API进入或退出全屏。
 async function toggleFullscreen() {
+  // 使用浏览器Fullscreen API切换全屏，并在动画结束后再次校准缩放。
   if (!document.fullscreenElement) {
     await document.documentElement.requestFullscreen?.()
   } else {
@@ -442,15 +502,19 @@ async function toggleFullscreen() {
   window.setTimeout(updateScale, 120)
 }
 
+// 退出大屏并返回普通首页工作台。
 async function exitBigScreen() {
   await openModule('/dashboard')
 }
 
+// 统一封装大屏各业务入口的Vue Router跳转。
 async function openModule(path) {
   await router.push(path)
 }
 
+// 并行刷新生产、趋势、质量、设备和排期数据，并保留成功接口的结果。
 async function loadData() {
+  // 防止定时刷新和手工刷新重叠发送；预览模式直接使用本地演示数据。
   if (loading.value) return
 
   if (previewMode) {
@@ -476,6 +540,7 @@ async function loadData() {
   }
 
   try {
+    // allSettled允许单块接口失败时继续保留并展示其他成功数据，而不是整屏清空。
     const results = await Promise.allSettled([
       getDashboardSummary(),
       getProductionTrend(params),
@@ -524,7 +589,9 @@ async function loadData() {
   }
 }
 
+// 挂载后首次适配和加载，并启动时钟、数据轮询及尺寸事件监听。
 onMounted(() => {
+  // 首次加载后启动时钟、业务轮询，并监听窗口/全屏/视觉视口尺寸变化。
   updateScale()
   loadData()
   clockTimer = window.setInterval(() => { now.value = dayjs() }, 1000)
@@ -535,7 +602,9 @@ onMounted(() => {
   window.visualViewport?.addEventListener('resize', updateScale)
 })
 
+// 卸载时清除定时器和所有事件监听，防止离开大屏后继续运行。
 onBeforeUnmount(() => {
+  // 清除全部定时器和事件监听，避免退出大屏后后台继续请求和计算。
   window.clearInterval(clockTimer)
   window.clearInterval(refreshTimer)
   window.removeEventListener('resize', updateScale)
@@ -546,6 +615,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <!-- stage内部始终按1920x1080布局，外层页面只负责缩放；各数据区由computed结构循环渲染。 -->
   <div class="big-screen-page">
     <div class="big-screen-stage" :style="stageStyle">
       <header class="screen-header">
@@ -950,6 +1020,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* 生产大屏样式：固定1920x1080画布，并控制KPI、图表、排期弹窗和全屏状态。 */
 .big-screen-page {
   position: fixed;
   inset: 0;
