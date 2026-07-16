@@ -38,6 +38,11 @@ export function createDashboardPreview() {
       unqualifiedCount: 2,
       qualifiedRate: 93.94
     },
+    qualityClosure: {
+      total: 2,
+      closed: 2,
+      rate: 100
+    },
     equipment: {
       running: 42,
       idle: 2,

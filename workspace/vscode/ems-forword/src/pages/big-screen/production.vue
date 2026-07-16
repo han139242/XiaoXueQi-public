@@ -31,6 +31,7 @@ const failedDataCount = ref(0)
 const summary = ref({})
 const trend = ref([])
 const quality = ref({})
+const qualityClosure = ref({ total: 0, closed: 0, rate: null })
 const equipment = ref({})
 const schedulePlans = ref([])
 const productionLines = ref([])
@@ -98,8 +99,11 @@ const inspectionCount = computed(() => Number(quality.value.inspectionCount || 0
 const inspectionPassRate = computed(() => inspectionCount.value
   ? Number(quality.value.qualifiedRate || 0)
   : null)
-// 把质量合格率限制在0到100之间，供进度条使用。
-const qualityProgressWidth = computed(() => Math.min(100, Math.max(0, inspectionPassRate.value || 0)))
+// 有不合格处理数据时优先展示异常闭环率；权限不足或无异常时回退到一次检验合格率。
+const qualityFocusRate = computed(() => qualityClosure.value.rate ?? inspectionPassRate.value)
+const qualityFocusLabel = computed(() => qualityClosure.value.rate === null ? '一次检验合格率' : '异常闭环率')
+// 把质量主读数限制在0到100之间，供环形进度使用。
+const qualityProgressWidth = computed(() => Math.min(100, Math.max(0, qualityFocusRate.value || 0)))
 // 将百分比换算为圆形质量仪表盘需要的角度CSS变量。
 const qualityDialStyle = computed(() => ({
   '--quality-angle': `${qualityProgressWidth.value * 3.6}deg`
@@ -583,6 +587,23 @@ async function loadProductionSchedule() {
   return { plans: mappedPlans, lines: mappedLines.length ? mappedLines : fallbackLines }
 }
 
+// 读取近7日不合格处理单并计算真实关闭率；权限不足时由主加载流程保留一次检验率回退。
+async function loadQualityClosure() {
+  const result = await getResourcePage('/api/qms/nonconforming-order', { current: 1, size: 200 })
+  const start = now.value.subtract(6, 'day').startOf('day')
+  const end = now.value.endOf('day')
+  const records = pageRecords(result).filter((item) => {
+    const createdTime = dayjs(item.createdTime)
+    return createdTime.isValid() && !createdTime.isBefore(start) && !createdTime.isAfter(end)
+  })
+  const closed = records.filter((item) => item.status === 'CLOSED').length
+  return {
+    total: records.length,
+    closed,
+    rate: records.length ? Number(((closed / records.length) * 100).toFixed(2)) : null
+  }
+}
+
 // 打开大屏中的生产排期展开弹窗。
 function openSchedule() {
   scheduleExpanded.value = true
@@ -656,6 +677,7 @@ async function loadData() {
     summary.value = data.summary
     trend.value = data.trend
     quality.value = data.quality
+    qualityClosure.value = data.qualityClosure || { total: 0, closed: 0, rate: null }
     equipment.value = data.equipment
     schedulePlans.value = data.schedule || []
     productionLines.value = data.lines || [...new Map((data.schedule || []).map((item) => [String(item.lineId), {
@@ -687,10 +709,12 @@ async function loadData() {
       getProductionTrend(params),
       getQualityStatistics(params),
       getEquipmentStatus(),
-      loadProductionSchedule()
+      loadProductionSchedule(),
+      loadQualityClosure()
     ])
     const dashboardResults = results.slice(0, 4)
     const scheduleResult = results[4]
+    const qualityClosureResult = results[5]
     const targets = [summary, trend, quality, equipment]
     const labels = ['生产汇总', '生产趋势', '质量统计', '设备状态']
     const failedLabels = []
@@ -711,6 +735,10 @@ async function loadData() {
     } else {
       scheduleError.value = scheduleResult.reason?.displayMessage || scheduleResult.reason?.message || '生产排期暂未更新'
     }
+
+    qualityClosure.value = qualityClosureResult.status === 'fulfilled'
+      ? qualityClosureResult.value
+      : { total: 0, closed: 0, rate: null }
 
     failedDataCount.value = failedLabels.length
     if (successCount > 0) {
@@ -1002,25 +1030,29 @@ onBeforeUnmount(() => {
           <article class="screen-panel quality-panel">
             <header class="panel-header compact">
               <div>
-                <strong>近 7 日质量</strong>
-                <span>近 7 日新建质检单的结果统计</span>
+                <strong>近 7 日质量闭环</strong>
+                <span>一次检验结果与异常处置情况</span>
               </div>
               <button class="panel-link" type="button" title="打开检验单明细" aria-label="打开检验单明细" @click="openModule('/qms/inspection-orders')">
                 <AppIcon name="arrow" :size="20" />
               </button>
             </header>
             <div class="quality-main">
-              <div class="quality-dial" :class="{ 'is-empty': inspectionPassRate === null }" :style="qualityDialStyle">
-                <div>
-                  <span>质检单合格率</span>
-                  <strong>{{ formatPercent(inspectionPassRate) }}<small v-if="inspectionPassRate !== null">%</small></strong>
+              <div class="quality-dial-stack">
+                <div class="quality-dial" :class="{ 'is-empty': qualityFocusRate === null }" :style="qualityDialStyle">
+                  <div>
+                    <span>{{ qualityFocusLabel }}</span>
+                    <strong>{{ formatPercent(qualityFocusRate) }}<small v-if="qualityFocusRate !== null">%</small></strong>
+                  </div>
                 </div>
+                <small v-if="qualityClosure.rate !== null" class="quality-first-pass">一次检验 {{ formatPercent(inspectionPassRate) }}%</small>
               </div>
               <div class="quality-counts">
                 <div><span>质检单</span><b>{{ formatNumber(inspectionCount) }}</b></div>
                 <div><span>合格</span><b>{{ formatNumber(quality.qualifiedCount) }}</b></div>
                 <div><span>不合格</span><b>{{ formatNumber(quality.unqualifiedCount) }}</b></div>
                 <div><span>待判定</span><b>{{ formatNumber(quality.pendingCount) }}</b></div>
+                <div v-if="qualityClosure.total"><span>异常关闭</span><b>{{ qualityClosure.closed }}/{{ qualityClosure.total }}</b></div>
               </div>
             </div>
           </article>
@@ -1911,7 +1943,8 @@ onBeforeUnmount(() => {
 .production-stat-row small { overflow: hidden; color: #91a6b5; font-size: 14px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .production-stat-row strong { color: #fff; font-size: 24px; }
 
-.quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; padding: 12px 14px 14px; box-sizing: border-box; }
+.quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px 12px; box-sizing: border-box; }
+.quality-dial-stack { display: grid; justify-items: center; gap: 8px; }
 .quality-dial {
   position: relative;
   display: grid;
@@ -1928,11 +1961,12 @@ onBeforeUnmount(() => {
 .quality-dial span { color: #93a9b8; font-size: 13px; }
 .quality-dial strong { color: #fff; font-size: 31px; line-height: 1; }
 .quality-dial strong small { margin-left: 2px; color: #94a8b6; font-size: 15px; }
+.quality-first-pass { color: #95a9b7; font-size: 13px; white-space: nowrap; }
 .quality-counts { display: grid; grid-template-columns: 1fr; gap: 0; border-left: 1px solid #365066; }
-.quality-counts > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; }
+.quality-counts > div { display: flex; min-height: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 9px; }
 .quality-counts > div + div { border-top: 1px solid rgb(54 80 102 / 76%); }
-.quality-counts span { color: #9aafbd; font-size: 15px; }
-.quality-counts b { color: #eaf3f8; font-size: 23px; }
+.quality-counts span { color: #9aafbd; font-size: 14px; line-height: 1.15; }
+.quality-counts b { color: #eaf3f8; font-size: 19px; line-height: 1.15; }
 
 .equipment-total,
 .attention-total { color: #f0f6fa; font-size: 30px; font-weight: 750; }
