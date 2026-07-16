@@ -1,5 +1,6 @@
 package com.neuedu.ems.service.impl.mfg;
 
+import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.factory.FactoryLine;
 import com.neuedu.ems.entity.mfg.MfgLineCalendarRule;
 import com.neuedu.ems.entity.mfg.MfgLineProductCapability;
@@ -93,7 +94,7 @@ class MfgManualScheduleCandidateCacheTest {
         order.setProductId(301L);
         order.setOrderQuantity(BigDecimal.TEN);
         order.setDeliveryDate(LocalDate.now().plusDays(7));
-        order.setStatus("DRAFT");
+        order.setStatus(BusinessStatus.Document.RELEASED);
         when(orderMapper.selectOne(any())).thenReturn(order);
         when(planMapper.selectCount(any())).thenReturn(0L);
         when(itemMapper.selectList(any())).thenReturn(List.of());

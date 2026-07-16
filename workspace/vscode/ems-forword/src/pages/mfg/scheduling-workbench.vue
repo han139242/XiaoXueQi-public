@@ -478,7 +478,7 @@ onMounted(() => {
 
     <section class="top-grid">
       <section class="mes-panel pending-panel">
-        <div class="mes-panel-header"><div><h2 class="mes-panel-title">待排生产订单</h2><span>当前 DRAFT</span></div><small>{{ filteredPendingOrders.length }} 条</small></div>
+        <div class="mes-panel-header"><div><h2 class="mes-panel-title">待排生产订单</h2><span>已提交排产</span></div><small>{{ filteredPendingOrders.length }} 条</small></div>
         <div class="filter-row">
           <el-input v-model="pendingFilter.keyword" clearable placeholder="订单号或型号" />
           <el-select v-model="pendingFilter.productId" clearable placeholder="产品"><el-option v-for="item in productOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select>
@@ -517,7 +517,7 @@ onMounted(() => {
 
     <el-dialog v-model="addLineOpen" title="添加时间轴产线" width="min(420px, calc(100vw - 32px))" destroy-on-close><p class="dialog-tip">仅改变当前时间轴显示，不创建产线主数据。</p><el-select v-model="lineToAdd" class="full-width" filterable placeholder="选择现有产线"><el-option v-for="line in lineOptions" :key="line.value" :label="line.label" :value="String(line.value)" /></el-select><template #footer><el-button @click="addLineOpen = false">取消</el-button><el-button type="primary" @click="addVisibleLine">添加</el-button></template></el-dialog>
 
-    <el-dialog v-model="confirmOpen" title="确认手工排程草案" width="min(460px, calc(100vw - 32px))" destroy-on-close><p class="confirm-copy">确认后将为所有已排订单创建生产计划，并把生产订单下达为 `RELEASED`。</p><el-form label-position="top"><el-form-item label="确认备注"><el-input v-model="confirmForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item></el-form><template #footer><el-button @click="confirmOpen = false">取消</el-button><el-button v-if="canConfirmSchedule" type="success" :loading="confirming" @click="confirmDraft">确认并生成计划</el-button></template></el-dialog>
+    <el-dialog v-model="confirmOpen" title="确认手工排程草案" width="min(460px, calc(100vw - 32px))" destroy-on-close><p class="confirm-copy">确认时系统会重新校验订单状态、未来时间、产线能力、班次和计划冲突，校验通过后生成正式生产计划。</p><el-form label-position="top"><el-form-item label="确认说明"><el-input v-model="confirmForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="存在预计延期时必须填写处置说明" /></el-form-item></el-form><template #footer><el-button @click="confirmOpen = false">取消</el-button><el-button v-if="canConfirmSchedule" type="success" :loading="confirming" @click="confirmDraft">确认并生成计划</el-button></template></el-dialog>
   </div>
 </template>
 

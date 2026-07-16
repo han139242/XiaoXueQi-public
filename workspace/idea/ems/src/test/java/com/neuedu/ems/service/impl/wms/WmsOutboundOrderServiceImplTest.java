@@ -3,6 +3,7 @@ package com.neuedu.ems.service.impl.wms;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
 import com.neuedu.ems.entity.wms.WmsInventory;
 import com.neuedu.ems.entity.wms.WmsMaterialBatch;
 import com.neuedu.ems.entity.wms.WmsOutboundDetail;
@@ -11,6 +12,7 @@ import com.neuedu.ems.entity.wms.WmsStockMovement;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
 import com.neuedu.ems.mapper.wms.WmsInventoryMapper;
 import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.mapper.wms.WmsOutboundDetailMapper;
@@ -44,6 +46,7 @@ class WmsOutboundOrderServiceImplTest {
     private WmsInventoryMapper inventoryMapper;
     private WmsMaterialBatchMapper batchMapper;
     private WmsStockMovementMapper movementMapper;
+    private MfgWorkOrderMaterialMapper materialMapper;
     private WmsResponsibilityNotificationService notificationService;
 
     @BeforeEach
@@ -54,6 +57,7 @@ class WmsOutboundOrderServiceImplTest {
         inventoryMapper = mock(WmsInventoryMapper.class);
         batchMapper = mock(WmsMaterialBatchMapper.class);
         movementMapper = mock(WmsStockMovementMapper.class);
+        materialMapper = mock(MfgWorkOrderMaterialMapper.class);
         SysStatusChangeLogMapper statusLogMapper = mock(SysStatusChangeLogMapper.class);
         SysOperationLogMapper operationLogMapper = mock(SysOperationLogMapper.class);
         notificationService = mock(WmsResponsibilityNotificationService.class);
@@ -63,6 +67,7 @@ class WmsOutboundOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "wmsInventoryMapper", inventoryMapper);
         ReflectionTestUtils.setField(service, "wmsMaterialBatchMapper", batchMapper);
         ReflectionTestUtils.setField(service, "wmsStockMovementMapper", movementMapper);
+        ReflectionTestUtils.setField(service, "workOrderMaterialMapper", materialMapper);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
         ReflectionTestUtils.setField(service, "responsibilityNotificationService", notificationService);
@@ -105,7 +110,7 @@ class WmsOutboundOrderServiceImplTest {
 
     @Test
     void withdrawSubmittedOutboundClosesWithoutInventoryMovement() {
-        service.withdrawOutboundOrder(1L, 9L, "销售计划调整");
+        service.withdrawOutboundOrder(1L, 9L, null);
 
         ArgumentCaptor<WmsOutboundOrder> update = ArgumentCaptor.forClass(WmsOutboundOrder.class);
         verify(orderMapper).updateById(update.capture());
@@ -131,6 +136,33 @@ class WmsOutboundOrderServiceImplTest {
         assertEquals(List.of("WMS-OUT-1-4", "WMS-OUT-1-5"),
                 movements.getAllValues().stream().map(WmsStockMovement::getMovementNo).toList());
         verify(inventoryMapper).selectOne(any());
+    }
+
+    @Test
+    void confirmMaterialIssueUpdatesWorkOrderReadinessInSameTransaction() {
+        WmsOutboundOrder materialIssue = order();
+        materialIssue.setOutboundType("MATERIAL_ISSUE");
+        materialIssue.setWorkOrderId(3L);
+        when(orderMapper.selectOne(any())).thenReturn(materialIssue);
+        when(detailMapper.selectList(any())).thenReturn(List.of(detail(4L, "8.0000")));
+        when(inventoryMapper.selectOne(any())).thenReturn(inventory("10.0000"));
+        MfgWorkOrderMaterial requirement = new MfgWorkOrderMaterial();
+        requirement.setRequirementId(20L);
+        requirement.setWorkOrderId(3L);
+        requirement.setMaterialId(11L);
+        requirement.setRequiredQuantity(new BigDecimal("10.0000"));
+        requirement.setIssuedQuantity(new BigDecimal("2.0000"));
+        requirement.setVersion(1);
+        when(materialMapper.selectList(any())).thenReturn(List.of(requirement));
+        when(materialMapper.updateById(any(MfgWorkOrderMaterial.class))).thenReturn(1);
+
+        assertTrue(service.confirmOutboundOrder(1L, 9L, "确认领料"));
+
+        ArgumentCaptor<MfgWorkOrderMaterial> update = ArgumentCaptor.forClass(MfgWorkOrderMaterial.class);
+        verify(materialMapper).updateById(update.capture());
+        assertEquals(new BigDecimal("10.0000"), update.getValue().getIssuedQuantity());
+        assertEquals(new BigDecimal("0.0000"), update.getValue().getShortageQuantity());
+        assertEquals("READY", update.getValue().getStatus());
     }
 
     @Test

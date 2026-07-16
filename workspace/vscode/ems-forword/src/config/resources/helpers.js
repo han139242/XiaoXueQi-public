@@ -146,6 +146,8 @@ export const optionSets = {
     option('RUNNING', '生产中', 'primary'),
     option('WAIT_INSPECTION', '待检', 'warning'),
     option('PASS', '合格', 'success'),
+    option('CONCESSION', '让步放行', 'warning'),
+    option('FAIL', '不合格隔离', 'danger'),
     option('STORED', '已入库', 'success'),
     option('CLOSED', '已关闭', 'info')
   ],
@@ -202,7 +204,7 @@ const labels = {
   schemeCode: '方案编码', schemeName: '方案名称', schemeId: '检验方案', inspectionType: '检验类型', standardId: '检验标准', sampleQuantity: '抽样数量', judgementRule: '判定规则',
   inspectionNo: '检验单号', inspectionId: '检验单', inspectorId: '检验员', inspectionResult: '检验结果',
   measuredValue: '实测值', result: '判定结果', defectDescription: '缺陷描述', photoFileId: '检验照片',
-  ncrNo: '不合格品单号', ncrId: '不合格品单', productLotId: '产品批次', defectReason: '不合格原因', dispositionType: '处置方式', approvalStatus: '审批状态', barcodeId: '条码', inspectionResultId: '检验结果', finalDisposition: '最终处置', recheckResult: '复检结果',
+  ncrNo: '不合格品单号', ncrId: '不合格品单', productLotId: '产品批次', sourceReportId: '来源报工', defectReason: '不合格原因', dispositionType: '处置方式', approvalStatus: '审批状态', barcodeId: '条码', inspectionResultId: '检验结果', finalDisposition: '最终处置', recheckResult: '复检结果',
   equipmentCode: '设备编码', equipmentName: '设备名称', equipmentId: '设备', model: '设备型号', manufacturer: '制造商', purchaseDate: '购置日期',
   runningStatus: '运行状态', downtimeType: '停机类型', alertLevel: '告警等级', collectedTime: '采集时间',
   maintenanceType: '保养类型', cycleType: '周期类型', cycleValue: '周期值', maintenanceContent: '保养内容', responsibleId: '负责人',
@@ -213,6 +215,8 @@ const labels = {
   remark: '备注', createdTime: '创建时间', updatedTime: '更新时间'
 }
 
+// 关联字段在数据库中保存 ID，但下拉框不能只显示数字。
+// 这里规定每种资源用哪些可读字段拼成选项文字，例如设备显示“设备名称 + 设备编码”。
 export const referencePresentation = {
   'sys-user': ['username'], 'sys-role': ['roleName', 'roleCode'], 'sys-menu': ['menuName'], 'sys-file': ['fileName'],
   'org-department': ['departmentName', 'departmentCode'], 'org-employee': ['employeeName', 'employeeNo'], 'org-team': ['teamName', 'teamCode'], 'org-shift': ['shiftName', 'shiftCode'],
@@ -227,6 +231,8 @@ export const referencePresentation = {
   'trace-barcode': ['barcodeValue'], 'trace-product-lot': ['lotNo']
 }
 
+// 根据常见的“xxxId”字段名，推断它关联哪一种资源。
+// 例如 productId 自动关联 mdm-product，页面就能加载产品下拉选项。
 const defaultReferences = {
   userId: 'sys-user', approverId: 'org-employee', changedBy: 'org-employee', employeeId: 'org-employee', managerId: 'org-employee', leaderId: 'org-employee', operatorId: 'org-employee', applicantId: 'org-employee', inspectorId: 'org-employee', maintainerId: 'org-employee', checkerId: 'org-employee', repairerId: 'org-employee', responsibleId: 'org-employee', reportedBy: 'org-employee', triggeredBy: 'org-employee',
   roleId: 'sys-role', menuId: 'sys-menu', fileId: 'sys-file', photoFileId: 'sys-file', departmentId: 'org-department', teamId: 'org-team', shiftId: 'org-shift', unitId: 'mdm-unit', supplierId: 'mdm-supplier', customerId: 'mdm-customer', materialId: 'mdm-material', productId: 'mdm-product', bomId: 'mdm-bom', operationId: 'process-operation', routeId: 'process-route', workshopId: 'factory-workshop', lineId: 'factory-line', stationId: 'factory-station', productionOrderId: 'mfg-production-order', workOrderId: 'mfg-work-order', dispatchId: 'mfg-dispatch-order', taskId: 'mfg-task', reportId: 'mfg-work-report', warehouseId: 'wms-warehouse', locationId: 'wms-location', batchId: 'wms-material-batch', schemeId: 'qms-inspection-scheme', itemId: 'qms-inspection-item', standardId: 'qms-inspection-standard', inspectionId: 'qms-inspection-order', inspectionResultId: 'qms-inspection-result', ncrId: 'qms-nonconforming-order', equipmentId: 'eam-equipment', exceptionId: 'mfg-exception', barcodeId: 'trace-barcode', productLotId: 'trace-product-lot'
@@ -239,11 +245,14 @@ const textareaPattern = /(remark|description|content|comment|result|reason|items
 const auditProps = new Set(['createdBy', 'updatedBy', 'deletedFlag', 'version'])
 const secondaryTableProps = new Set(['remark', 'createdTime', 'updatedTime'])
 
+// 没有预先配置中文名时，把 camelCase 字段名转换成较容易阅读的标题作为兜底。
 function humanize(prop) {
   return labels[prop] || prop.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase())
 }
 
 export function field(prop, overrides = {}) {
+  // 先根据字段名推断关联、日期、数字、长文本等控件类型，再用 overrides 覆盖特殊规则。
+  // 最终结果会交给 ResourceField.vue，决定页面显示输入框、下拉框还是日期控件。
   let type = overrides.type
   const reference = overrides.reference || defaultReferences[prop]
   if (!type) {
@@ -271,6 +280,8 @@ export function field(prop, overrides = {}) {
 }
 
 export function defineResource(config) {
+  // 将 mfg.js 等文件中的精简配置标准化：补齐字段对象、筛选条件、默认权限、路由路径等。
+  // 因此业务资源只需描述差异，不必为每个页面重复编写整套表格和表单代码。
   const overrides = config.overrides || {}
   const fields = config.fields.map((prop) => field(prop, overrides[prop]))
   const fieldMap = Object.fromEntries(fields.map((item) => [item.prop, item]))
@@ -293,6 +304,7 @@ export function defineResource(config) {
   }
 }
 
+// 把 [值, 中文标签, 标签颜色] 的简写数组转换成 Element Plus 下拉选项对象。
 export function values(entries) {
   return entries.map(([value, label, type]) => option(value, label, type))
 }

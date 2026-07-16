@@ -18,8 +18,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
-import java.util.stream.Collectors;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 全局异常处理器
@@ -68,9 +69,16 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public ResultData handleBusinessException(BusinessException e) {
-        // 业务异常只打印info级别日志，不打印堆栈（避免日志冗余）
-        //log.info("业务异常：{}", e.getMessage());
-        return ResultData.fail(ResultCode.BUSINESS_ERROR);
+        ResultCode resultCode = Arrays.stream(ResultCode.values())
+                .filter(code -> code.getCode() == e.getCode())
+                .findFirst()
+                .orElse(ResultCode.BUSINESS_ERROR);
+        String message = e.getMessage();
+        if (message == null || message.isBlank()) {
+            message = resultCode.getMessage();
+        }
+        log.info("业务请求被拒绝：{}", message);
+        return ResultData.fail(resultCode, Map.of("message", message));
     }
 
     /**

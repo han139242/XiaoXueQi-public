@@ -320,7 +320,26 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
         if (operatorId == null) {
             throw business(ResultCode.PARAM_ERROR, "操作人不能为空");
         }
+        if (existing.getPlanId() == null || existing.getBomId() == null || existing.getRouteId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单缺少有效生产计划、物料清单或工艺路线");
+        }
+        MfgProductionPlan sourcePlan = productionPlanMapper.selectOne(new LambdaQueryWrapper<MfgProductionPlan>()
+                .eq(MfgProductionPlan::getPlanId, existing.getPlanId())
+                .eq(MfgProductionPlan::getDeletedFlag, 0));
         LocalDateTime now = LocalDateTime.now();
+        if (sourcePlan == null || !BusinessStatus.Document.RELEASED.equals(sourcePlan.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单的来源计划不存在或尚未生效");
+        }
+        if (sourcePlan.getPlannedStartTime() == null || sourcePlan.getPlannedEndTime() == null
+                || sourcePlan.getPlannedStartTime().isBefore(now.minusMinutes(2))
+                || !sourcePlan.getPlannedEndTime().isAfter(now)) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产计划时间已过期，请先重新排程后再下达工单");
+        }
+        if (workOrderMaterialMapper.selectCount(new LambdaQueryWrapper<MfgWorkOrderMaterial>()
+                .eq(MfgWorkOrderMaterial::getWorkOrderId, workOrderId)
+                .eq(MfgWorkOrderMaterial::getDeletedFlag, 0)) == 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单没有有效用料需求，不能下达");
+        }
         MfgWorkOrder update = new MfgWorkOrder();
         update.setWorkOrderId(workOrderId);
         update.setStatus(BusinessStatus.Document.RELEASED);
@@ -354,6 +373,22 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
         }
         if (operatorId == null) {
             throw business(ResultCode.PARAM_ERROR, "操作人不能为空");
+        }
+        List<MfgWorkOrderMaterial> requirements = workOrderMaterialMapper.selectList(
+                new LambdaQueryWrapper<MfgWorkOrderMaterial>()
+                        .eq(MfgWorkOrderMaterial::getWorkOrderId, workOrderId)
+                        .eq(MfgWorkOrderMaterial::getDeletedFlag, 0));
+        if (requirements.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "工单没有有效用料需求，不能开始生产");
+        }
+        long shortageCount = requirements.stream().filter(requirement -> {
+            BigDecimal required = requirement.getRequiredQuantity() == null ? BigDecimal.ZERO : requirement.getRequiredQuantity();
+            BigDecimal issued = requirement.getIssuedQuantity() == null ? BigDecimal.ZERO : requirement.getIssuedQuantity();
+            return issued.compareTo(required) < 0;
+        }).count();
+        if (shortageCount > 0) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "物料未齐套，仍有 " + shortageCount + " 种物料未足额发到本工单，不能开始生产");
         }
         long taskCount = mfgTaskMapper.selectCount(new LambdaQueryWrapper<MfgTask>()
                 .eq(MfgTask::getWorkOrderId, workOrderId)

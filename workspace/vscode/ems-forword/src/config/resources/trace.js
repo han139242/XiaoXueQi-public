@@ -11,13 +11,22 @@ export default [
   }),
   defineResource({
     key: 'trace-product-lot', domain: 'trace', route: 'trace/product-lots', title: '产品批次追溯', icon: 'route', baseUrl: '/api/trace/product-lot', idField: 'productLotId',
-    fields: ['lotNo', 'productId', 'workOrderId', 'batchQuantity', 'qualifiedQuantity', 'defectQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'productId', 'workOrderId', 'status'], defaults: { status: 'RUNNING', qualifiedQuantity: 0, defectQuantity: 0 },
-    overrides: { lotNo: { required: true }, productId: { required: true }, workOrderId: { required: true }, batchQuantity: { required: true, type: 'number', min: 0 }, qualifiedQuantity: { type: 'number', min: 0 }, defectQuantity: { type: 'number', min: 0 }, status: { type: 'select', options: optionSets.productLot }, createdTime: { form: false, width: 170 } },
-    actions: [{ key: 'trace', label: '查看全链路', icon: 'scan', type: 'primary', kind: 'trace', path: (row) => `/api/trace/product-lot/lot-no/${encodeURIComponent(row.lotNo)}` }],
+    permissions: { create: false, edit: false, delete: false },
+    fields: ['lotNo', 'productId', 'workOrderId', 'sourceReportId', 'batchQuantity', 'qualifiedQuantity', 'defectQuantity', 'status', 'remark', 'createdTime'], filters: ['keyword', 'productId', 'workOrderId', 'status'], defaults: { status: 'RUNNING', qualifiedQuantity: 0, defectQuantity: 0 },
+    overrides: { lotNo: { required: true }, productId: { required: true }, workOrderId: { required: true }, sourceReportId: { form: false }, batchQuantity: { required: true, type: 'number', min: 0 }, qualifiedQuantity: { type: 'number', min: 0 }, defectQuantity: { type: 'number', min: 0 }, status: { type: 'select', options: optionSets.productLot }, createdTime: { form: false, width: 170 } },
+    masterDetails: [
+      { key: 'inspections', title: '产品终检', resource: 'qms-inspection-order', parentField: 'productLotId', endpoint: () => '/api/qms/inspection-order/page', params: (row) => ({ current: 1, size: 100, productLotId: row.productLotId }), label: (row) => row.lotNo },
+      { key: 'usages', title: '物料使用记录', resource: 'trace-material-usage', parentField: 'productLotId', endpoint: () => '/api/trace/material-usage/page', params: (row) => ({ current: 1, size: 100, productLotId: row.productLotId }), label: (row) => row.lotNo }
+    ],
+    actions: [
+      { key: 'trace', label: '查看全链路', icon: 'scan', type: 'primary', kind: 'trace', path: (row) => `/api/trace/product-lot/lot-no/${encodeURIComponent(row.lotNo)}` },
+      { key: 'generate-inbound', label: '生成生产入库', icon: 'warehouse', method: 'post', type: 'success', path: (row) => `/api/wms/inbound-order/generate-production/${row.productLotId}`, visible: (row) => ['PASS', 'CONCESSION'].includes(row.status), fields: [field('warehouseId', { type: 'reference', reference: 'wms-warehouse', required: true }), field('locationId', { type: 'reference', reference: 'wms-location', required: true }), field('remark', { type: 'textarea' })], successNavigate: { targetResource: 'wms-inbound-order', query: (data, row) => ({ sourceOrderType: 'PRODUCT_LOT', sourceOrderId: row.productLotId, focus: data?.inboundId, from: row.lotNo }) } }
+    ],
     relations: [{ key: 'usages', title: '物料使用记录', resource: 'trace-material-usage', parentField: 'productLotId' }]
   }),
   defineResource({
     key: 'trace-material-usage', domain: 'trace', route: 'trace/material-usages', title: '物料使用追溯', icon: 'database', baseUrl: '/api/trace/material-usage', idField: 'usageId',
+    permissions: { create: false, edit: false, delete: false },
     fields: ['productLotId', 'barcodeId', 'workOrderId', 'reportId', 'materialId', 'batchId', 'usedQuantity', 'remark', 'createdTime'], filters: ['productLotId', 'barcodeId', 'workOrderId', 'reportId', 'materialId', 'batchId'],
     overrides: { productLotId: { required: true }, barcodeId: { required: true }, workOrderId: { required: true }, reportId: { required: true }, materialId: { required: true }, batchId: { required: true }, usedQuantity: { required: true, type: 'number', min: 0 }, createdTime: { form: false, width: 170 } },
     actions: [{ key: 'batch-trace', label: '反向追溯', icon: 'route', type: 'primary', kind: 'trace', path: (row) => `/api/trace/material-usage/batch/${row.batchId}` }]

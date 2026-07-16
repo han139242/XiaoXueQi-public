@@ -30,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -201,9 +202,10 @@ class MfgProductionOrderServiceImplTest {
         when(workOrderMapper.selectList(any())).thenReturn(List.of(workOrder(BusinessStatus.Document.RELEASED)));
         when(taskMapper.selectList(any())).thenReturn(List.of(task(BusinessStatus.Production.RUNNING)));
 
-        assertThrows(BusinessException.class,
+        BusinessException exception = assertThrows(BusinessException.class,
                 () -> service.withdrawUnexecutedOrderChain(1L, 9L, "调整生产安排"));
 
+        assertEquals("无法撤回：生产任务已经开工或产生完成/不良数量", exception.getMessage());
         verify(orderMapper, never()).updateById(any(MfgProductionOrder.class));
         verify(taskMapper, never()).updateById(any(MfgTask.class));
     }
@@ -261,10 +263,16 @@ class MfgProductionOrderServiceImplTest {
     }
 
     @Test
-    void withdrawUnexecutedOrderChainRequiresReason() {
-        assertThrows(BusinessException.class,
-                () -> service.withdrawUnexecutedOrderChain(1L, 9L, " "));
-        verify(orderMapper, never()).selectOne(any());
+    void withdrawUnexecutedOrderChainUsesStandardAuditWhenReasonIsBlank() {
+        when(orderMapper.selectOne(any())).thenReturn(order(BusinessStatus.Document.RELEASED));
+        when(planMapper.selectList(any())).thenReturn(List.of());
+        when(orderMapper.updateById(any(MfgProductionOrder.class))).thenReturn(1);
+
+        service.withdrawUnexecutedOrderChain(1L, 9L, " ");
+
+        ArgumentCaptor<SysOperationLog> operationLog = ArgumentCaptor.forClass(SysOperationLog.class);
+        verify(operationLogMapper).insert(operationLog.capture());
+        assertEquals("用户主动撤回，未填写补充原因", operationLog.getValue().getRemark());
     }
 
     @Test
@@ -301,6 +309,11 @@ class MfgProductionOrderServiceImplTest {
     private MfgProductionOrder order(String status) {
         MfgProductionOrder order = new MfgProductionOrder();
         order.setProductionOrderId(1L);
+        order.setCustomerId(10L);
+        order.setProductId(11L);
+        order.setOrderQuantity(new BigDecimal("100"));
+        order.setDeliveryDate(LocalDate.now().plusDays(7));
+        order.setSourceType("MANUAL");
         order.setStatus(status);
         order.setVersion(2);
         return order;

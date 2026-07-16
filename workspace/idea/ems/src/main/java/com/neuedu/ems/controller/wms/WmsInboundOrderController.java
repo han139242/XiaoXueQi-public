@@ -143,6 +143,16 @@ public class WmsInboundOrderController {
         return ResultData.success(ResultCode.SUCCESS);
     }
 
+    @PostMapping("/generate-production/{productLotId}")
+    public ResultData generateProduction(@PathVariable Long productLotId,
+                                         @RequestAttribute("userId") Long userId,
+                                         @RequestBody Map<String, Object> request) {
+        WmsInboundOrder order = wmsInboundOrderService.generateProductionInbound(
+                productLotId, getLong(request, "warehouseId"), getLong(request, "locationId"),
+                userId, getString(request, "remark"));
+        return ResultData.success(ResultCode.SUCCESS, Map.of("inboundId", order.getInboundId()));
+    }
+
     /**
      * 删除入库单和入库明细，采用软删除，已确认入库单不允许删除。
      * @param inboundId 入库单ID
@@ -186,6 +196,12 @@ public class WmsInboundOrderController {
     private String getString(Map<String, Object> request, String key) {
         Object value = request == null ? null : request.get(key);
         return value == null ? null : value.toString();
+    }
+
+
+    private Long getLong(Map<String, Object> request, String key) {
+        Object value = request == null ? null : request.get(key);
+        return value == null ? null : Long.valueOf(value.toString());
     }
 
     /**

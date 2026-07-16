@@ -3,6 +3,7 @@ import { getResourceList, getResourcePage } from '@/api/resource'
 import { getResourceConfig } from '@/config/resources'
 import { referencePresentation } from '@/config/resources/helpers'
 
+// 缓存已经加载过的关联选项，避免一个页面中的多个 productId 下拉框反复请求同一接口。
 const cache = new Map()
 
 function flatten(items) {
@@ -10,6 +11,7 @@ function flatten(items) {
 }
 
 function labelFor(config, row) {
+  // 数据库存的是关联 ID，界面根据 referencePresentation 拼出“名称 + 编码”等可读文字。
   const fields = referencePresentation[config.key] || config.fields.filter((item) => item.type === 'text').slice(0, 2).map((item) => item.prop)
   const values = fields.map((prop) => row[prop]).filter((value) => value !== null && value !== undefined && value !== '')
   return values.length ? values.join(' · ') : `${config.title.replace('管理', '')} #${row[config.idField]}`
@@ -27,6 +29,7 @@ export function canUseResourceMockFallback() {
 }
 
 export async function loadReferenceOptions(resourceKey, previewMode = false) {
+  // 读取目标资源配置，再调用通用 API 获取数据，最后转换为 el-select 需要的 value/label。
   const mockFallback = canUseResourceMockFallback()
   const cacheKey = `${previewMode ? 'preview' : mockFallback ? 'mock-fallback' : 'live'}:${resourceKey}`
   if (cache.has(cacheKey)) return cache.get(cacheKey)
@@ -57,12 +60,14 @@ export async function loadReferenceOptions(resourceKey, previewMode = false) {
 }
 
 export function clearReferenceOptions(resourceKey) {
+  // 新增或修改关联资源后清掉缓存，下次打开下拉框时才能看到最新数据。
   cache.delete(`live:${resourceKey}`)
   cache.delete(`preview:${resourceKey}`)
   cache.delete(`mock-fallback:${resourceKey}`)
 }
 
 function previewValue(field, index, config) {
+  // 开发预览模式没有后端数据时，根据字段类型生成结构合理的演示值。
   if (field.options?.length) return field.options[index % field.options.length].value
   if (field.type === 'reference') return (index % 6) + 1
   if (field.type === 'date') return dayjs().subtract(index, 'day').format('YYYY-MM-DD')
@@ -88,6 +93,7 @@ function previewValue(field, index, config) {
 }
 
 export function createPreviewRows(config, count = 12) {
+  // 仅供开发预览或明确开启的 mock fallback 使用，不会写入真实数据库。
   return Array.from({ length: count }, (_, index) => {
     const row = { [config.idField]: index + 1 }
     config.fields.forEach((field) => {

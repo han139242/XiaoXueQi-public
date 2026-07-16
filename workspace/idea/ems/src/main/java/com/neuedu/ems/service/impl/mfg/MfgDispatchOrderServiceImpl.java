@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgDispatchOrder;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.factory.FactoryStation;
@@ -20,6 +21,7 @@ import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgDispatchOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.factory.FactoryStationMapper;
@@ -47,11 +49,13 @@ import java.util.ArrayList;
 public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMapper, MfgDispatchOrder> implements MfgDispatchOrderService {
 
     private static final String WAIT_DISPATCH = "WAIT_DISPATCH";
+    private static final String MATERIAL_READY = "READY";
     private static final DateTimeFormatter NUMBER_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     @Autowired private MfgTaskMapper taskMapper;
     @Autowired private MfgWorkReportMapper workReportMapper;
     @Autowired private MfgWorkOrderMapper workOrderMapper;
+    @Autowired private MfgWorkOrderMaterialMapper workOrderMaterialMapper;
     @Autowired private MfgProductionPlanMapper productionPlanMapper;
     @Autowired private ProcessRouteItemMapper routeItemMapper;
     @Autowired private FactoryStationOperationMapper stationOperationMapper;
@@ -188,6 +192,9 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         if (!BusinessStatus.Document.RELEASED.equals(workOrder.getStatus())) {
             throw business(ResultCode.BUSINESS_ERROR, "只有已下达生产工单可以生成派工单");
         }
+        MfgProductionPlan plan = activePlan(workOrder.getPlanId());
+        LocalDateTime now = LocalDateTime.now();
+        validateDispatchTime(request.getDueTime(), plan, now);
         OrgTeam team = activeTeam(request.getTeamId());
         if (team == null) {
             throw business(ResultCode.BUSINESS_ERROR, "派工班组不存在或已停用");
@@ -199,14 +206,14 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         if (activeDispatches > 0) {
             throw business(ResultCode.BUSINESS_ERROR, "该生产工单已有有效派工单，不能重复生成");
         }
-        LocalDateTime now = LocalDateTime.now();
+        MaterialReadiness readiness = calculateMaterialReadiness(workOrderId);
         MfgDispatchOrder dispatch = new MfgDispatchOrder();
         dispatch.setDispatchNo("DO-" + workOrderId + "-" + now.format(NUMBER_TIME));
         dispatch.setWorkOrderId(workOrderId);
         dispatch.setTeamId(team.getTeamId());
         dispatch.setPlannedQuantity(workOrder.getPlannedQuantity());
         dispatch.setDueTime(request.getDueTime());
-        dispatch.setMaterialReadyStatus("WAIT_READY");
+        dispatch.setMaterialReadyStatus(readiness.status());
         dispatch.setStatus(WAIT_DISPATCH);
         dispatch.setRemark(request.getRemark());
         dispatch.setVersion(0);
@@ -241,6 +248,14 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         }
         MfgWorkOrder workOrder = activeReleasedWorkOrder(dispatch.getWorkOrderId());
         MfgProductionPlan plan = activePlan(workOrder.getPlanId());
+        LocalDateTime now = LocalDateTime.now();
+        validateDispatchTime(dispatch.getDueTime(), plan, now);
+        MaterialReadiness readiness = calculateMaterialReadiness(workOrder.getWorkOrderId());
+        if (!MATERIAL_READY.equals(readiness.status())) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "物料未齐套，不能派发任务：仍有 " + readiness.shortageMaterialCount()
+                            + " 种物料未足额发到本工单");
+        }
         List<ProcessRouteItem> routeItems = routeItemMapper.selectList(new LambdaQueryWrapper<ProcessRouteItem>()
                 .eq(ProcessRouteItem::getRouteId, workOrder.getRouteId())
                 .eq(ProcessRouteItem::getDeletedFlag, 0)
@@ -259,7 +274,6 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         if (team == null) {
             throw business(ResultCode.BUSINESS_ERROR, "派工班组不存在或已停用");
         }
-        LocalDateTime now = LocalDateTime.now();
         List<MfgTask> tasks = new ArrayList<>(routeItems.size());
         for (ProcessRouteItem routeItem : routeItems) {
             if (routeItem.getOperationId() == null) {
@@ -297,6 +311,7 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         update.setDispatchId(dispatchId);
         update.setVersion(dispatch.getVersion());
         update.setStatus(BusinessStatus.Document.RELEASED);
+        update.setMaterialReadyStatus(readiness.status());
         update.setRemark(StringUtils.hasText(remark) ? remark : dispatch.getRemark());
         update.setUpdatedBy(operatorId);
         update.setUpdatedTime(now);
@@ -311,9 +326,10 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void withdrawDispatchOrder(Long dispatchId, Long operatorId, String remark) {
-        if (dispatchId == null || operatorId == null || !StringUtils.hasText(remark)) {
-            throw business(ResultCode.PARAM_ERROR, "派工单、操作人和撤回原因不能为空");
+        if (dispatchId == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "派工单和操作人不能为空");
         }
+        remark = StringUtils.hasText(remark) ? remark.trim() : "用户主动撤回，未填写补充原因";
         MfgDispatchOrder dispatch = baseMapper.selectOne(new LambdaQueryWrapper<MfgDispatchOrder>()
                 .eq(MfgDispatchOrder::getDispatchId, dispatchId)
                 .eq(MfgDispatchOrder::getDeletedFlag, 0).last("FOR UPDATE"));
@@ -370,10 +386,43 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         MfgProductionPlan plan = productionPlanMapper.selectOne(new LambdaQueryWrapper<MfgProductionPlan>()
                 .eq(MfgProductionPlan::getPlanId, planId)
                 .eq(MfgProductionPlan::getDeletedFlag, 0));
-        if (plan == null || plan.getLineId() == null) {
+        if (plan == null || plan.getLineId() == null || !BusinessStatus.Document.RELEASED.equals(plan.getStatus())) {
             throw business(ResultCode.BUSINESS_ERROR, "生产工单未关联有效产线计划");
         }
         return plan;
+    }
+
+    private void validateDispatchTime(LocalDateTime dueTime, MfgProductionPlan plan, LocalDateTime now) {
+        if (dueTime == null || !dueTime.isAfter(now)) {
+            throw business(ResultCode.BUSINESS_ERROR, "派工要求完成时间已过，请重新选择未来有效时间");
+        }
+        if (plan.getPlannedEndTime() != null && dueTime.isAfter(plan.getPlannedEndTime())) {
+            throw business(ResultCode.BUSINESS_ERROR, "派工要求完成时间不能晚于生产计划结束时间");
+        }
+    }
+
+    private MaterialReadiness calculateMaterialReadiness(Long workOrderId) {
+        List<MfgWorkOrderMaterial> requirements = workOrderMaterialMapper.selectList(
+                new LambdaQueryWrapper<MfgWorkOrderMaterial>()
+                        .eq(MfgWorkOrderMaterial::getWorkOrderId, workOrderId)
+                        .eq(MfgWorkOrderMaterial::getDeletedFlag, 0));
+        if (requirements.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单没有有效用料需求，不能派工");
+        }
+        int shortageCount = 0;
+        boolean anyIssued = false;
+        for (MfgWorkOrderMaterial requirement : requirements) {
+            java.math.BigDecimal required = requirement.getRequiredQuantity() == null
+                    ? java.math.BigDecimal.ZERO : requirement.getRequiredQuantity();
+            java.math.BigDecimal issued = requirement.getIssuedQuantity() == null
+                    ? java.math.BigDecimal.ZERO : requirement.getIssuedQuantity();
+            anyIssued = anyIssued || issued.signum() > 0;
+            if (issued.compareTo(required) < 0) {
+                shortageCount++;
+            }
+        }
+        String status = shortageCount == 0 ? MATERIAL_READY : anyIssued ? "PARTIAL_READY" : "WAIT_READY";
+        return new MaterialReadiness(status, shortageCount);
     }
 
     private OrgTeam activeTeam(Long teamId) {
@@ -405,6 +454,9 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
     }
 
     private boolean positive(java.math.BigDecimal value) { return value != null && value.signum() > 0; }
+
+    private record MaterialReadiness(String status, int shortageMaterialCount) {
+    }
 
     private void audit(String bizType, String module, Long id, String oldStatus, String newStatus, String reason,
                        Long operatorId, String remark, LocalDateTime now) {

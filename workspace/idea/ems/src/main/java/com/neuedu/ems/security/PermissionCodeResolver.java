@@ -61,6 +61,7 @@ public class PermissionCodeResolver {
             rule("POST", "/api/mfg/schedule-scenario/[^/]+/orders/[^/]+/ai-advice", "mfg:schedule-scenario:ai-advice"),
             rule("POST", "/api/mfg/schedule-scenario/[^/]+/ai-advice", "mfg:schedule-scenario:ai-advice"),
             rule("PUT", "/api/mfg/schedule-scenario/[^/]+/confirm", "mfg:schedule-scenario:confirm"),
+            rule("POST", "/api/wms/inbound-order/generate-production/[^/]+", "wms:inbound-order:create"),
             rule("PUT", "/api/wms/inbound-order/[^/]+/confirm", "wms:inbound-order:confirm"),
             rule("PUT", "/api/wms/inbound-order/[^/]+/withdraw", "wms:inbound-order:withdraw"),
             rule("PUT", "/api/wms/outbound-order/[^/]+/confirm", "wms:outbound-order:confirm"),

@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 
+// 主题模块统一管理当前主题、CSS 标记和浏览器持久化；刷新页面后仍保留用户选择。
 const STORAGE_KEY = 'mes_ui_theme'
 const DEFAULT_VERSION_KEY = 'mes_ui_theme_default_version'
 const CURRENT_DEFAULT_VERSION = 'blue-default-20260711'
@@ -53,6 +54,7 @@ function normalizeTheme(themeKey) {
 }
 
 function applyTheme(themeKey) {
+  // 将主题名写到 <html data-theme="...">，tokens.css 会据此切换整套 CSS 变量。
   const normalized = normalizeTheme(themeKey)
   activeThemeKey.value = normalized
   document.documentElement.dataset.theme = normalized
@@ -60,6 +62,7 @@ function applyTheme(themeKey) {
 }
 
 export function initTheme() {
+  // main.js 启动应用时调用：优先恢复用户选择，并处理默认主题版本升级。
   let storedTheme = DEFAULT_THEME
   try {
     const defaultVersion = localStorage.getItem(DEFAULT_VERSION_KEY)
@@ -78,6 +81,7 @@ export function initTheme() {
 }
 
 export function setTheme(themeKey) {
+  // 用户在界面切换主题时立即应用，并保存到 localStorage。
   const normalized = applyTheme(themeKey)
   try {
     localStorage.setItem(STORAGE_KEY, normalized)

@@ -6,12 +6,14 @@ import com.neuedu.ems.entity.mfg.MfgWorkReport;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.entity.trace.TraceProductLot;
 import com.neuedu.ems.entity.wms.WmsMaterialBatch;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
 import com.neuedu.ems.mapper.qms.QmsInspectionResultMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.trace.TraceProductLotMapper;
 import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,7 @@ class QmsInspectionOrderServiceImplTest {
     private SysStatusChangeLogMapper statusLogMapper;
     private SysOperationLogMapper operationLogMapper;
     private QmsInspectionResultMapper resultMapper;
+    private TraceProductLotMapper productLotMapper;
 
     @BeforeEach
     void setUp() {
@@ -48,6 +51,7 @@ class QmsInspectionOrderServiceImplTest {
         batchMapper = mock(WmsMaterialBatchMapper.class);
         statusLogMapper = mock(SysStatusChangeLogMapper.class);
         operationLogMapper = mock(SysOperationLogMapper.class);
+        productLotMapper = mock(TraceProductLotMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", orderMapper);
         resultMapper = mock(QmsInspectionResultMapper.class);
         ReflectionTestUtils.setField(service, "qmsInspectionResultMapper", resultMapper);
@@ -55,6 +59,7 @@ class QmsInspectionOrderServiceImplTest {
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
         ReflectionTestUtils.setField(service, "wmsMaterialBatchMapper", batchMapper);
+        ReflectionTestUtils.setField(service, "traceProductLotMapper", productLotMapper);
         ReflectionTestUtils.setField(service, "responsibilityNotificationService",
                 mock(QmsResponsibilityNotificationService.class));
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
@@ -223,12 +228,39 @@ class QmsInspectionOrderServiceImplTest {
     }
 
     @Test
+    void finalInspectionReleasesLinkedProductLotWithoutTouchingMaterialBatch() {
+        QmsInspectionOrder order = existingOrder();
+        order.setInspectionType("FINAL");
+        order.setWorkOrderId(3L);
+        order.setReportId(1L);
+        order.setProductLotId(31L);
+        TraceProductLot productLot = new TraceProductLot();
+        productLot.setProductLotId(31L);
+        productLot.setWorkOrderId(3L);
+        productLot.setSourceReportId(1L);
+        productLot.setStatus("WAIT_INSPECTION");
+        productLot.setVersion(2);
+        when(orderMapper.selectOne(any())).thenReturn(order);
+        when(productLotMapper.selectOne(any())).thenReturn(productLot);
+        when(orderMapper.updateById(any(QmsInspectionOrder.class))).thenReturn(1);
+        when(productLotMapper.updateById(any(TraceProductLot.class))).thenReturn(1);
+
+        assertTrue(service.submitInspectionOrder(1L, "PASS", null, 9L));
+
+        ArgumentCaptor<TraceProductLot> update = ArgumentCaptor.forClass(TraceProductLot.class);
+        verify(productLotMapper).updateById(update.capture());
+        assertEquals(BusinessStatus.Quality.PASS, update.getValue().getStatus());
+        assertEquals(2, update.getValue().getVersion());
+        verify(batchMapper, never()).updateById(any(WmsMaterialBatch.class));
+    }
+
+    @Test
     void withdrawDraftInspectionWithoutResultsClosesAndAudits() {
         when(orderMapper.selectOne(any())).thenReturn(existingOrder());
         when(resultMapper.selectCount(any())).thenReturn(0L);
         when(orderMapper.updateById(any(QmsInspectionOrder.class))).thenReturn(1);
 
-        service.withdrawInspectionOrder(1L, 9L, "来源报工撤回");
+        service.withdrawInspectionOrder(1L, 9L, null);
 
         ArgumentCaptor<QmsInspectionOrder> update = ArgumentCaptor.forClass(QmsInspectionOrder.class);
         verify(orderMapper).updateById(update.capture());

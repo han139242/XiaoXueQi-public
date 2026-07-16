@@ -13,6 +13,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+// ref 保存单个响应式值；reactive 适合把整个登录表单作为一个响应式对象管理。
 const formRef = ref()
 const loading = ref(false)
 const showPreview = import.meta.env.DEV
@@ -23,17 +24,21 @@ const form = reactive({
   remember: true
 })
 
+// rules 交给 Element Plus 的 el-form，在发送登录请求前先检查必填项。
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
+// 路由守卫把未登录用户送到登录页时，会用 redirect 记录用户原本想访问的页面。
+// 登录成功后回到该页面；没有 redirect 时进入首页，并限制目标必须是站内路径。
 function resolveTarget() {
   const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
   return redirect.startsWith('/') ? redirect : '/dashboard'
 }
 
 async function handleLogin() {
+  // 第一步先执行前端表单验证，验证不通过或正在登录时不重复发送请求。
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid || loading.value) {
     return
@@ -41,14 +46,18 @@ async function handleLogin() {
 
   loading.value = true
   try {
+    // 第二步调用后端登录接口，账号密码正确时后端签发 JWT Token。
     const result = await login({
       username: form.username.trim(),
       password: form.password
     })
+    // 第三步保存 Token。之后 request.js 会把它自动放进每次请求的 Authorization 请求头。
     setToken(result.token, form.remember)
+    // 第四步再查询用户、角色和权限并保存，菜单及按钮权限都依赖这份用户信息。
     const userInfo = await getCurrentUserInfo()
     setCurrentUser(userInfo.data || result.data)
     ElMessage.success('登录成功')
+    // replace 不会把登录页留在浏览器历史中，按“返回”不会再次回到登录页。
     await router.replace(resolveTarget())
   } catch {
     // Request errors are presented by the shared Axios interceptor.
@@ -58,6 +67,7 @@ async function handleLogin() {
 }
 
 async function enterPreview() {
+  // 仅开发环境提供框架预览，不请求真实登录接口。
   if (startFrameworkPreview()) {
     await router.replace('/dashboard')
   }

@@ -29,6 +29,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.DayOfWeek;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,6 +45,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class MfgScheduleScenarioServiceImplTest {
+
+    private static final LocalDate TEST_DATE = LocalDate.now().plusDays(1)
+            .with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
 
     private MfgScheduleScenarioServiceImpl service;
     private MfgScheduleScenarioMapper scenarioMapper;
@@ -127,8 +132,8 @@ class MfgScheduleScenarioServiceImplTest {
         assertEquals("SCHEDULED", item.getStatus());
         assertEquals(1L, item.getLineId());
         assertEquals(1L, item.getRouteId());
-        assertEquals(LocalDateTime.of(2026, 7, 13, 8, 0), item.getPlannedStartTime());
-        assertEquals(LocalDateTime.of(2026, 7, 13, 9, 0), item.getPlannedEndTime());
+        assertEquals(TEST_DATE.atTime(8, 0), item.getPlannedStartTime());
+        assertEquals(TEST_DATE.atTime(9, 0), item.getPlannedEndTime());
         assertEquals(new BigDecimal("100.00"), item.getEstimatedMinutes());
         assertEquals(0L, item.getTardinessMinutes());
     }
@@ -216,15 +221,15 @@ class MfgScheduleScenarioServiceImplTest {
         when(shiftMapper.selectList(any())).thenReturn(List.of(swingShift));
 
         MfgScheduleScenario crossDayRequest = request("SCH-003B");
-        crossDayRequest.setHorizonStart(LocalDateTime.of(2026, 7, 13, 16, 0));
-        crossDayRequest.setHorizonEnd(LocalDateTime.of(2026, 7, 14, 0, 0));
+        crossDayRequest.setHorizonStart(TEST_DATE.atTime(16, 0));
+        crossDayRequest.setHorizonEnd(TEST_DATE.plusDays(1).atStartOfDay());
         service.calculateScenario(crossDayRequest);
 
         ArgumentCaptor<MfgScheduleItem> itemCaptor = ArgumentCaptor.forClass(MfgScheduleItem.class);
         verify(itemMapper).insert(itemCaptor.capture());
         assertEquals("SCHEDULED", itemCaptor.getValue().getStatus());
-        assertEquals(LocalDateTime.of(2026, 7, 13, 16, 0), itemCaptor.getValue().getPlannedStartTime());
-        assertEquals(LocalDateTime.of(2026, 7, 13, 17, 0), itemCaptor.getValue().getPlannedEndTime());
+        assertEquals(TEST_DATE.atTime(16, 0), itemCaptor.getValue().getPlannedStartTime());
+        assertEquals(TEST_DATE.atTime(17, 0), itemCaptor.getValue().getPlannedEndTime());
     }
 
     @Test
@@ -252,8 +257,8 @@ class MfgScheduleScenarioServiceImplTest {
         incompleteOrder.setProductionOrderId(11L);
         incompleteOrder.setProductionOrderNo("MO-INCOMPLETE");
         incompleteOrder.setOrderQuantity(BigDecimal.TEN);
-        incompleteOrder.setDeliveryDate(LocalDate.of(2026, 7, 13));
-        incompleteOrder.setStatus("DRAFT");
+        incompleteOrder.setDeliveryDate(TEST_DATE);
+        incompleteOrder.setStatus("RELEASED");
         when(orderMapper.selectList(any())).thenReturn(List.of(incompleteOrder));
 
         assertThrows(com.neuedu.ems.exception.BusinessException.class, () -> service.calculateScenario(request("SCH-005")));
@@ -266,8 +271,8 @@ class MfgScheduleScenarioServiceImplTest {
         order.setProductionOrderNo("MO-001");
         order.setProductId(1L);
         order.setOrderQuantity(quantity);
-        order.setDeliveryDate(LocalDate.of(2026, 7, 13));
-        order.setStatus("DRAFT");
+        order.setDeliveryDate(TEST_DATE);
+        order.setStatus("RELEASED");
         when(orderMapper.selectList(any())).thenReturn(List.of(order));
     }
 
@@ -351,8 +356,20 @@ class MfgScheduleScenarioServiceImplTest {
         MfgScheduleScenario request = new MfgScheduleScenario();
         request.setScenarioNo(scenarioNo);
         request.setScenarioName("7 月排程测试");
-        request.setHorizonStart(LocalDateTime.of(2026, 7, 13, 8, 0));
-        request.setHorizonEnd(LocalDateTime.of(2026, 7, 13, 16, 0));
+        request.setHorizonStart(TEST_DATE.atTime(8, 0));
+        request.setHorizonEnd(TEST_DATE.atTime(16, 0));
         return request;
+    }
+
+    @Test
+    void rejectsScenarioWhoseHorizonStartsInPast() {
+        MfgScheduleScenario request = request("SCH-PAST");
+        request.setHorizonStart(LocalDateTime.now().minusHours(1));
+        request.setHorizonEnd(LocalDateTime.now().plusHours(1));
+
+        assertThrows(com.neuedu.ems.exception.BusinessException.class,
+                () -> service.calculateScenario(request));
+
+        verify(scenarioMapper, never()).insert(any(MfgScheduleScenario.class));
     }
 }

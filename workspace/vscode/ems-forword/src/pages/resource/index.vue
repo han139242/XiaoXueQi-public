@@ -22,6 +22,8 @@ import { canUseResourceMockFallback, clearReferenceOptions, createPreviewRows, l
 import { isFrameworkPreview } from '@/utils/auth'
 import { hasPermission, hasRequestPermission, resourcePermission } from '@/utils/permission'
 
+// 这是约 80 个配置化 CRUD 页面共用的“通用资源页”。路由只传入 resourceKey，
+// 页面再读取对应配置，统一完成查询、分页、表格、表单、权限、明细和业务动作。
 const props = defineProps({
   resourceKey: { type: String, required: true }
 })
@@ -29,6 +31,7 @@ const props = defineProps({
 const route = useRoute()
 const router = useRouter()
 const config = computed(() => getResourceConfig(props.resourceKey))
+// 下列响应式状态按职责分组：主表数据、筛选分页、编辑表单、主从明细和特殊动作弹窗。
 const previewMode = isFrameworkPreview()
 const mockFallbackEnabled = canUseResourceMockFallback()
 const loading = ref(false)
@@ -41,6 +44,7 @@ const mainTableRef = ref()
 const selectedRow = ref(null)
 const activeDetailKey = ref('')
 const detailRows = ref([])
+const detailCounts = reactive({})
 const detailLoading = ref(false)
 const detailError = ref('')
 const dataMode = ref(previewMode ? 'preview' : 'live')
@@ -67,6 +71,7 @@ const uploadFile = ref(null)
 const uploadMeta = reactive({ bizType: '', bizId: null })
 const alertCounts = reactive({})
 
+// 配置先决定该资源是否支持增删改导出，再结合当前用户权限决定按钮是否真正显示。
 const permissions = computed(() => {
   const configured = { create: true, edit: true, delete: true, export: true, ...config.value.permissions }
   return {
@@ -81,6 +86,7 @@ const tableFields = computed(() => config.value.fields.filter((item) => item.tab
 const visibleTableFields = computed(() => tableFields.value.filter((item) => columnVisibility[item.prop] !== false))
 const visibleFilters = computed(() => filterExpanded.value ? config.value.filters : config.value.filters.slice(0, 4))
 const hasExtraFilters = computed(() => config.value.filters.length > 4)
+// 同一份 fields 配置既能生成表格，也能按 create/edit 标记筛出当前表单应该显示的字段。
 const formFields = computed(() => config.value.fields.filter((item) => {
   if (item.form === false) return false
   if (formMode.value === 'create' && item.create === false) return false
@@ -110,6 +116,7 @@ const alertRules = computed(() => config.value.alerts || [])
 const activeAlerts = computed(() => alertRules.value
   .map((item) => ({ ...item, count: Number(alertCounts[item.key] || 0) }))
   .filter((item) => item.count > 0))
+// masterDetail 描述“主表选中一行后，下方加载哪些关联明细”，并继续过滤明细查看权限。
 const detailConfigs = computed(() => {
   const configured = config.value.masterDetails || (config.value.masterDetail ? [config.value.masterDetail] : [])
   return configured
@@ -141,9 +148,11 @@ const selectedRowLabel = computed(() => {
   return String(selectedRow.value[config.value.idField] ?? '')
 })
 let detailRequestId = 0
+let detailCountRequestId = 0
 let syncingCurrentRow = false
 
 function rulesFor(fields, mode) {
+  // 把字段配置中的 required、requiredOnCreate、minLength 转成 Element Plus 表单校验规则。
   return Object.fromEntries(fields.map((item) => {
     const required = item.required || (mode === 'create' && item.requiredOnCreate)
     const rules = []
@@ -162,6 +171,7 @@ function optionFor(field, value) {
 }
 
 function formatValue(field, value, row) {
+  // 将后端原始值转换为表格可读内容，例如状态中文、关联名称和日期格式。
   if (value === null || value === undefined || value === '') return '--'
   if (field.formatter) return field.formatter(value, row)
   const matched = optionFor(field, value)
@@ -279,14 +289,17 @@ function syncActiveDetailConfig() {
 
 function clearMasterDetail() {
   detailRequestId += 1
+  detailCountRequestId += 1
   selectedRow.value = null
   detailRows.value = []
+  Object.keys(detailCounts).forEach((key) => delete detailCounts[key])
   detailError.value = ''
   detailLoading.value = false
   mainTableRef.value?.setCurrentRow()
 }
 
 async function loadMasterDetail(row) {
+  // 用户选中主表记录后，按当前明细配置请求关联数据，例如订单下的计划或工单。
   if (!detailConfig.value || !detailViewAllowed.value || !row) return
   const url = detailConfig.value.endpoint(row)
   if (!hasRequestPermission('get', url)) return
@@ -300,12 +313,16 @@ async function loadMasterDetail(row) {
         ...item,
         [detailConfig.value.parentField]: row[config.value.idField]
       }))
+      detailCounts[detailConfig.value.key] = detailRows.value.length
       return
     }
     const result = await getResourceList(url, detailConfig.value.params?.(row))
     if (requestId !== detailRequestId) return
     const data = result?.data
     detailRows.value = Array.isArray(data) ? data : data?.records || []
+    detailCounts[detailConfig.value.key] = Array.isArray(data)
+      ? data.length
+      : Number(data?.total ?? detailRows.value.length)
   } catch (error) {
     if (requestId !== detailRequestId) return
     detailRows.value = []
@@ -313,6 +330,30 @@ async function loadMasterDetail(row) {
   } finally {
     if (requestId === detailRequestId) detailLoading.value = false
   }
+}
+
+async function loadOtherDetailCounts(row) {
+  if (!row) return
+  const requestId = ++detailCountRequestId
+  Object.keys(detailCounts).forEach((key) => delete detailCounts[key])
+  const currentKey = detailConfig.value?.key
+  const targets = detailConfigs.value.filter((item) => item.key !== currentKey)
+  await Promise.allSettled(targets.map(async (item) => {
+    const url = item.endpoint(row)
+    if (!hasRequestPermission('get', url)) return
+    let count = 0
+    if (localDataMode.value) {
+      count = 4
+    } else {
+      const result = await getResourceList(url, item.params?.(row))
+      const data = result?.data
+      count = Array.isArray(data) ? data.length : Number(data?.total ?? data?.records?.length ?? 0)
+    }
+    if (requestId === detailCountRequestId
+      && String(selectedRow.value?.[config.value.idField]) === String(row[config.value.idField])) {
+      detailCounts[item.key] = count
+    }
+  }))
 }
 
 function handleCurrentRowChange(row) {
@@ -324,6 +365,7 @@ function handleCurrentRowChange(row) {
     return
   }
   loadMasterDetail(row)
+  loadOtherDetailCounts(row)
 }
 
 function handleDetailTabChange(key) {
@@ -348,10 +390,13 @@ async function restoreMasterSelection(selectedId) {
   syncingCurrentRow = true
   mainTableRef.value?.setCurrentRow(matched)
   syncingCurrentRow = false
-  if (detailConfig.value && detailViewAllowed.value) await loadMasterDetail(matched)
+  if (detailConfig.value && detailViewAllowed.value) {
+    await Promise.all([loadMasterDetail(matched), loadOtherDetailCounts(matched)])
+  }
 }
 
 async function loadReferences() {
+  // 一次收集当前页面所有 reference 字段，并行加载它们的下拉选项。
   const keys = [...new Set(collectReferenceFields().map((item) => item.reference))]
   const results = await Promise.allSettled(keys.map(async (key) => {
     referenceOptions[key] = await loadReferenceOptions(key, previewMode)
@@ -361,6 +406,7 @@ async function loadReferences() {
 }
 
 async function loadData() {
+  // 主查询流程：整理分页和筛选参数，调用树接口或分页接口，再更新表格和总条数。
   const selectedId = selectedRow.value?.[config.value.idField] ?? route.query.focus
   loading.value = true
   loadError.value = ''
@@ -550,6 +596,7 @@ function submitPayload() {
 }
 
 async function submitForm() {
+  // 新增和编辑共用同一套表单：先校验，再按模式调用 POST 或 PUT，成功后刷新数据。
   if (formMode.value === 'view') return
   try {
     await formRef.value?.validate()
@@ -640,7 +687,25 @@ function saveBlob(response, fallbackName) {
 }
 
 function visibleActions(row) {
-  return (config.value.actions || []).filter((item) => (!item.visible || item.visible(row)) && canUseAction(item, row))
+  return (config.value.actions || []).filter((item) => (!item.visible || item.visible(row))
+    && actionMatchesDetailCount(item, row)
+    && canUseAction(item, row))
+}
+
+function actionMatchesDetailCount(action, row) {
+  if (!action.detailKey || !action.detailCount) return true
+  const detailAvailable = detailConfigs.value.some((item) => item.key === action.detailKey)
+  if (!detailAvailable) return action.detailCount === 'zero'
+  if (String(selectedRow.value?.[config.value.idField]) !== String(row?.[config.value.idField])) return false
+  const count = detailCounts[action.detailKey]
+  if (!Number.isFinite(count)) return false
+  return action.detailCount === 'positive' ? count > 0 : count === 0
+}
+
+function actionLabel(action) {
+  if (action.detailCount !== 'positive' || !action.detailKey) return action.label
+  const count = detailCounts[action.detailKey]
+  return Number.isFinite(count) ? `${action.label} (${count})` : action.label
 }
 
 function visibleRelations(row) {
@@ -673,6 +738,8 @@ function rowLockReason(row, action) {
 }
 
 async function openAction(action, row = null) {
+  // 配置中的 action 可以表示跳转、下载、追溯、上传或普通业务状态操作。
+  // 此处先校验权限，再根据 kind 决定打开弹窗还是直接执行。
   if (!canUseAction(action, row)) {
     ElMessage.warning('当前账号没有执行该操作的权限')
     return
@@ -744,6 +811,7 @@ async function openAction(action, row = null) {
 }
 
 async function submitAction() {
+  // 把动作表单转换为对应接口的 payload，执行成功后按配置刷新页面或跳到下一业务页面。
   if (currentAction.value?.fields?.length) {
     try {
       await actionFormRef.value?.validate()
@@ -754,16 +822,25 @@ async function submitAction() {
   submitting.value = true
   try {
     const action = currentAction.value
+    let actionResult = null
     if (localDataMode.value) {
       if (actionRow.value && action.previewPatch) Object.assign(actionRow.value, action.previewPatch(actionModel.value, actionRow.value))
     } else {
       const rawData = action.payload ? action.payload(actionModel.value, actionRow.value) : actionModel.value
       const data = cleanParams(rawData)
-      await executeResourceAction({ method: action.method || 'put', url: action.url || action.path(actionRow.value), data })
+      actionResult = await executeResourceAction({ method: action.method || 'put', url: action.url || action.path(actionRow.value), data })
     }
     ElMessage.success(`${currentAction.value.label}成功`)
     actionOpen.value = false
-    if (!localDataMode.value) await refreshData()
+    if (!localDataMode.value && action.successNavigate) {
+      const target = getResourceConfig(action.successNavigate.targetResource)
+      await router.push({
+        path: target.routePath,
+        query: action.successNavigate.query?.(actionResult?.data, actionRow.value) || {}
+      })
+    } else if (!localDataMode.value) {
+      await refreshData()
+    }
   } catch {
     // 请求层已经给出具体错误提示。
   } finally {
@@ -821,6 +898,7 @@ function handleSizeChange(value) {
 }
 
 async function initialize() {
+  // 首次进入或路由参数变化时，重建筛选/列配置并同时加载关联选项与主表数据。
   syncActiveDetailConfig()
   clearMasterDetail()
   initFilters()
@@ -972,7 +1050,7 @@ onMounted(initialize)
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item v-for="action in visibleActions(scope.row)" :key="action.key" @click="openAction(action, scope.row)">
-                      <AppIcon :name="action.icon || 'activity'" :size="15" />{{ action.label }}
+                      <AppIcon :name="action.icon || 'activity'" :size="15" />{{ actionLabel(action) }}
                     </el-dropdown-item>
                     <el-dropdown-item v-for="relation in visibleRelations(scope.row)" :key="relation.key" @click="openRelation(relation, scope.row)">
                       <AppIcon name="link" :size="15" />{{ relation.title }}

@@ -1,7 +1,10 @@
+// navigation.js根据资源配置和当前账号权限生成侧边菜单，而不是把80个菜单逐项写死。
 import { domainDefinitions, getDomainResources } from '@/config/resources'
 import { hasPermission, resourcePermission } from '@/utils/permission'
 
+// 将某个业务域下的资源配置转换成可点击菜单项。
 function domainEntries(domain) {
+  // 智能排产是独立开发的特殊页面，因此在mfg模块中额外加入。
   const specialEntries = domain === 'mfg'
     ? [{ label: '智能排产工作台', icon: 'route', path: '/mfg/schedule-workbench', description: '计算排程方案、识别风险并人工确认生产计划', permission: 'mfg:schedule-scenario:view' }]
     : []
@@ -19,6 +22,7 @@ function domainEntries(domain) {
 }
 
 function moduleEntry(domain) {
+  // 一个moduleEntry对应侧边栏中的一个可展开模块，例如生产制造或仓储库存。
   const definition = domainDefinitions[domain]
   return {
     key: domain,
@@ -37,6 +41,7 @@ export const moduleCatalog = Object.fromEntries(Object.entries(domainDefinitions
   }
 ]))
 
+// 大屏和AI不是通用resource页面，所以单独加入模块目录。
 moduleCatalog['big-screen'] = {
   title: '可视化大屏', icon: 'monitor', tone: 'blue', description: '生产运营指挥与实时数据监控',
   entries: [{ label: '生产运营大屏', path: '/big-screen/production', icon: 'monitor', permission: 'dashboard:big-screen:view' }]
@@ -74,6 +79,7 @@ export const navigationGroups = [
   }
 ]
 
+// 模块工作台只返回当前用户有权访问的入口。
 export function getModuleDefinition(moduleKey) {
   const definition = moduleCatalog[moduleKey] || moduleCatalog.sys
   return { ...definition, entries: (definition.entries || []).filter((item) => !item.permission || hasPermission(item.permission)) }
@@ -97,6 +103,7 @@ export function getNavigationGroups() {
   })).filter((group) => group.items.length)
 }
 
+// 权限过滤的核心：无权限菜单直接移除；父菜单没有任何可见子项时也不显示。
 function filterItem(item) {
   if (item.permission && !hasPermission(item.permission)) return null
   if (!item.children) return item

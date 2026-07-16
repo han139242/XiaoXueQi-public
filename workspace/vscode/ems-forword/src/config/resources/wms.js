@@ -15,7 +15,7 @@ const withdrawAction = (kind, idField) => ({
   key: `withdraw-${kind}`, label: '撤回修改', icon: 'refresh', method: 'put', type: 'warning',
   path: (row) => `/api/wms/${kind}-order/${row[idField]}/withdraw`,
   visible: (row) => row.auditStatus === 'SUBMITTED',
-  fields: [field('remark', { label: '撤回原因', type: 'textarea', required: true })],
+  fields: [field('remark', { label: '撤回原因（选填）', type: 'textarea' })],
   previewPatch: () => ({ auditStatus: 'CLOSED' })
 })
 

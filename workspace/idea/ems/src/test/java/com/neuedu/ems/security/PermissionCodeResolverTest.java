@@ -36,6 +36,8 @@ class PermissionCodeResolverTest {
                 resolver.resolve("PUT", "/api/mfg/task/12/start").orElseThrow());
         assertEquals("wms:outbound-order:confirm",
                 resolver.resolve("PUT", "/api/wms/outbound-order/9/confirm").orElseThrow());
+        assertEquals("wms:inbound-order:create",
+                resolver.resolve("POST", "/api/wms/inbound-order/generate-production/31").orElseThrow());
         assertEquals("qms:inspection-result:batch-save",
                 resolver.resolve("POST", "/api/qms/inspection-result/batch").orElseThrow());
         assertEquals("trace:material-usage:reverse-trace",

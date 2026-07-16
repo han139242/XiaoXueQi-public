@@ -220,9 +220,10 @@ public class WmsReturnOrderServiceImpl extends ServiceImpl<WmsReturnOrderMapper,
     @Transactional(rollbackFor = Exception.class)
     public void withdrawReturnOrder(Long returnId, Long operatorId, String remark) {
         WmsReturnOrder existing = getReturnOrderById(returnId);
-        if (existing == null || operatorId == null || !StringUtils.hasText(remark)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(), "退料单、操作人和撤回原因不能为空");
+        if (existing == null || operatorId == null) {
+            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(), "退料单和操作人不能为空");
         }
+        remark = StringUtils.hasText(remark) ? remark.trim() : "用户主动撤回，未填写补充原因";
         if (!SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "只有未确认退料单可以撤回");
         }

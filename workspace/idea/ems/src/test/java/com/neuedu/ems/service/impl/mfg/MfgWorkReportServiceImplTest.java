@@ -6,11 +6,17 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
+import com.neuedu.ems.entity.mfg.MfgReportMaterial;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.process.ProcessRouteItem;
+import com.neuedu.ems.entity.qms.QmsInspectionOrder;
+import com.neuedu.ems.entity.qms.QmsInspectionScheme;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.entity.trace.TraceMaterialUsage;
+import com.neuedu.ems.entity.trace.TraceProductLot;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
@@ -19,10 +25,20 @@ import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskOperatorMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
+import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
+import com.neuedu.ems.mapper.qms.QmsInspectionSchemeMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.mapper.sys.SysUserMapper;
+import com.neuedu.ems.mapper.trace.TraceMaterialUsageMapper;
+import com.neuedu.ems.mapper.trace.TraceProductLotMapper;
+import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
+import com.neuedu.ems.mapper.wms.WmsOutboundDetailMapper;
+import com.neuedu.ems.mapper.wms.WmsReturnDetailMapper;
 import com.neuedu.ems.entity.sys.SysUser;
+import com.neuedu.ems.entity.wms.WmsMaterialBatch;
+import com.neuedu.ems.entity.wms.WmsOutboundDetail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -38,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,6 +69,15 @@ class MfgWorkReportServiceImplTest {
     private MfgProductionOrderMapper orderMapper;
     private MfgTaskOperatorMapper taskOperatorMapper;
     private SysUserMapper userMapper;
+    private ProcessRouteItemMapper routeItemMapper;
+    private WmsMaterialBatchMapper materialBatchMapper;
+    private WmsOutboundDetailMapper outboundDetailMapper;
+    private WmsReturnDetailMapper returnDetailMapper;
+    private MfgReportMaterialMapper reportMaterialMapper;
+    private TraceProductLotMapper productLotMapper;
+    private TraceMaterialUsageMapper materialUsageMapper;
+    private QmsInspectionSchemeMapper inspectionSchemeMapper;
+    private QmsInspectionOrderMapper inspectionOrderMapper;
 
     @BeforeEach
     void setUp() {
@@ -62,15 +88,32 @@ class MfgWorkReportServiceImplTest {
         planMapper = mock(MfgProductionPlanMapper.class);
         orderMapper = mock(MfgProductionOrderMapper.class);
         ReflectionTestUtils.setField(service, "baseMapper", reportMapper);
-        ReflectionTestUtils.setField(service, "mfgReportMaterialMapper", mock(MfgReportMaterialMapper.class));
+        reportMaterialMapper = mock(MfgReportMaterialMapper.class);
+        productLotMapper = mock(TraceProductLotMapper.class);
+        materialUsageMapper = mock(TraceMaterialUsageMapper.class);
+        inspectionSchemeMapper = mock(QmsInspectionSchemeMapper.class);
+        inspectionOrderMapper = mock(QmsInspectionOrderMapper.class);
+        ReflectionTestUtils.setField(service, "mfgReportMaterialMapper", reportMaterialMapper);
         ReflectionTestUtils.setField(service, "mfgTaskMapper", taskMapper);
         taskOperatorMapper = mock(MfgTaskOperatorMapper.class);
         userMapper = mock(SysUserMapper.class);
+        routeItemMapper = mock(ProcessRouteItemMapper.class);
+        materialBatchMapper = mock(WmsMaterialBatchMapper.class);
+        outboundDetailMapper = mock(WmsOutboundDetailMapper.class);
+        returnDetailMapper = mock(WmsReturnDetailMapper.class);
         ReflectionTestUtils.setField(service, "mfgTaskOperatorMapper", taskOperatorMapper);
         ReflectionTestUtils.setField(service, "sysUserMapper", userMapper);
         ReflectionTestUtils.setField(service, "mfgWorkOrderMapper", workOrderMapper);
         ReflectionTestUtils.setField(service, "mfgProductionPlanMapper", planMapper);
         ReflectionTestUtils.setField(service, "mfgProductionOrderMapper", orderMapper);
+        ReflectionTestUtils.setField(service, "processRouteItemMapper", routeItemMapper);
+        ReflectionTestUtils.setField(service, "wmsMaterialBatchMapper", materialBatchMapper);
+        ReflectionTestUtils.setField(service, "wmsOutboundDetailMapper", outboundDetailMapper);
+        ReflectionTestUtils.setField(service, "wmsReturnDetailMapper", returnDetailMapper);
+        ReflectionTestUtils.setField(service, "traceProductLotMapper", productLotMapper);
+        ReflectionTestUtils.setField(service, "traceMaterialUsageMapper", materialUsageMapper);
+        ReflectionTestUtils.setField(service, "qmsInspectionSchemeMapper", inspectionSchemeMapper);
+        ReflectionTestUtils.setField(service, "qmsInspectionOrderMapper", inspectionOrderMapper);
         SysStatusChangeLogMapper statusLogMapper = mock(SysStatusChangeLogMapper.class);
         SysOperationLogMapper operationLogMapper = mock(SysOperationLogMapper.class);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
@@ -82,15 +125,45 @@ class MfgWorkReportServiceImplTest {
         user.setEmployeeId(3L);
         when(userMapper.selectOne(any())).thenReturn(user);
         when(taskOperatorMapper.selectCount(any())).thenReturn(1L);
+        ProcessRouteItem finalRouteItem = new ProcessRouteItem();
+        finalRouteItem.setRouteId(6L);
+        finalRouteItem.setOperationId(5L);
+        finalRouteItem.setSequenceNo(10);
+        when(routeItemMapper.selectList(any())).thenReturn(List.of(finalRouteItem));
+        QmsInspectionScheme finalScheme = new QmsInspectionScheme();
+        finalScheme.setSchemeId(21L);
+        finalScheme.setProductId(8L);
+        finalScheme.setOperationId(5L);
+        finalScheme.setInspectionType("FINAL");
+        finalScheme.setStatus(BusinessStatus.Document.RELEASED);
+        when(inspectionSchemeMapper.selectList(any())).thenReturn(List.of(finalScheme));
+        when(inspectionOrderMapper.selectCount(any())).thenReturn(0L);
+        doAnswer(invocation -> {
+            TraceProductLot lot = invocation.getArgument(0);
+            lot.setProductLotId(31L);
+            return 1;
+        }).when(productLotMapper).insert(any(TraceProductLot.class));
+        doAnswer(invocation -> {
+            QmsInspectionOrder inspection = invocation.getArgument(0);
+            inspection.setInspectionId(41L);
+            return 1;
+        }).when(inspectionOrderMapper).insert(any(QmsInspectionOrder.class));
+        when(materialUsageMapper.insert(any(TraceMaterialUsage.class))).thenReturn(1);
     }
 
     @Test
     void approvedReportRollsCompletionUpToWorkOrderPlanAndOrder() {
         MfgWorkReport report = report("100");
+        MfgReportMaterial reportMaterial = new MfgReportMaterial();
+        reportMaterial.setMaterialId(11L);
+        reportMaterial.setBatchId(12L);
+        reportMaterial.setUsedQuantity(new BigDecimal("8"));
+        reportMaterial.setScrapQuantity(BigDecimal.ONE);
         when(reportMapper.selectOne(any())).thenReturn(report);
         when(taskMapper.selectOne(any())).thenReturn(task());
         when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
         when(reportMapper.selectList(any())).thenReturn(List.of(), List.of(report));
+        when(reportMaterialMapper.selectList(any())).thenReturn(List.of(reportMaterial));
         when(reportMapper.updateById(any(MfgWorkReport.class))).thenReturn(1);
         when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
 
@@ -119,6 +192,42 @@ class MfgWorkReportServiceImplTest {
         ArgumentCaptor<MfgProductionOrder> orderUpdate = ArgumentCaptor.forClass(MfgProductionOrder.class);
         verify(orderMapper).updateById(orderUpdate.capture());
         assertEquals(BusinessStatus.Production.FINISHED, orderUpdate.getValue().getStatus());
+
+        ArgumentCaptor<TraceProductLot> productLot = ArgumentCaptor.forClass(TraceProductLot.class);
+        verify(productLotMapper).insert(productLot.capture());
+        assertEquals(1L, productLot.getValue().getSourceReportId());
+        assertEquals("WAIT_INSPECTION", productLot.getValue().getStatus());
+        ArgumentCaptor<QmsInspectionOrder> inspection = ArgumentCaptor.forClass(QmsInspectionOrder.class);
+        verify(inspectionOrderMapper).insert(inspection.capture());
+        assertEquals(31L, inspection.getValue().getProductLotId());
+        assertEquals("FINAL", inspection.getValue().getInspectionType());
+
+        ArgumentCaptor<TraceMaterialUsage> usage = ArgumentCaptor.forClass(TraceMaterialUsage.class);
+        verify(materialUsageMapper).insert(usage.capture());
+        assertEquals(31L, usage.getValue().getProductLotId());
+        assertEquals(3L, usage.getValue().getWorkOrderId());
+        assertEquals(1L, usage.getValue().getReportId());
+        assertEquals(11L, usage.getValue().getMaterialId());
+        assertEquals(12L, usage.getValue().getBatchId());
+        assertEquals(new BigDecimal("9"), usage.getValue().getUsedQuantity());
+    }
+
+    @Test
+    void approvalRejectsFinalReportWhenReleasedInspectionSchemeIsMissing() {
+        MfgWorkReport report = report("20");
+        when(reportMapper.selectOne(any())).thenReturn(report);
+        when(taskMapper.selectOne(any())).thenReturn(task());
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
+        when(reportMapper.selectList(any())).thenReturn(List.of(), List.of(report));
+        when(reportMapper.updateById(any(MfgWorkReport.class))).thenReturn(1);
+        when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
+        when(inspectionSchemeMapper.selectList(any())).thenReturn(List.of());
+
+        assertThrows(BusinessException.class,
+                () -> service.auditWorkReport(1L, BusinessStatus.Document.APPROVED, null, 9L));
+
+        verify(productLotMapper).insert(any(TraceProductLot.class));
+        verify(inspectionOrderMapper, never()).insert(any(QmsInspectionOrder.class));
     }
 
     @Test
@@ -134,6 +243,35 @@ class MfgWorkReportServiceImplTest {
 
         verify(reportMapper, never()).updateById(any(MfgWorkReport.class));
         verify(workOrderMapper, never()).updateById(any(MfgWorkOrder.class));
+    }
+
+    @Test
+    void intermediateOperationApprovalDoesNotIncreaseWorkOrderCompletion() {
+        MfgWorkReport candidate = report("40");
+        MfgTask intermediateTask = task();
+        intermediateTask.setOperationId(4L);
+        ProcessRouteItem intermediate = new ProcessRouteItem();
+        intermediate.setRouteId(6L);
+        intermediate.setOperationId(4L);
+        intermediate.setSequenceNo(10);
+        ProcessRouteItem terminal = new ProcessRouteItem();
+        terminal.setRouteId(6L);
+        terminal.setOperationId(5L);
+        terminal.setSequenceNo(20);
+        when(routeItemMapper.selectList(any())).thenReturn(List.of(terminal, intermediate));
+        when(reportMapper.selectOne(any())).thenReturn(candidate);
+        when(taskMapper.selectOne(any())).thenReturn(intermediateTask);
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
+        when(reportMapper.selectList(any())).thenReturn(List.of());
+        when(reportMapper.updateById(any(MfgWorkReport.class))).thenReturn(1);
+        when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
+
+        service.auditWorkReport(1L, BusinessStatus.Document.APPROVED, null, 9L);
+
+        ArgumentCaptor<MfgWorkOrder> update = ArgumentCaptor.forClass(MfgWorkOrder.class);
+        verify(workOrderMapper).updateById(update.capture());
+        assertEquals(BigDecimal.ZERO, update.getValue().getCompletedQuantity());
+        assertEquals(BusinessStatus.Document.RELEASED, update.getValue().getStatus());
     }
 
     @Test
@@ -239,6 +377,39 @@ class MfgWorkReportServiceImplTest {
     }
 
     @Test
+    void submitRejectsMaterialConsumptionAboveConfirmedIssueForBatch() {
+        MfgTask runningTask = task();
+        runningTask.setStatus(BusinessStatus.Production.RUNNING);
+        runningTask.setStationId(4L);
+        when(taskMapper.selectOne(any())).thenReturn(runningTask);
+        WmsMaterialBatch batch = new WmsMaterialBatch();
+        batch.setBatchId(12L);
+        batch.setMaterialId(11L);
+        when(materialBatchMapper.selectOne(any())).thenReturn(batch);
+        WmsOutboundDetail issued = new WmsOutboundDetail();
+        issued.setMaterialId(11L);
+        issued.setBatchId(12L);
+        issued.setOutboundQuantity(new BigDecimal("5"));
+        when(outboundDetailMapper.selectList(any())).thenReturn(List.of(issued));
+        when(returnDetailMapper.selectList(any())).thenReturn(List.of());
+        MfgWorkReport request = new MfgWorkReport();
+        request.setTaskId(2L);
+        request.setQualifiedQuantity(BigDecimal.ONE);
+        request.setDefectQuantity(BigDecimal.ZERO);
+        request.setActualWorkHours(BigDecimal.ONE);
+        MfgReportMaterial material = new MfgReportMaterial();
+        material.setMaterialId(11L);
+        material.setBatchId(12L);
+        material.setUsedQuantity(new BigDecimal("6"));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.submitWorkReport(request, List.of(material), 9L));
+
+        assertTrue(exception.getMessage().contains("超过本工单该批次可用领料量"));
+        verify(reportMapper, never()).insert(any(MfgWorkReport.class));
+    }
+
+    @Test
     void withdrawRejectsAnotherEmployeesSubmittedReport() {
         MfgWorkReport submitted = report("1");
         submitted.setOperatorId(99L);
@@ -248,6 +419,20 @@ class MfgWorkReportServiceImplTest {
                 () -> service.withdrawWorkReport(1L, 9L, "不是本人报工"));
 
         verify(reportMapper, never()).updateById(any(MfgWorkReport.class));
+    }
+
+    @Test
+    void withdrawOwnSubmittedReportAllowsBlankReason() {
+        MfgWorkReport submitted = report("1");
+        submitted.setOperatorId(3L);
+        when(reportMapper.selectOne(any())).thenReturn(submitted);
+        when(reportMapper.updateById(any(MfgWorkReport.class))).thenReturn(1);
+
+        service.withdrawWorkReport(1L, 9L, null);
+
+        ArgumentCaptor<MfgWorkReport> update = ArgumentCaptor.forClass(MfgWorkReport.class);
+        verify(reportMapper).updateById(update.capture());
+        assertEquals(BusinessStatus.Document.WITHDRAWN, update.getValue().getAuditStatus());
     }
 
     @Test
@@ -282,6 +467,7 @@ class MfgWorkReportServiceImplTest {
         MfgTask task = new MfgTask();
         task.setTaskId(2L);
         task.setWorkOrderId(3L);
+        task.setOperationId(5L);
         return task;
     }
 
@@ -289,6 +475,8 @@ class MfgWorkReportServiceImplTest {
         MfgWorkOrder workOrder = new MfgWorkOrder();
         workOrder.setWorkOrderId(3L);
         workOrder.setPlanId(4L);
+        workOrder.setRouteId(6L);
+        workOrder.setProductId(8L);
         workOrder.setPlannedQuantity(new BigDecimal("100"));
         workOrder.setStatus(BusinessStatus.Document.RELEASED);
         workOrder.setVersion(2);

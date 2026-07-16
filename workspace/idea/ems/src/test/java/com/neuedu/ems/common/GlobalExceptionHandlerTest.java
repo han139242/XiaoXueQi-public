@@ -1,10 +1,13 @@
 package com.neuedu.ems.common;
 
 import com.neuedu.ems.exception.AccountStatusException;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.exception.OptimisticLockConflictException;
 import com.neuedu.ems.exception.DataScopeAccessDeniedException;
 import org.mybatis.spring.MyBatisSystemException;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -42,6 +45,16 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(ResultCode.FORBIDDEN.getCode(), result.get("code"));
         assertEquals(ResultCode.FORBIDDEN.getMessage(), result.get("msg"));
+    }
+
+    @Test
+    void returnsSpecificBusinessReasonAndKeepsBusinessCode() {
+        ResultData result = handler.handleBusinessException(new BusinessException(
+                ResultCode.PARAM_ERROR.getCode(), "撤回原因不能为空"));
+
+        assertEquals(ResultCode.PARAM_ERROR.getCode(), result.get("code"));
+        assertEquals(ResultCode.PARAM_ERROR.getMessage(), result.get("msg"));
+        assertEquals("撤回原因不能为空", ((Map<?, ?>) result.get("data")).get("message"));
     }
 
     private void assertAccountStatusResult(ResultCode resultCode) {

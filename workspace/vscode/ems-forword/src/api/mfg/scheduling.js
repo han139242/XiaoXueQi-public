@@ -56,5 +56,5 @@ export function confirmScheduleScenario(scenarioId, data) {
 }
 
 export function getDraftProductionOrderPage(params) {
-  return request.get('/api/mfg/production-order/page', { params: { ...params, status: 'DRAFT' } })
+  return request.get('/api/mfg/production-order/page', { params: { ...params, status: 'RELEASED' } })
 }

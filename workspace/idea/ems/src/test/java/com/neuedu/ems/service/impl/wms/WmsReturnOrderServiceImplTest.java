@@ -59,7 +59,7 @@ class WmsReturnOrderServiceImplTest {
         when(orderMapper.selectOne(any())).thenReturn(order(BusinessStatus.Document.SUBMITTED));
         when(orderMapper.updateById(any(WmsReturnOrder.class))).thenReturn(1);
 
-        service.withdrawReturnOrder(1L, 9L, "领料需求调整");
+        service.withdrawReturnOrder(1L, 9L, null);
 
         ArgumentCaptor<WmsReturnOrder> update = ArgumentCaptor.forClass(WmsReturnOrder.class);
         verify(orderMapper).updateById(update.capture());

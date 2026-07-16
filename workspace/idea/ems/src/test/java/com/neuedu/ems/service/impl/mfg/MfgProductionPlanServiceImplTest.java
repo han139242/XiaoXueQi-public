@@ -48,7 +48,7 @@ class MfgProductionPlanServiceImplTest {
     }
 
     @Test
-    void generateCreatesReleasedPlanWithinRemainingOrderQuantity() {
+    void generateCreatesDraftPlanWithinRemainingOrderQuantity() {
         when(orderMapper.selectOne(any())).thenReturn(order("100"));
         MfgProductionPlan total = new MfgProductionPlan();
         total.setPlannedQuantity(new BigDecimal("40"));
@@ -61,7 +61,7 @@ class MfgProductionPlanServiceImplTest {
         MfgProductionPlan result = service.generatePlan(1L, request("60"), 9L);
 
         assertEquals(3L, result.getPlanId());
-        assertEquals(BusinessStatus.Document.RELEASED, result.getStatus());
+        assertEquals(BusinessStatus.Document.DRAFT, result.getStatus());
         assertTrue(result.getPlanNo().startsWith("PLN-1-"));
         verify(planMapper).insert(any(MfgProductionPlan.class));
     }
@@ -109,6 +109,7 @@ class MfgProductionPlanServiceImplTest {
         MfgProductionOrder order = new MfgProductionOrder();
         order.setProductionOrderId(1L);
         order.setOrderQuantity(new BigDecimal(quantity));
+        order.setDeliveryDate(java.time.LocalDate.now().plusDays(10));
         order.setStatus(BusinessStatus.Document.RELEASED);
         return order;
     }
@@ -116,9 +117,21 @@ class MfgProductionPlanServiceImplTest {
     private MfgProductionPlan request(String quantity) {
         MfgProductionPlan request = new MfgProductionPlan();
         request.setLineId(2L);
-        request.setPlannedStartTime(LocalDateTime.of(2026, 7, 14, 8, 0));
-        request.setPlannedEndTime(LocalDateTime.of(2026, 7, 15, 18, 0));
+        request.setPlannedStartTime(LocalDateTime.now().plusDays(1).withHour(8).withMinute(0).withSecond(0).withNano(0));
+        request.setPlannedEndTime(LocalDateTime.now().plusDays(2).withHour(18).withMinute(0).withSecond(0).withNano(0));
         request.setPlannedQuantity(new BigDecimal(quantity));
         return request;
+    }
+
+    @Test
+    void generateRejectsPlanStartingInPast() {
+        when(orderMapper.selectOne(any())).thenReturn(order("100"));
+        MfgProductionPlan request = request("60");
+        request.setPlannedStartTime(LocalDateTime.now().minusHours(1));
+        request.setPlannedEndTime(LocalDateTime.now().plusHours(1));
+
+        assertThrows(BusinessException.class, () -> service.generatePlan(1L, request, 9L));
+
+        verify(planMapper, never()).insert(any(MfgProductionPlan.class));
     }
 }

@@ -37,6 +37,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -133,6 +134,9 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         order.setProductionOrderId(null);
         order.setProductionOrderNo("PO-" + LocalDateTime.now().format(ORDER_NUMBER_TIME));
         order.setStatus(BusinessStatus.Document.DRAFT);
+        if (!StringUtils.hasText(order.getSourceType())) {
+            order.setSourceType("MANUAL");
+        }
         if (order.getDeletedFlag() == null) {
             order.setDeletedFlag(0);
         }
@@ -152,6 +156,9 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         MfgProductionOrder existing = getOrderById(order.getProductionOrderId());
         if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
             return false;
+        }
+        if (order.getOrderQuantity() != null && order.getOrderQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw business(ResultCode.PARAM_ERROR, "生产订单数量必须大于 0");
         }
         order.setDeletedFlag(null);
         order.setStatus(null);
@@ -186,9 +193,7 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         if (productionOrderId == null || operatorId == null) {
             throw business(ResultCode.PARAM_ERROR, "生产订单和操作人不能为空");
         }
-        if (!StringUtils.hasText(remark)) {
-            throw business(ResultCode.PARAM_ERROR, "请填写撤回原因");
-        }
+        remark = normalizedWithdrawRemark(remark);
 
         MfgProductionOrder order = activeOrderForUpdate(productionOrderId);
         if (order == null) {
@@ -230,7 +235,8 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void withdrawUnexecutedPlanChain(Long planId, Long operatorId, String remark) {
-        requireWithdrawArguments(planId, operatorId, remark, "生产计划");
+        requireWithdrawArguments(planId, operatorId, "生产计划");
+        remark = normalizedWithdrawRemark(remark);
         MfgProductionPlan plan = planForUpdate(planId);
         if (plan == null || !BusinessStatus.Document.RELEASED.equals(plan.getStatus())) {
             throw business(ResultCode.BUSINESS_ERROR, "只有已生效且尚未执行的生产计划可以撤回修改");
@@ -244,7 +250,8 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void withdrawUnexecutedWorkOrderChain(Long workOrderId, Long operatorId, String remark) {
-        requireWithdrawArguments(workOrderId, operatorId, remark, "生产工单");
+        requireWithdrawArguments(workOrderId, operatorId, "生产工单");
+        remark = normalizedWithdrawRemark(remark);
         MfgWorkOrder workOrder = workOrderForUpdate(workOrderId);
         if (workOrder == null || !BusinessStatus.Document.RELEASED.equals(workOrder.getStatus())) {
             throw business(ResultCode.BUSINESS_ERROR, "只有已下达且尚未执行的生产工单可以撤回修改");
@@ -270,11 +277,12 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
             throw business(ResultCode.NOT_FOUND, "生产订单不存在或已删除");
         }
         if (!BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
-            throw business(ResultCode.BUSINESS_ERROR, "只有 DRAFT 状态的生产订单可以下达");
+            throw business(ResultCode.BUSINESS_ERROR, "只有草稿生产订单可以提交排产");
         }
         if (operatorId == null) {
             throw business(ResultCode.PARAM_ERROR, "操作人不能为空");
         }
+        validateOrderForScheduling(existing);
         LocalDateTime now = LocalDateTime.now();
         MfgProductionOrder update = new MfgProductionOrder();
         update.setProductionOrderId(productionOrderId);
@@ -292,6 +300,18 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         insertOperationLog("mfg_production_order", productionOrderId,
                 "RELEASE_PRODUCTION_ORDER", operatorId, remark, now);
         return getOrderById(productionOrderId);
+    }
+
+    private void validateOrderForScheduling(MfgProductionOrder order) {
+        if (order.getCustomerId() == null || order.getProductId() == null
+                || order.getOrderQuantity() == null || order.getOrderQuantity().compareTo(BigDecimal.ZERO) <= 0
+                || order.getDeliveryDate() == null || !StringUtils.hasText(order.getSourceType())) {
+            throw business(ResultCode.PARAM_ERROR, "提交排产前必须填写客户、产品、正数数量、交付日期和需求来源");
+        }
+        if (order.getDeliveryDate().isBefore(LocalDate.now())) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "订单交付日期 " + order.getDeliveryDate() + " 已早于当前日期，不能提交排产，请先调整交期");
+        }
     }
 
     /**
@@ -403,7 +423,7 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
             if (status == null || !(BusinessStatus.Document.DRAFT.equals(status)
                     || BusinessStatus.Document.RELEASED.equals(status)
                     || BusinessStatus.Document.CLOSED.equals(status))) {
-                throw business(ResultCode.BUSINESS_ERROR, "生产计划已开始执行或完成，不能撤回生产订单");
+                throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产计划已经开始执行或完成");
             }
         }
     }
@@ -418,7 +438,7 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
             boolean hasCompletedQuantity = workOrder.getCompletedQuantity() != null
                     && workOrder.getCompletedQuantity().compareTo(BigDecimal.ZERO) > 0;
             if (!removableStatus || hasCompletedQuantity) {
-                throw business(ResultCode.BUSINESS_ERROR, "生产工单已经开工或产生完成数量，不能撤回生产订单");
+                throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产工单已经开工或产生完成数量");
             }
         }
     }
@@ -429,7 +449,7 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
                     || BusinessStatus.Document.CLOSED.equals(task.getStatus());
             boolean hasQuantity = positive(task.getCompletedQuantity()) || positive(task.getDefectQuantity());
             if (!unexecutedStatus || hasQuantity) {
-                throw business(ResultCode.BUSINESS_ERROR, "生产任务已经开工或产生完成/不良数量，不能撤回生产订单");
+                throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产任务已经开工或产生完成/不良数量");
             }
         }
     }
@@ -442,15 +462,19 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
                     || "ACCEPTED".equals(status)
                     || BusinessStatus.Document.REJECTED.equals(status);
             if (!unexecutedStatus) {
-                throw business(ResultCode.BUSINESS_ERROR, "派工单已经进入生产或完成状态，不能撤回生产订单");
+                throw business(ResultCode.BUSINESS_ERROR, "无法撤回：派工单已经进入生产或完成状态");
             }
         }
     }
 
-    private void requireWithdrawArguments(Long id, Long operatorId, String remark, String label) {
-        if (id == null || operatorId == null || !StringUtils.hasText(remark)) {
-            throw business(ResultCode.PARAM_ERROR, label + "、操作人和撤回原因不能为空");
+    private void requireWithdrawArguments(Long id, Long operatorId, String label) {
+        if (id == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, label + "和操作人不能为空");
         }
+    }
+
+    private String normalizedWithdrawRemark(String remark) {
+        return StringUtils.hasText(remark) ? remark.trim() : "用户主动撤回，未填写补充原因";
     }
 
     private void withdrawWorkOrdersAndExecution(List<MfgWorkOrder> workOrders, Long operatorId,
@@ -484,18 +508,18 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         }
         List<Long> taskIds = tasks.stream().map(MfgTask::getTaskId).toList();
         if (!taskIds.isEmpty() && hasEffectiveWorkReports(taskIds)) {
-            throw business(ResultCode.BUSINESS_ERROR, "生产任务已经产生报工记录，不能撤回生产订单");
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产任务已经产生有效报工记录");
         }
         if (hasOpenWarehouseOrders(outboundOrderMapper, workOrderIds)
                 || hasOpenWarehouseOrders(returnOrderMapper, workOrderIds)) {
-            throw business(ResultCode.BUSINESS_ERROR, "订单已经产生领料或退料单，请先在仓储流程撤回对应单据");
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：已经产生领料或退料单，请先在仓储流程处理对应单据");
         }
         if (hasOpenInspectionOrders(workOrderIds)) {
-            throw business(ResultCode.BUSINESS_ERROR, "订单已经产生质量检验单，不能撤回生产订单");
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：已经产生质量检验单");
         }
         if (hasActiveRecords(productLotMapper, "work_order_id", workOrderIds)
                 || hasActiveRecords(materialUsageMapper, "work_order_id", workOrderIds)) {
-            throw business(ResultCode.BUSINESS_ERROR, "订单已经产生批次或物料追溯记录，不能撤回生产订单");
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：已经产生批次或物料追溯记录");
         }
     }
 
@@ -518,7 +542,7 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         boolean issued = requirements.stream().anyMatch(item -> item.getIssuedQuantity() != null
                 && item.getIssuedQuantity().compareTo(BigDecimal.ZERO) > 0);
         if (issued) {
-            throw business(ResultCode.BUSINESS_ERROR, "工单已经发料，不能撤回生产订单");
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产工单已经发料");
         }
     }
 

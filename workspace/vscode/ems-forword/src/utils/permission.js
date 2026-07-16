@@ -1,8 +1,12 @@
 import { authRevision, getCurrentUser, isFrameworkPreview } from '@/utils/auth'
 
+// 普通 CRUD 接口只有属于这些业务域时，才会按“域:资源:动作”推导权限码。
 const domains = new Set(['sys', 'org', 'mdm', 'process', 'factory', 'mfg', 'wms', 'qms', 'eam', 'trace'])
+// 当前端接口资源名和后端权限资源名不完全一致时，在这里做别名转换。
 const aliases = new Map([['wms/replenishment-suggestion', 'replenishment']])
 
+// 特殊业务动作无法只根据 POST/PUT 推断含义，例如 release 是“下达”而不是普通“修改”。
+// 每条规则依次保存：HTTP 方法、接口路径正则、该接口要求的权限码。
 const specialRules = [
   ['put', /^\/api\/sys\/user\/[^/]+\/reset-password$/, 'sys:user:reset-password'],
   ['put', /^\/api\/sys\/user\/[^/]+\/roles$/, 'sys:user:assign-role'],
@@ -27,6 +31,7 @@ const specialRules = [
   ['post', /^\/api\/mfg\/dispatch-order\/generate\/[^/]+$/, 'mfg:dispatch-order:generate'],
   ['put', /^\/api\/mfg\/dispatch-order\/[^/]+\/release$/, 'mfg:dispatch-order:release'],
   ['put', /^\/api\/mfg\/dispatch-order\/[^/]+\/withdraw$/, 'mfg:dispatch-order:withdraw'],
+  ['put', /^\/api\/mfg\/work-order\/[^/]+\/start$/, 'mfg:work-order:start'],
   ['put', /^\/api\/mfg\/task\/[^/]+\/start$/, 'mfg:task:start'],
   ['put', /^\/api\/mfg\/task\/[^/]+\/withdraw$/, 'mfg:task:withdraw'],
   ['put', /^\/api\/mfg\/task\/[^/]+\/finish$/, 'mfg:task:finish'],
@@ -39,6 +44,7 @@ const specialRules = [
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/orders\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
   ['put', /^\/api\/mfg\/schedule-scenario\/[^/]+\/confirm$/, 'mfg:schedule-scenario:confirm'],
+  ['post', /^\/api\/wms\/inbound-order\/generate-production\/[^/]+$/, 'wms:inbound-order:create'],
   ['put', /^\/api\/wms\/inbound-order\/[^/]+\/confirm$/, 'wms:inbound-order:confirm'],
   ['put', /^\/api\/wms\/inbound-order\/[^/]+\/withdraw$/, 'wms:inbound-order:withdraw'],
   ['put', /^\/api\/wms\/outbound-order\/[^/]+\/confirm$/, 'wms:outbound-order:confirm'],
@@ -60,11 +66,13 @@ const specialRules = [
 ]
 
 export function currentPermissions() {
+  // 读取 authRevision.value 是为了让依赖此函数的 computed 在登录信息变化后重新计算。
   authRevision.value
   const permissions = getCurrentUser()?.permissions
   return new Set(Array.isArray(permissions) ? permissions : [])
 }
 
+// 判断当前用户是否拥有一个明确的权限码；超级管理员直接通过。
 export function hasPermission(permissionCode) {
   if (isFrameworkPreview()) return true
   const user = getCurrentUser()
@@ -72,12 +80,15 @@ export function hasPermission(permissionCode) {
   return Boolean(permissionCode) && currentPermissions().has(permissionCode)
 }
 
+// 把资源配置中的 mfg-production-order + view 转成后端使用的 mfg:production-order:view。
 export function resourcePermission(resourceKey, action = 'view') {
   const [domain, ...resourceParts] = String(resourceKey || '').split('-')
   if (!domain || !resourceParts.length) return ''
   return `${domain}:${resourceParts.join('-')}:${action}`
 }
 
+// 根据一次 Axios 请求的方法和 URL，推导出它需要的后端权限码。
+// 优先匹配上面的特殊动作，普通接口再按 GET/POST/PUT/DELETE 推导 CRUD 权限。
 export function resolveRequestPermission(method, rawUrl) {
   const requestMethod = String(method || '').toLowerCase()
   const path = String(rawUrl || '').split('?')[0].replace(/\/$/, '')
@@ -98,6 +109,7 @@ export function resolveRequestPermission(method, rawUrl) {
   return action ? `${domain}:${resource}:${action}` : ''
 }
 
+// 页面在显示按钮或执行操作前调用它，使“看得见的按钮”和“允许发送的请求”口径一致。
 export function hasRequestPermission(method, url) {
   if (isFrameworkPreview()) return true
   return hasPermission(resolveRequestPermission(method, url))

@@ -140,8 +140,9 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
             throw business(ResultCode.NOT_FOUND, "生产订单不存在或已删除");
         }
         if (!BusinessStatus.Document.RELEASED.equals(order.getStatus())) {
-            throw business(ResultCode.BUSINESS_ERROR, "只有 RELEASED 状态的生产订单可以生成计划");
+            throw business(ResultCode.BUSINESS_ERROR, "只有已提交排产的生产订单可以编制计划");
         }
+        validateFutureTimeWindow(request);
         BigDecimal planned = existingPlannedQuantity(productionOrderId);
         if (planned.add(request.getPlannedQuantity()).compareTo(order.getOrderQuantity()) > 0) {
             throw business(ResultCode.BUSINESS_ERROR, "累计计划数量不能超过生产订单数量");
@@ -154,7 +155,7 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
         plan.setPlannedStartTime(request.getPlannedStartTime());
         plan.setPlannedEndTime(request.getPlannedEndTime());
         plan.setPlannedQuantity(request.getPlannedQuantity());
-        plan.setStatus(BusinessStatus.Document.RELEASED);
+        plan.setStatus(BusinessStatus.Document.DRAFT);
         plan.setRemark(request.getRemark());
         plan.setVersion(0);
         plan.setCreatedBy(operatorId);
@@ -165,9 +166,9 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
         if (baseMapper.insert(plan) == 0 || plan.getPlanId() == null) {
             throw new BusinessException(ResultCode.FAILED);
         }
-        insertStatusLog(plan.getPlanId(), null, BusinessStatus.Document.RELEASED,
-                "GENERATE_PRODUCTION_PLAN", operatorId, request.getRemark(), now);
-        insertOperationLog(plan.getPlanId(), "GENERATE_PRODUCTION_PLAN", operatorId, request.getRemark(), now);
+        insertStatusLog(plan.getPlanId(), null, BusinessStatus.Document.DRAFT,
+                "GENERATE_PRODUCTION_PLAN_DRAFT", operatorId, request.getRemark(), now);
+        insertOperationLog(plan.getPlanId(), "GENERATE_PRODUCTION_PLAN_DRAFT", operatorId, request.getRemark(), now);
         return plan;
     }
 
@@ -191,10 +192,12 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
                 || plan.getPlannedQuantity().compareTo(BigDecimal.ZERO) <= 0) {
             throw business(ResultCode.BUSINESS_ERROR, "生产计划缺少有效产线、时间或计划数量");
         }
+        validateFutureTimeWindow(plan);
         MfgProductionOrder order = activeOrder(plan.getProductionOrderId());
         if (order == null || !BusinessStatus.Document.RELEASED.equals(order.getStatus())) {
-            throw business(ResultCode.BUSINESS_ERROR, "生产计划的来源订单未处于已下达状态");
+            throw business(ResultCode.BUSINESS_ERROR, "生产计划的来源订单未处于已提交排产状态");
         }
+        validateDeliveryCommitment(plan, order, remark);
         if (existingPlannedQuantity(plan.getProductionOrderId()).compareTo(order.getOrderQuantity()) > 0) {
             throw business(ResultCode.BUSINESS_ERROR, "累计计划数量不能超过生产订单数量");
         }
@@ -263,6 +266,22 @@ public class MfgProductionPlanServiceImpl extends ServiceImpl<MfgProductionPlanM
     private boolean validTimeWindow(MfgProductionPlan plan) {
         return plan.getPlannedStartTime() != null && plan.getPlannedEndTime() != null
                 && plan.getPlannedEndTime().isAfter(plan.getPlannedStartTime());
+    }
+
+    private void validateFutureTimeWindow(MfgProductionPlan plan) {
+        if (!validTimeWindow(plan)) {
+            throw business(ResultCode.PARAM_ERROR, "计划结束时间必须晚于开始时间");
+        }
+        if (plan.getPlannedStartTime().isBefore(LocalDateTime.now().minusMinutes(2))) {
+            throw business(ResultCode.BUSINESS_ERROR, "计划开始时间已过，请重新安排未来有效时间");
+        }
+    }
+
+    private void validateDeliveryCommitment(MfgProductionPlan plan, MfgProductionOrder order, String remark) {
+        if (order.getDeliveryDate() != null && plan.getPlannedEndTime().toLocalDate().isAfter(order.getDeliveryDate())
+                && !StringUtils.hasText(remark)) {
+            throw business(ResultCode.BUSINESS_ERROR, "计划预计晚于订单交付日期，请填写延期确认说明后再生效");
+        }
     }
 
     private MfgProductionOrder activeOrder(Long productionOrderId) {

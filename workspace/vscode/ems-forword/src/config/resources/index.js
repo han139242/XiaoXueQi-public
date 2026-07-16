@@ -1,3 +1,4 @@
+// 每个文件保存一个MES业务域的资源配置，这里是全部配置的统一入口。
 import sys from './sys'
 import org from './org'
 import mdm from './mdm'
@@ -10,9 +11,12 @@ import eam from './eam'
 import trace from './trace'
 import { resourcePermission } from '@/utils/permission'
 
+// 展开并合并所有模块数组，形成约80个资源配置的总数组。
 export const resources = [...sys, ...org, ...mdm, ...process, ...factory, ...mfg, ...wms, ...qms, ...eam, ...trace]
+// 将数组转换为 key -> 配置 的Map结构，便于通过mfg-task等key快速找到页面配置。
 export const resourceMap = Object.fromEntries(resources.map((item) => [item.key, item]))
 
+// 业务域定义用于生成模块名称、图标和菜单分组，不是后端数据。
 export const domainDefinitions = {
   mfg: { title: '生产制造', icon: 'clipboard', tone: 'blue', description: '订单、计划、工单、派工、任务与报工' },
   wms: { title: '仓储库存', icon: 'warehouse', tone: 'blue', description: '仓库、库存、出入库、盘点与补货' },
@@ -30,14 +34,19 @@ export function getResourceConfig(key) {
   return resourceMap[key]
 }
 
+// 获取某个模块的资源；menu=false的主从明细资源默认不出现在菜单中。
 export function getDomainResources(domain, includeHidden = false) {
   return resources.filter((item) => item.domain === domain && (includeHidden || item.menu !== false))
 }
 
+// 配置驱动的核心：运行时把每个资源配置转换成一个Vue Router路由对象。
+// 这些路由共用resource/index.vue，再通过resourceKey读取各自字段、接口和按钮配置。
 export const resourceRoutes = resources.map((config) => ({
   path: config.route,
   name: `Resource-${config.key}`,
   component: () => import('@/pages/resource/index.vue'),
+  // props把资源身份传给通用页面，例如resourceKey=mfg-production-order。
   props: { resourceKey: config.key },
+  // meta提供标题、图标以及进入页面所需的view权限。
   meta: { title: config.title, icon: config.icon, resourceKey: config.key, permission: resourcePermission(config.key, 'view') }
 }))

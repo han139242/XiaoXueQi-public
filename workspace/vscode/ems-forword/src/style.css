@@ -1,2 +1,3 @@
+/* 先加载设计变量（颜色、尺寸等），再加载使用这些变量的全局基础样式。 */
 @import './styles/tokens.css';
 @import './styles/base.css';

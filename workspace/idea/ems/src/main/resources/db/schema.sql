@@ -1551,7 +1551,8 @@ CREATE TABLE `qms_inspection_order` (
   `work_order_id` BIGINT UNSIGNED NULL COMMENT '工单 ID。',
   `task_id` BIGINT UNSIGNED NULL COMMENT '任务 ID。',
   `report_id` BIGINT UNSIGNED NULL COMMENT '报工 ID。',
-  `batch_id` BIGINT UNSIGNED NULL COMMENT '批次 ID。',
+  `batch_id` BIGINT UNSIGNED NULL COMMENT '原料物料批次 ID，仅来料检使用。',
+  `product_lot_id` BIGINT UNSIGNED NULL COMMENT '产品批次 ID，仅生产终检使用。',
   `inspector_id` BIGINT UNSIGNED NULL COMMENT '质检员。',
   `sample_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '实际抽检数量。',
   `qualified_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '抽检合格数量。',
@@ -1572,6 +1573,7 @@ CREATE TABLE `qms_inspection_order` (
   KEY `idx_qms_inspection_order_task_id` (`task_id`),
   KEY `idx_qms_inspection_order_report_id` (`report_id`),
   KEY `idx_qms_inspection_order_batch_id` (`batch_id`),
+  KEY `idx_qms_inspection_order_product_lot_id` (`product_lot_id`),
   KEY `idx_qms_inspection_order_inspector_id` (`inspector_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='检验单主表';
 
@@ -1833,10 +1835,11 @@ CREATE TABLE `trace_product_lot` (
   `lot_no` VARCHAR(64) NULL COMMENT '产品批次号。',
   `product_id` BIGINT UNSIGNED NULL COMMENT '产品 ID。',
   `work_order_id` BIGINT UNSIGNED NULL COMMENT '工单 ID。',
+  `source_report_id` BIGINT UNSIGNED NULL COMMENT '来源末工序报工 ID。',
   `batch_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '批次数量。',
   `qualified_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '合格数量。',
   `defect_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '不良数量。',
-  `status` VARCHAR(32) NULL COMMENT 'RUNNING:生产中，WAIT_INSPECTION:待检，PASS:合格，STORED:入库，CLOSED:关闭。',
+  `status` VARCHAR(32) NULL COMMENT 'WAIT_INSPECTION:待检，PASS:合格，CONCESSION:让步放行，FAIL:不合格隔离，STORED:入库，CLOSED:关闭。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
   `created_by` BIGINT UNSIGNED NULL COMMENT '创建人',
@@ -1846,6 +1849,7 @@ CREATE TABLE `trace_product_lot` (
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`product_lot_id`),
   UNIQUE KEY `uk_trace_product_lot_lot_no` (`lot_no`),
+  UNIQUE KEY `uk_trace_product_lot_source_report_id` (`source_report_id`),
   KEY `idx_trace_product_lot_product_id` (`product_id`),
   KEY `idx_trace_product_lot_work_order_id` (`work_order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='产品批次表';

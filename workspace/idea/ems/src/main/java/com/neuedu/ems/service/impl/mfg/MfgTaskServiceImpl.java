@@ -5,16 +5,40 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.entity.eam.EamEquipment;
+import com.neuedu.ems.entity.factory.FactoryStation;
+import com.neuedu.ems.entity.factory.FactoryStationOperation;
+import com.neuedu.ems.entity.mfg.MfgAndonAlert;
+import com.neuedu.ems.entity.mfg.MfgDispatchOrder;
+import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgTaskOperator;
+import com.neuedu.ems.entity.mfg.MfgWorkOrder;
+import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.org.OrgEmployee;
+import com.neuedu.ems.entity.process.ProcessRouteItem;
 import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.entity.sys.SysUser;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.exception.BusinessException;
+import com.neuedu.ems.mapper.eam.EamEquipmentMapper;
+import com.neuedu.ems.mapper.factory.FactoryStationMapper;
+import com.neuedu.ems.mapper.factory.FactoryStationOperationMapper;
+import com.neuedu.ems.mapper.mfg.MfgAndonAlertMapper;
+import com.neuedu.ems.mapper.mfg.MfgDispatchOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskOperatorMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.org.OrgEmployeeMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.sys.SysUserMapper;
 import com.neuedu.ems.service.mfg.MfgTaskService;
 import com.neuedu.ems.service.sys.DataScopeService;
 import com.neuedu.ems.exception.DataScopeAccessDeniedException;
@@ -50,6 +74,42 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
 
     @Autowired
     private MfgWorkReportMapper mfgWorkReportMapper;
+
+    @Autowired
+    private SysUserMapper sysUserMapper;
+
+    @Autowired
+    private OrgEmployeeMapper orgEmployeeMapper;
+
+    @Autowired
+    private MfgTaskOperatorMapper mfgTaskOperatorMapper;
+
+    @Autowired
+    private MfgWorkOrderMapper mfgWorkOrderMapper;
+
+    @Autowired
+    private MfgDispatchOrderMapper mfgDispatchOrderMapper;
+
+    @Autowired
+    private MfgWorkOrderMaterialMapper mfgWorkOrderMaterialMapper;
+
+    @Autowired
+    private ProcessRouteItemMapper processRouteItemMapper;
+
+    @Autowired
+    private FactoryStationMapper factoryStationMapper;
+
+    @Autowired
+    private FactoryStationOperationMapper factoryStationOperationMapper;
+
+    @Autowired
+    private MfgProductionPlanMapper mfgProductionPlanMapper;
+
+    @Autowired
+    private EamEquipmentMapper eamEquipmentMapper;
+
+    @Autowired
+    private MfgAndonAlertMapper mfgAndonAlertMapper;
 
     /**
      * 分页查询生产任务列表，支持任务编号、状态、派工单、工单、工序和工位筛选。
@@ -216,28 +276,197 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     @Override
     @Transactional
     public boolean startTask(Long taskId, Long stationId, Long operatorId) {
-        MfgTask existing = getTaskById(taskId);
-        if (existing == null || operatorId == null || !BusinessStatus.Production.WAIT_START.equals(existing.getStatus())) {
-            return false;
+        if (taskId == null || operatorId == null) {
+            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(), "生产任务和当前登录用户不能为空");
         }
+        MfgTask existing = getTaskById(taskId);
+        if (existing == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "生产任务不存在或已删除");
+        }
+        if (!BusinessStatus.Production.WAIT_START.equals(existing.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "只有待开工任务可以开工，请刷新后确认任务状态");
+        }
+        Long employeeId = requireAssignedEmployee(taskId, operatorId);
+        MfgWorkOrder workOrder = requireRunningWorkOrder(existing.getWorkOrderId());
+        requireExecutableDispatch(existing.getDispatchId());
+        requireMaterialReady(existing.getWorkOrderId());
+        requirePredecessorsFinished(existing, workOrder);
+        Long actualStationId = stationId != null ? stationId : existing.getStationId();
+        requireAvailableStation(actualStationId, existing.getOperationId(), workOrder.getPlanId());
+
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
         task.setVersion(existing.getVersion());
-        if (stationId != null) {
-            task.setStationId(stationId);
+        if (!actualStationId.equals(existing.getStationId())) {
+            task.setStationId(actualStationId);
         }
         task.setStatus(BusinessStatus.Production.RUNNING);
         boolean updated = baseMapper.update(task, taskInState(taskId, existing.getStatus())) > 0;
-        if (updated) {
-            LocalDateTime now = LocalDateTime.now();
-            insertStatusLog(taskId, existing.getStatus(), BusinessStatus.Production.RUNNING,
-                    "START_TASK", operatorId, null, now);
-            insertOperationLog(taskId, "START_TASK", operatorId, null, now);
-            if (responsibilityNotificationService != null) {
-                responsibilityNotificationService.cancelOpenTaskNotifications(taskId, operatorId);
+        if (!updated) {
+            throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(), "生产任务已被其他人员处理，请刷新后重试");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        insertStatusLog(taskId, existing.getStatus(), BusinessStatus.Production.RUNNING,
+                "START_TASK", operatorId, "员工ID：" + employeeId, now);
+        insertOperationLog(taskId, "START_TASK", operatorId, "员工ID：" + employeeId, now);
+        if (responsibilityNotificationService != null) {
+            responsibilityNotificationService.cancelOpenTaskNotifications(taskId, operatorId);
+        }
+        return true;
+    }
+
+    private Long requireAssignedEmployee(Long taskId, Long userId) {
+        SysUser user = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUserId, userId)
+                .eq(SysUser::getStatus, BusinessStatus.Common.ENABLE)
+                .eq(SysUser::getDeletedFlag, 0));
+        if (user == null || user.getEmployeeId() == null) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "当前登录账号未关联启用员工，不能执行车间开工");
+        }
+        OrgEmployee employee = orgEmployeeMapper.selectOne(new LambdaQueryWrapper<OrgEmployee>()
+                .eq(OrgEmployee::getEmployeeId, user.getEmployeeId())
+                .eq(OrgEmployee::getStatus, BusinessStatus.Common.ENABLE)
+                .eq(OrgEmployee::getDeletedFlag, 0));
+        if (employee == null) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "当前账号关联的员工已停用或离职，不能执行车间开工");
+        }
+        long assignments = mfgTaskOperatorMapper.selectCount(new LambdaQueryWrapper<MfgTaskOperator>()
+                .eq(MfgTaskOperator::getTaskId, taskId)
+                .eq(MfgTaskOperator::getEmployeeId, user.getEmployeeId())
+                .eq(MfgTaskOperator::getDeletedFlag, 0));
+        if (assignments == 0) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "该任务未分配给当前员工，不能代替他人开工");
+        }
+        return user.getEmployeeId();
+    }
+
+    private MfgWorkOrder requireRunningWorkOrder(Long workOrderId) {
+        MfgWorkOrder workOrder = mfgWorkOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, workOrderId)
+                .eq(MfgWorkOrder::getDeletedFlag, 0));
+        if (workOrder == null || !BusinessStatus.Production.RUNNING.equals(workOrder.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "父生产工单尚未开始或已关闭，任务不能开工");
+        }
+        return workOrder;
+    }
+
+    private void requireExecutableDispatch(Long dispatchId) {
+        MfgDispatchOrder dispatch = mfgDispatchOrderMapper.selectOne(new LambdaQueryWrapper<MfgDispatchOrder>()
+                .eq(MfgDispatchOrder::getDispatchId, dispatchId)
+                .eq(MfgDispatchOrder::getDeletedFlag, 0));
+        boolean executable = dispatch != null && (BusinessStatus.Document.RELEASED.equals(dispatch.getStatus())
+                || "ACCEPTED".equals(dispatch.getStatus())
+                || BusinessStatus.Production.RUNNING.equals(dispatch.getStatus()));
+        if (!executable) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "派工单未派发、已驳回或已关闭，任务不能开工");
+        }
+    }
+
+    private void requireMaterialReady(Long workOrderId) {
+        List<MfgWorkOrderMaterial> requirements = mfgWorkOrderMaterialMapper.selectList(
+                new LambdaQueryWrapper<MfgWorkOrderMaterial>()
+                        .eq(MfgWorkOrderMaterial::getWorkOrderId, workOrderId)
+                        .eq(MfgWorkOrderMaterial::getDeletedFlag, 0));
+        if (requirements.isEmpty()) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "生产工单没有有效用料需求，不能开工");
+        }
+        long shortageCount = requirements.stream()
+                .filter(item -> zeroIfNull(item.getIssuedQuantity())
+                        .compareTo(zeroIfNull(item.getRequiredQuantity())) < 0)
+                .count();
+        if (shortageCount > 0) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "本工单物料尚未实际领料齐套，仍有 " + shortageCount + " 种物料不足");
+        }
+    }
+
+    private void requirePredecessorsFinished(MfgTask task, MfgWorkOrder workOrder) {
+        List<ProcessRouteItem> routeItems = processRouteItemMapper.selectList(
+                new LambdaQueryWrapper<ProcessRouteItem>()
+                        .eq(ProcessRouteItem::getRouteId, workOrder.getRouteId())
+                        .eq(ProcessRouteItem::getDeletedFlag, 0)
+                        .orderByAsc(ProcessRouteItem::getSequenceNo, ProcessRouteItem::getRouteItemId));
+        List<ProcessRouteItem> currentItems = routeItems.stream()
+                .filter(item -> task.getOperationId().equals(item.getOperationId()))
+                .toList();
+        if (currentItems.size() != 1 || currentItems.get(0).getSequenceNo() == null) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "工艺路线无法唯一定位当前工序，请维护路线后再开工");
+        }
+        int currentSequence = currentItems.get(0).getSequenceNo();
+        List<ProcessRouteItem> predecessors = routeItems.stream()
+                .filter(item -> item.getSequenceNo() != null && item.getSequenceNo() < currentSequence)
+                .toList();
+        for (ProcessRouteItem predecessor : predecessors) {
+            long unfinished = baseMapper.selectCount(new LambdaQueryWrapper<MfgTask>()
+                    .eq(MfgTask::getDispatchId, task.getDispatchId())
+                    .eq(MfgTask::getOperationId, predecessor.getOperationId())
+                    .eq(MfgTask::getDeletedFlag, 0)
+                    .ne(MfgTask::getStatus, BusinessStatus.Production.FINISHED));
+            if (unfinished > 0) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                        "前置工序尚未完成，不能越序开工；前置工序ID：" + predecessor.getOperationId());
+            }
+            long predecessorTasks = baseMapper.selectCount(new LambdaQueryWrapper<MfgTask>()
+                    .eq(MfgTask::getDispatchId, task.getDispatchId())
+                    .eq(MfgTask::getOperationId, predecessor.getOperationId())
+                    .eq(MfgTask::getDeletedFlag, 0));
+            if (predecessorTasks == 0) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                        "前置工序任务缺失，不能开工；前置工序ID：" + predecessor.getOperationId());
             }
         }
-        return updated;
+    }
+
+    private void requireAvailableStation(Long stationId, Long operationId, Long planId) {
+        if (stationId == null) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "任务未分配工位，不能开工");
+        }
+        MfgProductionPlan plan = mfgProductionPlanMapper.selectOne(new LambdaQueryWrapper<MfgProductionPlan>()
+                .eq(MfgProductionPlan::getPlanId, planId)
+                .eq(MfgProductionPlan::getDeletedFlag, 0));
+        FactoryStation station = factoryStationMapper.selectOne(new LambdaQueryWrapper<FactoryStation>()
+                .eq(FactoryStation::getStationId, stationId)
+                .eq(FactoryStation::getStatus, BusinessStatus.Factory.RUNNING)
+                .eq(FactoryStation::getDeletedFlag, 0));
+        if (plan == null || plan.getLineId() == null || station == null
+                || !plan.getLineId().equals(station.getLineId())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "所选工位不属于生产计划产线或当前不可用");
+        }
+        long supported = factoryStationOperationMapper.selectCount(
+                new LambdaQueryWrapper<FactoryStationOperation>()
+                        .eq(FactoryStationOperation::getStationId, stationId)
+                        .eq(FactoryStationOperation::getOperationId, operationId)
+                        .eq(FactoryStationOperation::getStatus, BusinessStatus.Common.ENABLE)
+                        .eq(FactoryStationOperation::getDeletedFlag, 0));
+        if (supported == 0) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "所选工位不支持当前工序，不能开工");
+        }
+        List<EamEquipment> equipment = eamEquipmentMapper.selectList(new LambdaQueryWrapper<EamEquipment>()
+                .eq(EamEquipment::getStationId, stationId)
+                .eq(EamEquipment::getDeletedFlag, 0));
+        if (!equipment.isEmpty() && equipment.stream().noneMatch(item ->
+                BusinessStatus.Equipment.IDLE.equals(item.getStatus())
+                        || BusinessStatus.Equipment.RUNNING.equals(item.getStatus()))) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "当前工位关联设备均不可用，请先完成维修、保养或停机处置");
+        }
+        long openAndon = mfgAndonAlertMapper.selectCount(new LambdaQueryWrapper<MfgAndonAlert>()
+                .eq(MfgAndonAlert::getStationId, stationId)
+                .eq(MfgAndonAlert::getDeletedFlag, 0)
+                .in(MfgAndonAlert::getStatus, "ACTIVE", BusinessStatus.Workflow.PROCESSING));
+        if (openAndon > 0) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "当前工位存在未关闭安灯，请处置并解除后再开工");
+        }
     }
 
     /**
@@ -256,9 +485,26 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         boolean finishable = existing != null
                 && (BusinessStatus.Production.RUNNING.equals(existing.getStatus())
                 || BusinessStatus.Production.PAUSED.equals(existing.getStatus()));
-        if (!finishable || operatorId == null || completedQuantity == null || completedQuantity.signum() < 0
-                || defectQuantity == null || defectQuantity.signum() < 0) {
-            return false;
+        if (!finishable || operatorId == null) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "只有生产中或已暂停的任务可以确认完工");
+        }
+        List<MfgWorkReport> approvedReports = mfgWorkReportMapper.selectList(new LambdaQueryWrapper<MfgWorkReport>()
+                .eq(MfgWorkReport::getTaskId, taskId)
+                .eq(MfgWorkReport::getDeletedFlag, 0)
+                .eq(MfgWorkReport::getAuditStatus, BusinessStatus.Document.APPROVED));
+        if (approvedReports.isEmpty()) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "任务尚无已审核通过的报工，不能确认完工");
+        }
+        completedQuantity = approvedReports.stream().map(MfgWorkReport::getQualifiedQuantity)
+                .map(this::zeroIfNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+        defectQuantity = approvedReports.stream().map(MfgWorkReport::getDefectQuantity)
+                .map(this::zeroIfNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (existing.getPlannedQuantity() != null
+                && completedQuantity.add(defectQuantity).compareTo(existing.getPlannedQuantity()) > 0) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "任务累计审核报工数量超过任务计划数量，不能确认完工");
         }
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
@@ -283,9 +529,10 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void withdrawTaskStart(Long taskId, Long operatorId, String remark) {
-        if (taskId == null || operatorId == null || !StringUtils.hasText(remark)) {
-            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(), "生产任务、操作人和撤回原因不能为空");
+        if (taskId == null || operatorId == null) {
+            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(), "生产任务和操作人不能为空");
         }
+        remark = StringUtils.hasText(remark) ? remark.trim() : "用户主动撤回，未填写补充原因";
         MfgTask existing = getTaskById(taskId);
         boolean started = existing != null && (BusinessStatus.Production.RUNNING.equals(existing.getStatus())
                 || BusinessStatus.Production.PAUSED.equals(existing.getStatus()));

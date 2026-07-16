@@ -92,6 +92,8 @@ class MfgWorkOrderServiceImplTest {
         when(bomItemMapper.selectList(any())).thenReturn(List.of(bomItem()));
         when(inventoryMapper.selectList(any())).thenReturn(List.of());
         when(materialMapper.insert(any(MfgWorkOrderMaterial.class))).thenReturn(1);
+        when(materialMapper.selectCount(any())).thenReturn(1L);
+        when(materialMapper.selectList(any())).thenReturn(List.of(readyRequirement()));
     }
 
     @Test
@@ -213,6 +215,7 @@ class MfgWorkOrderServiceImplTest {
         existing.setStatus(BusinessStatus.Document.DRAFT);
         existing.setVersion(4);
         when(workOrderMapper.selectOne(any())).thenReturn(existing);
+        when(planMapper.selectOne(any())).thenReturn(plan());
         when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
 
         service.releaseWorkOrder(5L, 9L, null);
@@ -279,12 +282,28 @@ class MfgWorkOrderServiceImplTest {
         verify(workOrderMapper, never()).updateById(any(MfgWorkOrder.class));
     }
 
+    @Test
+    void startRejectsWorkOrderWhenMaterialIsNotReady() {
+        MfgWorkOrder existing = request("100");
+        existing.setWorkOrderId(5L);
+        existing.setStatus(BusinessStatus.Document.RELEASED);
+        MfgWorkOrderMaterial shortage = readyRequirement();
+        shortage.setIssuedQuantity(new BigDecimal("10"));
+        when(workOrderMapper.selectOne(any())).thenReturn(existing);
+        when(materialMapper.selectList(any())).thenReturn(List.of(shortage));
+
+        assertThrows(BusinessException.class, () -> service.startWorkOrder(5L, 9L));
+
+        verify(workOrderMapper, never()).updateById(any(MfgWorkOrder.class));
+    }
+
     private MfgProductionPlan plan() {
         MfgProductionPlan plan = new MfgProductionPlan();
         plan.setPlanId(2L);
         plan.setProductionOrderId(1L);
         plan.setLineId(8L);
-        plan.setPlannedStartTime(LocalDateTime.of(2026, 7, 16, 8, 0));
+        plan.setPlannedStartTime(LocalDateTime.now().plusHours(1));
+        plan.setPlannedEndTime(LocalDateTime.now().plusHours(8));
         plan.setPlannedQuantity(new BigDecimal("100"));
         plan.setStatus(BusinessStatus.Document.RELEASED);
         return plan;
@@ -299,10 +318,22 @@ class MfgWorkOrderServiceImplTest {
 
     private MfgWorkOrder request(String quantity) {
         MfgWorkOrder request = new MfgWorkOrder();
+        request.setPlanId(2L);
         request.setBomId(12L);
         request.setRouteId(13L);
         request.setPlannedQuantity(new BigDecimal(quantity));
         return request;
+    }
+
+    private MfgWorkOrderMaterial readyRequirement() {
+        MfgWorkOrderMaterial requirement = new MfgWorkOrderMaterial();
+        requirement.setRequirementId(31L);
+        requirement.setWorkOrderId(5L);
+        requirement.setMaterialId(21L);
+        requirement.setRequiredQuantity(new BigDecimal("100"));
+        requirement.setIssuedQuantity(new BigDecimal("100"));
+        requirement.setStatus("READY");
+        return requirement;
     }
 
     private MdmBomItem bomItem() {
