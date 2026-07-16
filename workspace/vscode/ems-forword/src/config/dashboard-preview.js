@@ -42,6 +42,13 @@ export function createDashboardPreview() {
       fault: 2,
       maintenance: 3
     },
+    lines: [
+      { lineId: 1, lineCode: 'LINE-TRAIN-01', lineName: '训练球1号线', dailyCapacity: 800, status: 'RUNNING' },
+      { lineId: 2, lineCode: 'LINE-MATCH-01', lineName: '比赛球1号线', dailyCapacity: 500, status: 'RUNNING' },
+      { lineId: 4, lineCode: 'LINE-TRAIN-02', lineName: '训练球2号线', dailyCapacity: 800, status: 'IDLE' },
+      { lineId: 5, lineCode: 'LINE-MATCH-02', lineName: '比赛球2号线', dailyCapacity: 500, status: 'MAINTENANCE' },
+      { lineId: 6, lineCode: 'LINE-MATCH-03', lineName: '比赛球3号线', dailyCapacity: 500, status: 'STOPPED' }
+    ],
     // 生产计划时间轴示例，不同 status 用来演示各类状态颜色。
     schedule: [
       { planId: 1, planNo: 'PLAN-001', productionOrderId: 1, orderNo: 'MO-20260713-001', lineId: 1, lineName: '训练球自动线', productName: '训练级羽毛球', plannedStartTime: scheduleStart.format('YYYY-MM-DDTHH:mm:ss'), plannedEndTime: scheduleStart.add(4, 'hour').format('YYYY-MM-DDTHH:mm:ss'), plannedQuantity: 500, status: 'RELEASED', statusLabel: '已生效', statusTone: 'released' },

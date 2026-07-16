@@ -33,6 +33,7 @@ const trend = ref([])
 const quality = ref({})
 const equipment = ref({})
 const schedulePlans = ref([])
+const productionLines = ref([])
 const scheduleError = ref('')
 const scheduleExpanded = ref(false)
 
@@ -46,6 +47,13 @@ const scheduleStatusMeta = {
   RELEASED: { label: '已生效', tone: 'released' },
   FINISHED: { label: '已完成', tone: 'finished' },
   CLOSED: { label: '已取消', tone: 'closed' }
+}
+
+const lineStatusMeta = {
+  RUNNING: { label: '运行中', tone: 'running' },
+  IDLE: { label: '待机', tone: 'idle' },
+  STOPPED: { label: '已停机', tone: 'stopped' },
+  MAINTENANCE: { label: '维保中', tone: 'maintenance' }
 }
 
 // 生成固定画布当前的平移和缩放CSS transform。
@@ -130,16 +138,61 @@ const scheduleRows = computed(() => schedulePlans.value
   .filter((item) => {
     const start = dayjs(item.plannedStartTime)
     const end = dayjs(item.plannedEndTime)
-    return start.isValid() && end.isValid() && end.isAfter(start)
+    return start.isValid()
+      && end.isValid()
+      && end.isAfter(start)
+      && item.status !== 'CLOSED'
+      && !end.isBefore(now.value.startOf('day'))
   })
   .sort((a, b) => dayjs(a.plannedStartTime).valueOf() - dayjs(b.plannedStartTime).valueOf()))
-// 首页排期卡片最多显示前5条有效计划。
-const visibleScheduleRows = computed(() => scheduleRows.value.slice(0, 5))
-// 展开弹窗最多显示前10条有效计划。
-const expandedScheduleRows = computed(() => scheduleRows.value.slice(0, 10))
-// 根据展开排期条数动态计算弹窗高度，并限制最小和最大值。
+// 同一产线的多个计划共用一条时间轴，避免计划多时重复显示产线名称。
+const scheduleLineRows = computed(() => {
+  const grouped = new Map(productionLines.value.map((line) => [String(line.lineId), { ...line, plans: [] }]))
+  scheduleRows.value.forEach((plan) => {
+    const key = String(plan.lineId || 'unknown')
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        lineId: plan.lineId,
+        lineCode: '',
+        lineName: plan.lineName,
+        status: '',
+        dailyCapacity: 0,
+        plans: []
+      })
+    }
+    grouped.get(key).plans.push(plan)
+  })
+  return [...grouped.values()]
+    .filter((line) => line.plans.length)
+    .sort((a, b) => String(a.lineCode || a.lineName).localeCompare(String(b.lineCode || b.lineName), 'zh-CN'))
+})
+
+const visibleScheduleLineRows = computed(() => scheduleLineRows.value.slice(0, 5))
+const expandedScheduleLineRows = computed(() => scheduleLineRows.value)
+
+// 产线状态只使用真实产线与真实生产计划，不用排期时间推导虚假的生产进度。
+const lineStatusRows = computed(() => productionLines.value.map((line) => {
+  const plans = scheduleRows.value.filter((plan) => String(plan.lineId) === String(line.lineId))
+  const currentPlan = plans.find((plan) => {
+    const current = now.value.valueOf()
+    return current >= dayjs(plan.plannedStartTime).valueOf() && current <= dayjs(plan.plannedEndTime).valueOf()
+  })
+  const nextPlan = currentPlan || plans.find((plan) => dayjs(plan.plannedStartTime).isAfter(now.value)) || plans[0]
+  const status = lineStatusMeta[line.status] || { label: line.status || '状态未知', tone: 'idle' }
+  return {
+    ...line,
+    statusLabel: status.label,
+    statusTone: status.tone,
+    planCount: plans.length,
+    scheduledQuantity: plans.reduce((total, plan) => total + Number(plan.plannedQuantity || 0), 0),
+    currentPlan: currentPlan || null,
+    nextPlan: nextPlan || null
+  }
+}).sort((a, b) => String(a.lineCode || a.lineName).localeCompare(String(b.lineCode || b.lineName), 'zh-CN')))
+
+// 根据展开产线数动态计算弹窗高度，并限制最小和最大值。
 const scheduleModalStyle = computed(() => ({
-  '--schedule-modal-height': `${Math.min(940, Math.max(560, 222 + expandedScheduleRows.value.length * 78))}px`
+  '--schedule-modal-height': `${Math.min(940, Math.max(560, 222 + expandedScheduleLineRows.value.length * 86))}px`
 }))
 // 根据全部有效计划计算统一时间轴起止点、时长和刻度。
 const scheduleWindow = computed(() => {
@@ -433,7 +486,7 @@ async function loadProductionSchedule() {
   const lines = new Map(optionalRecords(lineResult).map((item) => [String(item.lineId), item]))
   const products = new Map(optionalRecords(productResult).map((item) => [String(item.productId), item]))
 
-  return plans.map((plan) => {
+  const mappedPlans = plans.map((plan) => {
     const order = orders.get(String(plan.productionOrderId)) || {}
     const line = lines.get(String(plan.lineId)) || {}
     const product = products.get(String(order.productId)) || {}
@@ -447,6 +500,15 @@ async function loadProductionSchedule() {
       statusTone: status.tone
     }
   })
+  const mappedLines = [...lines.values()]
+  const fallbackLines = [...new Map(mappedPlans.map((plan) => [String(plan.lineId), {
+    lineId: plan.lineId,
+    lineCode: '',
+    lineName: plan.lineName,
+    dailyCapacity: 0,
+    status: ''
+  }])).values()]
+  return { plans: mappedPlans, lines: mappedLines.length ? mappedLines : fallbackLines }
 }
 
 // 打开大屏中的生产排期展开弹窗。
@@ -524,6 +586,13 @@ async function loadData() {
     quality.value = data.quality
     equipment.value = data.equipment
     schedulePlans.value = data.schedule || []
+    productionLines.value = data.lines || [...new Map((data.schedule || []).map((item) => [String(item.lineId), {
+      lineId: item.lineId,
+      lineCode: `LINE-${item.lineId}`,
+      lineName: item.lineName,
+      dailyCapacity: 0,
+      status: 'RUNNING'
+    }])).values()]
     lastUpdated.value = dayjs()
     loadError.value = ''
     scheduleError.value = ''
@@ -565,7 +634,8 @@ async function loadData() {
     })
 
     if (scheduleResult.status === 'fulfilled') {
-      schedulePlans.value = scheduleResult.value
+      schedulePlans.value = scheduleResult.value.plans
+      productionLines.value = scheduleResult.value.lines
     } else {
       scheduleError.value = scheduleResult.reason?.displayMessage || scheduleResult.reason?.message || '生产排期暂未更新'
     }
@@ -686,12 +756,12 @@ onBeforeUnmount(() => {
           <article class="screen-panel schedule-panel">
             <header class="panel-header">
               <div>
-                <strong>生产订单排期</strong>
-                <span>基于生产计划起止时间与产线形成</span>
+                <strong>生产计划排期</strong>
+                <span>按产线汇总订单计划与执行窗口</span>
               </div>
               <aside class="panel-tools">
                 <span class="schedule-range">{{ scheduleRangeLabel }}</span>
-                <button class="panel-link" type="button" title="放大生产订单排期" aria-label="放大生产订单排期" @click="openSchedule">
+                <button class="panel-link" type="button" title="放大生产计划排期" aria-label="放大生产计划排期" @click="openSchedule">
                   <AppIcon name="fullscreen" :size="19" />
                 </button>
                 <button class="panel-link" type="button" title="打开生产计划管理" aria-label="打开生产计划管理" @click="openProductionPlans">
@@ -703,7 +773,7 @@ onBeforeUnmount(() => {
               class="schedule-board"
               role="button"
               tabindex="0"
-              aria-label="点击放大生产订单排期"
+              aria-label="点击放大生产计划排期"
               @click="openSchedule"
               @keydown.enter="openSchedule"
               @keydown.space.prevent="openSchedule"
@@ -716,14 +786,16 @@ onBeforeUnmount(() => {
                   </i>
                 </div>
               </div>
-              <div v-if="visibleScheduleRows.length" class="schedule-rows">
-                <div v-for="item in visibleScheduleRows" :key="item.planId" class="schedule-row">
+              <div v-if="visibleScheduleLineRows.length" class="schedule-rows">
+                <div v-for="line in visibleScheduleLineRows" :key="line.lineId || line.lineName" class="schedule-row">
                   <div class="schedule-row-meta">
-                    <strong>{{ item.lineName }}</strong>
-                    <span>{{ item.planNo }} · {{ item.statusLabel }}</span>
+                    <strong>{{ line.lineName }}</strong>
+                    <span>{{ line.plans.length }} 项计划 · 日产能 {{ formatNumber(line.dailyCapacity) }}</span>
                   </div>
                   <div class="schedule-row-track">
                     <span
+                      v-for="item in line.plans"
+                      :key="item.planId"
                       class="schedule-bar"
                       :class="`is-${item.statusTone}`"
                       :style="scheduleBarStyle(item)"
@@ -745,50 +817,41 @@ onBeforeUnmount(() => {
                 <strong>暂无有效生产排期</strong>
                 <span>请先为生产订单建立包含开始、结束时间和产线的生产计划</span>
               </div>
-              <div v-if="scheduleError && visibleScheduleRows.length" class="schedule-stale"><AppIcon name="alert" :size="14" />当前保留上次成功排期</div>
+              <div v-if="scheduleError && visibleScheduleLineRows.length" class="schedule-stale"><AppIcon name="alert" :size="14" />当前保留上次成功排期</div>
               <div class="schedule-expand-hint"><AppIcon name="fullscreen" :size="16" />点击放大查看完整排期</div>
             </div>
           </article>
 
-          <article class="screen-panel report-table-panel">
+          <article class="screen-panel line-status-panel">
             <header class="panel-header">
               <div>
-                <strong>近 7 日报工明细</strong>
-                <span>按报工日期汇总实际产出</span>
+                <strong>产线运行状态</strong>
+                <span>真实产线、日产能与当前排期</span>
               </div>
               <aside class="panel-tools">
-                <span class="table-status" :class="{ 'is-empty': !hasTrendData }"><i />{{ hasTrendData ? '已产生报工' : '暂无报工' }}</span>
-                <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
+                <strong class="line-count">{{ lineStatusRows.length }}<small>条</small></strong>
+                <button class="panel-link" type="button" title="打开产线管理" aria-label="打开产线管理" @click="openModule('/factory/lines')">
                   <AppIcon name="arrow" :size="20" />
                 </button>
               </aside>
             </header>
-            <div class="report-table-wrap">
-              <table class="report-table">
-                <caption>近 7 日报工产量、合格数量、不良数量和合格率</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">日期</th>
-                    <th scope="col">报工产量</th>
-                    <th scope="col">合格</th>
-                    <th scope="col">不良</th>
-                    <th scope="col">合格率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in trendRows" :key="row.date" :class="{ 'is-zero': row.output === 0 }">
-                    <td><b>{{ row.dateLabel }}</b><small>{{ row.weekdayLabel }}</small></td>
-                    <td>{{ formatNumber(row.output) }}</td>
-                    <td class="is-qualified">{{ formatNumber(row.qualifiedQuantity) }}</td>
-                    <td class="is-defect">{{ formatNumber(row.defectQuantity) }}</td>
-                    <td><span class="rate-chip" :class="{ 'is-empty': row.passRate === null }">{{ formatPercent(row.passRate) }}<small v-if="row.passRate !== null">%</small></span></td>
-                  </tr>
-                </tbody>
-              </table>
-              <div v-if="trendRows.length === 0" class="table-empty">
-                <AppIcon name="clipboard" :size="28" />
-                <span>报工明细暂未返回</span>
-              </div>
+            <div v-if="lineStatusRows.length" class="line-status-list">
+              <article v-for="line in lineStatusRows" :key="line.lineId" class="line-status-row" :class="`is-${line.statusTone}`">
+                <span class="line-status-icon"><AppIcon name="factory" :size="22" /></span>
+                <div class="line-status-copy">
+                  <div><strong>{{ line.lineName }}</strong><span><i />{{ line.statusLabel }}</span></div>
+                  <p v-if="line.nextPlan">
+                    {{ line.currentPlan ? '当前' : '下一计划' }}：{{ line.nextPlan.orderNo }} · {{ formatNumber(line.nextPlan.plannedQuantity) }} 件
+                  </p>
+                  <p v-else>当前没有有效生产计划</p>
+                  <small>日产能 {{ formatNumber(line.dailyCapacity) }} · 排期 {{ line.planCount }} 项 / {{ formatNumber(line.scheduledQuantity) }} 件</small>
+                </div>
+              </article>
+            </div>
+            <div v-else class="line-status-empty">
+              <AppIcon name="factory" :size="30" />
+              <strong>暂无产线数据</strong>
+              <span>请先维护工厂产线与运行状态</span>
             </div>
           </article>
 
@@ -951,7 +1014,7 @@ onBeforeUnmount(() => {
           <header class="schedule-modal-header">
             <div>
               <span>PRODUCTION SCHEDULE</span>
-              <strong id="schedule-modal-title">生产订单排期总览</strong>
+              <strong id="schedule-modal-title">生产计划排期总览</strong>
               <p>{{ previewMode ? '演示排期' : '真实生产计划' }} · {{ scheduleRangeLabel }}</p>
             </div>
             <aside>
@@ -974,15 +1037,17 @@ onBeforeUnmount(() => {
                 </i>
               </div>
             </div>
-            <div v-if="expandedScheduleRows.length" class="schedule-rows">
-              <div v-for="item in expandedScheduleRows" :key="`expanded-${item.planId}`" class="schedule-row">
+            <div v-if="expandedScheduleLineRows.length" class="schedule-rows">
+              <div v-for="line in expandedScheduleLineRows" :key="`expanded-${line.lineId || line.lineName}`" class="schedule-row">
                 <div class="schedule-row-meta">
-                  <strong>{{ item.lineName }}</strong>
-                  <span>{{ item.planNo }} · {{ item.statusLabel }}</span>
-                  <small>{{ formatScheduleTime(item) }}</small>
+                  <strong>{{ line.lineName }}</strong>
+                  <span>{{ line.plans.length }} 项计划 · 日产能 {{ formatNumber(line.dailyCapacity) }}</span>
+                  <small>{{ line.plans.map(formatScheduleTime).join(' / ') }}</small>
                 </div>
                 <div class="schedule-row-track">
                   <span
+                    v-for="item in line.plans"
+                    :key="`expanded-${item.planId}`"
                     class="schedule-bar"
                     :class="`is-${item.statusTone}`"
                     :style="scheduleBarStyle(item)"
@@ -1010,8 +1075,7 @@ onBeforeUnmount(() => {
             <span><i class="is-draft" />待生效</span>
             <span><i class="is-released" />已生效</span>
             <span><i class="is-finished" />已完成</span>
-            <span><i class="is-closed" />已取消</span>
-            <b>显示 {{ expandedScheduleRows.length }} / {{ scheduleRows.length }} 条有效计划</b>
+            <b>显示 {{ expandedScheduleLineRows.length }} 条产线 / {{ scheduleRows.length }} 项有效计划</b>
           </footer>
         </section>
       </div>
@@ -1242,13 +1306,13 @@ onBeforeUnmount(() => {
 .primary-grid {
   display: grid;
   min-height: 0;
-  grid-template-areas: 'execution schedule report';
-  grid-template-columns: minmax(320px, .65fr) minmax(780px, 1.65fr) minmax(480px, .92fr);
+  grid-template-areas: 'lines schedule execution';
+  grid-template-columns: 350px minmax(0, 1fr) 390px;
   gap: 16px;
 }
 
 .schedule-panel { grid-area: schedule; }
-.report-table-panel { grid-area: report; }
+.line-status-panel { grid-area: lines; }
 .execution-panel { grid-area: execution; }
 
 .secondary-grid {
@@ -1583,6 +1647,86 @@ onBeforeUnmount(() => {
 .empty-overlay span { font-size: 16px; }
 .compact-empty { inset: 48px 20px 18px 56px; gap: 6px; }
 .compact-empty strong { font-size: 16px; }
+
+.line-count { color: #f2f7fb; font-size: 30px; font-weight: 750; }
+.line-count small { margin-left: 4px; color: #91a7b7; font-size: 15px; font-weight: 550; }
+.line-status-panel .panel-header { min-height: 72px; padding: 0 16px; }
+.line-status-panel .panel-header > div { min-width: 0; }
+.line-status-panel .panel-header > div > span {
+  overflow: hidden;
+  max-width: 210px;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-status-list {
+  display: grid;
+  height: calc(100% - 72px);
+  align-content: stretch;
+  grid-auto-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+.line-status-row {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgb(49 81 105 / 72%);
+  box-sizing: border-box;
+}
+.line-status-row:last-child { border-bottom: 0; }
+.line-status-row::after {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 3px;
+  background: #4bc58a;
+  content: '';
+}
+.line-status-row.is-idle::after { background: #5aa9d1; }
+.line-status-row.is-stopped::after { background: #df6972; }
+.line-status-row.is-maintenance::after { background: #d99a55; }
+.line-status-icon {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  color: #65cf9a;
+  border: 1px solid rgb(75 197 138 / 28%);
+  border-radius: 50%;
+  background: rgb(75 197 138 / 10%);
+}
+.line-status-row.is-idle .line-status-icon { color: #6fb9df; border-color: rgb(90 169 209 / 28%); background: rgb(90 169 209 / 10%); }
+.line-status-row.is-stopped .line-status-icon { color: #ed7a82; border-color: rgb(223 105 114 / 30%); background: rgb(223 105 114 / 11%); }
+.line-status-row.is-maintenance .line-status-icon { color: #e6a65d; border-color: rgb(217 154 85 / 30%); background: rgb(217 154 85 / 11%); }
+.line-status-copy { display: grid; min-width: 0; gap: 3px; }
+.line-status-copy > div { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.line-status-copy strong,
+.line-status-copy p,
+.line-status-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line-status-copy strong { color: #e5eef4; font-size: 16px; }
+.line-status-copy > div > span { display: inline-flex; flex: none; align-items: center; gap: 5px; color: #75d4a0; font-size: 13px; }
+.line-status-copy > div > span i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.line-status-row.is-idle .line-status-copy > div > span { color: #75bce1; }
+.line-status-row.is-stopped .line-status-copy > div > span { color: #ee858c; }
+.line-status-row.is-maintenance .line-status-copy > div > span { color: #e5aa67; }
+.line-status-copy p { margin: 0; color: #a7bac7; font-size: 13px; }
+.line-status-copy small { color: #7893a6; font-size: 12px; }
+.line-status-empty {
+  display: grid;
+  height: calc(100% - 72px);
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: #7893a5;
+}
+.line-status-empty strong { color: #c1d0da; font-size: 18px; }
+.line-status-empty span { font-size: 14px; }
 
 .table-status { display: inline-flex; align-items: center; gap: 7px; color: #78cfa0; font-size: 15px; white-space: nowrap; }
 .table-status i { width: 7px; height: 7px; border-radius: 50%; background: #4bc58a; box-shadow: 0 0 7px rgb(75 197 138 / 48%); }
