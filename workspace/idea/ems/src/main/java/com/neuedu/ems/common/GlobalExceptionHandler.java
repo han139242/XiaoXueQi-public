@@ -68,9 +68,11 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public ResultData handleBusinessException(BusinessException e) {
-        // 业务异常只打印info级别日志，不打印堆栈（避免日志冗余）
-        //log.info("业务异常：{}", e.getMessage());
-        return ResultData.fail(ResultCode.BUSINESS_ERROR);
+        String message = e.getMessage() == null || e.getMessage().isBlank()
+                ? ResultCode.BUSINESS_ERROR.getMessage() : e.getMessage().trim();
+        log.info("业务异常：{}", message);
+        return ResultData.fail(ResultCode.BUSINESS_ERROR,
+                Map.of("message", message, "businessCode", e.getCode()));
     }
 
     /**

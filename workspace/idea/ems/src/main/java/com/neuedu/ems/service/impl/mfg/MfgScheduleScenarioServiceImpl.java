@@ -33,6 +33,8 @@ import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.ai.AiService;
 import com.neuedu.ems.service.mfg.MfgScheduleScenarioService;
+import com.neuedu.ems.vo.mfg.ManualScheduleBoard;
+import com.neuedu.ems.vo.mfg.ManualScheduleBoardItem;
 import com.neuedu.ems.vo.mfg.ManualScheduleCandidateLine;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -90,8 +92,6 @@ public class MfgScheduleScenarioServiceImpl
     private static final long MANUAL_CANDIDATE_CACHE_TTL_NANOS = Duration.ofSeconds(30).toNanos();
     private static final int MANUAL_CANDIDATE_CACHE_MAX_SIZE = 2048;
 
-    private final Map<ManualCandidateCacheKey, ManualCandidateCacheEntry> manualCandidateCache =
-            new ConcurrentHashMap<>();
     private final Map<ManualCandidateGroupKey, ManualCandidateListCacheEntry> manualCandidateListCache =
             new ConcurrentHashMap<>();
 
@@ -170,12 +170,14 @@ public class MfgScheduleScenarioServiceImpl
         QueryWrapper<MfgScheduleScenario> query = new QueryWrapper<>();
         query.eq("deleted_flag", 0)
                 .eq("algorithm_code", ALGORITHM_CODE_MANUAL_BOARD)
-                .eq("status", STATUS_DRAFT)
                 .eq("created_by", operatorId)
+                .in("status", STATUS_DRAFT, STATUS_CALCULATED)
+                .orderByDesc("order_count")
+                .orderByDesc("updated_time")
                 .orderByDesc("scenario_id");
-        MfgScheduleScenario existing = baseMapper.selectOne(query);
-        if (existing != null) {
-            return existing;
+        List<MfgScheduleScenario> existingDrafts = baseMapper.selectList(query);
+        if (!existingDrafts.isEmpty()) {
+            return existingDrafts.getFirst();
         }
 
         LocalDateTime now = LocalDateTime.now(SCHEDULE_ZONE);
@@ -206,6 +208,92 @@ public class MfgScheduleScenarioServiceImpl
     }
 
     @Override
+    public ManualScheduleBoard getManualScheduleBoard(Long operatorId) {
+        if (operatorId == null) {
+            throw invalid("当前登录用户不能为空");
+        }
+
+        List<MfgScheduleScenario> scenarios = listEditableManualScenarios();
+        Map<Long, MfgScheduleScenario> scenarioMap = scenarios.stream()
+                .collect(Collectors.toMap(MfgScheduleScenario::getScenarioId, item -> item));
+        MfgScheduleScenario workspaceDraft = scenarios.stream()
+                .filter(item -> Objects.equals(item.getCreatedBy(), operatorId))
+                .findFirst()
+                .orElse(null);
+
+        List<MfgScheduleItem> manualItems = listEditableManualItems(scenarioMap.keySet());
+        QueryWrapper<MfgProductionPlan> planQuery = new QueryWrapper<>();
+        planQuery.eq("deleted_flag", 0);
+        List<MfgProductionPlan> allPlans = mfgProductionPlanMapper.selectList(planQuery);
+        List<MfgProductionPlan> visiblePlans = allPlans.stream()
+                .filter(item -> STATUS_DRAFT.equals(item.getStatus()) || STATUS_RELEASED.equals(item.getStatus()))
+                .toList();
+        Set<Long> visiblePlanOrderIds = visiblePlans.stream().map(MfgProductionPlan::getProductionOrderId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        // A formal production plan is authoritative if legacy or stale manual data still exists for the same order.
+        List<MfgScheduleItem> visibleManualItems = manualItems.stream()
+                .filter(item -> !visiblePlanOrderIds.contains(item.getProductionOrderId()))
+                .toList();
+
+        Set<Long> orderIds = new HashSet<>();
+        visibleManualItems.stream().map(MfgScheduleItem::getProductionOrderId).filter(Objects::nonNull).forEach(orderIds::add);
+        allPlans.stream().map(MfgProductionPlan::getProductionOrderId).filter(Objects::nonNull).forEach(orderIds::add);
+        Map<Long, MfgProductionOrder> orderMap = loadProductionOrders(orderIds);
+
+        List<ManualScheduleBoardItem> timelineItems = new ArrayList<>();
+        for (MfgScheduleItem item : visibleManualItems) {
+            MfgScheduleScenario scenario = scenarioMap.get(item.getScenarioId());
+            timelineItems.add(toManualBoardItem(item, scenario, orderMap.get(item.getProductionOrderId())));
+        }
+        for (MfgProductionPlan plan : visiblePlans) {
+            timelineItems.add(toProductionPlanBoardItem(plan, orderMap.get(plan.getProductionOrderId())));
+        }
+        timelineItems.sort(Comparator
+                .comparing(ManualScheduleBoardItem::getPlannedStartTime,
+                        Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(ManualScheduleBoardItem::getSourceType)
+                .thenComparing(item -> item.getScheduleItemId() == null ? Long.MAX_VALUE : item.getScheduleItemId()));
+
+        Set<Long> scheduledOrderIds = visibleManualItems.stream().map(MfgScheduleItem::getProductionOrderId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> plannedOrderIds = allPlans.stream().map(MfgProductionPlan::getProductionOrderId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        List<MfgProductionOrder> pendingOrders = listDraftOrders().stream()
+                .filter(order -> !scheduledOrderIds.contains(order.getProductionOrderId()))
+                .filter(order -> !plannedOrderIds.contains(order.getProductionOrderId()))
+                .toList();
+
+        LocalDateTime horizonStart = timelineItems.stream().map(ManualScheduleBoardItem::getPlannedStartTime)
+                .filter(Objects::nonNull).min(LocalDateTime::compareTo)
+                .orElse(workspaceDraft == null ? LocalDate.now(SCHEDULE_ZONE).atStartOfDay()
+                        : workspaceDraft.getHorizonStart());
+        LocalDateTime horizonEnd = timelineItems.stream().map(ManualScheduleBoardItem::getPlannedEndTime)
+                .filter(Objects::nonNull).max(LocalDateTime::compareTo)
+                .orElse(workspaceDraft == null ? horizonStart.plusDays(30)
+                        : workspaceDraft.getHorizonEnd());
+
+        ManualScheduleBoard board = new ManualScheduleBoard();
+        board.setWorkspaceDraft(workspaceDraft);
+        board.setTimelineItems(timelineItems);
+        board.setPendingOrders(pendingOrders);
+        board.setHorizonStart(horizonStart);
+        board.setHorizonEnd(horizonEnd);
+        board.setManualItemCount(visibleManualItems.size());
+        board.setProductionPlanCount(visiblePlans.size());
+        board.setConflictCount((int) visibleManualItems.stream()
+                .filter(item -> ITEM_STATUS_CONFLICT.equals(item.getStatus())).count());
+        board.setLateCount((int) timelineItems.stream()
+                .filter(item -> item.getTardinessMinutes() != null && item.getTardinessMinutes() > 0).count());
+        return board;
+    }
+
+    @Override
+    public AiResponse analyzeManualScheduleBoard(Long operatorId) {
+        ManualScheduleBoard board = getManualScheduleBoard(operatorId);
+        return aiService.getScheduleScenarioAdvice(buildManualBoardAiSummary(board));
+    }
+
+    @Override
     public List<ManualScheduleCandidateLine> listEligibleLines(Long scenarioId, Long productionOrderId) {
         MfgScheduleScenario scenario = requireManualScenario(scenarioId, false);
         MfgProductionOrder order = requireDraftOrderWithoutPlan(productionOrderId);
@@ -219,10 +307,41 @@ public class MfgScheduleScenarioServiceImpl
     }
 
     @Override
+    public List<ManualScheduleCandidateLine> listEligibleLinesForOrder(Long productionOrderId) {
+        MfgProductionOrder order = requireDraftOrderWithoutPlan(productionOrderId);
+        LocalDateTime now = LocalDateTime.now(SCHEDULE_ZONE);
+        MfgScheduleScenario transientScenario = new MfgScheduleScenario();
+        transientScenario.setHorizonStart(now.toLocalDate().atStartOfDay());
+        transientScenario.setHorizonEnd(now.toLocalDate().plusDays(30).atTime(23, 59, 59));
+        return buildEligibleLines(transientScenario, order);
+    }
+
+    @Override
+    public ManualScheduleCandidateLine validatePlanningPlacement(Long productionOrderId, Long lineId,
+                                                                  LocalDateTime plannedStartTime,
+                                                                  LocalDateTime plannedEndTime) {
+        MfgProductionOrder order = requireDraftOrderWithoutPlan(productionOrderId);
+        MfgScheduleScenario transientScenario = new MfgScheduleScenario();
+        transientScenario.setHorizonStart(plannedStartTime);
+        transientScenario.setHorizonEnd(plannedEndTime);
+        MfgScheduleItem transientItem = new MfgScheduleItem();
+        transientItem.setProductionOrderId(productionOrderId);
+        transientItem.setLineId(lineId);
+        transientItem.setPlannedStartTime(plannedStartTime);
+        transientItem.setPlannedEndTime(plannedEndTime);
+        String reason = validateManualPlacement(transientScenario, transientItem, order, lineId,
+                plannedStartTime, plannedEndTime, List.of());
+        if (reason != null) {
+            throw invalid(reason);
+        }
+        return resolveManualCapability(order, lineId, plannedStartTime, plannedEndTime);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public MfgScheduleItem addManualItem(Long scenarioId, Integer scenarioVersion, Long productionOrderId,
                                          Long lineId, Long operatorId) {
-        MfgScheduleScenario scenario = requireManualScenario(scenarioId, true);
+        MfgScheduleScenario scenario = requireManualScenario(scenarioId, false);
         assertScenarioVersion(scenario, scenarioVersion);
         MfgProductionOrder order = requireDraftOrderWithoutPlan(productionOrderId);
         if (lineId == null) {
@@ -230,13 +349,10 @@ public class MfgScheduleScenarioServiceImpl
         }
         ensureOrderNotInEditableScenario(productionOrderId, scenarioId);
         List<MfgScheduleItem> activeItems = listActiveScenarioItems(scenarioId);
-        ManualScheduleCandidateLine candidate = findCachedEligibleLine(scenario, order, lineId);
-        if (candidate == null) {
-            candidate = buildEligibleLines(scenario, order, activeItems).stream()
-                    .filter(item -> Objects.equals(item.getLineId(), lineId))
-                    .findFirst()
-                    .orElseThrow(() -> invalid("所选产线不具备当前订单的有效生产能力或可用时段"));
-        }
+        ManualScheduleCandidateLine candidate = buildEligibleLines(scenario, order).stream()
+                .filter(item -> Objects.equals(item.getLineId(), lineId))
+                .findFirst()
+                .orElseThrow(() -> invalid("所选产线不具备当前订单的有效生产能力或可用时段"));
 
         LocalDateTime now = LocalDateTime.now(SCHEDULE_ZONE);
         MfgScheduleItem item = new MfgScheduleItem();
@@ -287,7 +403,7 @@ public class MfgScheduleScenarioServiceImpl
         assertScenarioVersion(scenario, scenarioVersion);
         MfgScheduleItem item = requireManualItem(scenarioId, scheduleItemId);
         if (!Objects.equals(item.getVersion(), itemVersion)) {
-            throw conflict("排程明细已被其他用户修改，请刷新后重试");
+            throw conflict("排程已更新，请刷新排程总览后重新操作");
         }
         MfgProductionOrder order = requireDraftOrderWithoutPlan(item.getProductionOrderId());
         String reason = validateManualPlacement(scenario, item, order, lineId, plannedStartTime, plannedEndTime,
@@ -314,7 +430,7 @@ public class MfgScheduleScenarioServiceImpl
         update.setUpdatedBy(operatorId);
         update.setUpdatedTime(now);
         if (mfgScheduleItemMapper.updateById(update) == 0) {
-            throw conflict("排程明细已被其他用户修改，请刷新后重试");
+            throw conflict("排程已更新，请刷新排程总览后重新操作");
         }
         refreshManualScenarioSummary(scenario, STATUS_DRAFT, operatorId, now);
         invalidateCandidateCache(scenarioId);
@@ -327,11 +443,11 @@ public class MfgScheduleScenarioServiceImpl
     @Transactional(rollbackFor = Exception.class)
     public MfgScheduleScenario removeManualItem(Long scenarioId, Long scheduleItemId, Integer scenarioVersion,
                                                 Integer itemVersion, Long operatorId) {
-        MfgScheduleScenario scenario = requireManualScenario(scenarioId, true);
+        MfgScheduleScenario scenario = requireManualScenario(scenarioId, false);
         assertScenarioVersion(scenario, scenarioVersion);
         MfgScheduleItem item = requireManualItem(scenarioId, scheduleItemId);
         if (!Objects.equals(item.getVersion(), itemVersion)) {
-            throw conflict("排程明细已被其他用户修改，请刷新后重试");
+            throw conflict("排程已更新，请刷新排程总览后重新操作");
         }
         LocalDateTime now = LocalDateTime.now(SCHEDULE_ZONE);
         MfgScheduleItem update = new MfgScheduleItem();
@@ -341,13 +457,93 @@ public class MfgScheduleScenarioServiceImpl
         update.setUpdatedBy(operatorId);
         update.setUpdatedTime(now);
         if (mfgScheduleItemMapper.updateById(update) == 0) {
-            throw conflict("排程明细已被其他用户修改，请刷新后重试");
+            throw conflict("排程已更新，请刷新排程总览后重新操作");
         }
         refreshManualScenarioSummary(scenario, STATUS_DRAFT, operatorId, now);
         invalidateCandidateCache(scenarioId);
         insertOperationLog(scheduleItemId, "REMOVE_MANUAL_SCHEDULE_ITEM", "mfg_schedule_item",
                 operatorId, "订单移出手工排程草案", now);
         return getActiveScenario(scenarioId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MfgProductionPlan confirmManualItem(Long scenarioId, Long scheduleItemId, Integer scenarioVersion,
+                                               Integer itemVersion, String remark, Long operatorId) {
+        if (scenarioId == null || scheduleItemId == null || scenarioVersion == null
+                || itemVersion == null || operatorId == null) {
+            throw invalid("方案、排程明细、版本和确认人不能为空");
+        }
+        MfgScheduleScenario scenario = requireManualScenario(scenarioId, false);
+        assertScenarioVersion(scenario, scenarioVersion);
+        MfgScheduleItem item = requireManualItem(scenarioId, scheduleItemId);
+        if (!Objects.equals(item.getVersion(), itemVersion)) {
+            throw conflict("排程已更新，请刷新排程总览后重新操作");
+        }
+        validateScheduledItem(item, new HashSet<>());
+        if (hasActivePlan(item.getProductionOrderId())) {
+            throw invalid("该订单已生成生产计划，请刷新排程总览查看");
+        }
+        MfgProductionOrder order = getActiveProductionOrder(item.getProductionOrderId());
+        if (order == null) {
+            throw notFound("排程明细关联的生产订单不存在或已删除");
+        }
+        if (!STATUS_DRAFT.equals(order.getStatus()) || order.getVersion() == null) {
+            throw invalid("该订单状态已变化，不能再生成生产计划，请刷新后重新选择");
+        }
+
+        List<MfgScheduleItem> scenarioItems = listActiveScenarioItems(scenarioId);
+        String validationReason = validateManualItem(scenario, item, scenarioItems);
+        if (validationReason != null) {
+            throw invalid("当前计划不可确认：" + validationReason);
+        }
+
+        LocalDateTime now = LocalDateTime.now(SCHEDULE_ZONE);
+        MfgProductionPlan plan = createProductionPlan(scenario, item, operatorId, now);
+        String normalizedRemark = trimToNull(remark);
+        if (normalizedRemark != null) {
+            plan.setRemark(normalizedRemark);
+        }
+        if (mfgProductionPlanMapper.insert(plan) == 0 || plan.getPlanId() == null) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
+
+        MfgProductionOrder orderUpdate = new MfgProductionOrder();
+        orderUpdate.setProductionOrderId(order.getProductionOrderId());
+        orderUpdate.setStatus(STATUS_RELEASED);
+        orderUpdate.setVersion(order.getVersion());
+        orderUpdate.setUpdatedBy(operatorId);
+        orderUpdate.setUpdatedTime(now);
+        if (mfgProductionOrderMapper.updateById(orderUpdate) == 0) {
+            throw conflict("订单状态已更新，请刷新排程总览后重新操作");
+        }
+
+        MfgScheduleItem itemUpdate = new MfgScheduleItem();
+        itemUpdate.setScheduleItemId(scheduleItemId);
+        itemUpdate.setPlanId(plan.getPlanId());
+        itemUpdate.setStatus(STATUS_CONFIRMED);
+        itemUpdate.setVersion(itemVersion);
+        itemUpdate.setUpdatedBy(operatorId);
+        itemUpdate.setUpdatedTime(now);
+        if (mfgScheduleItemMapper.updateById(itemUpdate) == 0) {
+            throw conflict("排程已更新，请刷新排程总览后重新操作");
+        }
+
+        List<MfgScheduleItem> remainingItems = scenarioItems.stream()
+                .filter(existing -> !Objects.equals(existing.getScheduleItemId(), scheduleItemId))
+                .filter(existing -> existing.getPlanId() == null)
+                .filter(existing -> !STATUS_CONFIRMED.equals(existing.getStatus()))
+                .toList();
+        refreshManualScenarioSummary(scenario, STATUS_DRAFT, operatorId, now, remainingItems);
+        insertStatusChangeLog(plan.getPlanId(), null, STATUS_RELEASED, "MFG_PRODUCTION_PLAN",
+                "CONFIRM_MANUAL_SCHEDULE_ITEM", operatorId, normalizedRemark, now);
+        insertStatusChangeLog(order.getProductionOrderId(), STATUS_DRAFT, STATUS_RELEASED, "MFG_PRODUCTION_ORDER",
+                "CONFIRM_MANUAL_SCHEDULE_ITEM", operatorId, normalizedRemark, now);
+        insertStatusChangeLog(item.getScheduleItemId(), item.getStatus(), STATUS_CONFIRMED, "MFG_SCHEDULE_ITEM",
+                "CONFIRM_MANUAL_SCHEDULE_ITEM", operatorId, normalizedRemark, now);
+        insertOperationLog(scheduleItemId, "CONFIRM_MANUAL_SCHEDULE_ITEM", "mfg_schedule_item",
+                operatorId, normalizedRemark, now);
+        return plan;
     }
 
     @Override
@@ -633,6 +829,144 @@ public class MfgScheduleScenarioServiceImpl
         return mfgScheduleItemMapper.selectList(wrapper);
     }
 
+    private List<MfgScheduleScenario> listEditableManualScenarios() {
+        QueryWrapper<MfgScheduleScenario> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted_flag", 0)
+                .eq("algorithm_code", ALGORITHM_CODE_MANUAL_BOARD)
+                .in("status", STATUS_DRAFT, STATUS_CALCULATED)
+                .orderByDesc("order_count")
+                .orderByDesc("updated_time")
+                .orderByDesc("scenario_id");
+        return baseMapper.selectList(wrapper);
+    }
+
+    private List<MfgScheduleItem> listEditableManualItems(Set<Long> scenarioIds) {
+        if (scenarioIds == null || scenarioIds.isEmpty()) {
+            return List.of();
+        }
+        QueryWrapper<MfgScheduleItem> wrapper = new QueryWrapper<>();
+        wrapper.in("scenario_id", scenarioIds)
+                .eq("deleted_flag", 0)
+                .in("status", ITEM_STATUS_SCHEDULED, ITEM_STATUS_CONFLICT)
+                .orderByAsc("planned_start_time")
+                .orderByAsc("schedule_item_id");
+        return mfgScheduleItemMapper.selectList(wrapper);
+    }
+
+    private List<MfgScheduleItem> listGlobalEditableManualItems() {
+        Set<Long> scenarioIds = listEditableManualScenarios().stream()
+                .map(MfgScheduleScenario::getScenarioId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        return listEditableManualItems(scenarioIds);
+    }
+
+    private List<MfgProductionPlan> listActiveProductionPlans() {
+        QueryWrapper<MfgProductionPlan> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted_flag", 0).in("status", STATUS_DRAFT, STATUS_RELEASED);
+        return mfgProductionPlanMapper.selectList(wrapper);
+    }
+
+    private Map<Long, MfgProductionOrder> loadProductionOrders(Set<Long> productionOrderIds) {
+        if (productionOrderIds == null || productionOrderIds.isEmpty()) {
+            return Map.of();
+        }
+        QueryWrapper<MfgProductionOrder> wrapper = new QueryWrapper<>();
+        wrapper.in("production_order_id", productionOrderIds).eq("deleted_flag", 0);
+        return mfgProductionOrderMapper.selectList(wrapper).stream()
+                .collect(Collectors.toMap(MfgProductionOrder::getProductionOrderId, item -> item));
+    }
+
+    private ManualScheduleBoardItem toManualBoardItem(MfgScheduleItem item, MfgScheduleScenario scenario,
+                                                       MfgProductionOrder order) {
+        ManualScheduleBoardItem result = new ManualScheduleBoardItem();
+        result.setSourceType("MANUAL");
+        result.setScenarioId(item.getScenarioId());
+        result.setScenarioNo(scenario == null ? null : scenario.getScenarioNo());
+        result.setScenarioVersion(scenario == null ? null : scenario.getVersion());
+        result.setScheduleItemId(item.getScheduleItemId());
+        result.setItemVersion(item.getVersion());
+        result.setProductionOrderId(item.getProductionOrderId());
+        result.setProductionOrderNo(order == null ? null : order.getProductionOrderNo());
+        result.setProductId(item.getProductId() != null ? item.getProductId()
+                : order == null ? null : order.getProductId());
+        result.setLineId(item.getLineId());
+        result.setPlannedQuantity(item.getPlannedQuantity());
+        result.setPlannedStartTime(item.getPlannedStartTime());
+        result.setPlannedEndTime(item.getPlannedEndTime());
+        result.setTardinessMinutes(item.getTardinessMinutes());
+        result.setStatus(item.getStatus());
+        result.setConflictReason(item.getConflictReason());
+        result.setRemark(item.getRemark());
+        result.setEditable(true);
+        return result;
+    }
+
+    private ManualScheduleBoardItem toProductionPlanBoardItem(MfgProductionPlan plan, MfgProductionOrder order) {
+        ManualScheduleBoardItem result = new ManualScheduleBoardItem();
+        result.setSourceType("PLAN");
+        result.setPlanId(plan.getPlanId());
+        result.setPlanNo(plan.getPlanNo());
+        result.setProductionOrderId(plan.getProductionOrderId());
+        result.setProductionOrderNo(order == null ? null : order.getProductionOrderNo());
+        result.setProductId(order == null ? null : order.getProductId());
+        result.setLineId(plan.getLineId());
+        result.setPlannedQuantity(plan.getPlannedQuantity());
+        result.setPlannedStartTime(plan.getPlannedStartTime());
+        result.setPlannedEndTime(plan.getPlannedEndTime());
+        result.setTardinessMinutes(order == null ? 0L
+                : calculateTardiness(order.getDeliveryDate(), plan.getPlannedEndTime()));
+        result.setStatus(plan.getStatus());
+        result.setRemark(plan.getRemark());
+        result.setEditable(false);
+        return result;
+    }
+
+    private Map<String, Object> buildManualBoardAiSummary(ManualScheduleBoard board) {
+        Map<Long, BoardLineAiLoad> loadsByLine = new TreeMap<>();
+        Map<String, Integer> conflictReasons = new TreeMap<>();
+        for (ManualScheduleBoardItem item : board.getTimelineItems()) {
+            if (item.getLineId() != null) {
+                loadsByLine.computeIfAbsent(item.getLineId(), BoardLineAiLoad::new).add(item);
+            }
+            if (StringUtils.hasText(item.getConflictReason())) {
+                conflictReasons.merge(item.getConflictReason().trim(), 1, Integer::sum);
+            }
+        }
+
+        BigDecimal pendingQuantity = board.getPendingOrders().stream()
+                .map(MfgProductionOrder::getOrderQuantity).filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        LocalDate earliestDeliveryDate = board.getPendingOrders().stream()
+                .map(MfgProductionOrder::getDeliveryDate).filter(Objects::nonNull)
+                .min(LocalDate::compareTo).orElse(null);
+        long pendingProductCount = board.getPendingOrders().stream()
+                .map(MfgProductionOrder::getProductId).filter(Objects::nonNull).distinct().count();
+
+        Map<String, Object> scope = new LinkedHashMap<>();
+        scope.put("horizonStart", board.getHorizonStart());
+        scope.put("horizonEnd", board.getHorizonEnd());
+        scope.put("manualItemCount", board.getManualItemCount());
+        scope.put("productionPlanCount", board.getProductionPlanCount());
+        scope.put("pendingOrderCount", board.getPendingOrders().size());
+        scope.put("conflictCount", board.getConflictCount());
+        scope.put("lateCount", board.getLateCount());
+
+        Map<String, Object> pending = new LinkedHashMap<>();
+        pending.put("orderCount", board.getPendingOrders().size());
+        pending.put("productCount", pendingProductCount);
+        pending.put("totalQuantity", pendingQuantity);
+        pending.put("earliestDeliveryDate", earliestDeliveryDate);
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("analysisType", "MANUAL_SCHEDULE_BOARD_FEASIBILITY");
+        summary.put("scope", scope);
+        summary.put("lineLoads", loadsByLine.values().stream().map(BoardLineAiLoad::toSummary).toList());
+        summary.put("pendingOrders", pending);
+        summary.put("conflictReasons", conflictReasons);
+        return summary;
+    }
+
     private List<ConfirmationEntry> validateAndLoadConfirmationEntries(List<MfgScheduleItem> items) {
         if (items == null || items.isEmpty()) {
             throw invalid("排程方案没有可确认的排程明细");
@@ -767,17 +1101,17 @@ public class MfgScheduleScenarioServiceImpl
             throw notFound("手工排程草案不存在或已删除");
         }
         if (requireDraft && !STATUS_DRAFT.equals(scenario.getStatus())) {
-            throw invalid("只有 DRAFT 状态的手工草案可以编辑");
+            throw invalid("当前临时安排已不能继续编辑，请刷新排程总览后重新操作");
         }
         if (!STATUS_DRAFT.equals(scenario.getStatus()) && !STATUS_CALCULATED.equals(scenario.getStatus())) {
-            throw invalid("当前手工草案不可操作");
+            throw invalid("当前临时安排已不能继续操作，请刷新排程总览后重新选择");
         }
         return scenario;
     }
 
     private void assertScenarioVersion(MfgScheduleScenario scenario, Integer version) {
         if (version == null || !Objects.equals(version, scenario.getVersion())) {
-            throw conflict("手工排程草案已被其他用户修改，请刷新后重试");
+            throw conflict("排程已更新，请刷新排程总览后重新操作");
         }
     }
 
@@ -789,15 +1123,15 @@ public class MfgScheduleScenarioServiceImpl
         if (order == null) {
             throw notFound("生产订单不存在或已删除");
         }
+        if (hasActivePlan(productionOrderId)) {
+            throw invalid("该订单已生成生产计划，请在生产计划中查看或调整");
+        }
         if (!STATUS_DRAFT.equals(order.getStatus())) {
-            throw invalid("只有 DRAFT 状态的生产订单可以手工排程");
+            throw invalid("该订单已下达或已进入执行，不能再调整临时安排");
         }
         if (order.getProductId() == null || order.getOrderQuantity() == null
                 || order.getOrderQuantity().compareTo(BigDecimal.ZERO) <= 0) {
             throw invalid("生产订单缺少有效产品或数量");
-        }
-        if (hasActivePlan(productionOrderId)) {
-            throw invalid("生产订单已存在有效生产计划，不能重复排程");
         }
         return order;
     }
@@ -868,12 +1202,12 @@ public class MfgScheduleScenarioServiceImpl
         itemQuery.eq("production_order_id", productionOrderId).eq("deleted_flag", 0);
         for (MfgScheduleItem item : mfgScheduleItemMapper.selectList(itemQuery)) {
             if (Objects.equals(item.getScenarioId(), currentScenarioId)) {
-                throw invalid("订单已在当前手工草案中");
+                throw invalid("该订单已在当前排程中，无需重复添加");
             }
             MfgScheduleScenario scenario = getActiveScenario(item.getScenarioId());
             if (scenario != null && ALGORITHM_CODE_MANUAL_BOARD.equals(scenario.getAlgorithmCode())
                     && (STATUS_DRAFT.equals(scenario.getStatus()) || STATUS_CALCULATED.equals(scenario.getStatus()))) {
-                throw invalid("订单已在另一份可编辑手工草案中");
+                throw invalid("该订单已在排程总览中，无需重复添加");
             }
         }
     }
@@ -884,7 +1218,7 @@ public class MfgScheduleScenarioServiceImpl
     }
 
     private List<ManualScheduleCandidateLine> buildEligibleLines(MfgScheduleScenario scenario, MfgProductionOrder order) {
-        return buildEligibleLines(scenario, order, listActiveScenarioItems(scenario.getScenarioId()));
+        return buildEligibleLines(scenario, order, listGlobalEditableManualItems());
     }
 
     private List<ManualScheduleCandidateLine> buildEligibleLines(MfgScheduleScenario scenario, MfgProductionOrder order,
@@ -894,6 +1228,7 @@ public class MfgScheduleScenarioServiceImpl
         LocalDateTime horizonEnd = scenario.getHorizonEnd() == null || scenario.getHorizonEnd().isBefore(horizonStart.plusDays(30))
                 ? horizonStart.plusDays(30).withHour(23).withMinute(59).withSecond(59) : scenario.getHorizonEnd();
         SchedulingContext context = loadSchedulingContext(horizonStart, horizonEnd);
+        List<MfgProductionPlan> activePlans = listActiveProductionPlans();
         List<ManualScheduleCandidateLine> result = new ArrayList<>();
         for (MfgLineProductCapability capability : context.capabilitiesByProduct()
                 .getOrDefault(order.getProductId(), List.of())) {
@@ -905,12 +1240,21 @@ public class MfgScheduleScenarioServiceImpl
                     || capability.getCapacityFactor() == null || capability.getCapacityFactor().compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            LocalDateTime lineAvailableAt = items.stream().filter(item -> Objects.equals(item.getLineId(), line.getLineId()))
-                    .map(MfgScheduleItem::getPlannedEndTime).filter(Objects::nonNull).max(LocalDateTime::compareTo)
-                    .map(end -> end.isAfter(horizonStart) ? end : horizonStart).orElse(horizonStart);
-            LineScheduleState state = new LineScheduleState(buildLineWindows(line,
+            LocalDateTime lineAvailableAt = horizonStart;
+            for (MfgScheduleItem item : items) {
+                if (Objects.equals(item.getLineId(), line.getLineId()) && item.getPlannedEndTime() != null) {
+                    lineAvailableAt = maxTime(lineAvailableAt, item.getPlannedEndTime());
+                }
+            }
+            for (MfgProductionPlan plan : activePlans) {
+                if (Objects.equals(plan.getLineId(), line.getLineId()) && plan.getPlannedEndTime() != null) {
+                    lineAvailableAt = maxTime(lineAvailableAt, plan.getPlannedEndTime());
+                }
+            }
+            List<CapacityWindow> lineWindows = buildLineWindows(line,
                     context.calendarRulesByLine().getOrDefault(line.getLineId(), List.of()), context.shiftsById(),
-                    lineAvailableAt, horizonEnd));
+                    lineAvailableAt, horizonEnd);
+            LineScheduleState state = new LineScheduleState(lineWindows);
             BigDecimal requiredCapacity = order.getOrderQuantity().divide(capability.getCapacityFactor(),
                     CAPACITY_SCALE, RoundingMode.HALF_UP);
             Allocation allocation = state.allocate(requiredCapacity);
@@ -928,6 +1272,8 @@ public class MfgScheduleScenarioServiceImpl
             candidate.setEstimatedMinutes(unitMinutes.multiply(order.getOrderQuantity()).setScale(2, RoundingMode.HALF_UP));
             candidate.setEarliestStartTime(allocation.startTime());
             candidate.setEarliestEndTime(allocation.endTime());
+            candidate.setMinimumWorkingMinutes(calculateWorkingMinutes(lineWindows,
+                    allocation.startTime(), allocation.endTime()));
             result.add(candidate);
         }
         result.sort(Comparator.comparing(ManualScheduleCandidateLine::getEarliestEndTime)
@@ -939,12 +1285,6 @@ public class MfgScheduleScenarioServiceImpl
     private void cacheEligibleLines(MfgScheduleScenario scenario, MfgProductionOrder order,
                                     List<ManualScheduleCandidateLine> candidates) {
         long now = System.nanoTime();
-        if (manualCandidateCache.size() > MANUAL_CANDIDATE_CACHE_MAX_SIZE) {
-            manualCandidateCache.entrySet().removeIf(entry -> entry.getValue().expiresAtNanos() <= now);
-            if (manualCandidateCache.size() > MANUAL_CANDIDATE_CACHE_MAX_SIZE) {
-                manualCandidateCache.clear();
-            }
-        }
         if (manualCandidateListCache.size() > MANUAL_CANDIDATE_CACHE_MAX_SIZE) {
             manualCandidateListCache.entrySet().removeIf(entry -> entry.getValue().expiresAtNanos() <= now);
             if (manualCandidateListCache.size() > MANUAL_CANDIDATE_CACHE_MAX_SIZE) {
@@ -956,26 +1296,6 @@ public class MfgScheduleScenarioServiceImpl
                 order.getProductionOrderId());
         manualCandidateListCache.put(groupKey,
                 new ManualCandidateListCacheEntry(List.copyOf(candidates), expiresAt));
-        for (ManualScheduleCandidateLine candidate : candidates) {
-            ManualCandidateCacheKey key = new ManualCandidateCacheKey(scenario.getScenarioId(), scenario.getVersion(),
-                    order.getProductionOrderId(), candidate.getLineId());
-            manualCandidateCache.put(key, new ManualCandidateCacheEntry(candidate, expiresAt));
-        }
-    }
-
-    private ManualScheduleCandidateLine findCachedEligibleLine(MfgScheduleScenario scenario, MfgProductionOrder order,
-                                                                Long lineId) {
-        ManualCandidateCacheKey key = new ManualCandidateCacheKey(scenario.getScenarioId(), scenario.getVersion(),
-                order.getProductionOrderId(), lineId);
-        ManualCandidateCacheEntry entry = manualCandidateCache.get(key);
-        if (entry == null) {
-            return null;
-        }
-        if (entry.expiresAtNanos() <= System.nanoTime()) {
-            manualCandidateCache.remove(key, entry);
-            return null;
-        }
-        return entry.candidate();
     }
 
     private List<ManualScheduleCandidateLine> findCachedEligibleLines(MfgScheduleScenario scenario,
@@ -994,8 +1314,7 @@ public class MfgScheduleScenarioServiceImpl
     }
 
     private void invalidateCandidateCache(Long scenarioId) {
-        manualCandidateCache.keySet().removeIf(key -> Objects.equals(key.scenarioId(), scenarioId));
-        manualCandidateListCache.keySet().removeIf(key -> Objects.equals(key.scenarioId(), scenarioId));
+        manualCandidateListCache.clear();
     }
 
     private ManualScheduleCandidateLine resolveManualCapability(MfgProductionOrder order, Long lineId,
@@ -1011,7 +1330,8 @@ public class MfgScheduleScenarioServiceImpl
         }
         for (MfgLineProductCapability capability : context.capabilitiesByProduct()
                 .getOrDefault(order.getProductId(), List.of())) {
-            if (!Objects.equals(capability.getLineId(), lineId)) {
+            if (!Objects.equals(capability.getLineId(), lineId) || capability.getCapacityFactor() == null
+                    || capability.getCapacityFactor().compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
             ProcessRoute route = context.releasedRoutes().get(capability.getRouteId());
@@ -1045,19 +1365,30 @@ public class MfgScheduleScenarioServiceImpl
         } catch (BusinessException e) {
             return e.getMessage();
         }
-        if (Duration.between(startTime, endTime).toMinutes() < capability.getEstimatedMinutes().longValue()) {
-            return "计划时段短于路线要求的最小加工时长";
-        }
         SchedulingContext context = loadSchedulingContext(startTime.toLocalDate().atStartOfDay(),
                 endTime.toLocalDate().plusDays(1).atStartOfDay());
         FactoryLine line = context.activeLines().get(lineId);
-        boolean inCalendar = buildLineWindows(line, context.calendarRulesByLine().getOrDefault(lineId, List.of()),
-                context.shiftsById(), startTime.toLocalDate().atStartOfDay(), endTime.toLocalDate().plusDays(1).atStartOfDay())
-                .stream().anyMatch(window -> !startTime.isBefore(window.startTime()) && !endTime.isAfter(window.endTime));
-        if (!inCalendar) {
+        List<CapacityWindow> calendarWindows = buildLineWindows(line,
+                context.calendarRulesByLine().getOrDefault(lineId, List.of()), context.shiftsById(),
+                startTime.toLocalDate().atStartOfDay(), endTime.toLocalDate().plusDays(1).atStartOfDay());
+        boolean startInCalendar = calendarWindows.stream().anyMatch(window ->
+                !startTime.isBefore(window.startTime()) && startTime.isBefore(window.endTime()));
+        boolean endInCalendar = calendarWindows.stream().anyMatch(window ->
+                endTime.isAfter(window.startTime()) && !endTime.isAfter(window.endTime()));
+        if (!startInCalendar || !endInCalendar) {
             return "计划时间未完全落在产线有效周历和班次内";
         }
-        for (MfgScheduleItem other : allItems) {
+        BigDecimal availableCapacity = buildLineWindows(line,
+                context.calendarRulesByLine().getOrDefault(lineId, List.of()), context.shiftsById(), startTime, endTime)
+                .stream().map(CapacityWindow::capacity).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal requiredCapacity = order.getOrderQuantity().divide(capability.getCapacityFactor(),
+                CAPACITY_SCALE, RoundingMode.HALF_UP);
+        if (availableCapacity.compareTo(requiredCapacity) < 0) {
+            return "计划时段内的产线有效产能不足";
+        }
+        List<MfgScheduleItem> occupiedItems = new ArrayList<>(allItems);
+        occupiedItems.addAll(listGlobalEditableManualItems());
+        for (MfgScheduleItem other : occupiedItems) {
             if (other.getScheduleItemId() != null && currentItem.getScheduleItemId() != null
                     && Objects.equals(other.getScheduleItemId(), currentItem.getScheduleItemId())) {
                 continue;
@@ -1068,13 +1399,29 @@ public class MfgScheduleScenarioServiceImpl
             }
         }
         QueryWrapper<MfgProductionPlan> planQuery = new QueryWrapper<>();
-        planQuery.eq("line_id", lineId).eq("deleted_flag", 0);
+        planQuery.eq("line_id", lineId).eq("deleted_flag", 0).in("status", STATUS_DRAFT, STATUS_RELEASED);
         for (MfgProductionPlan plan : mfgProductionPlanMapper.selectList(planQuery)) {
             if (overlaps(startTime, endTime, plan.getPlannedStartTime(), plan.getPlannedEndTime())) {
                 return "计划时间与已发布生产计划重叠";
             }
         }
         return null;
+    }
+
+    private long calculateWorkingMinutes(List<CapacityWindow> windows, LocalDateTime startTime,
+                                         LocalDateTime endTime) {
+        if (startTime == null || endTime == null || !endTime.isAfter(startTime)) {
+            return 0L;
+        }
+        long seconds = 0L;
+        for (CapacityWindow window : windows) {
+            LocalDateTime overlapStart = startTime.isAfter(window.startTime()) ? startTime : window.startTime();
+            LocalDateTime overlapEnd = endTime.isBefore(window.endTime()) ? endTime : window.endTime();
+            if (overlapEnd.isAfter(overlapStart)) {
+                seconds += Duration.between(overlapStart, overlapEnd).toSeconds();
+            }
+        }
+        return (seconds + 59L) / 60L;
     }
 
     private String validateManualItem(MfgScheduleScenario scenario, MfgScheduleItem item,
@@ -1557,13 +1904,6 @@ public class MfgScheduleScenarioServiceImpl
         return new BusinessException(ResultCode.NOT_FOUND.getCode(), message);
     }
 
-    private record ManualCandidateCacheKey(Long scenarioId, Integer scenarioVersion, Long productionOrderId,
-                                           Long lineId) {
-    }
-
-    private record ManualCandidateCacheEntry(ManualScheduleCandidateLine candidate, long expiresAtNanos) {
-    }
-
     private record ManualCandidateGroupKey(Long scenarioId, Integer scenarioVersion, Long productionOrderId) {
     }
 
@@ -1586,6 +1926,60 @@ public class MfgScheduleScenarioServiceImpl
     }
 
     private record ConfirmationEntry(MfgScheduleItem item, MfgProductionOrder order) {
+    }
+
+    private static final class BoardLineAiLoad {
+        private final Long lineId;
+        private int manualItemCount;
+        private int productionPlanCount;
+        private int lateCount;
+        private BigDecimal totalPlannedQuantity = BigDecimal.ZERO;
+        private long totalPlannedMinutes;
+        private LocalDateTime earliestStartTime;
+        private LocalDateTime latestEndTime;
+
+        private BoardLineAiLoad(Long lineId) {
+            this.lineId = lineId;
+        }
+
+        private void add(ManualScheduleBoardItem item) {
+            if ("PLAN".equals(item.getSourceType())) {
+                productionPlanCount++;
+            } else {
+                manualItemCount++;
+            }
+            if (item.getPlannedQuantity() != null) {
+                totalPlannedQuantity = totalPlannedQuantity.add(item.getPlannedQuantity());
+            }
+            if (item.getPlannedStartTime() != null && item.getPlannedEndTime() != null
+                    && item.getPlannedEndTime().isAfter(item.getPlannedStartTime())) {
+                totalPlannedMinutes += Duration.between(item.getPlannedStartTime(), item.getPlannedEndTime()).toMinutes();
+            }
+            if (item.getTardinessMinutes() != null && item.getTardinessMinutes() > 0) {
+                lateCount++;
+            }
+            if (item.getPlannedStartTime() != null
+                    && (earliestStartTime == null || item.getPlannedStartTime().isBefore(earliestStartTime))) {
+                earliestStartTime = item.getPlannedStartTime();
+            }
+            if (item.getPlannedEndTime() != null
+                    && (latestEndTime == null || item.getPlannedEndTime().isAfter(latestEndTime))) {
+                latestEndTime = item.getPlannedEndTime();
+            }
+        }
+
+        private Map<String, Object> toSummary() {
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("lineId", lineId);
+            summary.put("manualItemCount", manualItemCount);
+            summary.put("productionPlanCount", productionPlanCount);
+            summary.put("lateCount", lateCount);
+            summary.put("totalPlannedQuantity", totalPlannedQuantity);
+            summary.put("totalPlannedMinutes", totalPlannedMinutes);
+            summary.put("earliestStartTime", earliestStartTime);
+            summary.put("latestEndTime", latestEndTime);
+            return summary;
+        }
     }
 
     private static final class LineAiLoad {
@@ -1696,6 +2090,10 @@ public class MfgScheduleScenarioServiceImpl
 
         private LocalDateTime startTime() {
             return startTime;
+        }
+
+        private LocalDateTime endTime() {
+            return endTime;
         }
 
         private BigDecimal capacity() {

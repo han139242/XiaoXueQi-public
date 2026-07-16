@@ -18,6 +18,7 @@ public class ManualScheduleCandidateLine {
     private Integer priorityLevel;
     private BigDecimal capacityFactor;
     private BigDecimal estimatedMinutes;
+    private Long minimumWorkingMinutes;
     private LocalDateTime earliestStartTime;
     private LocalDateTime earliestEndTime;
 }

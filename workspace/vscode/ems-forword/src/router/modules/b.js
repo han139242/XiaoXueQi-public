@@ -3,7 +3,7 @@ export default [
     path: 'ai/workbench',
     name: 'AiWorkbench',
     component: () => import('@/pages/ai/workbench.vue'),
-    meta: { title: 'AI 工作台', icon: 'bot' }
+    meta: { title: 'AI 工作台', icon: 'bot', permission: 'ai:assistant:use' }
   },
   {
     path: 'mfg/schedule-workbench',

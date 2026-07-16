@@ -38,7 +38,9 @@ const specialRules = [
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/validate$/, 'mfg:schedule-scenario:validate'],
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/orders\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
   ['post', /^\/api\/mfg\/schedule-scenario\/[^/]+\/ai-advice$/, 'mfg:schedule-scenario:ai-advice'],
+  ['post', /^\/api\/mfg\/schedule-scenario\/manual-board\/feasibility$/, 'mfg:schedule-scenario:ai-advice'],
   ['put', /^\/api\/mfg\/schedule-scenario\/[^/]+\/confirm$/, 'mfg:schedule-scenario:confirm'],
+  ['put', /^\/api\/mfg\/schedule-scenario\/[^/]+\/items\/[^/]+\/confirm$/, 'mfg:schedule-scenario:confirm'],
   ['put', /^\/api\/wms\/inbound-order\/[^/]+\/confirm$/, 'wms:inbound-order:confirm'],
   ['put', /^\/api\/wms\/inbound-order\/[^/]+\/withdraw$/, 'wms:inbound-order:withdraw'],
   ['put', /^\/api\/wms\/outbound-order\/[^/]+\/confirm$/, 'wms:outbound-order:confirm'],
@@ -80,7 +82,8 @@ export function resourcePermission(resourceKey, action = 'view') {
 
 export function resolveRequestPermission(method, rawUrl) {
   const requestMethod = String(method || '').toLowerCase()
-  const path = String(rawUrl || '').split('?')[0].replace(/\/$/, '')
+  const [rawPath] = String(rawUrl || '').split('?', 2)
+  const path = rawPath.replace(/\/$/, '')
   const special = specialRules.find(([ruleMethod, pattern]) => ruleMethod === requestMethod && pattern.test(path))
   if (special) return special[2]
   if (path === '/api/ai' || path.startsWith('/api/ai/')) return 'ai:assistant:use'

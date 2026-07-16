@@ -19,20 +19,32 @@ export function openManualScheduleDraft() {
   return request.post(`${BASE_URL}/manual-draft/open`)
 }
 
+export function getManualScheduleBoard() {
+  return request.get(`${BASE_URL}/manual-board`)
+}
+
+export function analyzeManualScheduleBoard() {
+  return request.post(`${BASE_URL}/manual-board/feasibility`, undefined, { timeout: AI_ADVICE_TIMEOUT })
+}
+
 export function getManualEligibleLines(scenarioId, productionOrderId) {
-  return request.get(`${BASE_URL}/${scenarioId}/orders/${productionOrderId}/eligible-lines`)
+  return request.get(`${BASE_URL}/${scenarioId}/orders/${productionOrderId}/eligible-lines`, { suppressErrorMessage: true })
 }
 
 export function addManualScheduleItem(scenarioId, data) {
-  return request.post(`${BASE_URL}/${scenarioId}/items`, data)
+  return request.post(`${BASE_URL}/${scenarioId}/items`, data, { suppressErrorMessage: true })
 }
 
 export function updateManualSchedulePlacement(scenarioId, scheduleItemId, data) {
-  return request.put(`${BASE_URL}/${scenarioId}/items/${scheduleItemId}/placement`, data)
+  return request.put(`${BASE_URL}/${scenarioId}/items/${scheduleItemId}/placement`, data, { suppressErrorMessage: true })
 }
 
 export function removeManualScheduleItem(scenarioId, scheduleItemId, data) {
-  return request.delete(`${BASE_URL}/${scenarioId}/items/${scheduleItemId}`, { data })
+  return request.delete(`${BASE_URL}/${scenarioId}/items/${scheduleItemId}`, { data, suppressErrorMessage: true })
+}
+
+export function confirmManualScheduleItem(scenarioId, scheduleItemId, data) {
+  return request.put(`${BASE_URL}/${scenarioId}/items/${scheduleItemId}/confirm`, data, { suppressErrorMessage: true })
 }
 
 export function validateManualScheduleDraft(scenarioId, data) {
