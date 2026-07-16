@@ -103,8 +103,8 @@ const qualityProgressWidth = computed(() => Math.min(100, Math.max(0, inspection
 const qualityDialStyle = computed(() => ({
   '--quality-angle': `${qualityProgressWidth.value * 3.6}deg`
 }))
-// 汇总运行、停机、故障和维保设备得到设备总数。
-const equipmentTotal = computed(() => ['running', 'stopped', 'fault', 'maintenance']
+// 汇总运行、待机、停机、故障和维保设备得到设备总数。
+const equipmentTotal = computed(() => ['running', 'idle', 'stopped', 'fault', 'maintenance']
   .reduce((total, key) => total + Number(equipment.value[key] || 0), 0))
 // 读取库存补货预警数量。
 const warningCount = computed(() => Number(summary.value.inventoryWarningCount || 0))
@@ -163,7 +163,6 @@ const scheduleLineRows = computed(() => {
     grouped.get(key).plans.push(plan)
   })
   return [...grouped.values()]
-    .filter((line) => line.plans.length)
     .sort((a, b) => String(a.lineCode || a.lineName).localeCompare(String(b.lineCode || b.lineName), 'zh-CN'))
 })
 
@@ -178,7 +177,9 @@ const lineStatusRows = computed(() => productionLines.value.map((line) => {
     return current >= dayjs(plan.plannedStartTime).valueOf() && current <= dayjs(plan.plannedEndTime).valueOf()
   })
   const nextPlan = currentPlan || plans.find((plan) => dayjs(plan.plannedStartTime).isAfter(now.value)) || plans[0]
-  const status = lineStatusMeta[line.status] || { label: line.status || '状态未知', tone: 'idle' }
+  const status = line.stationCount === 0
+    ? { label: '配置不完整', tone: 'incomplete' }
+    : (lineStatusMeta[line.status] || { label: line.status || '状态未知', tone: 'idle' })
   return {
     ...line,
     statusLabel: status.label,
@@ -303,9 +304,10 @@ const productionStats = computed(() => [
   }
 ])
 
-// 把设备状态对象转换为模板可循环的四类状态数组。
+// 把设备状态对象转换为模板可循环的五类状态数组。
 const equipmentItems = computed(() => [
   { key: 'running', label: '运行', value: Number(equipment.value.running || 0), tone: 'green' },
+  { key: 'idle', label: '待机', value: Number(equipment.value.idle || 0), tone: 'blue' },
   { key: 'stopped', label: '停机', value: Number(equipment.value.stopped || 0), tone: 'gray' },
   { key: 'maintenance', label: '维保', value: Number(equipment.value.maintenance || 0), tone: 'amber' },
   { key: 'fault', label: '故障', value: Number(equipment.value.fault || 0), tone: 'red' }
@@ -470,10 +472,11 @@ function formatScheduleTime(item) {
 // 并行查询计划、订单、产线和产品，再把关联ID补充为可读名称。
 async function loadProductionSchedule() {
   // 计划表只存关联ID，因此并行查询订单、产线、产品，再用Map补齐可读名称。
-  const [planResult, orderResult, lineResult, productResult] = await Promise.allSettled([
+  const [planResult, orderResult, lineResult, stationResult, productResult] = await Promise.allSettled([
     getResourcePage('/api/mfg/production-plan', { current: 1, size: 50 }),
     getResourcePage('/api/mfg/production-order', { current: 1, size: 200 }),
     getResourcePage('/api/factory/line', { current: 1, size: 200 }),
+    getResourcePage('/api/factory/station', { current: 1, size: 500 }),
     getResourcePage('/api/mdm/product', { current: 1, size: 200 })
   ])
   if (planResult.status === 'rejected') {
@@ -484,6 +487,11 @@ async function loadProductionSchedule() {
   const plans = pageRecords(planResult.value)
   const orders = new Map(optionalRecords(orderResult).map((item) => [String(item.productionOrderId), item]))
   const lines = new Map(optionalRecords(lineResult).map((item) => [String(item.lineId), item]))
+  const stationCounts = new Map()
+  optionalRecords(stationResult).forEach((station) => {
+    const key = String(station.lineId)
+    stationCounts.set(key, (stationCounts.get(key) || 0) + 1)
+  })
   const products = new Map(optionalRecords(productResult).map((item) => [String(item.productId), item]))
 
   const mappedPlans = plans.map((plan) => {
@@ -500,7 +508,10 @@ async function loadProductionSchedule() {
       statusTone: status.tone
     }
   })
-  const mappedLines = [...lines.values()]
+  const mappedLines = [...lines.values()].map((line) => ({
+    ...line,
+    stationCount: stationResult.status === 'fulfilled' ? (stationCounts.get(String(line.lineId)) || 0) : null
+  }))
   const fallbackLines = [...new Map(mappedPlans.map((plan) => [String(plan.lineId), {
     lineId: plan.lineId,
     lineCode: '',
@@ -793,6 +804,7 @@ onBeforeUnmount(() => {
                     <span>{{ line.plans.length }} 项计划 · 日产能 {{ formatNumber(line.dailyCapacity) }}</span>
                   </div>
                   <div class="schedule-row-track">
+                    <span v-if="!line.plans.length" class="schedule-row-empty">暂无有效计划</span>
                     <span
                       v-for="item in line.plans"
                       :key="item.planId"
@@ -944,6 +956,7 @@ onBeforeUnmount(() => {
                 <div><span>质检单</span><b>{{ formatNumber(inspectionCount) }}</b></div>
                 <div><span>合格</span><b>{{ formatNumber(quality.qualifiedCount) }}</b></div>
                 <div><span>不合格</span><b>{{ formatNumber(quality.unqualifiedCount) }}</b></div>
+                <div><span>待判定</span><b>{{ formatNumber(quality.pendingCount) }}</b></div>
               </div>
             </div>
           </article>
@@ -1045,6 +1058,7 @@ onBeforeUnmount(() => {
                   <small>{{ line.plans.map(formatScheduleTime).join(' / ') }}</small>
                 </div>
                 <div class="schedule-row-track">
+                  <span v-if="!line.plans.length" class="schedule-row-empty">暂无有效计划</span>
                   <span
                     v-for="item in line.plans"
                     :key="`expanded-${item.planId}`"
@@ -1482,6 +1496,15 @@ onBeforeUnmount(() => {
   background-image: linear-gradient(90deg, rgb(72 108 134 / 18%) 1px, transparent 1px);
   background-size: 16.6667% 100%;
 }
+.schedule-row-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  color: #607d91;
+  font-size: 13px;
+}
 .schedule-bar {
   position: absolute;
   top: 8px;
@@ -1690,6 +1713,7 @@ onBeforeUnmount(() => {
 .line-status-row.is-idle::after { background: #5aa9d1; }
 .line-status-row.is-stopped::after { background: #df6972; }
 .line-status-row.is-maintenance::after { background: #d99a55; }
+.line-status-row.is-incomplete::after { background: #e07e57; }
 .line-status-icon {
   display: inline-flex;
   width: 38px;
@@ -1704,6 +1728,7 @@ onBeforeUnmount(() => {
 .line-status-row.is-idle .line-status-icon { color: #6fb9df; border-color: rgb(90 169 209 / 28%); background: rgb(90 169 209 / 10%); }
 .line-status-row.is-stopped .line-status-icon { color: #ed7a82; border-color: rgb(223 105 114 / 30%); background: rgb(223 105 114 / 11%); }
 .line-status-row.is-maintenance .line-status-icon { color: #e6a65d; border-color: rgb(217 154 85 / 30%); background: rgb(217 154 85 / 11%); }
+.line-status-row.is-incomplete .line-status-icon { color: #e88864; border-color: rgb(224 126 87 / 30%); background: rgb(224 126 87 / 11%); }
 .line-status-copy { display: grid; min-width: 0; gap: 3px; }
 .line-status-copy > div { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
 .line-status-copy strong,
@@ -1715,6 +1740,7 @@ onBeforeUnmount(() => {
 .line-status-row.is-idle .line-status-copy > div > span { color: #75bce1; }
 .line-status-row.is-stopped .line-status-copy > div > span { color: #ee858c; }
 .line-status-row.is-maintenance .line-status-copy > div > span { color: #e5aa67; }
+.line-status-row.is-incomplete .line-status-copy > div > span { color: #ed916e; }
 .line-status-copy p { margin: 0; color: #a7bac7; font-size: 13px; }
 .line-status-copy small { color: #7893a6; font-size: 12px; }
 .line-status-empty {
@@ -1828,6 +1854,7 @@ onBeforeUnmount(() => {
 .equipment-bar { display: flex; height: 18px; overflow: hidden; border-radius: 3px; background: #1b3346; }
 .equipment-bar i { display: block; height: 100%; min-width: 0; }
 .equipment-bar i.is-green { background: #4bc58a; }
+.equipment-bar i.is-blue { background: #5aa9d1; }
 .equipment-bar i.is-gray { background: #718493; }
 .equipment-bar i.is-amber { background: #d99a55; }
 .equipment-bar i.is-red { background: #df6972; }
@@ -1836,6 +1863,7 @@ onBeforeUnmount(() => {
 .equipment-grid > div { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 9px; }
 .equipment-grid i { width: 9px; height: 9px; border-radius: 2px; }
 .equipment-grid i.is-green { background: #4bc58a; }
+.equipment-grid i.is-blue { background: #5aa9d1; }
 .equipment-grid i.is-gray { background: #718493; }
 .equipment-grid i.is-amber { background: #d99a55; }
 .equipment-grid i.is-red { background: #df6972; }

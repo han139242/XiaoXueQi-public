@@ -32,22 +32,25 @@ export function createDashboardPreview() {
     // 质量统计和设备状态分别供饼图、指标卡使用。
     quality: {
       inspectionCount: 34,
+      evaluatedCount: 33,
+      pendingCount: 1,
       qualifiedCount: 31,
-      unqualifiedCount: 3,
-      qualifiedRate: 91.18
+      unqualifiedCount: 2,
+      qualifiedRate: 93.94
     },
     equipment: {
       running: 42,
+      idle: 2,
       stopped: 6,
       fault: 2,
       maintenance: 3
     },
     lines: [
-      { lineId: 1, lineCode: 'LINE-TRAIN-01', lineName: '训练球1号线', dailyCapacity: 800, status: 'RUNNING' },
-      { lineId: 2, lineCode: 'LINE-MATCH-01', lineName: '比赛球1号线', dailyCapacity: 500, status: 'RUNNING' },
-      { lineId: 4, lineCode: 'LINE-TRAIN-02', lineName: '训练球2号线', dailyCapacity: 800, status: 'IDLE' },
-      { lineId: 5, lineCode: 'LINE-MATCH-02', lineName: '比赛球2号线', dailyCapacity: 500, status: 'MAINTENANCE' },
-      { lineId: 6, lineCode: 'LINE-MATCH-03', lineName: '比赛球3号线', dailyCapacity: 500, status: 'STOPPED' }
+      { lineId: 1, lineCode: 'LINE-TRAIN-01', lineName: '训练球1号线', dailyCapacity: 800, stationCount: 7, status: 'RUNNING' },
+      { lineId: 2, lineCode: 'LINE-MATCH-01', lineName: '比赛球1号线', dailyCapacity: 500, stationCount: 7, status: 'RUNNING' },
+      { lineId: 4, lineCode: 'LINE-TRAIN-02', lineName: '训练球2号线', dailyCapacity: 800, stationCount: 0, status: 'RUNNING' },
+      { lineId: 5, lineCode: 'LINE-MATCH-02', lineName: '比赛球2号线', dailyCapacity: 500, stationCount: 0, status: 'RUNNING' },
+      { lineId: 6, lineCode: 'LINE-MATCH-03', lineName: '比赛球3号线', dailyCapacity: 500, stationCount: 0, status: 'RUNNING' }
     ],
     // 生产计划时间轴示例，不同 status 用来演示各类状态颜色。
     schedule: [

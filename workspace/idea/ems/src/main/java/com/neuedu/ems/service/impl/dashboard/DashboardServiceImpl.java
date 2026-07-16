@@ -148,13 +148,17 @@ public class DashboardServiceImpl implements DashboardService {
         long unqualifiedCount = orders.stream()
                 .filter(item -> BusinessStatus.Quality.FAIL.equals(item.getInspectionResult()))
                 .count();
-        BigDecimal qualifiedRate = inspectionCount == 0
+        long evaluatedCount = qualifiedCount + unqualifiedCount;
+        long pendingCount = inspectionCount - evaluatedCount;
+        BigDecimal qualifiedRate = evaluatedCount == 0
                 ? BigDecimal.ZERO
                 : BigDecimal.valueOf(qualifiedCount)
                         .multiply(BigDecimal.valueOf(100))
-                        .divide(BigDecimal.valueOf(inspectionCount), 2, RoundingMode.HALF_UP);
+                        .divide(BigDecimal.valueOf(evaluatedCount), 2, RoundingMode.HALF_UP);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("inspectionCount", inspectionCount);
+        result.put("evaluatedCount", evaluatedCount);
+        result.put("pendingCount", pendingCount);
         result.put("qualifiedCount", qualifiedCount);
         result.put("unqualifiedCount", unqualifiedCount);
         result.put("qualifiedRate", qualifiedRate);
@@ -169,6 +173,7 @@ public class DashboardServiceImpl implements DashboardService {
     public Map<String, Object> getEquipmentStatus() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("running", countEquipmentByStatus(BusinessStatus.Equipment.RUNNING));
+        result.put("idle", countEquipmentByStatus(BusinessStatus.Equipment.IDLE));
         result.put("stopped", countEquipmentByStatus(BusinessStatus.Equipment.STOPPED));
         result.put("fault", countEquipmentByStatus(BusinessStatus.Equipment.FAULT));
         result.put("maintenance", countEquipmentByStatuses(
