@@ -95,9 +95,6 @@ const todayOutput = computed(() => todayQualified.value + todayDefect.value)
 const reportPassRate = computed(() => todayOutput.value
   ? (todayQualified.value / todayOutput.value) * 100
   : null)
-const outputDialStyle = computed(() => ({
-  '--output-angle': `${Math.min(100, Math.max(0, reportPassRate.value || 0)) * 3.6}deg`
-}))
 // 读取当前质量检验总次数。
 const inspectionCount = computed(() => Number(quality.value.inspectionCount || 0))
 const qualifiedInspectionCount = computed(() => Number(quality.value.qualifiedCount || 0))
@@ -144,6 +141,17 @@ const trendRows = computed(() => trend.value.map((item) => {
 const hasTrendData = computed(() => trendRows.value.some((item) => item.output > 0))
 // 汇总七日总报工产量。
 const sevenDayOutput = computed(() => trendRows.value.reduce((total, item) => total + item.output, 0))
+const sevenDayQualified = computed(() => trendRows.value
+  .reduce((total, item) => total + Number(item.qualifiedQuantity || 0), 0))
+const sevenDayDefect = computed(() => trendRows.value
+  .reduce((total, item) => total + Number(item.defectQuantity || 0), 0))
+const sevenDayReportDays = computed(() => trendRows.value.filter((item) => item.output > 0).length)
+const sevenDayReportPassRate = computed(() => sevenDayOutput.value
+  ? (sevenDayQualified.value / sevenDayOutput.value) * 100
+  : null)
+const sevenDayOutputDialStyle = computed(() => ({
+  '--output-angle': `${Math.min(100, Math.max(0, sevenDayReportPassRate.value || 0)) * 3.6}deg`
+}))
 
 // 统计需要计划、设备、仓储或质量人员处理的关注类别。
 const riskCategoryCount = computed(() => [pendingProductionOrderCount.value, faultCount.value, warningCount.value, todayDefect.value, openNonconformingCount.value]
@@ -1136,8 +1144,8 @@ onBeforeUnmount(() => {
           <article class="screen-panel execution-panel">
             <header class="panel-header compact">
               <div>
-                <strong>今日生产达成</strong>
-                <span>最终包装报工与执行任务</span>
+                <strong>近 7 日生产达成</strong>
+                <span>最终包装报工汇总</span>
               </div>
               <aside class="panel-tools">
                 <span class="live-badge"><i />60 秒刷新</span>
@@ -1148,19 +1156,19 @@ onBeforeUnmount(() => {
             </header>
             <div class="execution-overview">
               <div class="output-dial-stack">
-                <span>报工合格率</span>
-                <div class="output-dial" :class="{ 'is-empty': reportPassRate === null }" :style="outputDialStyle">
+                <span>近 7 日合格率</span>
+                <div class="output-dial" :class="{ 'is-empty': sevenDayReportPassRate === null }" :style="sevenDayOutputDialStyle">
                   <div>
-                    <strong>{{ formatPercent(reportPassRate) }}<small v-if="reportPassRate !== null">%</small></strong>
-                    <em>{{ reportPassRate === null ? '暂无报工' : '最终包装' }}</em>
+                    <strong>{{ formatPercent(sevenDayReportPassRate) }}<small v-if="sevenDayReportPassRate !== null">%</small></strong>
+                    <em>{{ sevenDayReportPassRate === null ? '暂无报工' : '近 7 日汇总' }}</em>
                   </div>
                 </div>
               </div>
               <div class="execution-metrics">
-                <div><span>今日总产量</span><b>{{ formatNumber(todayOutput) }}<small>件</small></b></div>
-                <div class="is-qualified"><span>合格产量</span><b>{{ formatNumber(todayQualified) }}</b></div>
-                <div class="is-defect"><span>不良产量</span><b>{{ formatNumber(todayDefect) }}</b></div>
-                <div><span>执行中任务</span><b>{{ formatNumber(summary.runningTaskCount) }}<small>项</small></b></div>
+                <div><span>近 7 日总产量</span><b>{{ formatNumber(sevenDayOutput) }}<small>件</small></b></div>
+                <div class="is-qualified"><span>合格产量</span><b>{{ formatNumber(sevenDayQualified) }}</b></div>
+                <div class="is-defect"><span>不良产量</span><b>{{ formatNumber(sevenDayDefect) }}</b></div>
+                <div><span>有效报工天数</span><b>{{ formatNumber(sevenDayReportDays) }}<small>天</small></b></div>
               </div>
             </div>
           </article>
