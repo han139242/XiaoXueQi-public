@@ -44,10 +44,12 @@ const aiAdviceStale = ref(false)
 const aiAdviceGeneratedAt = ref('')
 const boardFingerprint = ref('')
 const visibleLineIds = ref([])
-// 时间轴允许在50%到200%左右的视图范围内缩放，默认值作为百分比换算基准。
-const TIMELINE_ZOOM_MIN = 0.75
+// 缩放仅放大画布以查看细节，不扩展真实排程时间范围。
+const TIMELINE_ZOOM_MIN = 1.5
 const TIMELINE_ZOOM_MAX = 3
 const TIMELINE_ZOOM_DEFAULT = 1.5
+// 非工作时段仍保留在时间轴上，但以更小的视觉权重显示，避免跨日计划留下大段空白。
+const NON_WORKING_TIME_SCALE = 0.14
 const timelineZoom = ref(TIMELINE_ZOOM_DEFAULT)
 const pendingFilter = reactive({ keyword: '', productId: '', deliveryDate: '' })
 const placementForm = reactive({ lineId: '', startTime: '', endTime: '', remark: '' })
@@ -56,7 +58,6 @@ const lineToAdd = ref('')
 let candidateRequestSequence = 0
 
 // 时间轴可选择的刻度间隔，单位为小时；系统按当前宽度挑选最接近的一项。
-const timelineTickSteps = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168]
 // 将下拉选项数组转成Map，使页面按ID查名称时不必每次遍历整个数组。
 const lineMap = computed(() => new Map(lineOptions.value.map((item) => [String(item.value), item.label])))
 // 建立产品ID到产品名称的快速映射。
@@ -157,27 +158,73 @@ const timelineEnd = computed(() => {
   const elapsedMinutes = horizonEnd.value.diff(dayStart, 'minute', true)
   return dayStart.add((Math.floor(elapsedMinutes / 720) + 1) * 720, 'minute')
 })
-// 缩小时扩大可视时间范围，放大时保持基础范围。
-const timelineViewScale = computed(() => Math.max(1, TIMELINE_ZOOM_DEFAULT / timelineZoom.value))
-// 根据缩放比例向前扩展时间轴可视起点。
-const timelineViewStart = computed(() => {
-  if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return horizonStart.value
-  const range = timelineEnd.value.diff(horizonStart.value)
-  const padding = (range * timelineViewScale.value - range) / 2
-  return horizonStart.value.subtract(padding, 'millisecond')
+// 视图范围始终使用真实排程起点和已取整的末端，不因缩放产生额外空白日期。
+const timelineViewStart = computed(() => horizonStart.value)
+const timelineViewEnd = computed(() => timelineEnd.value)
+// 当前时间轴展示的产线，决定哪些有效班次会占用正常显示宽度。
+const timelineLineIds = computed(() => new Set([
+  ...visibleLineIds.value.map(String),
+  ...scheduledItems.value.map((item) => String(item.lineId))
+]))
+// 后端返回的窗口与产能校验共用同一份周历计算，前端不自行猜测班次。
+const timelineWorkingWindows = computed(() => (board.value?.workingWindows || [])
+  .filter((window) => timelineLineIds.value.size === 0 || timelineLineIds.value.has(String(window.lineId))))
+// 以产线为单位保存真实有效班次，不能由订单空档或其他产线的班次推断。
+const timelineWorkingWindowsByLine = computed(() => {
+  const windowsByLine = new Map()
+  timelineWorkingWindows.value.forEach((window) => {
+    const start = dayjs(window.startTime).valueOf()
+    const end = dayjs(window.endTime).valueOf()
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return
+    const lineId = String(window.lineId)
+    const lineWindows = windowsByLine.get(lineId) || []
+    lineWindows.push({ start, end })
+    windowsByLine.set(lineId, lineWindows)
+  })
+  return windowsByLine
 })
-// 根据缩放比例向后扩展时间轴可视终点。
-const timelineViewEnd = computed(() => {
-  if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return timelineEnd.value
-  const range = timelineEnd.value.diff(horizonStart.value)
-  const padding = (range * timelineViewScale.value - range) / 2
-  return timelineEnd.value.add(padding, 'millisecond')
+// 将真实时间切分为工作段和非工作段，再为非工作段分配压缩后的视觉长度。
+const timelineDisplaySegments = computed(() => {
+  const start = timelineViewStart.value
+  const end = timelineViewEnd.value
+  if (!start.isValid() || !end.isValid() || !end.isAfter(start)) return []
+  const startValue = start.valueOf()
+  const endValue = end.valueOf()
+  const workingWindows = [...timelineWorkingWindowsByLine.value.values()].flat()
+    .filter((window) => Number.isFinite(window.start) && Number.isFinite(window.end) && window.end > startValue && window.start < endValue)
+    .map((window) => ({ start: Math.max(startValue, window.start), end: Math.min(endValue, window.end) }))
+  if (!workingWindows.length) {
+    return [{ start: startValue, end: endValue, working: true, displayStart: 0, displayEnd: 1 }]
+  }
+  const boundaries = new Set([startValue, endValue])
+  workingWindows.forEach((window) => {
+    boundaries.add(window.start)
+    boundaries.add(window.end)
+  })
+  const points = [...boundaries].sort((left, right) => left - right)
+  const segments = []
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const segmentStart = points[index]
+    const segmentEnd = points[index + 1]
+    if (segmentEnd <= segmentStart) continue
+    const working = workingWindows.some((window) => window.start <= segmentStart && window.end >= segmentEnd)
+    segments.push({ start: segmentStart, end: segmentEnd, working, weight: (segmentEnd - segmentStart) * (working ? 1 : NON_WORKING_TIME_SCALE) })
+  }
+  const totalWeight = segments.reduce((total, segment) => total + segment.weight, 0)
+  if (totalWeight <= 0) return []
+  let usedWeight = 0
+  return segments.map((segment) => {
+    const displayStart = usedWeight / totalWeight
+    usedWeight += segment.weight
+    return { ...segment, displayStart, displayEnd: usedWeight / totalWeight }
+  })
 })
 // 根据排产总天数和缩放比例计算横向画布像素宽度。
 const timelineCanvasWidth = computed(() => {
-  if (!horizonStart.value.isValid() || !timelineEnd.value.isValid()) return 960
-  const totalDays = Math.max(1, timelineEnd.value.diff(horizonStart.value, 'hour', true) / 24)
-  const baseWidth = Math.max(960, totalDays * 300)
+  if (!timelineDisplaySegments.value.length) return 960
+  const weightedHours = timelineDisplaySegments.value.reduce((total, segment) => total
+    + (segment.end - segment.start) / 3600000 * (segment.working ? 1 : NON_WORKING_TIME_SCALE), 0)
+  const baseWidth = Math.max(960, weightedHours * 12.5)
   return Math.round(baseWidth * Math.max(1, timelineZoom.value / TIMELINE_ZOOM_DEFAULT))
 })
 // 将内部缩放值转换为用户看到的百分比。
@@ -185,30 +232,21 @@ const timelineZoomPercent = computed(() => Math.round(timelineZoom.value / TIMEL
 // 根据可视范围和画布宽度动态生成日期时间刻度。
 const timelineTicks = computed(() => {
   // 根据可视时间范围和画布宽度选择合适刻度，缩放后仍保持刻度数量可读。
-  if (!timelineViewStart.value.isValid() || !timelineViewEnd.value.isValid() || !timelineViewEnd.value.isAfter(timelineViewStart.value)) return []
-  const totalHours = timelineViewEnd.value.diff(timelineViewStart.value, 'hour', true)
-  const targetTickCount = Math.max(2, Math.floor(timelineCanvasWidth.value / 100))
-  const desiredStep = totalHours / targetTickCount
-  const stepHours = timelineTickSteps.find((step) => step >= desiredStep) || timelineTickSteps.at(-1)
-  const ticks = []
-  let point = timelineViewStart.value.startOf('day')
-  while (point.isBefore(timelineViewStart.value)) point = point.add(stepHours, 'hour')
+  const segments = timelineDisplaySegments.value
+  if (!segments.length) return []
   let previousDate = ''
-  const appendTick = (tickPoint) => {
+  return segments.map((segment) => {
+    const tickPoint = dayjs(segment.start)
     const dateKey = tickPoint.format('YYYY-MM-DD')
-    ticks.push({
+    const tick = {
       key: tickPoint.valueOf(),
-      left: `${Math.min(100, Math.max(0, tickPoint.diff(timelineViewStart.value) / timelineViewEnd.value.diff(timelineViewStart.value) * 100))}%`,
+      left: `${timelineVisualPosition(tickPoint)}%`,
       date: dateKey === previousDate ? '' : tickPoint.format('MM-DD'),
       detail: tickPoint.format('HH:mm')
-    })
+    }
     previousDate = dateKey
-  }
-  while (point.isBefore(timelineViewEnd.value) || point.isSame(timelineViewEnd.value)) {
-    appendTick(point)
-    point = point.add(stepHours, 'hour')
-  }
-  return ticks
+    return tick
+  })
 })
 
 // 根据产品ID读取产品名称，找不到时显示带ID的兜底文字。
@@ -321,13 +359,25 @@ function timelineGeometry(item) {
   // 把计划开始/结束时间换算为时间轴上的百分比位置和宽度。
   const start = dayjs(item.plannedStartTime)
   const end = dayjs(item.plannedEndTime)
-  const total = timelineViewEnd.value.diff(timelineViewStart.value)
-  if (!start.isValid() || !end.isValid() || total <= 0) return { start: 0, width: 0, end: 0 }
-  const left = Math.max(0, Math.min(100, start.diff(timelineViewStart.value) / total * 100))
-  const rawWidth = end.diff(start) / total * 100
-  // 时间块宽度必须与计划时长一致；空间不足时，完整信息仍可通过悬停查看。
-  const width = Math.min(100 - left, Math.max(0, rawWidth))
+  if (!start.isValid() || !end.isValid() || !end.isAfter(start)) return { start: 0, width: 0, end: 0 }
+  const left = timelineVisualPosition(start)
+  const right = timelineVisualPosition(end)
+  // 跨班计划使用起止时刻的非线性映射，条形连续越过被压缩的停工段。
+  const width = Math.min(100 - left, Math.max(0, right - left))
   return { start: left, width, end: Math.min(100, left + width) }
+}
+
+function timelineVisualPosition(value) {
+  const point = dayjs(value)
+  const segments = timelineDisplaySegments.value
+  if (!point.isValid() || !segments.length) return 0
+  const pointValue = point.valueOf()
+  if (pointValue <= segments[0].start) return 0
+  const last = segments.at(-1)
+  if (pointValue >= last.end) return 100
+  const segment = segments.find((item) => pointValue <= item.end) || last
+  const fraction = (pointValue - segment.start) / (segment.end - segment.start)
+  return Math.max(0, Math.min(100, (segment.displayStart + fraction * (segment.displayEnd - segment.displayStart)) * 100))
 }
 
 // 根据几何信息和重叠轨道号生成时间块行内样式。
@@ -772,8 +822,8 @@ onMounted(refreshWorkbench)
         <div v-if="selectedIsManual" class="capacity-hint">
           <AppIcon name="activity" :size="17" />
           <div v-if="candidateLoading"><strong>正在核算最短生产用时</strong><span>根据订单数量和所选产线当前产能计算</span></div>
-          <div v-else-if="placementMinimumWorkingMinutes"><strong>建议至少预留 {{ formatDurationHours(placementMinimumWorkingMinutes) }} 小时产线工作时间</strong><span>订单数量 {{ formatNumber(selectedItem?.plannedQuantity, 4) }}，按 {{ placementLine?.lineCode || placementLine?.lineName || lineLabel(placementForm.lineId) }} 当前产能与班次核算；下班和停工时间不计入工作时长，保存时将按所选时段再次校验。</span></div>
-          <div v-else><strong>将按产线班次核算可用工作时间</strong><span>下班和停工时间不计入工作时长；请先选择可生产产线，再保存安排。</span></div>
+          <div v-else-if="placementMinimumWorkingMinutes"><strong>建议至少预留 {{ formatDurationHours(placementMinimumWorkingMinutes) }} 小时产线工作时间</strong><span>订单数量 {{ formatNumber(selectedItem?.plannedQuantity, 4) }}，按 {{ placementLine?.lineCode || placementLine?.lineName || lineLabel(placementForm.lineId) }} 当前产能与班次核算；允许跨越下班和停工时段，但开始、结束时刻必须落在有效班次内。</span></div>
+          <div v-else><strong>将按产线班次核算可用工作时间</strong><span>允许跨越下班和停工时段，跨越部分不计入工作时长；开始、结束时刻仍需落在有效班次内。</span></div>
         </div>
 
         <el-form-item label="生产时间">

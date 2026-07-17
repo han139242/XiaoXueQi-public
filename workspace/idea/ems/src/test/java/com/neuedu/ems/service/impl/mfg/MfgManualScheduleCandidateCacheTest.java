@@ -26,15 +26,18 @@ import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.vo.mfg.ManualScheduleCandidateLine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -46,6 +49,7 @@ import static org.mockito.Mockito.never;
 class MfgManualScheduleCandidateCacheTest {
 
     private MfgScheduleScenarioServiceImpl service;
+    private MfgScheduleScenarioMapper scenarioMapper;
     private MfgScheduleItemMapper itemMapper;
     private MfgProductionPlanMapper planMapper;
     private MfgLineProductCapabilityMapper capabilityMapper;
@@ -58,7 +62,7 @@ class MfgManualScheduleCandidateCacheTest {
     @BeforeEach
     void setUp() {
         service = new MfgScheduleScenarioServiceImpl();
-        MfgScheduleScenarioMapper scenarioMapper = mock(MfgScheduleScenarioMapper.class);
+        scenarioMapper = mock(MfgScheduleScenarioMapper.class);
         itemMapper = mock(MfgScheduleItemMapper.class);
         MfgProductionOrderMapper orderMapper = mock(MfgProductionOrderMapper.class);
         planMapper = mock(MfgProductionPlanMapper.class);
@@ -97,7 +101,7 @@ class MfgManualScheduleCandidateCacheTest {
         order.setProductId(301L);
         order.setOrderQuantity(BigDecimal.TEN);
         order.setDeliveryDate(LocalDate.now().plusDays(7));
-        order.setStatus(BusinessStatus.Document.RELEASED);
+        order.setStatus(BusinessStatus.Document.DRAFT);
         when(orderMapper.selectOne(any())).thenReturn(order);
         when(planMapper.selectCount(any())).thenReturn(0L);
         when(planMapper.selectList(any())).thenReturn(List.of());
@@ -202,6 +206,30 @@ class MfgManualScheduleCandidateCacheTest {
     }
 
     @Test
+    void allowsPlacementAcrossNonWorkingNightWhenBothBoundariesAreInActiveShifts() {
+        LocalDate startDate = LocalDate.now().plusDays(7)
+                .with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY));
+        List<MfgLineCalendarRule> allWeekRules = new ArrayList<>();
+        for (int dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek++) {
+            MfgLineCalendarRule rule = new MfgLineCalendarRule();
+            rule.setLineId(601L);
+            rule.setShiftId(901L);
+            rule.setDayOfWeek(dayOfWeek);
+            rule.setEffectiveFrom(startDate.minusDays(1));
+            rule.setEffectiveTo(startDate.plusDays(7));
+            rule.setCapacityFactor(BigDecimal.ONE);
+            rule.setStatus("ENABLE");
+            allWeekRules.add(rule);
+        }
+        when(calendarRuleMapper.selectList(any())).thenReturn(allWeekRules);
+
+        ManualScheduleCandidateLine result = service.validatePlanningPlacement(201L, 601L,
+                startDate.atTime(15, 55), startDate.plusDays(1).atTime(8, 5));
+
+        assertEquals(601L, result.getLineId());
+    }
+
+    @Test
     void restoresRemovedItemWhenOrderIsAddedAgain() {
         MfgScheduleItem removed = new MfgScheduleItem();
         removed.setScheduleItemId(402L);
@@ -223,5 +251,58 @@ class MfgManualScheduleCandidateCacheTest {
         assertEquals(0, result.getDeletedFlag());
         verify(itemMapper, never()).insert(any(MfgScheduleItem.class));
         verify(itemMapper).update(any(), any());
+    }
+
+    @Test
+    void extendsManualDraftHorizonWhenPlacementEndsAfterItsPreviousWindow() {
+        LocalDate placementDate = LocalDate.now().plusDays(7);
+        MfgScheduleScenario scenario = new MfgScheduleScenario();
+        scenario.setScenarioId(101L);
+        scenario.setAlgorithmCode("MANUAL_BOARD");
+        scenario.setStatus("DRAFT");
+        scenario.setVersion(0);
+        scenario.setHorizonStart(LocalDate.now().atStartOfDay());
+        scenario.setHorizonEnd(placementDate.minusDays(1).atTime(16, 0));
+        when(scenarioMapper.selectOne(any())).thenReturn(scenario);
+
+        MfgScheduleItem item = new MfgScheduleItem();
+        item.setScheduleItemId(401L);
+        item.setScenarioId(101L);
+        item.setProductionOrderId(201L);
+        item.setLineId(601L);
+        item.setDecisionSource("MANUAL");
+        item.setVersion(0);
+        item.setPlannedStartTime(placementDate.minusDays(1).atTime(8, 0));
+        item.setPlannedEndTime(placementDate.minusDays(1).atTime(9, 0));
+        when(itemMapper.selectOne(any())).thenReturn(item);
+        when(itemMapper.selectList(any())).thenReturn(List.of(item));
+        when(itemMapper.updateById(any(MfgScheduleItem.class))).thenAnswer(invocation -> {
+            MfgScheduleItem update = invocation.getArgument(0);
+            item.setLineId(update.getLineId());
+            item.setPlannedStartTime(update.getPlannedStartTime());
+            item.setPlannedEndTime(update.getPlannedEndTime());
+            return 1;
+        });
+
+        MfgLineCalendarRule placementRule = new MfgLineCalendarRule();
+        placementRule.setLineId(601L);
+        placementRule.setShiftId(901L);
+        placementRule.setDayOfWeek(placementDate.getDayOfWeek().getValue());
+        placementRule.setEffectiveFrom(placementDate.minusDays(1));
+        placementRule.setEffectiveTo(placementDate.plusDays(1));
+        placementRule.setCapacityFactor(BigDecimal.ONE);
+        placementRule.setStatus("ENABLE");
+        when(calendarRuleMapper.selectList(any())).thenReturn(List.of(placementRule));
+
+        LocalDateTime placementStart = placementDate.atTime(8, 0);
+        LocalDateTime placementEnd = placementDate.atTime(9, 0);
+        MfgScheduleItem result = service.updateManualPlacement(101L, 401L, 0, 0, 601L,
+                placementStart, placementEnd, null, 1L);
+
+        assertEquals(placementEnd, result.getPlannedEndTime());
+        ArgumentCaptor<MfgScheduleScenario> scenarioCaptor = ArgumentCaptor.forClass(MfgScheduleScenario.class);
+        verify(scenarioMapper).updateById(scenarioCaptor.capture());
+        assertEquals(placementEnd, scenarioCaptor.getValue().getHorizonEnd());
+        assertTrue(scenarioCaptor.getValue().getHorizonStart().isEqual(scenario.getHorizonStart()));
     }
 }

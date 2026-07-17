@@ -58,7 +58,7 @@ export default [
       status: { type: 'select', options: optionSets.productionOrder, create: false, edit: false },
       createdTime: { form: false, width: 170 }
     },
-    // 只有DRAFT草稿允许普通编辑和删除，其余状态必须走下达、撤回等业务动作。
+    // 新建订单先进入智能排产工作台；确认生成正式计划后才切换为已排产。
     canEdit: (row) => row.status === 'DRAFT', canDelete: (row) => row.status === 'DRAFT', lockedReason: '只有草稿生产订单可以编辑或删除',
     // masterDetail描述1:N关系：选中订单后，下方按productionOrderId查询关联生产计划。
     masterDetail: {
@@ -69,7 +69,6 @@ export default [
     },
     // actions生成行内“更多”菜单；visible控制状态，path/method决定调用哪个后端命令接口。
     actions: [
-      { key: 'release', label: '提交排产', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/production-order/${row.productionOrderId}/release`, visible: (row) => row.status === 'DRAFT', fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) },
       { key: 'generate-plan', label: '编制计划草稿', icon: 'calendar', method: 'post', type: 'primary', detailKey: 'mfg-production-plan', detailCount: 'zero', path: (row) => `/api/mfg/production-plan/generate/${row.productionOrderId}`, visible: (row) => row.status === 'RELEASED', fields: [field('lineId', { required: true, type: 'reference', reference: 'factory-line' }), field('plannedStartTime', { required: true, type: 'datetime' }), field('plannedEndTime', { required: true, type: 'datetime' }), field('plannedQuantity', { required: true, type: 'number', min: 0.0001, defaultValue: (row) => row.orderQuantity }), field('remark', { type: 'textarea' })] },
       { key: 'view-plans', label: '生产计划详情', icon: 'arrow', kind: 'navigate', detailKey: 'mfg-production-plan', detailCount: 'positive', targetResource: 'mfg-production-plan', query: (row) => ({ productionOrderId: row.productionOrderId, from: row.productionOrderNo }) },
       { key: 'withdraw', label: '撤回修改', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/production-order/${row.productionOrderId}/withdraw`, visible: (row) => row.status === 'RELEASED', fields: [field('remark', { label: '撤回原因（选填）', type: 'textarea' })], previewPatch: () => ({ status: 'DRAFT' }) }

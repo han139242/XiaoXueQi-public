@@ -55,7 +55,8 @@ const lineStatusMeta = {
   RUNNING: { label: '运行中', tone: 'running' },
   IDLE: { label: '待机', tone: 'idle' },
   STOPPED: { label: '已停机', tone: 'stopped' },
-  MAINTENANCE: { label: '维保中', tone: 'maintenance' }
+  MAINTENANCE: { label: '计划保养', tone: 'maintenance' },
+  MAINTAINING: { label: '计划保养', tone: 'maintenance' }
 }
 
 // 生成固定画布当前的平移和缩放CSS transform。
@@ -93,6 +94,9 @@ const todayOutput = computed(() => todayQualified.value + todayDefect.value)
 const reportPassRate = computed(() => todayOutput.value
   ? (todayQualified.value / todayOutput.value) * 100
   : null)
+const outputDialStyle = computed(() => ({
+  '--output-angle': `${Math.min(100, Math.max(0, reportPassRate.value || 0)) * 3.6}deg`
+}))
 // 读取当前质量检验总次数。
 const inspectionCount = computed(() => Number(quality.value.inspectionCount || 0))
 const qualifiedInspectionCount = computed(() => Number(quality.value.qualifiedCount || 0))
@@ -103,9 +107,9 @@ const pendingInspectionCount = computed(() => Math.max(0, inspectionCount.value 
 const inspectionPassRate = computed(() => evaluatedInspectionCount.value
   ? (qualifiedInspectionCount.value / evaluatedInspectionCount.value) * 100
   : null)
-// 有不合格处理数据时优先展示处理完成率；权限不足或无异常时回退到一次检验合格率。
-const qualityFocusRate = computed(() => qualityClosure.value.rate ?? inspectionPassRate.value)
-const qualityFocusLabel = computed(() => qualityClosure.value.rate === null ? '一次检验合格率' : '不合格处理完成率')
+// 主质量指标固定为一次检验合格率，避免与不合格处理完成率混为同一口径。
+const qualityFocusRate = computed(() => inspectionPassRate.value)
+const qualityFocusLabel = computed(() => '一次检验合格率')
 // 把质量主读数限制在0到100之间，供环形进度使用。
 const qualityProgressWidth = computed(() => Math.min(100, Math.max(0, qualityFocusRate.value || 0)))
 // 将百分比换算为圆形质量仪表盘需要的角度CSS变量。
@@ -179,6 +183,12 @@ const scheduleRows = computed(() => schedulePlans.value
     return { ...item, statusLabel: status.label, statusTone: status.tone }
   })
   .sort((a, b) => dayjs(a.plannedStartTime).valueOf() - dayjs(b.plannedStartTime).valueOf()))
+const scheduledLineCount = computed(() => new Set(scheduleRows.value.map((item) => String(item.lineId))).size)
+const scheduledQuantity = computed(() => scheduleRows.value
+  .reduce((total, item) => total + Number(item.plannedQuantity || 0), 0))
+const scheduleSummaryText = computed(() => scheduleRows.value.length
+  ? `${scheduledLineCount.value} 条产线 · ${scheduleRows.value.length} 项计划 · ${formatNumber(scheduledQuantity.value)} 件`
+  : '当前窗口暂无生产计划')
 // 同一产线的多个计划共用一条时间轴，避免计划多时重复显示产线名称。
 const scheduleLineRows = computed(() => {
   const grouped = new Map(productionLines.value.map((line) => [String(line.lineId), { ...line, plans: [] }]))
@@ -203,6 +213,7 @@ const scheduleLineRows = computed(() => {
         if (line.plans.some((plan) => plan.status === 'RUNNING')) return 1
         if (line.plans.length) return 2
         if (line.stationCount === 0) return 4
+        if (['MAINTENANCE', 'MAINTAINING'].includes(line.status)) return 5
         return 3
       }
       return priority(a) - priority(b)
@@ -223,11 +234,18 @@ const lineStatusRows = computed(() => productionLines.value.map((line) => {
   })
   const nextPlan = plans.find((plan) => dayjs(plan.plannedStartTime).isAfter(now.value))
   const focusPlan = lineOverduePlans[0] || currentPlan || nextPlan || null
+  const isMaintaining = ['MAINTENANCE', 'MAINTAINING'].includes(line.status)
   const status = line.stationCount === 0
     ? { label: '配置不完整', tone: 'incomplete' }
     : lineOverduePlans.length
       ? { label: `${lineOverduePlans.length}项计划逾期`, tone: 'overdue' }
-      : (lineStatusMeta[line.status] || { label: line.status || '状态未知', tone: 'idle' })
+      : currentPlan?.status === 'RUNNING'
+        ? { label: '生产中', tone: 'running' }
+        : currentPlan || nextPlan
+          ? { label: '待开工', tone: 'released' }
+          : isMaintaining
+            ? lineStatusMeta[line.status]
+            : { label: '待机', tone: 'idle' }
   return {
     ...line,
     statusLabel: status.label,
@@ -246,6 +264,7 @@ const lineStatusRows = computed(() => productionLines.value.map((line) => {
     if (line.currentPlan) return 1
     if (line.nextPlan) return 2
     if (line.stationCount === 0) return 4
+    if (line.statusTone === 'maintenance') return 5
     return 3
   }
   return priority(a) - priority(b)
@@ -265,17 +284,39 @@ const scheduleWindow = computed(() => {
 
   const earliest = Math.min(...scheduleRows.value.map((item) => dayjs(item.plannedStartTime).valueOf()))
   const latest = Math.max(...scheduleRows.value.map((item) => dayjs(item.plannedEndTime).valueOf()))
-  const start = dayjs(earliest).startOf('hour')
+  let start = dayjs(earliest).startOf('hour')
   let end = dayjs(latest).add(1, 'hour').startOf('hour')
   if (end.diff(start, 'hour', true) < 8) {
     end = start.add(8, 'hour')
   }
   const duration = end.valueOf() - start.valueOf()
-  const tickFormat = duration <= 36 * 60 * 60 * 1000 ? 'HH:mm' : 'MM-DD HH:mm'
+  if (duration > 36 * 60 * 60 * 1000) {
+    const firstShiftStart = dayjs(earliest).startOf('day').hour(8)
+    start = dayjs(earliest).isBefore(firstShiftStart) ? dayjs(earliest).startOf('hour') : firstShiftStart
+    const lastShiftEnd = dayjs(latest).startOf('day').hour(20)
+    end = dayjs(latest).isAfter(lastShiftEnd) ? dayjs(latest).add(1, 'hour').startOf('hour') : lastShiftEnd
+    const longDuration = end.valueOf() - start.valueOf()
+    const tickValues = []
+    for (let cursor = start; cursor.isBefore(end); cursor = cursor.add(1, 'day')) {
+      tickValues.push(cursor)
+    }
+    if (!tickValues.length || end.diff(tickValues.at(-1), 'hour', true) >= 16) {
+      tickValues.push(end)
+    }
+    return {
+      start,
+      end,
+      duration: longDuration,
+      ticks: tickValues.map((tick) => ({
+        label: tick.format('MM-DD HH:mm'),
+        left: `${((tick.valueOf() - start.valueOf()) / longDuration) * 100}%`
+      }))
+    }
+  }
   const ticks = Array.from({ length: 7 }, (_, index) => {
     const ratio = index / 6
     return {
-      label: start.add(duration * ratio, 'millisecond').format(tickFormat),
+      label: start.add(duration * ratio, 'millisecond').format('HH:mm'),
       left: `${ratio * 100}%`
     }
   })
@@ -294,18 +335,18 @@ const scheduleRangeLabel = computed(() => {
 // 将原始统计组织成模板可循环渲染的KPI、生产状态、设备状态和风险项结构。
 const kpis = computed(() => [
   {
-    label: '生产订单',
-    value: formatNumber(summary.value.productionOrderCount),
+    label: '在制生产订单',
+    value: formatNumber(summary.value.activeProductionOrderCount ?? summary.value.productionOrderCount),
     unit: '单',
-    description: '当前生产订单台账',
+    description: '已下达或正在生产',
     icon: 'clipboard',
     tone: 'blue'
   },
   {
-    label: '生产工单',
-    value: formatNumber(summary.value.workOrderCount),
+    label: '在制生产工单',
+    value: formatNumber(summary.value.activeWorkOrderCount ?? summary.value.workOrderCount),
     unit: '单',
-    description: '当前生产工单台账',
+    description: '待开工或正在执行',
     icon: 'package',
     tone: 'amber'
   },
@@ -340,28 +381,6 @@ const kpis = computed(() => [
     description: overduePlanCount.value > 0 ? '已超过计划结束时间' : '当前没有逾期计划',
     icon: 'alert',
     tone: overduePlanCount.value > 0 ? 'red' : 'muted'
-  }
-])
-
-// 把生产订单、工单和执行任务整理为统一统计卡数据。
-const productionStats = computed(() => [
-  {
-    label: '当前生产订单',
-    value: Number(summary.value.productionOrderCount || 0),
-    note: '系统内未删除的订单总数',
-    icon: 'clipboard'
-  },
-  {
-    label: '当前生产工单',
-    value: Number(summary.value.workOrderCount || 0),
-    note: '系统内未删除的工单总数',
-    icon: 'package'
-  },
-  {
-    label: '正在执行任务',
-    value: Number(summary.value.runningTaskCount || 0),
-    note: '当前处于生产中的任务',
-    icon: 'activity'
   }
 ])
 
@@ -495,6 +514,23 @@ function formatPercent(value) {
   return value === null || value === undefined ? '--' : Number(value).toFixed(1)
 }
 
+// 中央排期使用简短产品标签，完整产品名仍保留在悬停提示中。
+function formatProductLabel(value) {
+  return String(value || '未维护产品')
+    .replace('雷尼克斯', '')
+    .replace(' OEM俱乐部级羽毛球', ' ')
+    .replace('训练级羽毛球', ' ')
+    .replace('比赛级羽毛球', ' ')
+    .replace(/ (\d{2})速$/, '·$1')
+}
+
+// 无排期时说明产线的实际状态，避免一律显示“暂无计划”。
+function lineEmptyScheduleText(line) {
+  if (line.stationCount === 0) return '执行配置待完善'
+  if (['MAINTENANCE', 'MAINTAINING'].includes(line.status)) return '计划保养，不参与当前排产'
+  return '当前排期窗口无计划'
+}
+
 // 从通用接口响应中兼容提取数组或分页records。
 function pageRecords(result) {
   // 兼容后端直接返回数组和MyBatis-Plus分页对象两种数据结构。
@@ -511,8 +547,9 @@ function scheduleBarStyle(item) {
   const itemEnd = dayjs(item.plannedEndTime).valueOf()
   const left = Math.max(0, Math.min(96, ((itemStart - start.valueOf()) / duration) * 100))
   const naturalWidth = Math.max(0, ((itemEnd - itemStart) / duration) * 100)
-  const width = Math.max(4, Math.min(100 - left, naturalWidth))
-  return { left: `${left}%`, width: `${width}%` }
+  const width = Math.max(10, Math.min(100 - left, naturalWidth))
+  const safeWidth = Math.min(100 - left, width)
+  return { left: `${left}%`, width: `${safeWidth}%` }
 }
 
 // 拼接排期块的悬停提示，包含订单、产品、产线、时间、数量和状态。
@@ -861,7 +898,7 @@ onBeforeUnmount(() => {
             <header class="panel-header">
               <div>
                 <strong>生产计划排期</strong>
-                <span>按产线汇总订单计划与执行窗口</span>
+                <span>{{ scheduleSummaryText }}</span>
               </div>
               <aside class="panel-tools">
                 <span v-if="overduePlanCount" class="overdue-badge"><AppIcon name="alert" :size="14" />{{ overduePlanCount }} 项逾期</span>
@@ -896,11 +933,11 @@ onBeforeUnmount(() => {
                   <div class="schedule-row-meta">
                     <strong>{{ line.lineName }}</strong>
                     <span :class="{ 'has-overdue': line.plans.some((plan) => plan.statusTone === 'overdue') }">
-                      {{ line.plans.length }} 项计划<span v-if="line.plans.some((plan) => plan.statusTone === 'overdue')"> / {{ line.plans.filter((plan) => plan.statusTone === 'overdue').length }} 项逾期</span> · 日产能 {{ formatNumber(line.dailyCapacity) }}
+                      {{ line.plans.length }} 项 · {{ formatNumber(line.plans.reduce((total, plan) => total + Number(plan.plannedQuantity || 0), 0)) }} 件 · {{ formatNumber(line.dailyCapacity) }}/日
                     </span>
                   </div>
                   <div class="schedule-row-track">
-                    <span v-if="!line.plans.length" class="schedule-row-empty">暂无有效计划</span>
+                    <span v-if="!line.plans.length" class="schedule-row-empty">{{ lineEmptyScheduleText(line) }}</span>
                     <span
                       v-for="item in line.plans"
                       :key="item.planId"
@@ -909,8 +946,8 @@ onBeforeUnmount(() => {
                       :style="scheduleBarStyle(item)"
                       :title="scheduleBarTitle(item)"
                     >
-                      <b>{{ item.orderNo }}</b>
-                      <small>{{ item.productName }} · {{ formatNumber(item.plannedQuantity) }} 件</small>
+                      <b>{{ formatProductLabel(item.productName) }}</b>
+                      <small>{{ formatNumber(item.plannedQuantity) }}件·{{ item.statusLabel }}</small>
                     </span>
                   </div>
                 </div>
@@ -934,7 +971,7 @@ onBeforeUnmount(() => {
             <header class="panel-header">
               <div>
                 <strong>产线运行状态</strong>
-                <span>真实产线、日产能与当前排期</span>
+                <span>生产状态、计划与产能配置</span>
               </div>
               <aside class="panel-tools">
                 <strong class="line-count">{{ lineStatusRows.length }}<small>条</small></strong>
@@ -952,7 +989,7 @@ onBeforeUnmount(() => {
                     {{ line.focusLabel }}：{{ line.focusPlan.orderNo }} · {{ formatNumber(line.focusPlan.plannedQuantity) }} 件
                   </p>
                   <p v-else>当前没有有效生产计划</p>
-                  <small>日产能 {{ formatNumber(line.dailyCapacity) }} · 排期 {{ line.planCount }} 项 / {{ formatNumber(line.scheduledQuantity) }} 件</small>
+                  <small>{{ line.stationCount ?? '--' }} 工位 · 日产能 {{ formatNumber(line.dailyCapacity) }} · 排期 {{ line.planCount }} 项</small>
                 </div>
               </article>
             </div>
@@ -964,10 +1001,10 @@ onBeforeUnmount(() => {
           </article>
 
           <article class="screen-panel execution-panel">
-            <header class="panel-header">
+            <header class="panel-header compact">
               <div>
-                <strong>今日生产情况</strong>
-                <span>今日报工结果与当前生产台账</span>
+                <strong>今日生产达成</strong>
+                <span>最终包装报工与执行任务</span>
               </div>
               <aside class="panel-tools">
                 <span class="live-badge"><i />60 秒刷新</span>
@@ -976,41 +1013,30 @@ onBeforeUnmount(() => {
                 </button>
               </aside>
             </header>
-
-            <div class="output-focus">
-              <span>今日报工总产量</span>
-              <strong>{{ formatNumber(todayOutput) }}<small>件</small></strong>
-              <em v-if="reportPassRate !== null">合格率 {{ formatPercent(reportPassRate) }}%</em>
-              <em v-else class="is-empty">暂无今日报工</em>
-            </div>
-
-            <div class="output-breakdown">
-              <div class="is-qualified">
-                <span>合格产量</span>
-                <b>{{ formatNumber(todayQualified) }}</b>
+            <div class="execution-overview">
+              <div class="output-dial-stack">
+                <span>报工合格率</span>
+                <div class="output-dial" :class="{ 'is-empty': reportPassRate === null }" :style="outputDialStyle">
+                  <div>
+                    <strong>{{ formatPercent(reportPassRate) }}<small v-if="reportPassRate !== null">%</small></strong>
+                    <em>{{ reportPassRate === null ? '暂无报工' : '最终包装' }}</em>
+                  </div>
+                </div>
               </div>
-              <div class="is-defect">
-                <span>不良产量</span>
-                <b>{{ formatNumber(todayDefect) }}</b>
-              </div>
-            </div>
-
-            <div class="production-stat-list">
-              <div v-for="item in productionStats" :key="item.label" class="production-stat-row">
-                <span><AppIcon :name="item.icon" :size="20" /></span>
-                <div><b>{{ item.label }}</b><small>{{ item.note }}</small></div>
-                <strong>{{ formatNumber(item.value) }}</strong>
+              <div class="execution-metrics">
+                <div><span>今日总产量</span><b>{{ formatNumber(todayOutput) }}<small>件</small></b></div>
+                <div class="is-qualified"><span>合格产量</span><b>{{ formatNumber(todayQualified) }}</b></div>
+                <div class="is-defect"><span>不良产量</span><b>{{ formatNumber(todayDefect) }}</b></div>
+                <div><span>执行中任务</span><b>{{ formatNumber(summary.runningTaskCount) }}<small>项</small></b></div>
               </div>
             </div>
           </article>
-        </section>
 
-        <section class="secondary-grid">
           <article class="screen-panel trend-summary-panel">
             <header class="panel-header compact">
               <div>
                 <strong>近 7 日生产趋势</strong>
-                <span>报工总量与报工合格率</span>
+                <span>最终包装产量与报工合格率</span>
               </div>
               <aside class="panel-tools">
                 <div class="panel-total compact-total">
@@ -1023,14 +1049,16 @@ onBeforeUnmount(() => {
               </aside>
             </header>
             <div class="trend-chart-wrap compact-chart">
-              <MesChart :option="trendOption" height="205px" />
+              <MesChart :option="trendOption" height="100%" />
               <div v-if="!hasTrendData" class="empty-overlay compact-empty">
                 <AppIcon name="activity" :size="24" />
-                <strong>近 7 日暂无报工</strong>
+                <strong>近 7 日暂无最终包装报工</strong>
               </div>
             </div>
           </article>
+        </section>
 
+        <section class="secondary-grid">
           <article class="screen-panel quality-panel">
             <header class="panel-header compact">
               <div>
@@ -1048,14 +1076,13 @@ onBeforeUnmount(() => {
                   class="quality-dial"
                   :class="{ 'is-empty': qualityFocusRate === null }"
                   :style="qualityDialStyle"
-                  :title="qualityClosure.rate === null ? '合格质检单数 ÷ 已判定质检单数' : '已完成处理的不合格单数 ÷ 需要处理的不合格单数'"
+                  title="检验合格单数 ÷ 已判定质检单数；待判定单不进入分母"
                 >
                   <div>
                     <strong>{{ formatPercent(qualityFocusRate) }}<small v-if="qualityFocusRate !== null">%</small></strong>
                   </div>
                 </div>
-                <small v-if="qualityClosure.rate !== null" class="quality-dial-summary">{{ qualityClosure.closed }}/{{ qualityClosure.total }} 已完成</small>
-                <small v-else-if="evaluatedInspectionCount" class="quality-dial-summary">{{ qualifiedInspectionCount }}/{{ evaluatedInspectionCount }} 已判定合格</small>
+                <small v-if="evaluatedInspectionCount" class="quality-dial-summary">{{ qualifiedInspectionCount }}/{{ evaluatedInspectionCount }} 已判定合格</small>
               </div>
               <div class="quality-counts">
                 <div><span>质检单</span><b>{{ formatNumber(inspectionCount) }}</b></div>
@@ -1063,6 +1090,7 @@ onBeforeUnmount(() => {
                 <div><span>检验合格</span><b>{{ formatNumber(qualifiedInspectionCount) }}</b></div>
                 <div><span>检验不合格</span><b>{{ formatNumber(unqualifiedInspectionCount) }}</b></div>
                 <div><span>待判定</span><b>{{ formatNumber(pendingInspectionCount) }}</b></div>
+                <div><span>不合格已处理</span><b>{{ qualityClosure.rate === null ? '--' : `${qualityClosure.closed}/${qualityClosure.total}` }}</b></div>
               </div>
             </div>
           </article>
@@ -1161,12 +1189,12 @@ onBeforeUnmount(() => {
                 <div class="schedule-row-meta">
                   <strong>{{ line.lineName }}</strong>
                   <span :class="{ 'has-overdue': line.plans.some((plan) => plan.statusTone === 'overdue') }">
-                    {{ line.plans.length }} 项计划<span v-if="line.plans.some((plan) => plan.statusTone === 'overdue')"> / {{ line.plans.filter((plan) => plan.statusTone === 'overdue').length }} 项逾期</span> · 日产能 {{ formatNumber(line.dailyCapacity) }}
+                    {{ line.plans.length }} 项 · {{ formatNumber(line.plans.reduce((total, plan) => total + Number(plan.plannedQuantity || 0), 0)) }} 件 · {{ formatNumber(line.dailyCapacity) }}/日
                   </span>
                   <small>{{ line.plans.map(formatScheduleTime).join(' / ') }}</small>
                 </div>
                 <div class="schedule-row-track">
-                  <span v-if="!line.plans.length" class="schedule-row-empty">暂无有效计划</span>
+                  <span v-if="!line.plans.length" class="schedule-row-empty">{{ lineEmptyScheduleText(line) }}</span>
                   <span
                     v-for="item in line.plans"
                     :key="`expanded-${item.planId}`"
@@ -1175,8 +1203,8 @@ onBeforeUnmount(() => {
                     :style="scheduleBarStyle(item)"
                     :title="scheduleBarTitle(item)"
                   >
-                    <b>{{ item.orderNo }}</b>
-                    <small>{{ item.productName }} · {{ formatNumber(item.plannedQuantity) }} 件</small>
+                    <b>{{ formatProductLabel(item.productName) }}</b>
+                    <small>{{ formatNumber(item.plannedQuantity) }}件·{{ item.statusLabel }}</small>
                   </span>
                 </div>
               </div>
@@ -1430,19 +1458,23 @@ onBeforeUnmount(() => {
 .primary-grid {
   display: grid;
   min-height: 0;
-  grid-template-areas: 'lines schedule execution';
-  grid-template-columns: 350px minmax(0, 1fr) 390px;
+  grid-template-areas:
+    'lines schedule execution'
+    'lines schedule trend';
+  grid-template-columns: 330px minmax(0, 1fr) 390px;
+  grid-template-rows: minmax(0, 0.92fr) minmax(0, 1.08fr);
   gap: 16px;
 }
 
 .schedule-panel { grid-area: schedule; }
 .line-status-panel { grid-area: lines; }
 .execution-panel { grid-area: execution; }
+.trend-summary-panel { grid-area: trend; }
 
 .secondary-grid {
   display: grid;
   min-height: 0;
-  grid-template-columns: 1.18fr 1.05fr 1fr 1.17fr;
+  grid-template-columns: 1.08fr 1fr 1.32fr;
   gap: 16px;
 }
 
@@ -1481,6 +1513,7 @@ onBeforeUnmount(() => {
 
 .panel-header {
   display: flex;
+  height: 72px;
   min-height: 72px;
   align-items: center;
   justify-content: space-between;
@@ -1490,7 +1523,7 @@ onBeforeUnmount(() => {
   background: rgb(13 37 56 / 82%);
 }
 
-.panel-header.compact { min-height: 68px; }
+.panel-header.compact { height: 68px; min-height: 68px; }
 .panel-header > div { display: grid; gap: 5px; }
 .panel-header > div > strong { color: #f2f7fb; font-size: 21px; font-weight: 720; line-height: 1.25; }
 .panel-header > div > span { color: #9db1c0; font-size: 16px; line-height: 1.25; }
@@ -1840,6 +1873,7 @@ onBeforeUnmount(() => {
   content: '';
 }
 .line-status-row.is-idle::after { background: #5aa9d1; }
+.line-status-row.is-released::after { background: #5aa9d1; }
 .line-status-row.is-stopped::after { background: #df6972; }
 .line-status-row.is-maintenance::after { background: #d99a55; }
 .line-status-row.is-incomplete::after { background: #e07e57; }
@@ -1856,6 +1890,7 @@ onBeforeUnmount(() => {
   background: rgb(75 197 138 / 10%);
 }
 .line-status-row.is-idle .line-status-icon { color: #6fb9df; border-color: rgb(90 169 209 / 28%); background: rgb(90 169 209 / 10%); }
+.line-status-row.is-released .line-status-icon { color: #6fb9df; border-color: rgb(90 169 209 / 28%); background: rgb(90 169 209 / 10%); }
 .line-status-row.is-stopped .line-status-icon { color: #ed7a82; border-color: rgb(223 105 114 / 30%); background: rgb(223 105 114 / 11%); }
 .line-status-row.is-maintenance .line-status-icon { color: #e6a65d; border-color: rgb(217 154 85 / 30%); background: rgb(217 154 85 / 11%); }
 .line-status-row.is-incomplete .line-status-icon { color: #e88864; border-color: rgb(224 126 87 / 30%); background: rgb(224 126 87 / 11%); }
@@ -1869,6 +1904,7 @@ onBeforeUnmount(() => {
 .line-status-copy > div > span { display: inline-flex; flex: none; align-items: center; gap: 5px; color: #75d4a0; font-size: 13px; }
 .line-status-copy > div > span i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .line-status-row.is-idle .line-status-copy > div > span { color: #75bce1; }
+.line-status-row.is-released .line-status-copy > div > span { color: #75bce1; }
 .line-status-row.is-stopped .line-status-copy > div > span { color: #ee858c; }
 .line-status-row.is-maintenance .line-status-copy > div > span { color: #e5aa67; }
 .line-status-row.is-incomplete .line-status-copy > div > span { color: #ed916e; }
@@ -1919,7 +1955,7 @@ onBeforeUnmount(() => {
 .rate-chip.is-empty { color: #8296a5; border-color: rgb(113 132 147 / 22%); background: rgb(113 132 147 / 8%); }
 .table-empty { position: absolute; inset: 42px 16px 12px; display: grid; align-content: center; justify-items: center; gap: 8px; color: #879cab; background: #0b1d2c; font-size: 16px; }
 
-.execution-panel { display: grid; grid-template-rows: auto 1fr auto auto; }
+.execution-panel { display: block; }
 .execution-panel .panel-header { gap: 8px; padding: 0 14px; }
 .execution-panel .panel-header > div { min-width: 0; }
 .execution-panel .panel-header > div > span { max-width: 194px; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
@@ -1929,29 +1965,32 @@ onBeforeUnmount(() => {
 .execution-panel .live-badge { gap: 5px; font-size: 14px; }
 .live-badge i { width: 8px; height: 8px; border-radius: 50%; background: #4bc58a; box-shadow: 0 0 8px rgb(75 197 138 / 58%); }
 
-.output-focus { display: grid; align-content: center; justify-items: center; gap: 7px; padding: 12px 18px 8px; }
-.output-focus > span { color: #a8bac6; font-size: 17px; line-height: 1.25; }
-.output-focus strong { color: #fff; font-size: 60px; font-weight: 780; line-height: 1; }
-.output-focus strong small { margin-left: 8px; color: #91a5b5; font-size: 19px; font-weight: 550; }
-.output-focus em { padding: 5px 12px; color: #7ed5a5; border-radius: 3px; background: rgb(75 197 138 / 10%); font-size: 16px; font-style: normal; line-height: 1.25; }
-.output-focus em.is-empty { color: #8da0ae; background: rgb(120 140 155 / 10%); }
-
-.output-breakdown { display: grid; grid-template-columns: 1fr 1fr; margin: 0 14px 10px; border-top: 1px solid #29445a; border-bottom: 1px solid #29445a; }
-.output-breakdown > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 10px; }
-.output-breakdown > div + div { border-left: 1px solid #29445a; }
-.output-breakdown span { color: #9eb1bf; font-size: 15px; line-height: 1.25; }
-.output-breakdown b { color: #dcebf4; font-size: 24px; line-height: 1.1; }
-.output-breakdown .is-qualified b { color: #66cf98; }
-.output-breakdown .is-defect b { color: #e58b68; }
-
-.production-stat-list { display: grid; grid-template-columns: 1fr; padding: 0 14px 8px; }
-.production-stat-row { display: grid; min-width: 0; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 6px 3px; }
-.production-stat-row + .production-stat-row { border-top: 1px solid #29445a; }
-.production-stat-row > span { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; color: #73add3; border-radius: 4px; background: #123149; }
-.production-stat-row div { display: grid; min-width: 0; gap: 2px; }
-.production-stat-row b { color: #c9d7e1; font-size: 15px; line-height: 1.25; }
-.production-stat-row small { overflow: hidden; color: #91a6b5; font-size: 14px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-.production-stat-row strong { color: #fff; font-size: 24px; }
+.execution-overview { display: grid; height: calc(100% - 68px); grid-template-columns: 144px minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px 12px; box-sizing: border-box; }
+.output-dial-stack { display: grid; justify-items: center; gap: 7px; }
+.output-dial-stack > span { color: #aebfcb; font-size: 14px; font-weight: 600; line-height: 1.2; }
+.output-dial {
+  position: relative;
+  display: grid;
+  width: 112px;
+  height: 112px;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(#49b9d0 var(--output-angle), #1b3548 0);
+}
+.output-dial::before { position: absolute; inset: -4px; border: 1px solid rgb(73 185 208 / 28%); border-radius: 50%; content: ''; }
+.output-dial::after { position: absolute; inset: 11px; border: 1px solid #33566f; border-radius: 50%; background: #0b1e2e; content: ''; }
+.output-dial.is-empty { background: #1b3548; }
+.output-dial > div { position: relative; z-index: 1; display: grid; justify-items: center; gap: 5px; }
+.output-dial strong { color: #fff; font-size: 30px; font-weight: 760; line-height: 1; }
+.output-dial strong small { margin-left: 2px; color: #9db2c0; font-size: 15px; }
+.output-dial em { color: #8fa8b8; font-size: 12px; font-style: normal; }
+.execution-metrics { display: grid; min-width: 0; grid-template-columns: 1fr 1fr; border-top: 1px solid #29445a; border-left: 1px solid #29445a; }
+.execution-metrics > div { display: grid; min-width: 0; gap: 5px; padding: 10px 11px; border-right: 1px solid #29445a; border-bottom: 1px solid #29445a; }
+.execution-metrics span { color: #98adbb; font-size: 13px; line-height: 1.2; white-space: nowrap; }
+.execution-metrics b { overflow: hidden; color: #eff6fa; font-size: 25px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.execution-metrics b small { margin-left: 4px; color: #8fa3b2; font-size: 12px; font-weight: 550; }
+.execution-metrics .is-qualified b { color: #66cf98; }
+.execution-metrics .is-defect b { color: #e58b68; }
 
 .quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px 12px; box-sizing: border-box; }
 .quality-dial-stack { display: grid; justify-items: center; gap: 4px; }

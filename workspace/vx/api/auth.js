@@ -8,6 +8,7 @@ function login(data) {
     method: 'POST',
     data,
     raw: true,
+    silent: true,
     timeout: 30000
   })
 }

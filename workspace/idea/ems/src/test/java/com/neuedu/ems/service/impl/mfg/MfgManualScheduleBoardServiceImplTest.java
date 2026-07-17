@@ -1,10 +1,13 @@
 package com.neuedu.ems.service.impl.mfg;
 
 import com.neuedu.ems.common.AiResponse;
+import com.neuedu.ems.entity.factory.FactoryLine;
+import com.neuedu.ems.entity.mfg.MfgLineCalendarRule;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgScheduleItem;
 import com.neuedu.ems.entity.mfg.MfgScheduleScenario;
+import com.neuedu.ems.entity.org.OrgShift;
 import com.neuedu.ems.mapper.factory.FactoryLineMapper;
 import com.neuedu.ems.mapper.mfg.MfgLineCalendarRuleMapper;
 import com.neuedu.ems.mapper.mfg.MfgLineProductCapabilityMapper;
@@ -25,6 +28,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -99,6 +103,22 @@ class MfgManualScheduleBoardServiceImplTest {
         assertEquals(1L, board.getWorkspaceDraft().getScenarioId());
         assertEquals("MANUAL", board.getTimelineItems().getFirst().getSourceType());
         assertEquals("PLAN", board.getTimelineItems().get(1).getSourceType());
+
+    }
+
+    @Test
+    void keepsDraftOrderPendingAfterItsFormerPlanIsClosed() {
+        stubBoardData();
+        MfgProductionPlan closedPlan = new MfgProductionPlan();
+        closedPlan.setPlanId(53L);
+        closedPlan.setProductionOrderId(303L);
+        closedPlan.setStatus("CLOSED");
+        when(planMapper.selectList(any())).thenReturn(List.of(closedPlan));
+
+        ManualScheduleBoard board = service.getManualScheduleBoard(7L);
+
+        assertEquals(List.of(101L, 303L), board.getPendingOrders().stream()
+                .map(MfgProductionOrder::getProductionOrderId).toList());
     }
 
     @Test
@@ -145,6 +165,38 @@ class MfgManualScheduleBoardServiceImplTest {
         assertEquals(1, board.getTimelineItems().size());
         assertEquals("PLAN", board.getTimelineItems().getFirst().getSourceType());
         assertEquals(52L, board.getTimelineItems().getFirst().getPlanId());
+    }
+
+    @Test
+    void exposesCalendarWindowsUsedForTimelineCompression() {
+        stubBoardData();
+        FactoryLine line = new FactoryLine();
+        line.setLineId(21L);
+        line.setStatus("RUNNING");
+        line.setDailyCapacity(BigDecimal.valueOf(800));
+        when(lineMapper.selectList(any())).thenReturn(List.of(line));
+
+        MfgLineCalendarRule rule = new MfgLineCalendarRule();
+        rule.setLineId(21L);
+        rule.setShiftId(1L);
+        rule.setDayOfWeek(1);
+        rule.setEffectiveFrom(LocalDate.of(2026, 1, 1));
+        rule.setCapacityFactor(BigDecimal.ONE);
+        rule.setStatus("ENABLE");
+        when(calendarRuleMapper.selectList(any())).thenReturn(List.of(rule));
+
+        OrgShift shift = new OrgShift();
+        shift.setShiftId(1L);
+        shift.setStartTime(LocalTime.of(8, 0));
+        shift.setEndTime(LocalTime.of(16, 0));
+        when(shiftMapper.selectList(any())).thenReturn(List.of(shift));
+
+        ManualScheduleBoard board = service.getManualScheduleBoard(7L);
+
+        assertEquals(1, board.getWorkingWindows().size());
+        assertEquals(21L, board.getWorkingWindows().getFirst().getLineId());
+        assertEquals(LocalDateTime.of(2026, 7, 13, 8, 0), board.getWorkingWindows().getFirst().getStartTime());
+        assertEquals(LocalDateTime.of(2026, 7, 13, 16, 0), board.getWorkingWindows().getFirst().getEndTime());
     }
 
     private void stubBoardData() {

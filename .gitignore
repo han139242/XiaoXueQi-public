@@ -5,6 +5,8 @@ node_modules/
 target/
 dist/
 build/
+outputs/
+output/
 *.class
 tmp/
 .backup/

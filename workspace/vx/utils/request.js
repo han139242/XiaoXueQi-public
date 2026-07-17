@@ -33,7 +33,7 @@ function networkErrorMessage(error) {
   // 这些错误发生在 wx.request 的 fail 阶段，说明请求没有正常进入后端业务接口。
   // 常见原因是微信合法域名、网络连通、证书或后端进程不可达。
   if (/url not in domain list|domain.*(invalid|not configured|not allowed)/i.test(detail)) {
-    return '请求域名未授权，请使用真机调试或配置 HTTPS 合法域名'
+    return '开发者工具请关闭合法域名校验；真机或体验版请配置 HTTPS request 合法域名'
   }
   if (/timeout/i.test(detail)) {
     return '连接后端超时，请确认电脑上的 MES 后端和 Tailscale Funnel 正常运行'

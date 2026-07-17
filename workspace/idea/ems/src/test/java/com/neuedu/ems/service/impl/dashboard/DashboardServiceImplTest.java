@@ -6,7 +6,11 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.eam.EamEquipment;
+import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgWorkOrder;
+import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.process.ProcessOperation;
 import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.wms.WmsReplenishmentSuggestion;
 import com.neuedu.ems.mapper.eam.EamEquipmentMapper;
@@ -14,6 +18,7 @@ import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.process.ProcessOperationMapper;
 import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
 import com.neuedu.ems.mapper.wms.WmsReplenishmentSuggestionMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,8 +37,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DashboardServiceImplTest {
@@ -43,6 +50,7 @@ class DashboardServiceImplTest {
     private MfgWorkOrderMapper workOrderMapper;
     private MfgTaskMapper taskMapper;
     private MfgWorkReportMapper workReportMapper;
+    private ProcessOperationMapper processOperationMapper;
     private WmsReplenishmentSuggestionMapper replenishmentMapper;
     private EamEquipmentMapper equipmentMapper;
     private QmsInspectionOrderMapper inspectionOrderMapper;
@@ -50,6 +58,8 @@ class DashboardServiceImplTest {
     @BeforeEach
     void setUp() {
         initLambdaMetadata(MfgTask.class);
+        initLambdaMetadata(MfgWorkReport.class);
+        initLambdaMetadata(ProcessOperation.class);
         initLambdaMetadata(WmsReplenishmentSuggestion.class);
         initLambdaMetadata(EamEquipment.class);
         service = new DashboardServiceImpl();
@@ -57,6 +67,7 @@ class DashboardServiceImplTest {
         workOrderMapper = mock(MfgWorkOrderMapper.class);
         taskMapper = mock(MfgTaskMapper.class);
         workReportMapper = mock(MfgWorkReportMapper.class);
+        processOperationMapper = mock(ProcessOperationMapper.class);
         replenishmentMapper = mock(WmsReplenishmentSuggestionMapper.class);
         equipmentMapper = mock(EamEquipmentMapper.class);
         inspectionOrderMapper = mock(QmsInspectionOrderMapper.class);
@@ -64,6 +75,7 @@ class DashboardServiceImplTest {
         ReflectionTestUtils.setField(service, "mfgWorkOrderMapper", workOrderMapper);
         ReflectionTestUtils.setField(service, "mfgTaskMapper", taskMapper);
         ReflectionTestUtils.setField(service, "mfgWorkReportMapper", workReportMapper);
+        ReflectionTestUtils.setField(service, "processOperationMapper", processOperationMapper);
         ReflectionTestUtils.setField(service, "wmsReplenishmentSuggestionMapper", replenishmentMapper);
         ReflectionTestUtils.setField(service, "eamEquipmentMapper", equipmentMapper);
         ReflectionTestUtils.setField(service, "qmsInspectionOrderMapper", inspectionOrderMapper);
@@ -74,6 +86,14 @@ class DashboardServiceImplTest {
         when(productionOrderMapper.selectCount(any())).thenReturn(1L);
         when(workOrderMapper.selectCount(any())).thenReturn(2L);
         when(taskMapper.selectCount(any())).thenReturn(3L);
+        ProcessOperation finalOperation = new ProcessOperation();
+        finalOperation.setOperationId(7L);
+        finalOperation.setOperationCode("OP-PACK");
+        MfgTask finalTask = new MfgTask();
+        finalTask.setTaskId(11L);
+        finalTask.setOperationId(7L);
+        when(processOperationMapper.selectOne(any())).thenReturn(finalOperation);
+        when(taskMapper.selectList(any())).thenReturn(List.of(finalTask));
         when(workReportMapper.selectList(any())).thenReturn(List.of());
         when(replenishmentMapper.selectCount(any())).thenReturn(4L);
         when(equipmentMapper.selectCount(any())).thenReturn(5L);
@@ -81,16 +101,36 @@ class DashboardServiceImplTest {
         Map<String, Object> result = service.getSummary(LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 10));
 
         assertEquals(3L, result.get("runningTaskCount"));
+        assertEquals(1L, result.get("activeProductionOrderCount"));
+        assertEquals(2L, result.get("activeWorkOrderCount"));
         assertEquals(4L, result.get("inventoryWarningCount"));
         assertEquals(5L, result.get("equipmentFaultCount"));
 
+        ArgumentCaptor<Wrapper<MfgProductionOrder>> productionOrderQueries = wrapperCaptor();
+        ArgumentCaptor<Wrapper<MfgWorkOrder>> workOrderQueries = wrapperCaptor();
         ArgumentCaptor<Wrapper<MfgTask>> taskQuery = wrapperCaptor();
+        ArgumentCaptor<Wrapper<MfgTask>> outputTaskQuery = wrapperCaptor();
+        ArgumentCaptor<Wrapper<MfgWorkReport>> outputReportQuery = wrapperCaptor();
+        ArgumentCaptor<Wrapper<ProcessOperation>> finalOperationQuery = wrapperCaptor();
         ArgumentCaptor<Wrapper<WmsReplenishmentSuggestion>> replenishmentQuery = wrapperCaptor();
         ArgumentCaptor<Wrapper<EamEquipment>> equipmentQuery = wrapperCaptor();
+        verify(productionOrderMapper, times(2)).selectCount(productionOrderQueries.capture());
+        verify(workOrderMapper, times(2)).selectCount(workOrderQueries.capture());
         verify(taskMapper).selectCount(taskQuery.capture());
+        verify(taskMapper).selectList(outputTaskQuery.capture());
+        verify(processOperationMapper).selectOne(finalOperationQuery.capture());
+        verify(workReportMapper).selectList(outputReportQuery.capture());
         verify(replenishmentMapper).selectCount(replenishmentQuery.capture());
         verify(equipmentMapper).selectCount(equipmentQuery.capture());
+        assertTrue(values(productionOrderQueries.getAllValues().get(1)).contains(BusinessStatus.Document.RELEASED));
+        assertTrue(values(productionOrderQueries.getAllValues().get(1)).contains(BusinessStatus.Production.RUNNING));
+        assertTrue(values(workOrderQueries.getAllValues().get(1)).contains(BusinessStatus.Document.RELEASED));
+        assertTrue(values(workOrderQueries.getAllValues().get(1)).contains(BusinessStatus.Production.RUNNING));
         assertTrue(values(taskQuery.getValue()).contains(BusinessStatus.Production.RUNNING));
+        assertTrue(values(finalOperationQuery.getValue()).contains("OP-PACK"));
+        assertTrue(values(outputTaskQuery.getValue()).contains(7L));
+        assertTrue(values(outputReportQuery.getValue()).contains(BusinessStatus.Document.APPROVED));
+        assertTrue(values(outputReportQuery.getValue()).contains(11L));
         assertTrue(values(replenishmentQuery.getValue()).contains(BusinessStatus.Document.SUBMITTED));
         assertTrue(values(equipmentQuery.getValue()).contains(BusinessStatus.Equipment.FAULT));
     }
@@ -112,6 +152,19 @@ class DashboardServiceImplTest {
         assertEquals(1L, result.get("qualifiedCount"));
         assertEquals(1L, result.get("unqualifiedCount"));
         assertEquals(new BigDecimal("50.00"), result.get("qualifiedRate"));
+    }
+
+    @Test
+    void summaryReturnsZeroOutputWhenFinalOperationIsMissing() {
+        when(processOperationMapper.selectOne(any())).thenReturn(null);
+
+        Map<String, Object> result = service.getSummary(
+                LocalDate.of(2026, 7, 17), LocalDate.of(2026, 7, 17));
+
+        assertEquals(BigDecimal.ZERO, result.get("todayQualifiedQuantity"));
+        assertEquals(BigDecimal.ZERO, result.get("todayDefectQuantity"));
+        verify(taskMapper, never()).selectList(any());
+        verifyNoInteractions(workReportMapper);
     }
 
     @Test

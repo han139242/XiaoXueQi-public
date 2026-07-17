@@ -12,6 +12,7 @@ import java.util.List;
 public class ManualScheduleBoard {
     private MfgScheduleScenario workspaceDraft;
     private List<ManualScheduleBoardItem> timelineItems = new ArrayList<>();
+    private List<ManualScheduleBoardWorkingWindow> workingWindows = new ArrayList<>();
     private List<MfgProductionOrder> pendingOrders = new ArrayList<>();
     private LocalDateTime horizonStart;
     private LocalDateTime horizonEnd;

@@ -104,8 +104,8 @@ class MfgManualScheduleItemConfirmationServiceImplTest {
         verify(planMapper).insert(planCaptor.capture());
         verify(orderMapper).updateById(orderCaptor.capture());
         verify(itemMapper).updateById(itemCaptor.capture());
-        verify(statusLogMapper, times(2)).insert(any(SysStatusChangeLog.class));
-        verify(operationLogMapper).insert(any(SysOperationLog.class));
+        verify(statusLogMapper, times(3)).insert(any(SysStatusChangeLog.class));
+        verify(operationLogMapper, times(2)).insert(any(SysOperationLog.class));
         assertEquals(501L, result.getPlanId());
         assertEquals("RELEASED", planCaptor.getValue().getStatus());
         assertEquals("计划员确认", planCaptor.getValue().getRemark());
@@ -153,7 +153,7 @@ class MfgManualScheduleItemConfirmationServiceImplTest {
         order.setProductId(1L);
         order.setOrderQuantity(BigDecimal.valueOf(100));
         order.setDeliveryDate(futureDate.plusDays(7));
-        order.setStatus("RELEASED");
+        order.setStatus("DRAFT");
         order.setVersion(0);
         return order;
     }
