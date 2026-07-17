@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 @Data
 public class ManualScheduleBoardItem {
     private String sourceType;
+    private Boolean aiBatch;
     private Long scenarioId;
     private String scenarioNo;
     private Integer scenarioVersion;

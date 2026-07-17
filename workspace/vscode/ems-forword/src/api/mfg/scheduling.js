@@ -35,6 +35,21 @@ export function getManualBoardAiAdvice() {
   return request.post(`${BASE_URL}/manual-board/ai-advice`, undefined, { timeout: AI_ADVICE_TIMEOUT })
 }
 
+// 对当前真正未排产的DRAFT订单生成一批可撤回的AI排产草案。
+export function generateManualAiBatch() {
+  return request.post(`${BASE_URL}/manual-board/ai-batch`, undefined, { suppressErrorMessage: true })
+}
+
+// 撤回本次AI一键排产草案；只撤回未确认时间块。
+export function withdrawManualAiBatch(scenarioId, data) {
+  return request.delete(`${BASE_URL}/manual-board/ai-batch/${scenarioId}`, { data, suppressErrorMessage: true })
+}
+
+// 将本次AI一键排产草案整体确认成正式生产计划。
+export function confirmManualAiBatch(scenarioId, data) {
+  return request.put(`${BASE_URL}/manual-board/ai-batch/${scenarioId}/confirm`, data, { suppressErrorMessage: true })
+}
+
 // 查询某订单可放置的产线；禁止通用错误弹窗，由工作台在具体位置展示错误。
 export function getManualEligibleLines(scenarioId, productionOrderId) {
   return request.get(`${BASE_URL}/${scenarioId}/orders/${productionOrderId}/eligible-lines`, { suppressErrorMessage: true })

@@ -73,6 +73,30 @@ class MfgManualScheduleDraftServiceImplTest {
     }
 
     @Test
+    void ignoresAiBatchWhenOpeningManualDraft() {
+        MfgScheduleScenario aiBatch = new MfgScheduleScenario();
+        aiBatch.setScenarioId(24L);
+        aiBatch.setScenarioNo("AI-BATCH-7-20260717190000000");
+        aiBatch.setAlgorithmCode("MANUAL_BOARD");
+        aiBatch.setStatus("DRAFT");
+        aiBatch.setCreatedBy(7L);
+        aiBatch.setOrderCount(6);
+        MfgScheduleScenario manualDraft = new MfgScheduleScenario();
+        manualDraft.setScenarioId(25L);
+        manualDraft.setScenarioNo("MANUAL-7-20260717190100000");
+        manualDraft.setAlgorithmCode("MANUAL_BOARD");
+        manualDraft.setStatus("DRAFT");
+        manualDraft.setCreatedBy(7L);
+        when(scenarioMapper.selectList(any())).thenReturn(List.of(aiBatch, manualDraft));
+
+        MfgScheduleScenario result = service.openManualDraft(7L);
+
+        assertSame(manualDraft, result);
+        verify(scenarioMapper, never()).insert(any(MfgScheduleScenario.class));
+        verify(operationLogMapper, never()).insert(any(SysOperationLog.class));
+    }
+
+    @Test
     void createsManualBoardDraftAndWritesAuditLog() {
         when(scenarioMapper.selectList(any())).thenReturn(List.of());
         doAnswer(invocation -> {

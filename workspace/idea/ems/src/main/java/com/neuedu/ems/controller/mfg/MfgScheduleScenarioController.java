@@ -67,6 +67,29 @@ public class MfgScheduleScenarioController {
                 mfgScheduleScenarioService.generateManualScheduleBoardAdvice(operatorId));
     }
 
+    @PostMapping("/manual-board/ai-batch")
+    public ResultData generateManualAiBatch(@RequestAttribute("userId") Long operatorId) {
+        return ResultData.success(ResultCode.SUCCESS,
+                mfgScheduleScenarioService.generateManualAiBatch(operatorId));
+    }
+
+    @DeleteMapping("/manual-board/ai-batch/{scenarioId}")
+    public ResultData withdrawManualAiBatch(@PathVariable Long scenarioId,
+                                            @RequestAttribute("userId") Long operatorId,
+                                            @RequestBody ManualScheduleVersionRequest request) {
+        return ResultData.success(ResultCode.SUCCESS,
+                mfgScheduleScenarioService.withdrawManualAiBatch(scenarioId, request.getScenarioVersion(), operatorId));
+    }
+
+    @PutMapping("/manual-board/ai-batch/{scenarioId}/confirm")
+    public ResultData confirmManualAiBatch(@PathVariable Long scenarioId,
+                                           @RequestAttribute("userId") Long operatorId,
+                                           @RequestBody ManualScheduleConfirmRequest request) {
+        return ResultData.success(ResultCode.SUCCESS,
+                mfgScheduleScenarioService.confirmManualAiBatch(scenarioId, request.getScenarioVersion(),
+                        request.getRemark(), operatorId));
+    }
+
     @GetMapping("/{scenarioId}/orders/{productionOrderId}/eligible-lines")
     public ResultData eligibleLines(@PathVariable Long scenarioId, @PathVariable Long productionOrderId) {
         return ResultData.success(ResultCode.SUCCESS,
