@@ -1007,60 +1007,29 @@ onBeforeUnmount(() => {
             </div>
           </article>
 
-          <article class="screen-panel execution-panel">
-            <header class="panel-header compact">
+          <article class="screen-panel attention-panel">
+            <header class="panel-header">
               <div>
-                <strong>今日生产达成</strong>
-                <span>最终包装报工与执行任务</span>
+                <strong>需关注事项</strong>
+                <span>计划、设备、仓储与质量异常</span>
               </div>
-              <aside class="panel-tools">
-                <span class="live-badge"><i />60 秒刷新</span>
-                <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
-                  <AppIcon name="arrow" :size="20" />
-                </button>
-              </aside>
+              <strong class="attention-total" :class="{ 'has-warning': riskCategoryCount > 0 }">{{ riskCategoryCount }}<small>类关注</small></strong>
             </header>
-            <div class="execution-overview">
-              <div class="output-dial-stack">
-                <span>报工合格率</span>
-                <div class="output-dial" :class="{ 'is-empty': reportPassRate === null }" :style="outputDialStyle">
-                  <div>
-                    <strong>{{ formatPercent(reportPassRate) }}<small v-if="reportPassRate !== null">%</small></strong>
-                    <em>{{ reportPassRate === null ? '暂无报工' : '最终包装' }}</em>
-                  </div>
-                </div>
-              </div>
-              <div class="execution-metrics">
-                <div><span>今日总产量</span><b>{{ formatNumber(todayOutput) }}<small>件</small></b></div>
-                <div class="is-qualified"><span>合格产量</span><b>{{ formatNumber(todayQualified) }}</b></div>
-                <div class="is-defect"><span>不良产量</span><b>{{ formatNumber(todayDefect) }}</b></div>
-                <div><span>执行中任务</span><b>{{ formatNumber(summary.runningTaskCount) }}<small>项</small></b></div>
-              </div>
-            </div>
-          </article>
-
-          <article class="screen-panel trend-summary-panel">
-            <header class="panel-header compact">
-              <div>
-                <strong>近 7 日生产趋势</strong>
-                <span>最终包装产量与报工合格率</span>
-              </div>
-              <aside class="panel-tools">
-                <div class="panel-total compact-total">
-                  <span>累计</span>
-                  <b>{{ formatNumber(sevenDayOutput) }} 件</b>
-                </div>
-                <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
-                  <AppIcon name="arrow" :size="20" />
-                </button>
-              </aside>
-            </header>
-            <div class="trend-chart-wrap compact-chart">
-              <MesChart :option="trendOption" height="100%" />
-              <div v-if="!hasTrendData" class="empty-overlay compact-empty">
-                <AppIcon name="activity" :size="24" />
-                <strong>近 7 日暂无最终包装报工</strong>
-              </div>
+            <div class="attention-list">
+              <button
+                v-for="item in attentionItems"
+                :key="item.label"
+                class="attention-row"
+                :class="`is-${item.tone}`"
+                type="button"
+                :title="`打开${item.label}明细`"
+                :aria-label="`打开${item.label}明细，当前数量 ${formatNumber(item.value)}`"
+                @click="openModule(item.path)"
+              >
+                <span class="attention-icon"><AppIcon :name="item.icon" :size="21" /></span>
+                <span class="attention-copy"><b>{{ item.label }}</b><small>{{ item.note }}</small></span>
+                <span class="attention-value"><strong>{{ formatNumber(item.value) }}</strong><AppIcon name="right" :size="18" /></span>
+              </button>
             </div>
           </article>
         </section>
@@ -1135,29 +1104,60 @@ onBeforeUnmount(() => {
             </div>
           </article>
 
-          <article class="screen-panel attention-panel">
+          <article class="screen-panel execution-panel">
             <header class="panel-header compact">
               <div>
-                <strong>需关注事项</strong>
-                <span>计划、设备、仓储与质量异常</span>
+                <strong>今日生产达成</strong>
+                <span>最终包装报工与执行任务</span>
               </div>
-              <strong class="attention-total" :class="{ 'has-warning': riskCategoryCount > 0 }">{{ riskCategoryCount }}<small>类关注</small></strong>
+              <aside class="panel-tools">
+                <span class="live-badge"><i />60 秒刷新</span>
+                <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
+                  <AppIcon name="arrow" :size="20" />
+                </button>
+              </aside>
             </header>
-            <div class="attention-list">
-              <button
-                v-for="item in attentionItems"
-                :key="item.label"
-                class="attention-row"
-                :class="`is-${item.tone}`"
-                type="button"
-                :title="`打开${item.label}明细`"
-                :aria-label="`打开${item.label}明细，当前数量 ${formatNumber(item.value)}`"
-                @click="openModule(item.path)"
-              >
-                <span class="attention-icon"><AppIcon :name="item.icon" :size="21" /></span>
-                <span class="attention-copy"><b>{{ item.label }}</b><small>{{ item.note }}</small></span>
-                <span class="attention-value"><strong>{{ formatNumber(item.value) }}</strong><AppIcon name="right" :size="18" /></span>
-              </button>
+            <div class="execution-overview">
+              <div class="output-dial-stack">
+                <span>报工合格率</span>
+                <div class="output-dial" :class="{ 'is-empty': reportPassRate === null }" :style="outputDialStyle">
+                  <div>
+                    <strong>{{ formatPercent(reportPassRate) }}<small v-if="reportPassRate !== null">%</small></strong>
+                    <em>{{ reportPassRate === null ? '暂无报工' : '最终包装' }}</em>
+                  </div>
+                </div>
+              </div>
+              <div class="execution-metrics">
+                <div><span>今日总产量</span><b>{{ formatNumber(todayOutput) }}<small>件</small></b></div>
+                <div class="is-qualified"><span>合格产量</span><b>{{ formatNumber(todayQualified) }}</b></div>
+                <div class="is-defect"><span>不良产量</span><b>{{ formatNumber(todayDefect) }}</b></div>
+                <div><span>执行中任务</span><b>{{ formatNumber(summary.runningTaskCount) }}<small>项</small></b></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="screen-panel trend-summary-panel">
+            <header class="panel-header compact">
+              <div>
+                <strong>近 7 日生产趋势</strong>
+                <span>最终包装产量与报工合格率</span>
+              </div>
+              <aside class="panel-tools">
+                <div class="panel-total compact-total">
+                  <span>累计</span>
+                  <b>{{ formatNumber(sevenDayOutput) }} 件</b>
+                </div>
+                <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
+                  <AppIcon name="arrow" :size="20" />
+                </button>
+              </aside>
+            </header>
+            <div class="trend-chart-wrap compact-chart">
+              <MesChart :option="trendOption" height="100%" />
+              <div v-if="!hasTrendData" class="empty-overlay compact-empty">
+                <AppIcon name="activity" :size="24" />
+                <strong>近 7 日暂无最终包装报工</strong>
+              </div>
             </div>
           </article>
         </section>
@@ -1467,23 +1467,20 @@ onBeforeUnmount(() => {
 .primary-grid {
   display: grid;
   min-height: 0;
-  grid-template-areas:
-    'lines schedule execution'
-    'lines schedule trend';
+  grid-template-areas: 'lines schedule attention';
   grid-template-columns: 330px minmax(0, 1fr) 390px;
-  grid-template-rows: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 16px;
 }
 
 .schedule-panel { grid-area: schedule; }
 .line-status-panel { grid-area: lines; }
-.execution-panel { grid-area: execution; }
-.trend-summary-panel { grid-area: trend; }
+.attention-panel { grid-area: attention; }
 
 .secondary-grid {
   display: grid;
   min-height: 0;
-  grid-template-columns: 1.08fr 1fr 1.32fr;
+  grid-template-columns: 1.06fr 0.98fr 1fr 1.15fr;
   gap: 16px;
 }
 
@@ -2036,7 +2033,7 @@ onBeforeUnmount(() => {
 .equipment-grid b { color: #eef5f9; font-size: 26px; }
 .inline-empty { position: absolute; top: 52px; right: 22px; margin: 0; color: #91a5b3; font-size: 16px; }
 
-.attention-list { display: grid; height: calc(100% - 68px); grid-auto-rows: minmax(0, 1fr); align-content: stretch; padding: 4px 18px 8px; box-sizing: border-box; }
+.attention-list { display: grid; height: calc(100% - 72px); grid-auto-rows: minmax(0, 1fr); align-content: stretch; padding: 10px 18px 14px; box-sizing: border-box; }
 .attention-row {
   display: grid;
   width: 100%;
