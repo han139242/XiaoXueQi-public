@@ -116,7 +116,7 @@ class MfgScheduleScenarioConfirmationServiceImplTest {
     void confirmsCalculatedScenarioAndCreatesReleasedPlan() {
         MfgScheduleScenario scenario = calculatedScenario();
         MfgScheduleItem item = scheduledItem();
-        MfgProductionOrder order = releasedOrder();
+        MfgProductionOrder order = draftOrder();
         when(scenarioMapper.selectOne(any())).thenReturn(scenario);
         when(itemMapper.selectList(any())).thenReturn(List.of(item));
         when(orderMapper.selectOne(any())).thenReturn(order);
@@ -124,12 +124,13 @@ class MfgScheduleScenarioConfirmationServiceImplTest {
         MfgScheduleScenario result = service.confirmScenario(1L, 0, 7L, "人工确认");
 
         ArgumentCaptor<MfgProductionPlan> planCaptor = ArgumentCaptor.forClass(MfgProductionPlan.class);
+        ArgumentCaptor<MfgProductionOrder> orderCaptor = ArgumentCaptor.forClass(MfgProductionOrder.class);
         ArgumentCaptor<MfgScheduleItem> itemCaptor = ArgumentCaptor.forClass(MfgScheduleItem.class);
         verify(planMapper).insert(planCaptor.capture());
-        verify(orderMapper, never()).updateById(any(MfgProductionOrder.class));
+        verify(orderMapper).updateById(orderCaptor.capture());
         verify(itemMapper).updateById(itemCaptor.capture());
-        verify(statusChangeLogMapper, times(3)).insert(any(SysStatusChangeLog.class));
-        verify(operationLogMapper).insert(any(SysOperationLog.class));
+        verify(statusChangeLogMapper, times(4)).insert(any(SysStatusChangeLog.class));
+        verify(operationLogMapper, times(2)).insert(any(SysOperationLog.class));
 
         assertEquals("CONFIRMED", result.getStatus());
         assertEquals(7L, result.getConfirmedBy());
@@ -137,6 +138,7 @@ class MfgScheduleScenarioConfirmationServiceImplTest {
         assertEquals("SP-1-1", planCaptor.getValue().getPlanNo());
         assertEquals("RELEASED", planCaptor.getValue().getStatus());
         assertEquals(101L, planCaptor.getValue().getProductionOrderId());
+        assertEquals("RELEASED", orderCaptor.getValue().getStatus());
         assertEquals(501L, itemCaptor.getValue().getPlanId());
         assertEquals("CONFIRMED", itemCaptor.getValue().getStatus());
     }
@@ -186,7 +188,7 @@ class MfgScheduleScenarioConfirmationServiceImplTest {
     void propagatesItemUpdateFailureForTransactionalRollback() throws NoSuchMethodException {
         when(scenarioMapper.selectOne(any())).thenReturn(calculatedScenario());
         when(itemMapper.selectList(any())).thenReturn(List.of(scheduledItem()));
-        when(orderMapper.selectOne(any())).thenReturn(releasedOrder());
+        when(orderMapper.selectOne(any())).thenReturn(draftOrder());
         when(itemMapper.updateById(any(MfgScheduleItem.class))).thenReturn(0);
 
         assertThrows(BusinessException.class, () -> service.confirmScenario(1L, 0, 7L, null));
@@ -230,14 +232,14 @@ class MfgScheduleScenarioConfirmationServiceImplTest {
         return item;
     }
 
-    private MfgProductionOrder releasedOrder() {
+    private MfgProductionOrder draftOrder() {
         MfgProductionOrder order = new MfgProductionOrder();
         order.setProductionOrderId(101L);
         order.setProductionOrderNo("MO-001");
         order.setProductId(1L);
         order.setOrderQuantity(new BigDecimal("100"));
         order.setDeliveryDate(TEST_DATE.plusDays(1));
-        order.setStatus("RELEASED");
+        order.setStatus("DRAFT");
         order.setVersion(0);
         order.setDeletedFlag(0);
         return order;

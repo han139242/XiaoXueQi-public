@@ -272,7 +272,7 @@ class MfgScheduleScenarioServiceImplTest {
         order.setProductId(1L);
         order.setOrderQuantity(quantity);
         order.setDeliveryDate(TEST_DATE);
-        order.setStatus("RELEASED");
+        order.setStatus("DRAFT");
         when(orderMapper.selectList(any())).thenReturn(List.of(order));
     }
 

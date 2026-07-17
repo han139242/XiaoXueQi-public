@@ -35,6 +35,7 @@ import com.neuedu.ems.service.ai.AiService;
 import com.neuedu.ems.service.mfg.MfgScheduleScenarioService;
 import com.neuedu.ems.vo.mfg.ManualScheduleBoard;
 import com.neuedu.ems.vo.mfg.ManualScheduleBoardItem;
+import com.neuedu.ems.vo.mfg.ManualScheduleBoardWorkingWindow;
 import com.neuedu.ems.vo.mfg.ManualScheduleCandidateLine;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -259,9 +260,11 @@ public class MfgScheduleScenarioServiceImpl
                 .thenComparing(ManualScheduleBoardItem::getSourceType)
                 .thenComparing(item -> item.getScheduleItemId() == null ? Long.MAX_VALUE : item.getScheduleItemId()));
 
-        Set<Long> plannedOrderIds = allPlans.stream().map(MfgProductionPlan::getProductionOrderId)
+        Set<Long> plannedOrderIds = allPlans.stream()
+                .filter(plan -> !STATUS_CLOSED.equals(plan.getStatus()))
+                .map(MfgProductionPlan::getProductionOrderId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
-        List<MfgProductionOrder> pendingOrders = listReleasedOrdersWithoutPlan().stream()
+        List<MfgProductionOrder> pendingOrders = listDraftOrdersWithoutPlan().stream()
                 .filter(order -> !plannedOrderIds.contains(order.getProductionOrderId()))
                 .toList();
 
@@ -277,6 +280,7 @@ public class MfgScheduleScenarioServiceImpl
         ManualScheduleBoard board = new ManualScheduleBoard();
         board.setWorkspaceDraft(workspaceDraft);
         board.setTimelineItems(timelineItems);
+        board.setWorkingWindows(buildManualBoardWorkingWindows(horizonStart, horizonEnd));
         board.setPendingOrders(pendingOrders);
         board.setHorizonStart(horizonStart);
         board.setHorizonEnd(horizonEnd);
@@ -287,6 +291,36 @@ public class MfgScheduleScenarioServiceImpl
         board.setLateCount((int) timelineItems.stream()
                 .filter(item -> item.getTardinessMinutes() != null && item.getTardinessMinutes() > 0).count());
         return board;
+    }
+
+    private List<ManualScheduleBoardWorkingWindow> buildManualBoardWorkingWindows(LocalDateTime horizonStart,
+                                                                                    LocalDateTime horizonEnd) {
+        if (horizonStart == null || horizonEnd == null || !horizonEnd.isAfter(horizonStart)) {
+            return List.of();
+        }
+        List<FactoryLine> runningLines = factoryLineMapper.selectList(activeLineQuery()).stream()
+                .filter(line -> line.getLineId() != null && STATUS_RUNNING.equals(line.getStatus()))
+                .toList();
+        if (runningLines.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<MfgLineCalendarRule>> rulesByLine = mfgLineCalendarRuleMapper
+                .selectList(activeCalendarRuleQuery()).stream()
+                .collect(Collectors.groupingBy(MfgLineCalendarRule::getLineId));
+        Map<Long, OrgShift> shiftsById = orgShiftMapper.selectList(activeShiftQuery()).stream()
+                .collect(Collectors.toMap(OrgShift::getShiftId, shift -> shift));
+        List<ManualScheduleBoardWorkingWindow> result = new ArrayList<>();
+        for (FactoryLine line : runningLines) {
+            for (CapacityWindow window : buildLineWindows(line,
+                    rulesByLine.getOrDefault(line.getLineId(), List.of()), shiftsById, horizonStart, horizonEnd)) {
+                ManualScheduleBoardWorkingWindow value = new ManualScheduleBoardWorkingWindow();
+                value.setLineId(line.getLineId());
+                value.setStartTime(window.startTime());
+                value.setEndTime(window.endTime());
+                result.add(value);
+            }
+        }
+        return result;
     }
 
     @Override
@@ -490,8 +524,8 @@ public class MfgScheduleScenarioServiceImpl
         if (order == null) {
             throw notFound("排程明细关联的生产订单不存在或已删除");
         }
-        if (!STATUS_RELEASED.equals(order.getStatus()) || order.getVersion() == null) {
-            throw invalid("该订单尚未提交排产或状态已变化，不能再生成生产计划，请刷新后重新选择");
+        if (!STATUS_DRAFT.equals(order.getStatus()) || order.getVersion() == null) {
+            throw invalid("该订单不是待排新建状态或状态已变化，不能再生成生产计划，请刷新后重新选择");
         }
 
         List<MfgScheduleItem> scenarioItems = listActiveScenarioItems(scenarioId);
@@ -510,16 +544,6 @@ public class MfgScheduleScenarioServiceImpl
             throw new BusinessException(ResultCode.FAILED);
         }
 
-        MfgProductionOrder orderUpdate = new MfgProductionOrder();
-        orderUpdate.setProductionOrderId(order.getProductionOrderId());
-        orderUpdate.setStatus(STATUS_RELEASED);
-        orderUpdate.setVersion(order.getVersion());
-        orderUpdate.setUpdatedBy(operatorId);
-        orderUpdate.setUpdatedTime(now);
-        if (mfgProductionOrderMapper.updateById(orderUpdate) == 0) {
-            throw conflict("订单状态已更新，请刷新排程总览后重新操作");
-        }
-
         MfgScheduleItem itemUpdate = new MfgScheduleItem();
         itemUpdate.setScheduleItemId(scheduleItemId);
         itemUpdate.setPlanId(plan.getPlanId());
@@ -530,6 +554,8 @@ public class MfgScheduleScenarioServiceImpl
         if (mfgScheduleItemMapper.updateById(itemUpdate) == 0) {
             throw conflict("排程已更新，请刷新排程总览后重新操作");
         }
+        releaseOrderForConfirmedPlan(order, operatorId, normalizedRemark, now,
+                "CONFIRM_MANUAL_SCHEDULE_ITEM");
 
         List<MfgScheduleItem> remainingItems = scenarioItems.stream()
                 .filter(existing -> !Objects.equals(existing.getScheduleItemId(), scheduleItemId))
@@ -608,7 +634,7 @@ public class MfgScheduleScenarioServiceImpl
         validateCalculationRequest(request);
         String scenarioNo = request.getScenarioNo().trim();
         ensureScenarioNoAvailable(scenarioNo);
-        List<MfgProductionOrder> orders = listReleasedOrdersWithoutPlan();
+        List<MfgProductionOrder> orders = listDraftOrdersWithoutPlan();
         validateSchedulableOrders(orders);
 
         MfgScheduleScenario scenario = createDraftScenario(request, scenarioNo);
@@ -698,6 +724,8 @@ public class MfgScheduleScenarioServiceImpl
             if (mfgScheduleItemMapper.updateById(itemUpdate) == 0) {
                 throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(), "排程明细已被其他用户修改，请重新计算方案");
             }
+            releaseOrderForConfirmedPlan(entry.order(), operatorId, remark, now,
+                    "CONFIRM_SCHEDULE_SCENARIO");
 
             insertStatusChangeLog(plan.getPlanId(), null, STATUS_RELEASED, "MFG_PRODUCTION_PLAN",
                     "GENERATE_FROM_SCHEDULE_SCENARIO", operatorId, remark, now);
@@ -1050,8 +1078,8 @@ public class MfgScheduleScenarioServiceImpl
             if (order == null) {
                 throw notFound("排程明细关联的生产订单不存在或已删除");
             }
-            if (!STATUS_RELEASED.equals(order.getStatus())) {
-                throw invalid("生产订单尚未提交排产或状态已变化，不能确认排程方案");
+            if (!STATUS_DRAFT.equals(order.getStatus())) {
+                throw invalid("生产订单不是待排新建状态或状态已变化，不能确认排程方案");
             }
             if (order.getVersion() == null) {
                 throw invalid("生产订单缺少版本号，不能确认排程方案");
@@ -1202,8 +1230,8 @@ public class MfgScheduleScenarioServiceImpl
         if (hasActivePlan(productionOrderId)) {
             throw invalid("该订单已生成生产计划，请在生产计划中查看或调整");
         }
-        if (!STATUS_RELEASED.equals(order.getStatus())) {
-            throw invalid("只有已提交排产的生产订单可以手工排程");
+        if (!STATUS_DRAFT.equals(order.getStatus())) {
+            throw invalid("只有新建且尚未生成生产计划的订单可以手工排程");
         }
         if (order.getProductId() == null || order.getOrderQuantity() == null
                 || order.getOrderQuantity().compareTo(BigDecimal.ZERO) <= 0) {
@@ -1441,7 +1469,8 @@ public class MfgScheduleScenarioServiceImpl
         if (scenario.getHorizonStart() != null && startTime.isBefore(scenario.getHorizonStart())) {
             return "计划开始时间早于排程窗口";
         }
-        if (scenario.getHorizonEnd() != null && endTime.isAfter(scenario.getHorizonEnd())) {
+        if (!ALGORITHM_CODE_MANUAL_BOARD.equals(scenario.getAlgorithmCode())
+                && scenario.getHorizonEnd() != null && endTime.isAfter(scenario.getHorizonEnd())) {
             return "计划结束时间超出排程窗口";
         }
         ManualScheduleCandidateLine capability;
@@ -1460,8 +1489,11 @@ public class MfgScheduleScenarioServiceImpl
                 !startTime.isBefore(window.startTime()) && startTime.isBefore(window.endTime()));
         boolean endInCalendar = calendarWindows.stream().anyMatch(window ->
                 endTime.isAfter(window.startTime()) && !endTime.isAfter(window.endTime()));
-        if (!startInCalendar || !endInCalendar) {
-            return "计划时间未完全落在产线有效周历和班次内";
+        if (!startInCalendar) {
+            return "计划开始时间必须落在产线有效班次内；计划可跨越下班或停工时段";
+        }
+        if (!endInCalendar) {
+            return "计划结束时间必须落在产线有效班次内；计划可跨越下班或停工时段";
         }
         BigDecimal availableCapacity = buildLineWindows(line,
                 context.calendarRulesByLine().getOrDefault(lineId, List.of()), context.shiftsById(), startTime, endTime)
@@ -1567,8 +1599,16 @@ public class MfgScheduleScenarioServiceImpl
         update.setConflictOrderCount(conflicts);
         update.setLateOrderCount(late);
         update.setTotalLoadMinutes(load.setScale(2, RoundingMode.HALF_UP));
-        update.setHorizonStart(earliest == null ? scenario.getHorizonStart() : earliest);
-        update.setHorizonEnd(latest == null ? scenario.getHorizonEnd() : latest);
+        if (ALGORITHM_CODE_MANUAL_BOARD.equals(scenario.getAlgorithmCode())) {
+            // 手工草案是滚动工作区，保留已有范围并在排程越过终点时自动向后延展。
+            update.setHorizonStart(earliest == null ? scenario.getHorizonStart()
+                    : minTime(scenario.getHorizonStart(), earliest));
+            update.setHorizonEnd(latest == null ? scenario.getHorizonEnd()
+                    : maxTime(scenario.getHorizonEnd(), latest));
+        } else {
+            update.setHorizonStart(earliest == null ? scenario.getHorizonStart() : earliest);
+            update.setHorizonEnd(latest == null ? scenario.getHorizonEnd() : latest);
+        }
         update.setAiAdvice(null);
         update.setAiModel(null);
         update.setAiGeneratedTime(null);
@@ -1584,6 +1624,13 @@ public class MfgScheduleScenarioServiceImpl
             return right;
         }
         return left.isAfter(right) ? left : right;
+    }
+
+    private LocalDateTime minTime(LocalDateTime left, LocalDateTime right) {
+        if (left == null) {
+            return right;
+        }
+        return left.isBefore(right) ? left : right;
     }
 
     private String trimToNull(String value) {
@@ -1802,10 +1849,27 @@ public class MfgScheduleScenarioServiceImpl
         }
     }
 
-    private List<MfgProductionOrder> listReleasedOrdersWithoutPlan() {
+    private void releaseOrderForConfirmedPlan(MfgProductionOrder order, Long operatorId, String remark,
+                                              LocalDateTime now, String changeReason) {
+        MfgProductionOrder update = new MfgProductionOrder();
+        update.setProductionOrderId(order.getProductionOrderId());
+        update.setStatus(STATUS_RELEASED);
+        update.setVersion(order.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (mfgProductionOrderMapper.updateById(update) == 0) {
+            throw conflict("订单状态已更新，请刷新排程总览后重新操作");
+        }
+        insertStatusChangeLog(order.getProductionOrderId(), order.getStatus(), STATUS_RELEASED,
+                "MFG_PRODUCTION_ORDER", changeReason, operatorId, remark, now);
+        insertOperationLog(order.getProductionOrderId(), changeReason, "mfg_production_order",
+                operatorId, remark, now);
+    }
+
+    private List<MfgProductionOrder> listDraftOrdersWithoutPlan() {
         QueryWrapper<MfgProductionOrder> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted_flag", 0);
-        wrapper.eq("status", STATUS_RELEASED);
+        wrapper.eq("status", STATUS_DRAFT);
         wrapper.notInSql("production_order_id",
                 "SELECT production_order_id FROM mfg_production_plan "
                         + "WHERE deleted_flag = 0 AND status <> 'CLOSED' AND production_order_id IS NOT NULL");
