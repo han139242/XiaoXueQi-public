@@ -1,3 +1,4 @@
+// 仓储模块 API：入库、出库和库存查询的移动端接口封装。
 const request = require('../utils/request')
 
 function inboundPage(data) {

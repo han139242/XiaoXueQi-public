@@ -1,3 +1,4 @@
+// 工单详情页：展示工单状态、七道工序进度、任务和报工履历。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const workOrderApi = require('../../../api/work-order')

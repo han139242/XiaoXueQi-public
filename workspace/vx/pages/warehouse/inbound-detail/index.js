@@ -1,3 +1,4 @@
+// 入库单详情页：展示入库主单和明细物料/产品信息。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const warehouseApi = require('../../../api/warehouse')

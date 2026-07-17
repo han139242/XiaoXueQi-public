@@ -1,3 +1,4 @@
+// 格式化工具：统一处理空值、日期时间和数字转换。
 function display(value, fallback) {
   if (value === null || value === undefined || value === '') {
     return fallback || '-'

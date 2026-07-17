@@ -1,3 +1,4 @@
+// 出库单详情页：展示出库主单、明细和状态信息。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const warehouseApi = require('../../../api/warehouse')

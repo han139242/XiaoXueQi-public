@@ -1,3 +1,4 @@
+// 扫码结果页：根据条码展示追溯到的工单、批次、报工等信息。
 const guard = require('../../../utils/guard')
 const traceApi = require('../../../api/trace')
 const format = require('../../../utils/format')

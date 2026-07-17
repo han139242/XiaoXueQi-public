@@ -1,3 +1,4 @@
+// 维修填报页：提交设备维修或故障处理信息。
 const guard = require('../../../utils/guard')
 const equipmentApi = require('../../../api/equipment')
 const lookupApi = require('../../../api/lookup')

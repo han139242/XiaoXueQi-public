@@ -1,3 +1,4 @@
+// 设备列表页：设备管理员查看设备台账和设备状态。
 const guard = require('../../../utils/guard')
 const equipmentApi = require('../../../api/equipment')
 const lookupApi = require('../../../api/lookup')

@@ -1,3 +1,4 @@
+// 字典/基础资料 API：把产品、工序、工位、员工等 ID 转成页面可读名称。
 const request = require('../utils/request')
 
 const definitions = {

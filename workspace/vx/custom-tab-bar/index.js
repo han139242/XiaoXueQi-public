@@ -28,6 +28,8 @@ Component({
 
   methods: {
     refreshTabs() {
+      // 自定义 TabBar 会根据当前用户权限过滤入口。
+      // 例如质检员看不到生产报工入口，操作工看不到仓库和设备入口。
       const pages = getCurrentPages()
       const currentPath = pages.length ? `/${pages[pages.length - 1].route}` : ''
       const visibleTabs = TAB_ITEMS.filter((item) => !item.permission || auth.hasPermission(item.permission))

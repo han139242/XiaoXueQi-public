@@ -1,3 +1,4 @@
+// 不良品登记页：录入不良原因、处理方式，并支持拍照上传。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')

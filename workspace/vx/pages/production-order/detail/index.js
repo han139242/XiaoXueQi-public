@@ -1,3 +1,4 @@
+// 生产订单详情页：查看订单产品、数量、计划和关联工单信息。
 const guard = require('../../../utils/guard')
 const productionOrderApi = require('../../../api/production-order')
 const lookupApi = require('../../../api/lookup')

@@ -1,3 +1,4 @@
+// 不良品列表页：质检人员查看已生成的不合格处理记录。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')
