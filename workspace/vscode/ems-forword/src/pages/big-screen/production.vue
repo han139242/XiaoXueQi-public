@@ -35,6 +35,7 @@ const qualityClosure = ref({ total: 0, closed: 0, rate: null })
 const equipment = ref({})
 const schedulePlans = ref([])
 const productionLines = ref([])
+const pendingProductionOrderCount = ref(0)
 const scheduleError = ref('')
 const scheduleExpanded = ref(false)
 
@@ -143,8 +144,8 @@ const hasTrendData = computed(() => trendRows.value.some((item) => item.output >
 // 汇总七日总报工产量。
 const sevenDayOutput = computed(() => trendRows.value.reduce((total, item) => total + item.output, 0))
 
-// 只统计设备、库存和质量三类现场风险；排期区域保持为纯粹的计划总览。
-const riskCategoryCount = computed(() => [faultCount.value, warningCount.value, todayDefect.value]
+// 统计需要计划、设备、仓储或质量人员处理的关注类别。
+const riskCategoryCount = computed(() => [pendingProductionOrderCount.value, faultCount.value, warningCount.value, todayDefect.value]
   .filter((value) => value > 0).length)
 
 // 排期总览仅保留当天仍有效与未来的正式计划，不对计划额外标注逾期状态。
@@ -407,6 +408,14 @@ const equipmentItems = computed(() => [
 // 将计划、设备、库存和不良数据整理为可点击的风险关注事项。
 const attentionItems = computed(() => [
   {
+    label: '待排生产订单',
+    value: pendingProductionOrderCount.value,
+    note: pendingProductionOrderCount.value > 0 ? '新建订单尚未生成正式生产计划' : '当前没有待排生产订单',
+    icon: 'clipboard',
+    tone: pendingProductionOrderCount.value > 0 ? 'warning' : 'normal',
+    path: '/mfg/production-orders'
+  },
+  {
     label: '故障设备',
     value: faultCount.value,
     note: faultCount.value > 0 ? '需要设备人员优先处理' : '当前没有故障设备',
@@ -596,7 +605,14 @@ async function loadProductionSchedule() {
 
   const optionalRecords = (result) => result.status === 'fulfilled' ? pageRecords(result.value) : []
   const plans = pageRecords(planResult.value)
-  const orders = new Map(optionalRecords(orderResult).map((item) => [String(item.productionOrderId), item]))
+  const orderRecords = optionalRecords(orderResult)
+  const orders = new Map(orderRecords.map((item) => [String(item.productionOrderId), item]))
+  const activePlanOrderIds = new Set(plans
+    .filter((plan) => plan.status !== 'CLOSED' && plan.productionOrderId != null)
+    .map((plan) => String(plan.productionOrderId)))
+  const pendingOrderCount = orderRecords
+    .filter((order) => order.status === 'DRAFT' && !activePlanOrderIds.has(String(order.productionOrderId)))
+    .length
   const lines = new Map(optionalRecords(lineResult).map((item) => [String(item.lineId), item]))
   const stationCounts = new Map()
   optionalRecords(stationResult).forEach((station) => {
@@ -630,7 +646,7 @@ async function loadProductionSchedule() {
     dailyCapacity: 0,
     status: ''
   }])).values()]
-  return { plans: mappedPlans, lines: mappedLines.length ? mappedLines : fallbackLines }
+  return { plans: mappedPlans, lines: mappedLines.length ? mappedLines : fallbackLines, pendingOrderCount }
 }
 
 // 读取近7日不合格处理单并计算真实关闭率；权限不足时由主加载流程保留一次检验率回退。
@@ -726,6 +742,7 @@ async function loadData() {
     qualityClosure.value = data.qualityClosure || { total: 0, closed: 0, rate: null }
     equipment.value = data.equipment
     schedulePlans.value = data.schedule || []
+    pendingProductionOrderCount.value = Number(data.pendingProductionOrderCount || 0)
     productionLines.value = data.lines || [...new Map((data.schedule || []).map((item) => [String(item.lineId), {
       lineId: item.lineId,
       lineCode: `LINE-${item.lineId}`,
@@ -778,6 +795,7 @@ async function loadData() {
     if (scheduleResult.status === 'fulfilled') {
       schedulePlans.value = scheduleResult.value.plans
       productionLines.value = scheduleResult.value.lines
+      pendingProductionOrderCount.value = scheduleResult.value.pendingOrderCount
     } else {
       scheduleError.value = scheduleResult.reason?.displayMessage || scheduleResult.reason?.message || '生产排期暂未更新'
     }
