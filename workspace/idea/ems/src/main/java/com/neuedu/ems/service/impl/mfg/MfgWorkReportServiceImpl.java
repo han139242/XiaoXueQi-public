@@ -190,6 +190,8 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
         prepareWorkReport(workReport);
         validateWorkReport(workReport);
+        MfgTask task = activeTask(workReport.getTaskId());
+        validateTaskReportQuantity(task, workReport);
         if (dataScopeService != null) {
             dataScopeService.assertCanWriteWorkReport(workReport);
         }
@@ -915,6 +917,29 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
         if (qualified.add(defect).signum() <= 0) {
             throw business(ResultCode.PARAM_ERROR, "报工数量必须大于 0");
+        }
+    }
+
+    private void validateTaskReportQuantity(MfgTask task, MfgWorkReport workReport) {
+        if (task == null || task.getTaskId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "报工未关联有效生产任务");
+        }
+        BigDecimal planned = zero(task.getPlannedQuantity());
+        if (planned.signum() <= 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产任务计划数量必须大于 0");
+        }
+        BigDecimal reported = baseMapper.selectList(new LambdaQueryWrapper<MfgWorkReport>()
+                        .eq(MfgWorkReport::getTaskId, task.getTaskId())
+                        .eq(MfgWorkReport::getDeletedFlag, 0)
+                        .in(MfgWorkReport::getAuditStatus, SUBMITTED_STATUS, APPROVED_STATUS))
+                .stream()
+                .map(report -> zero(report.getQualifiedQuantity()).add(zero(report.getDefectQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal candidate = reported
+                .add(zero(workReport.getQualifiedQuantity()))
+                .add(zero(workReport.getDefectQuantity()));
+        if (candidate.compareTo(planned) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "累计报工数量不能超过任务计划数量");
         }
     }
 

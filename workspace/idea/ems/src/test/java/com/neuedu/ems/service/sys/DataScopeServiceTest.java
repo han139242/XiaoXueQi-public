@@ -14,11 +14,14 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.Set;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 class DataScopeServiceTest {
 
@@ -87,6 +90,24 @@ class DataScopeServiceTest {
         report.setOperatorId(22L);
 
         assertThrows(DataScopeAccessDeniedException.class, () -> service.assertCanWriteWorkReport(report));
+    }
+
+    @Test
+    void operableTaskIdsStillUseSelfScopeForAFullReadView() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute("authorizationContext", new AuthorizationContext(
+                7L, 21L, 3L, "SELF", Set.of("PRODUCTION_OPERATOR"), Set.of(), Set.of()));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MfgTaskMapper taskMapper = mock(MfgTaskMapper.class);
+        MfgTask assigned = new MfgTask();
+        assigned.setTaskId(2L);
+        when(taskMapper.selectList(any())).thenReturn(List.of(assigned));
+        DataScopeService service = new DataScopeService(
+                mock(PermissionService.class), taskMapper, mock(MfgDispatchOrderMapper.class));
+
+        Set<Long> result = service.findOperableTaskIds(Set.of(1L, 2L));
+
+        assertEquals(Set.of(2L), result);
     }
 
     private DataScopeService serviceWithContext(String scope, Long employeeId) {

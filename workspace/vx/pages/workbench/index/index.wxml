@@ -1,7 +1,6 @@
 <view class="page workbench-page">
   <view class="section-heading action-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="layout-grid" size="34"></app-icon></view><text class="section-heading__title">快捷入口</text></view><text class="section-heading__meta">常用操作</text></view>
   <view class="action-grid">
-    <view wx:if="{{canDashboard}}" class="action-item" data-url="/pages/dashboard/index" bindtap="openPage"><view class="action-symbol"><app-icon name="factory" size="38"></app-icon></view><text>生产看板</text></view>
     <view wx:if="{{canWorkOrder}}" class="action-item" data-url="/pages/work-order/index/index" bindtap="openTab"><view class="action-symbol"><app-icon name="clipboard-list" size="38"></app-icon></view><text>生产工单</text></view>
     <view wx:if="{{canTask}}" class="action-item" data-url="/pages/task/index/index" bindtap="openTab"><view class="action-symbol"><app-icon name="list-checks" size="38"></app-icon></view><text>生产任务</text></view>
     <view wx:if="{{canReport}}" class="action-item" data-url="/pages/report/index/index" bindtap="openTab"><view class="action-symbol"><app-icon name="file-text" size="38"></app-icon></view><text>报工记录</text></view>

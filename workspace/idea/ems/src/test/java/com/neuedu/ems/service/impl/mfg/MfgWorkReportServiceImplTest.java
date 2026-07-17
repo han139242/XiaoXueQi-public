@@ -574,6 +574,7 @@ class MfgWorkReportServiceImplTest {
         task.setTaskId(2L);
         task.setWorkOrderId(3L);
         task.setOperationId(5L);
+        task.setPlannedQuantity(new BigDecimal("100"));
         return task;
     }
 

@@ -2,9 +2,13 @@ const BASE_URL_KEY = 'MES_BASE_URL'
 const MOCK_DATA_KEY = 'MES_USE_MOCK_DATA'
 
 const versionUrls = {
-  develop: 'http://127.0.0.1:8088',
   trial: '',
   release: ''
+}
+
+const developUrls = {
+  devtools: 'http://127.0.0.1:8088',
+  device: 'https://zjy.tail8d376f.ts.net'
 }
 
 const mockDataDefaults = {
@@ -21,9 +25,31 @@ function getEnvVersion() {
   }
 }
 
+function isDevTools() {
+  try {
+    const device = typeof wx.getDeviceInfo === 'function'
+      ? wx.getDeviceInfo()
+      : wx.getSystemInfoSync()
+    return device.platform === 'devtools'
+  } catch (error) {
+    return false
+  }
+}
+
+function getDefaultBaseUrl(envVersion) {
+  if (envVersion === 'develop') {
+    return isDevTools() ? developUrls.devtools : developUrls.device
+  }
+  return versionUrls[envVersion]
+}
+
 function getBaseUrl() {
+  const envVersion = getEnvVersion()
   const override = wx.getStorageSync(BASE_URL_KEY)
-  const baseUrl = override || versionUrls[getEnvVersion()]
+  const invalidDeviceHttpOverride = envVersion === 'develop' && !isDevTools()
+    && /^http:\/\//i.test(String(override || ''))
+  const defaultBaseUrl = getDefaultBaseUrl(envVersion)
+  const baseUrl = invalidDeviceHttpOverride ? defaultBaseUrl : (override || defaultBaseUrl)
   if (!baseUrl) {
     throw new Error('当前环境尚未配置 MES 后端地址')
   }

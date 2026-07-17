@@ -173,7 +173,7 @@ Page({
     this.setData({ loading: true, error: reset ? '' : this.data.error })
     try {
       const lookups = this.data.lookups || await this.ensureLookups()
-      const page = await taskApi.page(format.compactQuery({ current, size: this.data.size, ...this.data.filters }))
+      const page = await taskApi.pageForView(format.compactQuery({ current, size: this.data.size, ...this.data.filters }))
       const records = page && Array.isArray(page.records) ? page.records : []
       const decorated = records.map((item) => this.decorateTask(item, lookups))
       const pages = Number(page && page.pages) || 0

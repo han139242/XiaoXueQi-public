@@ -14,6 +14,9 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.Set;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 对生产执行链路应用 ALL/DEPARTMENT/TEAM/SELF 数据范围。
@@ -149,6 +152,34 @@ public class DataScopeService {
     public Long currentUserId() {
         AuthorizationContext context = currentContext();
         return context == null ? null : context.userId();
+    }
+
+    /**
+     * 返回当前账号按写入数据范围可操作的任务 ID，用于完整只读视图控制操作按钮。
+     */
+    public Set<Long> findOperableTaskIds(Collection<Long> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> requestedIds = taskIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (requestedIds.isEmpty()) {
+            return Set.of();
+        }
+        AuthorizationContext context = currentContext();
+        if (context == null || "ALL".equals(context.dataScope())) {
+            return requestedIds;
+        }
+        LambdaQueryWrapper<MfgTask> wrapper = new LambdaQueryWrapper<>();
+        wrapper.select(MfgTask::getTaskId)
+                .in(MfgTask::getTaskId, requestedIds)
+                .eq(MfgTask::getDeletedFlag, 0);
+        applyTaskScope(wrapper, context);
+        return mfgTaskMapper.selectList(wrapper).stream()
+                .map(MfgTask::getTaskId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
     }
 
     private boolean canAccessTask(Long taskId, AuthorizationContext context) {

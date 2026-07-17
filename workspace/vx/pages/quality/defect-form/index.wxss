@@ -144,6 +144,69 @@
   border-radius: 4rpx;
 }
 
+.photo-control {
+  display: flex;
+  align-items: center;
+  min-height: 150rpx;
+  gap: 18rpx;
+}
+
+.photo-preview-wrap {
+  position: relative;
+  width: 150rpx;
+  height: 150rpx;
+}
+
+.photo-button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  line-height: 1;
+}
+
+.photo-button::after,
+.photo-remove::after,
+.photo-retake::after {
+  border: 0;
+}
+
+.photo-remove {
+  position: absolute;
+  top: -14rpx;
+  right: -14rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44rpx;
+  height: 44rpx;
+  min-height: 44rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: #cf2e2e;
+  line-height: 1;
+}
+
+.photo-retake {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  height: 64rpx;
+  min-height: 64rpx;
+  margin: 0;
+  padding: 0 18rpx;
+  color: #2d67a3;
+  background: #edf5fc;
+  border-radius: 6rpx;
+  font-size: 27rpx;
+  line-height: 1;
+}
+
+.photo-status {
+  color: #68737f;
+  font-size: 26rpx;
+}
+
 .defect-form-actions {
   display: flex;
   align-items: center;

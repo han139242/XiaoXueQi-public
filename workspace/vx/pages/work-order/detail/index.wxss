@@ -155,6 +155,10 @@
   background: #69aef5;
 }
 
+.stage-line--active {
+  background: #2d8cf0;
+}
+
 .stage-node {
   position: relative;
   z-index: 1;
@@ -170,11 +174,19 @@
   font-size: 25rpx;
 }
 
-.stage-node--done,
-.stage-node--active {
+.stage-node--done {
   color: #ffffff;
   background: #3b91ff;
   border-color: #3b91ff;
+}
+
+.stage-node--active {
+  box-sizing: border-box;
+  color: #ffffff;
+  background: #2d8cf0;
+  border: 2rpx solid #2d8cf0;
+  box-shadow: 0 0 0 5rpx rgba(45, 140, 240, 0.16);
+  font-weight: 650;
 }
 
 .stage-name,
@@ -196,6 +208,14 @@
 .stage-percent {
   color: #8a96a3;
   font-size: 24rpx;
+}
+
+.stage-item--active .stage-name,
+.stage-item--active .stage-percent,
+.stage-item--done .stage-name,
+.stage-item--done .stage-percent {
+  color: #2d7fd3;
+  font-weight: 650;
 }
 
 .stage-empty {
@@ -240,6 +260,13 @@
 .task-progress-card,
 .history-card {
   padding: 28rpx 32rpx 18rpx;
+}
+
+.task-progress-card--active,
+.task-progress-card--done {
+  padding-left: 26rpx;
+  background: #f7fbff;
+  border-left: 6rpx solid #2d8cf0;
 }
 
 .task-card-header > view,

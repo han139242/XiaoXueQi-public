@@ -27,9 +27,9 @@
 
     <view class="stage-section">
       <view class="stage-heading">生产进度</view>
-      <scroll-view wx:if="{{tasks.length}}" class="stage-scroll" scroll-x enhanced show-scrollbar="{{false}}">
+      <scroll-view wx:if="{{tasks.length}}" class="stage-scroll" scroll-x enhanced show-scrollbar="{{false}}" scroll-into-view="{{activeStageAnchor}}" scroll-with-animation>
         <view class="stage-track">
-          <view wx:for="{{tasks}}" wx:key="taskId" class="stage-item">
+          <view wx:for="{{tasks}}" wx:key="taskId" id="stage-task-{{item.taskId}}" class="stage-item stage-item--{{item.stageState}}">
             <view class="stage-node-row">
               <view wx:if="{{index < tasks.length - 1}}" class="stage-line stage-line--{{item.stageState}}"></view>
               <view class="stage-node stage-node--{{item.stageState}}">{{index + 1}}</view>
@@ -50,7 +50,7 @@
     <block wx:if="{{activeTab === 'progress'}}">
       <empty-state wx:if="{{tasks.length === 0}}" title="暂无生产任务"></empty-state>
       <view wx:else class="task-card-list">
-        <view wx:for="{{tasks}}" wx:key="taskId" class="task-progress-card">
+        <view wx:for="{{tasks}}" wx:key="taskId" class="task-progress-card task-progress-card--{{item.stageState}}">
           <view class="task-card-header">
             <view><text class="task-operation">{{item.operationLabel}}</text><text class="task-station">{{item.taskNo}} · {{item.stationLabel}}</text></view>
             <text class="task-state task-state--{{item.statusView.tone}}">{{item.statusView.text}}</text>
@@ -59,7 +59,7 @@
           <view class="task-quantity"><text>良品数: {{item.qualifiedQuantity}}</text><text>不良品数: {{item.defectQuantity}}</text></view>
           <view class="task-actions">
             <button class="task-action" data-id="{{item.taskId}}" catchtap="openTask">详情</button>
-            <button wx:if="{{canReport && item.status === 'RUNNING'}}" class="task-action task-action--primary" data-id="{{item.taskId}}" catchtap="openReportForm">报工</button>
+            <button wx:if="{{canReport && item.assignedToCurrentUser && item.status === 'RUNNING' && !item.reportingComplete}}" class="task-action task-action--primary" data-id="{{item.taskId}}" catchtap="openReportForm">报工</button>
           </view>
         </view>
       </view>
