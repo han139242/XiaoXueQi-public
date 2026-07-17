@@ -311,11 +311,14 @@ const scheduleWindow = computed(() => {
       start,
       end,
       duration: longDuration,
-      ticks: tickValues.map((tick) => ({
-        dateLabel: tick.format('MM月DD日'),
-        timeLabel: tick.format('HH:mm'),
-        left: `${((tick.valueOf() - start.valueOf()) / longDuration) * 100}%`
-      }))
+      ticks: tickValues.map((tick, index) => {
+        const previousTick = index ? tickValues[index - 1] : null
+        return {
+          dateLabel: !previousTick || !tick.isSame(previousTick, 'day') ? tick.format('MM月DD日') : '',
+          timeLabel: tick.format('HH:mm'),
+          left: `${((tick.valueOf() - start.valueOf()) / longDuration) * 100}%`
+        }
+      })
     }
   }
   const ticks = Array.from({ length: 7 }, (_, index) => {
@@ -1605,18 +1608,18 @@ onBeforeUnmount(() => {
 .schedule-axis-track i:last-child { transform: translateX(-100%); }
 .schedule-axis-track b {
   position: absolute;
-  right: 0;
+  left: 0;
   bottom: 14px;
   display: grid;
-  justify-items: center;
-  gap: 3px;
+  grid-template-rows: 15px 12px;
+  justify-items: start;
+  gap: 2px;
   white-space: nowrap;
-  transform: translateX(50%);
+  transform: none;
 }
-.schedule-tick strong { color: #d2e2ec; font-size: 16px; font-weight: 700; line-height: 1; }
-.schedule-tick small { color: #7897a9; font-size: 12px; font-weight: 550; line-height: 1; }
-.schedule-axis-track i:first-child b { right: auto; left: 0; transform: none; }
-.schedule-axis-track i:last-child b { right: 0; transform: none; }
+.schedule-tick strong { color: #d2e2ec; font-size: 15px; font-weight: 700; line-height: 1; }
+.schedule-tick small { grid-row: 2; color: #7897a9; font-size: 12px; font-weight: 550; line-height: 1; }
+.schedule-axis-track i:last-child b { right: 0; left: auto; }
 
 .schedule-rows { min-height: 0; }
 .schedule-row {
@@ -1777,7 +1780,8 @@ onBeforeUnmount(() => {
 .expanded-board .schedule-row { grid-template-columns: 260px minmax(0, 1fr); }
 .expanded-board .schedule-axis { height: 68px; font-size: 18px; }
 .expanded-board .schedule-axis > span { padding-left: 6px; }
-.expanded-board .schedule-tick strong { font-size: 20px; }
+.expanded-board .schedule-tick { grid-template-rows: 19px 14px; }
+.expanded-board .schedule-tick strong { font-size: 19px; }
 .expanded-board .schedule-tick small { font-size: 14px; }
 .expanded-board .schedule-row { height: 78px; }
 .expanded-board .schedule-row-meta { gap: 3px; padding-left: 6px; }
