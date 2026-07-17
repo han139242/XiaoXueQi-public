@@ -1,3 +1,4 @@
+// 质量模块 API：待检单、质检提交、不良品生成和不良品维护。
 const request = require('../utils/request')
 const env = require('../config/env')
 

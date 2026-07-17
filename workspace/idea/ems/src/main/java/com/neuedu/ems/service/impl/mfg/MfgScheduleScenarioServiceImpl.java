@@ -865,10 +865,17 @@ public class MfgScheduleScenarioServiceImpl
         QueryWrapper<MfgScheduleItem> wrapper = new QueryWrapper<>();
         wrapper.in("scenario_id", scenarioIds)
                 .eq("deleted_flag", 0)
+                .isNull("plan_id")
                 .in("status", ITEM_STATUS_SCHEDULED, ITEM_STATUS_CONFLICT)
                 .orderByAsc("planned_start_time")
                 .orderByAsc("schedule_item_id");
         return mfgScheduleItemMapper.selectList(wrapper);
+    }
+
+    private boolean isEditableManualOccupancy(MfgScheduleItem item) {
+        return item != null
+                && item.getPlanId() == null
+                && (ITEM_STATUS_SCHEDULED.equals(item.getStatus()) || ITEM_STATUS_CONFLICT.equals(item.getStatus()));
     }
 
     private List<MfgScheduleItem> listGlobalEditableManualItems() {
@@ -1506,6 +1513,9 @@ public class MfgScheduleScenarioServiceImpl
         List<MfgScheduleItem> occupiedItems = new ArrayList<>(allItems);
         occupiedItems.addAll(listGlobalEditableManualItems());
         for (MfgScheduleItem other : occupiedItems) {
+            if (!isEditableManualOccupancy(other)) {
+                continue;
+            }
             if (other.getScheduleItemId() != null && currentItem.getScheduleItemId() != null
                     && Objects.equals(other.getScheduleItemId(), currentItem.getScheduleItemId())) {
                 continue;

@@ -1,3 +1,4 @@
+// 扫码工具：封装 wx.scanCode，并把扫码结果跳转到追溯结果页。
 function scanToResult() {
   wx.scanCode({
     scanType: ['barCode', 'qrCode'],

@@ -27,9 +27,11 @@ function previewOptions(config) {
   })
 }
 
-// 只有开发环境且环境变量未明确关闭时，才允许真实接口失败后使用模拟数据。
+// 只有开发环境且环境变量明确开启时，才允许真实接口失败后使用模拟数据。
+// 正常联调和答辩演示必须使用真实接口；否则空数据会被 mock 数据替代，
+// 新增/修改也只会写入浏览器本地数组，admin 和数据库都看不到。
 export function canUseResourceMockFallback() {
-  return import.meta.env.DEV && import.meta.env.VITE_RESOURCE_MOCK_FALLBACK !== 'false'
+  return import.meta.env.DEV && import.meta.env.VITE_RESOURCE_MOCK_FALLBACK === 'true'
 }
 
 // 加载某类关联资源并转换为value/label选项，同一模式和资源的并发请求共用缓存Promise。

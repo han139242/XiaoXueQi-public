@@ -28,6 +28,7 @@ defineProps({
       :key="String(item.value)"
       :label="item.label"
       :value="item.value"
+      :disabled="item.disabled"
     />
   </el-select>
 
@@ -54,6 +55,7 @@ defineProps({
     format="YYYY-MM-DD"
     :placeholder="field.placeholder || `请选择${field.label}`"
     :disabled="field.disabled"
+    :disabled-date="field.disabledDate"
   />
 
   <el-date-picker
@@ -64,6 +66,7 @@ defineProps({
     format="YYYY-MM-DD HH:mm"
     :placeholder="field.placeholder || `请选择${field.label}`"
     :disabled="field.disabled"
+    :disabled-date="field.disabledDate"
   />
 
   <el-time-picker

@@ -1,3 +1,4 @@
+// 状态字典工具：把后端英文状态码转换成页面展示文字和颜色语义。
 const maps = {
   productionOrder: {
     DRAFT: ['新建', 'neutral'],

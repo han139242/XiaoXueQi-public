@@ -1,3 +1,4 @@
+// 报工详情页：展示单条报工记录、数量、人员、工时和用料。
 const guard = require('../../../utils/guard')
 const reportApi = require('../../../api/work-report')
 const lookupApi = require('../../../api/lookup')
@@ -46,7 +47,8 @@ Page({
           operatorLabel: lookupApi.label(lookups.employee, report.operatorId, '员工'),
           stationLabel: lookupApi.label(lookups.station, report.stationId, '工位'),
           reportTimeText: format.formatDateTime(report.reportTime),
-          createdTimeText: format.formatDateTime(report.createdTime)
+          createdTimeText: format.formatDateTime(report.createdTime),
+          remark: ''
         },
         materials: Array.isArray(materials) ? materials : [],
         loading: false

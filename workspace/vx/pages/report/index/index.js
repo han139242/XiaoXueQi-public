@@ -1,3 +1,4 @@
+// 报工列表页：按任务、工单或关键字查询报工记录。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const reportApi = require('../../../api/work-report')

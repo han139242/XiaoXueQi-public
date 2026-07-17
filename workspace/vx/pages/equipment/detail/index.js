@@ -1,3 +1,4 @@
+// 设备详情页：展示设备基础信息和关联维修记录入口。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const equipmentApi = require('../../../api/equipment')
@@ -55,7 +56,7 @@ Page({
       statusTone: statusView[1],
       stationLabel: lookupApi.label(lookups.station, item.stationId, '工位'),
       updatedTimeText: format.formatDateTime(item.updatedTime),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 

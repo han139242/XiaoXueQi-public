@@ -73,6 +73,7 @@ class MfgManualScheduleItemConfirmationServiceImplTest {
         ReflectionTestUtils.setField(service, "orgShiftMapper", shiftMapper());
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
+        when(scenarioMapper.selectList(any())).thenReturn(List.of());
         when(scenarioMapper.updateById(any(MfgScheduleScenario.class))).thenReturn(1);
         when(itemMapper.updateById(any(MfgScheduleItem.class))).thenReturn(1);
         when(orderMapper.updateById(any(MfgProductionOrder.class))).thenReturn(1);
@@ -110,6 +111,31 @@ class MfgManualScheduleItemConfirmationServiceImplTest {
         assertEquals("RELEASED", planCaptor.getValue().getStatus());
         assertEquals("计划员确认", planCaptor.getValue().getRemark());
         assertEquals("RELEASED", orderCaptor.getValue().getStatus());
+        assertEquals("CONFIRMED", itemCaptor.getValue().getStatus());
+        assertEquals(501L, itemCaptor.getValue().getPlanId());
+    }
+
+    @Test
+    void ignoresConfirmedClosedPlanItemWhenCheckingManualDraftOccupancy() {
+        MfgScheduleScenario scenario = scenario();
+        MfgScheduleItem item = item();
+        MfgScheduleItem confirmedHistory = item();
+        confirmedHistory.setScheduleItemId(12L);
+        confirmedHistory.setProductionOrderId(102L);
+        confirmedHistory.setStatus("CONFIRMED");
+        confirmedHistory.setPlanId(502L);
+        MfgProductionOrder order = order();
+        when(scenarioMapper.selectOne(any())).thenReturn(scenario);
+        when(itemMapper.selectOne(any())).thenReturn(item);
+        when(itemMapper.selectList(any())).thenReturn(List.of(item, confirmedHistory));
+        when(orderMapper.selectOne(any())).thenReturn(order);
+
+        MfgProductionPlan result = service.confirmManualItem(1L, 11L, 0, 0, "manual confirm", 7L);
+
+        ArgumentCaptor<MfgScheduleItem> itemCaptor = ArgumentCaptor.forClass(MfgScheduleItem.class);
+        verify(planMapper).insert(any(MfgProductionPlan.class));
+        verify(itemMapper).updateById(itemCaptor.capture());
+        assertEquals(501L, result.getPlanId());
         assertEquals("CONFIRMED", itemCaptor.getValue().getStatus());
         assertEquals(501L, itemCaptor.getValue().getPlanId());
     }

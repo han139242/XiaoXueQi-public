@@ -1,3 +1,4 @@
+// 检验单详情页：展示待检或已检记录，并提供进入质检录入的入口。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')
@@ -100,7 +101,7 @@ Page({
       inspectionTimeText: format.formatDateTime(item.inspectionTime || item.updatedTime),
       createdTimeText: format.formatDateTime(item.createdTime),
       updatedTimeText: format.formatDateTime(item.updatedTime),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 

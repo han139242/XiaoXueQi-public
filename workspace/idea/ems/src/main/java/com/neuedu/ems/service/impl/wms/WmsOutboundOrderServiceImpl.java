@@ -53,6 +53,7 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
     private static final String SUBMITTED_STATUS = BusinessStatus.Document.SUBMITTED;
     private static final String APPROVED_STATUS = BusinessStatus.Document.APPROVED;
     private static final String MATERIAL_ISSUE_TYPE = "MATERIAL_ISSUE";
+    private static final String RAW_WAREHOUSE_TYPE = "RAW";
     private static final Set<String> RELEASED_QUALITY_STATUSES = Set.of(
             BusinessStatus.Quality.PASS, BusinessStatus.Quality.CONCESSION);
     private static final Set<String> ISSUABLE_BATCH_STATUSES = Set.of("AVAILABLE", "ENABLE");
@@ -151,6 +152,9 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
         if (warehouse == null) {
             throw business(ResultCode.BUSINESS_ERROR, "目标领料仓库不存在、已停用或已删除");
         }
+        if (!RAW_WAREHOUSE_TYPE.equals(warehouse.getWarehouseType())) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产领料只能从原材料仓发起，不能从成品、半成品或不良品仓领料");
+        }
         List<WmsOutboundOrder> pendingOrders = baseMapper.selectList(new LambdaQueryWrapper<WmsOutboundOrder>()
                 .eq(WmsOutboundOrder::getOutboundType, MATERIAL_ISSUE_TYPE)
                 .eq(WmsOutboundOrder::getWorkOrderId, workOrderId)
@@ -242,6 +246,12 @@ public class WmsOutboundOrderServiceImpl extends ServiceImpl<WmsOutboundOrderMap
                 detail.setUpdatedBy(operatorId);
                 details.add(detail);
                 remaining = remaining.subtract(allocated);
+            }
+            if (remaining.signum() > 0) {
+                throw business(ResultCode.BUSINESS_ERROR,
+                        "目标原材料仓未齐套，物料 " + request.getKey()
+                                + " 仍缺 " + remaining.setScale(4, java.math.RoundingMode.HALF_UP).toPlainString()
+                                + "，不能生成生产领料单");
             }
         }
         return details;

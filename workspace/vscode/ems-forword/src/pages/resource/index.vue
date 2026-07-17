@@ -190,8 +190,24 @@ function rulesFor(fields, mode) {
 }
 
 // 取得字段的下拉选项：优先使用字段内静态选项，否则使用接口加载的关联资源选项。
-function optionsFor(field) {
-  return field.options || referenceOptions[field.reference] || []
+function optionsFor(field, row = null) {
+  const source = field.options || referenceOptions[field.reference] || []
+  const context = { referenceOptions }
+  return source
+    .filter((item) => !field.optionFilter || field.optionFilter(item, row, context))
+    .map((item) => ({
+      ...item,
+      disabled: item.disabled || Boolean(field.optionDisabled?.(item, row, context))
+    }))
+}
+
+function fieldForAction(field) {
+  const context = { referenceOptions }
+  const dynamicField = { ...field }
+  if (typeof field.disabledDate === 'function') {
+    dynamicField.disabledDate = field.disabledDate(actionRow.value, context)
+  }
+  return dynamicField
 }
 
 // 根据当前值找到对应选项，主要用于把状态编码或关联ID显示为中文名称。
@@ -321,7 +337,12 @@ function initForm(row = {}) {
 function collectReferenceFields() {
   const actionFields = [...(config.value.actions || []), ...(config.value.globalActions || [])].flatMap((item) => item.fields || [])
   return [...config.value.fields, ...config.value.filters, ...actionFields, ...childFields.value, ...detailReferenceFields.value]
-    .filter((item) => item.type === 'reference' && item.reference)
+    .filter((item) => {
+      if (item.type !== 'reference' || !item.reference) return false
+      if (previewMode) return true
+      const referenceConfig = getResourceConfig(item.reference)
+      return referenceConfig && hasPermission(resourcePermission(referenceConfig.key, 'view'))
+    })
 }
 
 // 确保当前选中的明细标签仍然存在；不存在时切换到第一个有权限的明细。
@@ -1282,7 +1303,7 @@ onMounted(initialize)
     <el-dialog v-model="actionOpen" :title="currentAction?.label" width="min(520px, 92vw)" append-to-body>
       <el-form ref="actionFormRef" :model="actionModel" :rules="actionRules" label-position="top">
         <el-form-item v-for="item in currentAction?.fields || []" :key="item.prop" :label="item.label" :prop="item.prop">
-          <ResourceField v-model="actionModel[item.prop]" :field="item" :options="optionsFor(item)" />
+          <ResourceField v-model="actionModel[item.prop]" :field="fieldForAction(item)" :options="optionsFor(fieldForAction(item), actionRow)" />
         </el-form-item>
       </el-form>
       <template #footer><el-button @click="actionOpen = false">取消</el-button><el-button type="primary" :loading="submitting" @click="submitAction">确认执行</el-button></template>

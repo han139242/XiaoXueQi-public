@@ -42,7 +42,7 @@
       <view class="detail-row"><text>工序</text><text>{{task.operationLabel}}</text></view>
       <view class="detail-row"><text>工位</text><text>{{task.stationLabel}}</text></view>
       <view class="detail-row"><text>创建时间</text><text>{{task.createdTimeText}}</text></view>
-      <view class="detail-row"><text>备注</text><text>{{task.remark || '-'}}</text></view>
+      <view class="detail-row"><text>备注</text><text>{{task.remark || ''}}</text></view>
       <view class="expanded-title"><text>报工记录</text><text>{{reports.length}} 条</text></view>
       <empty-state wx:if="{{reports.length === 0}}" title="暂无报工记录"></empty-state>
       <view wx:else class="report-list">

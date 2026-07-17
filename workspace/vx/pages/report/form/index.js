@@ -7,6 +7,8 @@ const statusUtil = require('../../../utils/status')
 const format = require('../../../utils/format')
 
 function reportedTotal(task) {
+  // 任务已报数量 = 合格累计 + 不良累计。
+  // 提交前用它计算剩余可报数量，避免超过计划数量。
   const qualified = Math.max(Number(task.completedQuantity || 0), Number(task.reportedQualifiedQuantity || 0))
   const defect = Math.max(Number(task.defectQuantity || 0), Number(task.reportedDefectQuantity || 0))
   return qualified + defect
@@ -112,8 +114,14 @@ Page({
       this.setData({ error: '实际工时必须大于 0' })
       return
     }
+    const remark = format.validateRemark(this.data.remark, 500)
+    if (remark.error) {
+      this.setData({ error: remark.error })
+      return
+    }
     this.setData({ submitting: true, error: '' })
     try {
+      // 提交前重新拉一次任务详情，防止页面停留期间任务状态或累计数量已被别人改动。
       const latest = await taskApi.detail(this.data.taskId)
       if (!latest || latest.status !== 'RUNNING') throw new Error('任务状态已变化，只有生产中任务可以报工')
       const plannedQuantity = Number(latest.plannedQuantity || 0)
@@ -124,11 +132,13 @@ Page({
         throw new Error('本次报工超过剩余可报数量 ' + (plannedQuantity - completedQuantity))
       }
       const payload = {
+        // 后端根据 taskId 找到工单、工序、计划数量等上下文；
+        // operatorId 来自当前登录账号关联的员工档案。
         taskId: this.data.taskId,
         operatorId,
         qualifiedQuantity,
         defectQuantity,
-        remark: this.data.remark.trim(),
+        remark: remark.value,
         materials: []
       }
       if (stationId !== null) payload.stationId = stationId

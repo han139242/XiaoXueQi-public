@@ -16,7 +16,7 @@
       <view class="field-row"><text class="field-label">状态</text><text class="field-value">{{barcode.status || '-'}}</text></view>
       <view class="field-row"><text class="field-label">生成规则</text><text class="field-value">{{barcode.generatedRule || '-'}}</text></view>
       <view class="field-row"><text class="field-label">创建时间</text><text class="field-value">{{barcode.createdTimeText}}</text></view>
-      <view class="field-row"><text class="field-label">备注</text><text class="field-value">{{barcode.remark || '-'}}</text></view>
+      <view class="field-row"><text class="field-label">备注</text><text class="field-value">{{barcode.remark || ''}}</text></view>
     </view>
   </block>
 </view>

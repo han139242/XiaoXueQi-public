@@ -1,3 +1,4 @@
+// 维修详情页：查看单条设备维修记录的状态和处理过程。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const equipmentApi = require('../../../api/equipment')
@@ -60,7 +61,7 @@ Page({
       updatedTimeText: format.formatDateTime(item.updatedTime),
       faultText: format.display(item.faultDescription),
       resultText: format.display(item.repairResult, '未填写'),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 

@@ -1,3 +1,4 @@
+// 质检记录页：查看历史检验单和检验结果。
 const guard = require('../../../utils/guard')
 const qualityApi = require('../../../api/quality')
 const lookupApi = require('../../../api/lookup')

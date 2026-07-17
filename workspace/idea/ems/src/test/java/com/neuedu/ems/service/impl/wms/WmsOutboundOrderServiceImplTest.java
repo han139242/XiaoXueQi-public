@@ -214,6 +214,39 @@ class WmsOutboundOrderServiceImplTest {
     }
 
     @Test
+    void generateMaterialIssueRejectsNonRawWarehouse() {
+        WmsWarehouse defectiveWarehouse = warehouse();
+        defectiveWarehouse.setWarehouseType("DEFECTIVE");
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder(BusinessStatus.Document.RELEASED));
+        when(warehouseMapper.selectOne(any())).thenReturn(defectiveWarehouse);
+
+        assertThrows(BusinessException.class, () -> service.generateMaterialIssue(3L, 2L, 9L, null));
+
+        verify(orderMapper, never()).insert(any(WmsOutboundOrder.class));
+        verify(inventoryMapper, never()).selectList(any());
+    }
+
+    @Test
+    void generateMaterialIssueRejectsPartialMaterialAvailability() {
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder(BusinessStatus.Document.RELEASED));
+        when(warehouseMapper.selectOne(any())).thenReturn(warehouse());
+        when(orderMapper.selectList(any())).thenReturn(List.of());
+        MfgWorkOrderMaterial requirement = new MfgWorkOrderMaterial();
+        requirement.setRequirementId(20L);
+        requirement.setWorkOrderId(3L);
+        requirement.setMaterialId(11L);
+        requirement.setRequiredQuantity(new BigDecimal("10.0000"));
+        requirement.setIssuedQuantity(BigDecimal.ZERO);
+        when(materialMapper.selectList(any())).thenReturn(List.of(requirement));
+        when(inventoryMapper.selectList(any())).thenReturn(List.of(inventory("6.0000")));
+
+        assertThrows(BusinessException.class, () -> service.generateMaterialIssue(3L, 2L, 9L, null));
+
+        verify(orderMapper, never()).insert(any(WmsOutboundOrder.class));
+        verify(detailMapper, never()).insert(any(WmsOutboundDetail.class));
+    }
+
+    @Test
     void generateMaterialIssueReusesPendingOrderWithoutAllocatingAgain() {
         when(workOrderMapper.selectOne(any())).thenReturn(workOrder(BusinessStatus.Document.RELEASED));
         when(warehouseMapper.selectOne(any())).thenReturn(warehouse());
@@ -340,6 +373,7 @@ class WmsOutboundOrderServiceImplTest {
     private WmsWarehouse warehouse() {
         WmsWarehouse warehouse = new WmsWarehouse();
         warehouse.setWarehouseId(2L);
+        warehouse.setWarehouseType("RAW");
         warehouse.setStatus(BusinessStatus.Common.ENABLE);
         return warehouse;
     }

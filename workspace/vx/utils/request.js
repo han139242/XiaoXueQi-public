@@ -5,6 +5,7 @@ const mockData = require('../mock/data')
 let redirectingToLogin = false
 
 function redirectToLogin() {
+  // 多个接口同时返回 401 时，只跳转一次登录页，避免页面反复 reLaunch。
   if (redirectingToLogin) return
   redirectingToLogin = true
   auth.clearAuth()
@@ -29,6 +30,8 @@ function createError(message, body, statusCode) {
 
 function networkErrorMessage(error) {
   const detail = String(error && (error.errMsg || error.message) || '')
+  // 这些错误发生在 wx.request 的 fail 阶段，说明请求没有正常进入后端业务接口。
+  // 常见原因是微信合法域名、网络连通、证书或后端进程不可达。
   if (/url not in domain list|domain.*(invalid|not configured|not allowed)/i.test(detail)) {
     return '开发者工具请关闭合法域名校验；真机或体验版请配置 HTTPS request 合法域名'
   }
@@ -51,6 +54,7 @@ function request(options) {
     'Content-Type': 'application/json'
   }, config.header || {})
 
+  // 登录成功后，后端要求所有受保护接口都携带 Authorization: Bearer <token>。
   if (token) header.Authorization = 'Bearer ' + token
 
   if (env.useMockData()) {
@@ -77,6 +81,8 @@ function request(options) {
       timeout: config.timeout || 10000,
       success(res) {
         const body = res.data || {}
+        // 后端统一返回 ResultData：{ code, msg, data }。
+        // raw=true 用于登录接口拿完整响应；普通接口默认只返回 data。
         if (res.statusCode === 401 || Number(body.code) === 1002) {
           if (!config.skipAuthRedirect) redirectToLogin()
           reject(createError('登录已失效', body, res.statusCode))
