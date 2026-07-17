@@ -181,7 +181,8 @@ Page({
       qualifiedQuantity: completed,
       defectQuantity: defects,
       reportingComplete: planned > 0 && completed + defects >= planned,
-      actualQuantity: completed + defects
+      actualQuantity: completed + defects,
+      remark: ''
     }
   },
 

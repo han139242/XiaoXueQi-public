@@ -114,6 +114,11 @@ Page({
       this.setData({ error: '实际工时必须大于 0' })
       return
     }
+    const remark = format.validateRemark(this.data.remark, 500)
+    if (remark.error) {
+      this.setData({ error: remark.error })
+      return
+    }
     this.setData({ submitting: true, error: '' })
     try {
       // 提交前重新拉一次任务详情，防止页面停留期间任务状态或累计数量已被别人改动。
@@ -133,7 +138,7 @@ Page({
         operatorId,
         qualifiedQuantity,
         defectQuantity,
-        remark: this.data.remark.trim(),
+        remark: remark.value,
         materials: []
       }
       if (stationId !== null) payload.stationId = stationId

@@ -47,7 +47,8 @@ Page({
           operatorLabel: lookupApi.label(lookups.employee, report.operatorId, '员工'),
           stationLabel: lookupApi.label(lookups.station, report.stationId, '工位'),
           reportTimeText: format.formatDateTime(report.reportTime),
-          createdTimeText: format.formatDateTime(report.createdTime)
+          createdTimeText: format.formatDateTime(report.createdTime),
+          remark: ''
         },
         materials: Array.isArray(materials) ? materials : [],
         loading: false

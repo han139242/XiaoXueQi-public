@@ -9,7 +9,7 @@
       <view class="quantity-grid"><view><text>{{report.qualifiedQuantity}}</text><text>合格数量</text></view><view><text class="defect">{{report.defectQuantity}}</text><text>不良数量</text></view><view><text>{{report.actualWorkHours}}</text><text>实际工时</text></view></view>
     </view>
 
-    <view class="detail-section surface report-info"><view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="info" size="34"></app-icon></view><text class="section-heading__title">报工信息</text></view></view><view class="field-row"><text class="field-label">报工时间</text><text class="field-value">{{report.reportTimeText}}</text></view><view class="field-row"><text class="field-label">备注</text><text class="field-value">{{report.remark || '-'}}</text></view></view>
+    <view class="detail-section surface report-info"><view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="info" size="34"></app-icon></view><text class="section-heading__title">报工信息</text></view></view><view class="field-row"><text class="field-label">报工时间</text><text class="field-value">{{report.reportTimeText}}</text></view><view class="field-row"><text class="field-label">备注</text><text class="field-value">{{report.remark || ''}}</text></view></view>
 
     <view class="section-heading materials-title"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="boxes" size="34"></app-icon></view><text class="section-heading__title">用料明细</text></view><text class="section-heading__meta">{{materials.length}} 项</text></view>
     <empty-state wx:if="{{materials.length === 0}}" title="无用料明细"></empty-state>

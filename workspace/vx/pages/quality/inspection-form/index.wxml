@@ -17,7 +17,7 @@
       <label class="form-field"><text>不合格数量</text><input type="digit" value="{{unqualifiedQuantity}}" data-field="unqualifiedQuantity" placeholder="请输入非负数量" bindinput="handleInput" /></label>
       <view class="form-field readonly-field"><text>不合格率</text><text>{{unqualifiedRateText}}</text></view>
       <view class="form-field readonly-field"><text>系统判定</text><text class="result-value result-value--{{inspectionResultTone}}">{{inspectionResultText}}</text></view>
-      <label class="form-field"><text>备注</text><textarea value="{{remark}}" data-field="remark" maxlength="500" placeholder="选填，记录检验说明" bindinput="handleInput"></textarea></label>
+      <label class="form-field"><text>备注</text><textarea value="{{remark}}" data-field="remark" maxlength="500" placeholder="选填，最多500字，请输入清晰检验说明" bindinput="handleInput"></textarea></label>
       <view wx:if="{{error}}" class="form-error">{{error}}</view>
     </view>
   </block>

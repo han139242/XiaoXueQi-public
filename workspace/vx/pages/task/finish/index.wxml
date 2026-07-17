@@ -8,7 +8,7 @@
       <view class="section-heading"><view class="section-heading__main"><view class="section-heading__icon"><app-icon name="clipboard-check" size="34"></app-icon></view><text class="section-heading__title">完工数据</text></view></view>
       <label class="form-field"><text>最终完成数量</text><view class="control-shell"><app-icon name="badge-check" size="32" muted></app-icon><input type="digit" value="{{completedQuantity}}" data-field="completedQuantity" placeholder="请输入非负数字" bindinput="handleInput" /></view></label>
       <label class="form-field"><text>最终不良数量</text><view class="control-shell"><app-icon name="triangle-alert" size="32" muted></app-icon><input type="digit" value="{{defectQuantity}}" data-field="defectQuantity" placeholder="请输入非负数字" bindinput="handleInput" /></view></label>
-      <label class="form-field"><text>备注</text><view class="textarea-shell"><app-icon name="notebook-pen" size="32" muted></app-icon><textarea value="{{remark}}" data-field="remark" maxlength="500" placeholder="选填" bindinput="handleInput"></textarea></view></label>
+      <label class="form-field"><text>备注</text><view class="textarea-shell"><app-icon name="notebook-pen" size="32" muted></app-icon><textarea value="{{remark}}" data-field="remark" maxlength="500" placeholder="选填，最多500字，请输入清晰说明" bindinput="handleInput"></textarea></view></label>
       <view wx:if="{{error}}" class="form-error"><app-icon name="triangle-alert" size="28"></app-icon><text>{{error}}</text></view>
     </view>
   </block>

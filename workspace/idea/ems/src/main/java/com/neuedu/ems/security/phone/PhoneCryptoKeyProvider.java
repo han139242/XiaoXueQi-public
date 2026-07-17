@@ -1,5 +1,6 @@
 package com.neuedu.ems.security.phone;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +13,8 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
@@ -28,8 +31,16 @@ public class PhoneCryptoKeyProvider {
     private final Map<String, SecretKey> encryptionKeys;
     private final byte[] lookupHmacKey;
     private final boolean legacyReadEnabled;
+    private final Function<String, String> externalPropertyResolver;
 
+    @Autowired
     public PhoneCryptoKeyProvider(Environment environment) {
+        this(environment, PhoneCryptoKeyProvider::readWindowsUserEnvironmentVariable);
+    }
+
+    PhoneCryptoKeyProvider(Environment environment, Function<String, String> externalPropertyResolver) {
+        this.externalPropertyResolver = externalPropertyResolver;
+
         activeKeyId = require(environment, "PHONE_CRYPTO_ACTIVE_KEY_ID");
         validateKeyId(activeKeyId);
 
@@ -76,12 +87,23 @@ public class PhoneCryptoKeyProvider {
         return legacyReadEnabled;
     }
 
-    private static String require(Environment environment, String name) {
-        String value = environment.getProperty(name);
+    private String require(Environment environment, String name) {
+        String value = resolveProperty(environment, name);
         if (value == null || value.isBlank()) {
             throw new IllegalStateException(name + " is required for telephone encryption");
         }
         return value.trim();
+    }
+
+    private String resolveProperty(Environment environment, String name) {
+        String value = environment.getProperty(name);
+        if (value == null || value.isBlank()) {
+            value = System.getenv(name);
+        }
+        if ((value == null || value.isBlank()) && externalPropertyResolver != null) {
+            value = externalPropertyResolver.apply(name);
+        }
+        return value;
     }
 
     private static Set<String> parseKeyIds(String rawKeyIds) {
@@ -112,6 +134,27 @@ public class PhoneCryptoKeyProvider {
             return Base64.getDecoder().decode(encoded.getBytes(StandardCharsets.US_ASCII));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException(variableName + " must be valid Base64", e);
+        }
+    }
+
+    private static String readWindowsUserEnvironmentVariable(String name) {
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+            return null;
+        }
+        try {
+            Process process = new ProcessBuilder("reg", "query", "HKCU\\Environment", "/v", name)
+                    .redirectErrorStream(true)
+                    .start();
+            if (!process.waitFor(2, TimeUnit.SECONDS) || process.exitValue() != 0) {
+                return null;
+            }
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Pattern pattern = Pattern.compile("^\\s*" + Pattern.quote(name) + "\\s+REG_\\S+\\s+(.+)\\s*$",
+                    Pattern.MULTILINE);
+            java.util.regex.Matcher matcher = pattern.matcher(output);
+            return matcher.find() ? matcher.group(1).trim() : null;
+        } catch (Exception ignored) {
+            return null;
         }
     }
 }

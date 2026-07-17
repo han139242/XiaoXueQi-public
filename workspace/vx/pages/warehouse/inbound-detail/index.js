@@ -53,7 +53,7 @@ Page({
       warehouseLabel: lookupApi.label(lookups.warehouse, item.warehouseId, '仓库'),
       inboundTimeText: format.formatDateTime(item.inboundTime),
       createdTimeText: format.formatDateTime(item.createdTime),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 

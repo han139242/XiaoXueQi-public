@@ -56,7 +56,7 @@ Page({
       statusTone: statusView[1],
       stationLabel: lookupApi.label(lookups.station, item.stationId, '工位'),
       updatedTimeText: format.formatDateTime(item.updatedTime),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 

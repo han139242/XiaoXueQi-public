@@ -119,7 +119,7 @@ Page({
             : null
         },
         report,
-        remark: detail.remark || '',
+        remark: '',
         loading: false
       })
     } catch (error) {
@@ -142,11 +142,14 @@ Page({
     if (this.data.detail.availableQuantity !== null && sampleQuantity > this.data.detail.availableQuantity) {
       return { error: '抽检数量不能超过关联报工数量 ' + this.data.detail.availableQuantity }
     }
+    const remark = format.validateRemark(this.data.remark, 500)
+    if (remark.error) return { error: remark.error }
     return {
       sampleQuantity,
       qualifiedQuantity,
       unqualifiedQuantity,
-      inspectionResult: calculated.inspectionResult
+      inspectionResult: calculated.inspectionResult,
+      remark: remark.value
     }
   },
 
@@ -173,7 +176,7 @@ Page({
           await qualityApi.submitInspection(this.data.inspectionId, {
             ...values,
             operatorId,
-            remark: this.data.remark.trim()
+            remark: values.remark
           })
           wx.showToast({ title: '检验记录已提交', icon: 'success' })
           if (values.inspectionResult === 'FAIL'

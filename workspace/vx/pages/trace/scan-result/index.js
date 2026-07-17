@@ -70,7 +70,8 @@ Page({
         barcode: barcode ? {
           ...barcode,
           createdTimeText: format.formatDateTime(barcode.createdTime),
-          updatedTimeText: format.formatDateTime(barcode.updatedTime)
+          updatedTimeText: format.formatDateTime(barcode.updatedTime),
+          remark: ''
         } : null,
         loading: false
       })

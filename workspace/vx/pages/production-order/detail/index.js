@@ -49,7 +49,7 @@ Page({
       deliveryDateText: format.display(item.deliveryDate),
       createdTimeText: format.formatDateTime(item.createdTime),
       updatedTimeText: format.formatDateTime(item.updatedTime),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 

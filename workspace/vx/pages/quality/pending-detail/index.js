@@ -101,7 +101,7 @@ Page({
       inspectionTimeText: format.formatDateTime(item.inspectionTime || item.updatedTime),
       createdTimeText: format.formatDateTime(item.createdTime),
       updatedTimeText: format.formatDateTime(item.updatedTime),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 

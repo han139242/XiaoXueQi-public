@@ -46,7 +46,7 @@ Page({
         task: { ...task, statusView: statusUtil.getStatus('task', task.status) },
         completedQuantity: format.display(task.completedQuantity, '0'),
         defectQuantity: format.display(task.defectQuantity, '0'),
-        remark: task.remark || '',
+        remark: '',
         loading: false
       })
     } catch (error) {
@@ -67,6 +67,11 @@ Page({
       this.setData({ error: '完成数量和不良数量必须是非负数字' })
       return
     }
+    const remark = format.validateRemark(this.data.remark, 500)
+    if (remark.error) {
+      this.setData({ error: remark.error })
+      return
+    }
     wx.showModal({
       title: '确认完成任务',
       content: '提交后任务将进入已完工状态，确认继续？',
@@ -76,7 +81,7 @@ Page({
         try {
           const latest = await taskApi.detail(this.data.taskId)
           if (!latest || !['RUNNING', 'PAUSED'].includes(latest.status)) throw new Error('任务状态已变化，请返回刷新')
-          await taskApi.finish(this.data.taskId, { completedQuantity, defectQuantity, remark: this.data.remark.trim() })
+          await taskApi.finish(this.data.taskId, { completedQuantity, defectQuantity, remark: remark.value })
           await taskApi.detail(this.data.taskId)
           wx.showToast({ title: '任务已完成', icon: 'success' })
           setTimeout(() => wx.navigateBack(), 500)

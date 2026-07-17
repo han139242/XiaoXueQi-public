@@ -54,7 +54,7 @@ Page({
       workOrderLabel: item.workOrderId ? lookupApi.label(lookups.workOrder, item.workOrderId, '工单') : '-',
       outboundTimeText: format.formatDateTime(item.outboundTime),
       createdTimeText: format.formatDateTime(item.createdTime),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 

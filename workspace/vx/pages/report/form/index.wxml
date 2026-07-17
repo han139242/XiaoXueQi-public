@@ -9,7 +9,7 @@
       <label class="form-field"><text>合格数量</text><input type="digit" value="{{qualifiedQuantity}}" data-field="qualifiedQuantity" placeholder="请输入非负数字" bindinput="handleInput" /></label>
       <label class="form-field"><text>不良数量</text><input type="digit" value="{{defectQuantity}}" data-field="defectQuantity" placeholder="请输入非负数字" bindinput="handleInput" /></label>
       <label class="form-field"><text>实际工时</text><input type="digit" value="{{actualWorkHours}}" data-field="actualWorkHours" placeholder="选填，必须大于 0" bindinput="handleInput" /></label>
-      <label class="form-field"><text>备注</text><textarea value="{{remark}}" data-field="remark" maxlength="500" placeholder="选填" bindinput="handleInput"></textarea></label>
+      <label class="form-field"><text>备注</text><textarea value="{{remark}}" data-field="remark" maxlength="500" placeholder="选填，最多500字，请输入清晰说明" bindinput="handleInput"></textarea></label>
       <view wx:if="{{error}}" class="form-error">{{error}}</view>
     </view>
   </block>

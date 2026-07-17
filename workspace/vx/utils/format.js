@@ -28,9 +28,24 @@ function compactQuery(source) {
   return result
 }
 
+function validateRemark(value, maxLength) {
+  const text = String(value || '').trim()
+  if (!text) return { value: '', error: '' }
+  if (maxLength && text.length > maxLength) {
+    return { value: text, error: '备注不能超过 ' + maxLength + ' 个字' }
+  }
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(text)
+    || /\?{3,}/.test(text)
+    || /�|锟斤拷|ï¿½/i.test(text)) {
+    return { value: text, error: '备注包含乱码或不可识别字符，请重新填写' }
+  }
+  return { value: text, error: '' }
+}
+
 module.exports = {
   display,
   formatDateTime,
   toNumber,
-  compactQuery
+  compactQuery,
+  validateRemark
 }

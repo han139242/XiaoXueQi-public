@@ -6,11 +6,15 @@ $ErrorActionPreference = 'Stop'
 
 $userApiKey = [Environment]::GetEnvironmentVariable('AI_API_KEY', 'User')
 if ([string]::IsNullOrWhiteSpace($userApiKey)) {
-    throw 'Windows user-level AI_API_KEY is missing.'
+    # AI is optional for local backend startup. Keep core MES APIs available even
+    # when the model key has not been distributed to this machine.
+    $env:AI_ENABLED = 'false'
+    Remove-Item Env:AI_API_KEY -ErrorAction SilentlyContinue
+} else {
+    # Local IDEs and terminals may inherit a stale process-level value.
+    $env:AI_ENABLED = 'true'
+    $env:AI_API_KEY = $userApiKey
 }
-
-# Local IDEs and terminals may inherit a stale process-level value.
-$env:AI_API_KEY = $userApiKey
 
 $phoneCryptoActiveKeyId = [Environment]::GetEnvironmentVariable('PHONE_CRYPTO_ACTIVE_KEY_ID', 'User')
 if ([string]::IsNullOrWhiteSpace($phoneCryptoActiveKeyId)) {

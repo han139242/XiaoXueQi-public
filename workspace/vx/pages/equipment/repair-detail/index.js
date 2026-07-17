@@ -61,7 +61,7 @@ Page({
       updatedTimeText: format.formatDateTime(item.updatedTime),
       faultText: format.display(item.faultDescription),
       resultText: format.display(item.repairResult, '未填写'),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 
