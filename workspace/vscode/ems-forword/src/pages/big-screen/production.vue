@@ -378,6 +378,14 @@ const kpis = computed(() => [
     icon: 'wrench',
     tone: 'steel'
   },
+  {
+    label: '逾期生产计划',
+    value: '0',
+    unit: '项',
+    description: '当前没有逾期计划',
+    icon: 'alert',
+    tone: 'muted'
+  },
 ])
 
 // 把设备状态对象转换为模板可循环的五类状态数组。
