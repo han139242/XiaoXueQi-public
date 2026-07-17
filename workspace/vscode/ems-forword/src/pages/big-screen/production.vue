@@ -31,7 +31,7 @@ const failedDataCount = ref(0)
 const summary = ref({})
 const trend = ref([])
 const quality = ref({})
-const qualityClosure = ref({ total: 0, closed: 0, rate: null })
+const qualityClosure = ref({ total: 0, closed: 0, rate: null, openCount: 0 })
 const equipment = ref({})
 const schedulePlans = ref([])
 const productionLines = ref([])
@@ -104,6 +104,7 @@ const qualifiedInspectionCount = computed(() => Number(quality.value.qualifiedCo
 const unqualifiedInspectionCount = computed(() => Number(quality.value.unqualifiedCount || 0))
 const evaluatedInspectionCount = computed(() => qualifiedInspectionCount.value + unqualifiedInspectionCount.value)
 const pendingInspectionCount = computed(() => Math.max(0, inspectionCount.value - evaluatedInspectionCount.value))
+const openNonconformingCount = computed(() => Number(qualityClosure.value.openCount || 0))
 // 一次检验合格率只使用已经判定为合格或不合格的质检单，待判定单不进入分母。
 const inspectionPassRate = computed(() => evaluatedInspectionCount.value
   ? (qualifiedInspectionCount.value / evaluatedInspectionCount.value) * 100
@@ -145,7 +146,7 @@ const hasTrendData = computed(() => trendRows.value.some((item) => item.output >
 const sevenDayOutput = computed(() => trendRows.value.reduce((total, item) => total + item.output, 0))
 
 // 统计需要计划、设备、仓储或质量人员处理的关注类别。
-const riskCategoryCount = computed(() => [pendingProductionOrderCount.value, faultCount.value, warningCount.value, todayDefect.value]
+const riskCategoryCount = computed(() => [pendingProductionOrderCount.value, faultCount.value, warningCount.value, todayDefect.value, openNonconformingCount.value]
   .filter((value) => value > 0).length)
 
 // 排期总览仅保留当天仍有效与未来的正式计划，不对计划额外标注逾期状态。
@@ -438,6 +439,14 @@ const attentionItems = computed(() => [
     icon: 'alert',
     tone: todayDefect.value > 0 ? 'warning' : 'normal',
     path: '/mfg/work-reports'
+  },
+  {
+    label: '不合格品处理',
+    value: openNonconformingCount.value,
+    note: openNonconformingCount.value > 0 ? '仍有不合格品处理单等待完成处置' : '当前没有待处理不合格品',
+    icon: 'alert',
+    tone: openNonconformingCount.value > 0 ? 'danger' : 'normal',
+    path: '/qms/nonconforming-orders'
   }
 ])
 
@@ -649,12 +658,13 @@ async function loadProductionSchedule() {
   return { plans: mappedPlans, lines: mappedLines.length ? mappedLines : fallbackLines, pendingOrderCount }
 }
 
-// 读取近7日不合格处理单并计算真实关闭率；权限不足时由主加载流程保留一次检验率回退。
+// 读取全部不合格处理单统计待处理数，并保留近7日关闭率供质量卡片展示。
 async function loadQualityClosure() {
   const result = await getResourcePage('/api/qms/nonconforming-order', { current: 1, size: 200 })
+  const allRecords = pageRecords(result)
   const start = now.value.subtract(6, 'day').startOf('day')
   const end = now.value.endOf('day')
-  const records = pageRecords(result).filter((item) => {
+  const records = allRecords.filter((item) => {
     const createdTime = dayjs(item.createdTime)
     return createdTime.isValid() && !createdTime.isBefore(start) && !createdTime.isAfter(end)
   })
@@ -662,7 +672,8 @@ async function loadQualityClosure() {
   return {
     total: records.length,
     closed,
-    rate: records.length ? Number(((closed / records.length) * 100).toFixed(2)) : null
+    rate: records.length ? Number(((closed / records.length) * 100).toFixed(2)) : null,
+    openCount: allRecords.filter((item) => item.status !== 'CLOSED').length
   }
 }
 
@@ -739,7 +750,7 @@ async function loadData() {
     summary.value = data.summary
     trend.value = data.trend
     quality.value = data.quality
-    qualityClosure.value = data.qualityClosure || { total: 0, closed: 0, rate: null }
+    qualityClosure.value = data.qualityClosure || { total: 0, closed: 0, rate: null, openCount: 0 }
     equipment.value = data.equipment
     schedulePlans.value = data.schedule || []
     pendingProductionOrderCount.value = Number(data.pendingProductionOrderCount || 0)
@@ -802,7 +813,7 @@ async function loadData() {
 
     qualityClosure.value = qualityClosureResult.status === 'fulfilled'
       ? qualityClosureResult.value
-      : { total: 0, closed: 0, rate: null }
+      : { total: 0, closed: 0, rate: null, openCount: 0 }
 
     failedDataCount.value = failedLabels.length
     if (successCount > 0) {
