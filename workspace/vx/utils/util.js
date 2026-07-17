@@ -1,3 +1,4 @@
+// 小程序模板生成的通用工具，目前保留基础时间格式化能力。
 const formatTime = date => {
   const year = date.getFullYear()
   const month = date.getMonth() + 1

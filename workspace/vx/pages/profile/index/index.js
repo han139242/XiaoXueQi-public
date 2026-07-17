@@ -1,3 +1,4 @@
+// 我的页面：展示当前用户、权限调试信息、后端地址和退出登录。
 const guard = require('../../../utils/guard')
 const authApi = require('../../../api/auth')
 const auth = require('../../../utils/auth')

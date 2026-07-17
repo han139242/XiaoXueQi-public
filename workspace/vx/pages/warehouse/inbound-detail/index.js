@@ -1,3 +1,4 @@
+// 入库单详情页：展示入库主单和明细物料/产品信息。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const warehouseApi = require('../../../api/warehouse')
@@ -52,7 +53,7 @@ Page({
       warehouseLabel: lookupApi.label(lookups.warehouse, item.warehouseId, '仓库'),
       inboundTimeText: format.formatDateTime(item.inboundTime),
       createdTimeText: format.formatDateTime(item.createdTime),
-      remarkText: format.display(item.remark)
+      remarkText: ''
     }
   },
 

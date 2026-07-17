@@ -1,3 +1,4 @@
+// 不良品登记页：录入不良原因、处理方式，并支持拍照上传。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')
@@ -155,7 +156,7 @@ Page({
           productLotId: detail.productLotId || '',
           defectReason: detail.defectName || detail.defectReason || '',
           dispositionType: dispositionCode || dispositionOptions[dispositionIndex].value,
-          remark: detail.remark || '',
+          remark: '',
           imageUrl: detail.imageUrl || detail.pictureUrl || detail.photoUrl || ''
         },
         dispositionIndex,
@@ -255,6 +256,8 @@ Page({
     if (!String(this.data.form.inspectionId || '').trim()) return '请选择关联检验单'
     if (!String(this.data.form.defectReason || '').trim()) return '请输入不良原因'
     if (!String(this.data.form.dispositionType || '').trim()) return '请选择处理方式'
+    const remark = format.validateRemark(this.data.form.remark, 200)
+    if (remark.error) return remark.error
     return ''
   },
 
@@ -274,7 +277,7 @@ Page({
       const payload = {
         defectReason: String(form.defectReason || '').trim(),
         dispositionType: form.dispositionType,
-        remark: String(form.remark || '').trim()
+        remark: format.validateRemark(form.remark, 200).value
       }
       let ncrId = form.ncrId
       if (form.ncrId) {

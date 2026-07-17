@@ -1,3 +1,4 @@
+// 空状态组件：列表无数据或查询无结果时统一展示。
 Component({
   properties: {
     title: {

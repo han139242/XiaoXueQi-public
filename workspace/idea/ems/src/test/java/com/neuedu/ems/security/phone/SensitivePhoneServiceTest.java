@@ -16,6 +16,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -83,11 +84,27 @@ class SensitivePhoneServiceTest {
     @Test
     void rejectsInvalidOrCiphertextShapedInput() {
         assertThrows(IllegalStateException.class,
-                () -> new PhoneCryptoKeyProvider(new MockEnvironment()));
+                () -> new PhoneCryptoKeyProvider(new MockEnvironment(), name -> null));
         assertThrows(com.neuedu.ems.exception.BusinessException.class,
                 () -> phoneService.prepareCreate(SensitivePhoneField.EMPLOYEE, "138****0001"));
         assertThrows(com.neuedu.ems.exception.BusinessException.class,
                 () -> phoneService.prepareCreate(SensitivePhoneField.EMPLOYEE, "v1:k1:abc"));
+    }
+
+    @Test
+    void readsKeysFromExternalResolverWhenEnvironmentDoesNotExposeUserVariables() {
+        java.util.Map<String, String> userVariables = java.util.Map.of(
+                "PHONE_CRYPTO_ACTIVE_KEY_ID", "k1",
+                "PHONE_CRYPTO_KEY_IDS", "k1",
+                "PHONE_CRYPTO_KEY_K1", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                "PHONE_LOOKUP_HMAC_KEY", "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=");
+
+        PhoneCryptoKeyProvider keyProvider = new PhoneCryptoKeyProvider(
+                new MockEnvironment(), userVariables::get);
+
+        assertEquals("k1", keyProvider.getActiveKeyId());
+        assertNotNull(keyProvider.getActiveEncryptionKey());
+        assertEquals(32, keyProvider.getLookupHmacKey().length);
     }
 
     private void setContext(Set<String> permissions) {

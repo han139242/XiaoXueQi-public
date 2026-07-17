@@ -1,3 +1,4 @@
+// 待检任务页：质检员查看当前需要处理的检验单。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')

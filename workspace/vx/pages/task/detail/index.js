@@ -40,6 +40,8 @@ function progressTaskScore(task) {
 }
 
 function selectProgressTasks(records) {
+  // 一个工单理论上对应七道工序任务。
+  // 如果历史数据里同一道工序出现重复任务，这里优先选生产中/已完成的有效任务展示进度。
   const selected = {}
   records.forEach((task) => {
     const key = task.operationId == null ? 'task-' + task.taskId : 'operation-' + task.operationId
@@ -94,6 +96,7 @@ Page({
   },
 
   copyTaskNo() {
+    // 复制任务编号后，可在报工记录列表按任务编号/任务 ID 追溯对应报工。
     const taskNo = this.data.task && this.data.task.taskNo
     if (!taskNo) {
       wx.showToast({ title: '暂无任务编号', icon: 'none' })
@@ -122,6 +125,8 @@ Page({
     if (!confirmed) return
     this.setData({ submitting: true })
     try {
+      // 开工会调用后端状态流转接口：WAIT_START -> RUNNING。
+      // 后端还会校验父工单必须已经生产中。
       await taskApi.start(taskId, target.stationId ? { stationId: target.stationId } : {})
       wx.showToast({ title: '任务已开始', icon: 'success' })
       await this.loadData()
@@ -136,6 +141,7 @@ Page({
     if (!guard.requirePermission('mfg:work-report:create') || !guard.requirePermission('mfg:work-report:submit')) return
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
+    // 只有“派给当前用户 + 生产中 + 未达标”的任务才允许进入报工。
     if (!target || target.assignedToCurrentUser !== true || target.status !== 'RUNNING' || target.reportingComplete) return
     wx.navigateTo({ url: '/pages/report/form/index?taskId=' + encodeURIComponent(taskId) })
   },
@@ -162,6 +168,8 @@ Page({
   },
 
   decorateTask(item, lookups) {
+    // 把后端原始任务记录转换成页面可直接展示的数据：
+    // 状态文案、工序/工位名称、累计数量、是否达标等。
     const completed = Math.max(Number(item.completedQuantity || 0), Number(item.reportedQualifiedQuantity || 0))
     const defects = Math.max(Number(item.defectQuantity || 0), Number(item.reportedDefectQuantity || 0))
     const planned = Number(item.plannedQuantity || 0)
@@ -173,7 +181,8 @@ Page({
       qualifiedQuantity: completed,
       defectQuantity: defects,
       reportingComplete: planned > 0 && completed + defects >= planned,
-      actualQuantity: completed + defects
+      actualQuantity: completed + defects,
+      remark: ''
     }
   },
 
@@ -185,6 +194,8 @@ Page({
         this.setData({ task: null, progressTasks: [], reports: [], loading: false })
         return
       }
+      // 任务详情页同时加载：当前任务、所属工单、同工单七道工序、当前任务报工记录和字典。
+      // Promise.all 用于并发请求，减少手机端等待时间。
       const [workOrder, taskPage, reportPage, lookups, planPage] = await Promise.all([
         workOrderApi.detail(task.workOrderId),
         taskApi.pageForView({ current: 1, size: 100, workOrderId: task.workOrderId }),

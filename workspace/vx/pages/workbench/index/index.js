@@ -24,6 +24,8 @@ Page({
     if (!guard.requireAuth()) return
     const tabBar = typeof this.getTabBar === 'function' ? this.getTabBar() : null
     if (tabBar) tabBar.setData({ currentPath: '/pages/workbench/index/index' })
+    // 工作台不是固定展示所有模块，而是根据后端返回的权限动态显示入口。
+    // 这对应“操作工/质检员/仓库管理员/设备管理员”的不同可见范围。
     const canQualityInspection = auth.hasPermission('qms:inspection-order:view')
     const canQualityDefect = auth.hasPermission('qms:nonconforming-order:view')
     const canInbound = auth.hasPermission('wms:inbound-order:view')
@@ -72,6 +74,7 @@ Page({
   },
 
   startScan() {
+    // 扫码走 trace 模块，需要 trace:barcode:scan 权限。
     if (!guard.requirePermission('trace:barcode:scan')) return
     scanUtil.scanToResult()
   }

@@ -1,3 +1,4 @@
+// 生产订单 API：用于移动端查看生产订单列表和详情。
 const request = require('../utils/request')
 
 function page(data) {

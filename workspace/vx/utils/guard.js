@@ -40,6 +40,8 @@ function ensureMockAuth() {
 function requireAuth() {
   ensureMockAuth()
   if (auth.getToken()) {
+    // 每个页面 onShow 时会调用 requireAuth。
+    // 这里除了判断是否登录，还根据当前 route 做页面级权限拦截。
     const pages = getCurrentPages()
     const route = pages.length ? pages[pages.length - 1].route : ''
     const permissionCode = PAGE_PERMISSIONS[route]
@@ -55,12 +57,16 @@ function requireAuth() {
 }
 
 function requirePermission(permissionCode, message = '当前账号无操作权限') {
+  // 按钮级权限校验，例如“开工”“报工”“提交质检”。
+  // 页面能看不代表所有按钮都能操作。
   if (auth.hasPermission(permissionCode)) return true
   wx.showToast({ title: message, icon: 'none' })
   return false
 }
 
 function requireEmployee() {
+  // 现场操作类接口需要 operatorId/employeeId。
+  // 如果账号没有关联员工档案，就不能提交报工、质检等业务记录。
   const user = auth.getUser()
   if (user && user.employeeId) return user.employeeId
   wx.showModal({

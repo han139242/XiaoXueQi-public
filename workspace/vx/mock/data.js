@@ -1,3 +1,4 @@
+// 本地 mock 数据：开发早期无后端或断网时使用，真实联调默认关闭。
 const now = '2026-07-13T09:30:00'
 const UNQUALIFIED_RATE_LIMIT = 0.005
 

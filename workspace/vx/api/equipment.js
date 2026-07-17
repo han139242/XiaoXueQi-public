@@ -1,3 +1,4 @@
+// 设备模块 API：设备列表、设备详情、维修单查询和维修提交。
 const request = require('../utils/request')
 
 function equipmentPage(data) {

@@ -2,6 +2,7 @@ const authApi = require('../../api/auth')
 const auth = require('../../utils/auth')
 
 function switchToWorkbench() {
+  // 登录成功后进入工作台。这里单独封装，是为了把跳转失败也变成可读错误。
   return new Promise((resolve, reject) => {
     wx.switchTab({
       url: '/pages/workbench/index/index',
@@ -27,6 +28,8 @@ Page({
   },
 
   onLoad() {
+    // 打开登录页时先尝试恢复旧 token。
+    // 如果 token 还有效，就直接进入工作台；无效则清理登录态。
     this.restoreSession()
   },
 
@@ -65,6 +68,7 @@ Page({
     this.setData({ submitting: true, error: '' })
     let authEstablished = false
     try {
+      // 登录分两步：先用账号密码换 token，再用 token 请求 /api/auth/info 获取用户、角色、权限。
       const response = await authApi.login({ username, password })
       if (!response.token || typeof response.token !== 'string') {
         throw new Error('登录响应缺少有效 Token')

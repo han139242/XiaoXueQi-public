@@ -1,3 +1,4 @@
+// 文件上传 API：主要给不良品拍照等业务上传图片，并把相对地址转成可访问地址。
 const request = require('../utils/request')
 const auth = require('../utils/auth')
 const env = require('../config/env')

@@ -1,3 +1,4 @@
+// 出库单列表页：仓库人员查看生产领料、销售或其他出库记录。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const warehouseApi = require('../../../api/warehouse')

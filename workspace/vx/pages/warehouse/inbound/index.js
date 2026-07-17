@@ -1,3 +1,4 @@
+// 入库单列表页：仓库人员查看待处理和历史入库单。
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const warehouseApi = require('../../../api/warehouse')

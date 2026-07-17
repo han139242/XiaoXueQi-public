@@ -1,3 +1,4 @@
+// 工单列表页：查看生产工单，并进入工单详情或执行开工。
 const guard = require('../../../utils/guard')
 const workOrderApi = require('../../../api/work-order')
 const lookupApi = require('../../../api/lookup')
