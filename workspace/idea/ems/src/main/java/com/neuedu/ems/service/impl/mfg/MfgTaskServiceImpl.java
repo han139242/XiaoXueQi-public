@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.time.LocalDateTime;
 
 /**
@@ -142,7 +143,19 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         Page<MfgTask> page = new Page<>(current, size);
         Page<MfgTask> result = baseMapper.selectPage(page,
                 buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
-        enrichReportedQuantities(result.getRecords());
+        enrichTaskView(result.getRecords());
+        return result;
+    }
+
+    @Override
+    public Page<MfgTask> pageTasksForView(Integer current, Integer size, String keyword, String status,
+                                          Long dispatchId, Long workOrderId, Long operationId, Long stationId,
+                                          Long employeeId, String sort) {
+        Page<MfgTask> page = new Page<>(current, size);
+        Page<MfgTask> result = baseMapper.selectPage(page,
+                buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId,
+                        employeeId, sort, false));
+        enrichTaskView(result.getRecords());
         return result;
     }
 
@@ -162,7 +175,7 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     public List<MfgTask> listTasks(String keyword, String status, Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort) {
         List<MfgTask> tasks = baseMapper.selectList(
                 buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
-        enrichReportedQuantities(tasks);
+        enrichTaskView(tasks);
         return tasks;
     }
 
@@ -183,8 +196,36 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 .eq(MfgTask::getTaskId, taskId).eq(MfgTask::getDeletedFlag, 0)) > 0) {
             throw new DataScopeAccessDeniedException();
         }
-        enrichReportedQuantities(task == null ? Collections.emptyList() : Collections.singletonList(task));
+        enrichTaskView(task == null ? Collections.emptyList() : Collections.singletonList(task));
         return task;
+    }
+
+    @Override
+    public MfgTask getTaskForView(Long taskId) {
+        MfgTask task = baseMapper.selectOne(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getTaskId, taskId)
+                .eq(MfgTask::getDeletedFlag, 0));
+        enrichTaskView(task == null ? Collections.emptyList() : Collections.singletonList(task));
+        return task;
+    }
+
+    private void enrichTaskView(List<MfgTask> tasks) {
+        enrichReportedQuantities(tasks);
+        markCurrentUserAssignments(tasks);
+    }
+
+    private void markCurrentUserAssignments(List<MfgTask> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return;
+        }
+        if (dataScopeService == null) {
+            tasks.forEach(task -> task.setAssignedToCurrentUser(true));
+            return;
+        }
+        Set<Long> operableTaskIds = dataScopeService.findOperableTaskIds(
+                tasks.stream().map(MfgTask::getTaskId).filter(java.util.Objects::nonNull).toList());
+        tasks.forEach(task -> task.setAssignedToCurrentUser(
+                task.getTaskId() != null && operableTaskIds.contains(task.getTaskId())));
     }
 
     private void enrichReportedQuantities(List<MfgTask> tasks) {
@@ -740,7 +781,8 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             insertStatusLog("MFG_PRODUCTION_PLAN", plan.getPlanId(), plan.getStatus(),
                     BusinessStatus.Document.RELEASED, "REOPEN_PLAN_FOR_COMPENSATION",
                     operatorId, remark, now);
-        } else if (!BusinessStatus.Document.RELEASED.equals(plan.getStatus())) {
+        } else if (!List.of(BusinessStatus.Document.RELEASED, BusinessStatus.Production.RUNNING)
+                .contains(plan.getStatus())) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
                     "来源生产计划当前状态不允许生成补偿任务");
         }
@@ -768,7 +810,8 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             insertStatusLog("MFG_PRODUCTION_ORDER", order.getProductionOrderId(), order.getStatus(),
                     BusinessStatus.Document.RELEASED, "REOPEN_ORDER_FOR_COMPENSATION",
                     operatorId, remark, now);
-        } else if (!BusinessStatus.Document.RELEASED.equals(order.getStatus())) {
+        } else if (!List.of(BusinessStatus.Document.RELEASED, BusinessStatus.Production.RUNNING)
+                .contains(order.getStatus())) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
                     "来源生产订单当前状态不允许生成补偿任务");
         }
@@ -890,6 +933,13 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      */
     private LambdaQueryWrapper<MfgTask> buildTaskQuery(String keyword, String status,
                                                        Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort) {
+        return buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort, true);
+    }
+
+    private LambdaQueryWrapper<MfgTask> buildTaskQuery(String keyword, String status,
+                                                       Long dispatchId, Long workOrderId, Long operationId,
+                                                       Long stationId, Long employeeId, String sort,
+                                                       boolean applyScope) {
         LambdaQueryWrapper<MfgTask> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(MfgTask::getDeletedFlag, 0)
                 .like(StringUtils.hasText(keyword), MfgTask::getTaskNo, keyword)
@@ -905,7 +955,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                     "SELECT work_order_id FROM mfg_work_order WHERE deleted_flag = 0 "
                             + "AND status IN ('RUNNING', 'FINISHED', 'CLOSED')");
         }
-        applyDataScope(queryWrapper);
+        if (applyScope) {
+            applyDataScope(queryWrapper);
+        }
         if ("oldest".equalsIgnoreCase(sort)) {
             queryWrapper.orderByAsc(MfgTask::getCreatedTime);
         } else {

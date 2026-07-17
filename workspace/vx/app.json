@@ -9,7 +9,6 @@
     "pages/task/detail/index",
     "pages/task/finish/index",
     "pages/workbench/index/index",
-    "pages/dashboard/index",
     "pages/warehouse/inbound/index",
     "pages/warehouse/inbound-detail/index",
     "pages/warehouse/outbound/index",

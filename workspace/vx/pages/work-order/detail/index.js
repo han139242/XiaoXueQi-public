@@ -36,11 +36,31 @@ function compareTasks(left, right) {
   return Number(left.taskId || 0) - Number(right.taskId || 0)
 }
 
+function progressTaskScore(task) {
+  const statusScore = { RUNNING: 50, PAUSED: 45, FINISHED: 40, WAIT_START: 30, CLOSED: 10 }
+  const normalizedNumberBonus = /-\d{3}$/.test(String(task.taskNo || '')) ? 5 : 0
+  return (statusScore[task.status] || 0) + normalizedNumberBonus
+}
+
+function selectProgressTasks(records) {
+  const selected = {}
+  records.forEach((task) => {
+    const key = task.operationId == null ? 'task-' + task.taskId : 'operation-' + task.operationId
+    const current = selected[key]
+    if (!current || progressTaskScore(task) > progressTaskScore(current)
+      || (progressTaskScore(task) === progressTaskScore(current) && Number(task.taskId) < Number(current.taskId))) {
+      selected[key] = task
+    }
+  })
+  return Object.keys(selected).map((key) => selected[key])
+}
+
 Page({
   data: {
     id: null,
     workOrder: null,
     tasks: [],
+    activeStageAnchor: '',
     history: [],
     lookups: null,
     activeTab: 'progress',
@@ -118,7 +138,10 @@ Page({
 
   openReportForm(event) {
     if (!guard.requirePermission('mfg:work-report:create') || !guard.requirePermission('mfg:work-report:submit')) return
-    wx.navigateTo({ url: '/pages/report/form/index?taskId=' + encodeURIComponent(event.currentTarget.dataset.id) })
+    const taskId = Number(event.currentTarget.dataset.id)
+    const task = this.data.tasks.find((item) => Number(item.taskId) === taskId)
+    if (!task || task.assignedToCurrentUser !== true || task.status !== 'RUNNING' || task.reportingComplete) return
+    wx.navigateTo({ url: '/pages/report/form/index?taskId=' + encodeURIComponent(taskId) })
   },
 
   openReport(event) {
@@ -126,11 +149,14 @@ Page({
   },
 
   decorateTasks(records, lookups) {
-    const tasks = records.slice().sort(compareTasks).map((item) => {
+    const tasks = selectProgressTasks(records).sort(compareTasks).map((item) => {
       const planned = Number(item.plannedQuantity || 0)
       const qualified = Math.max(Number(item.completedQuantity || 0), Number(item.reportedQualifiedQuantity || 0))
       const defect = Math.max(Number(item.defectQuantity || 0), Number(item.reportedDefectQuantity || 0))
-      const progress = planned > 0 ? Math.min(100, (qualified + defect) / planned * 100) : 0
+      const reported = qualified + defect
+      const progress = item.status === 'FINISHED'
+        ? 100
+        : planned > 0 ? Math.min(100, reported / planned * 100) : 0
       return {
         ...item,
         statusView: statusUtil.getStatus('task', item.status),
@@ -138,14 +164,15 @@ Page({
         stationLabel: lookupApi.label(lookups.station, item.stationId, '工位'),
         qualifiedQuantity: qualified,
         defectQuantity: defect,
+        reportingComplete: planned > 0 && reported >= planned,
         progressText: progress.toFixed(2) + '%'
       }
     })
-    let currentIndex = tasks.findIndex((item) => item.status !== 'FINISHED')
-    if (currentIndex < 0) currentIndex = Math.max(0, tasks.length - 1)
-    return tasks.map((item, index) => ({
+    return tasks.map((item) => ({
       ...item,
-      stageState: item.status === 'FINISHED' ? 'done' : index === currentIndex ? 'active' : 'pending'
+      stageState: item.status === 'FINISHED' || item.reportingComplete
+        ? 'done'
+        : item.status === 'RUNNING' ? 'active' : 'pending'
     }))
   },
 
@@ -205,16 +232,17 @@ Page({
         return
       }
       const [taskPage, lookups, plan] = await Promise.all([
-        taskApi.page({ current: 1, size: 50, workOrderId: this.data.id, sort: 'oldest' }),
+        taskApi.pageForView({ current: 1, size: 50, workOrderId: this.data.id, sort: 'oldest' }),
         lookupApi.load(['product', 'operation', 'station', 'employee']),
         workOrder.planId ? productionPlanApi.detail(workOrder.planId).catch(() => null) : Promise.resolve(null)
       ])
       const records = taskPage && Array.isArray(taskPage.records) ? taskPage.records : []
       const tasks = this.decorateTasks(records, lookups)
       const product = findItem(lookups.product, workOrder.productId) || {}
-      const activeTask = tasks.find((item) => item.status !== 'FINISHED')
-      const reportedCompleted = workOrder.status === 'RUNNING' && activeTask
-        ? Number(activeTask.qualifiedQuantity || 0)
+      const activeTask = tasks.find((item) => item.stageState === 'active')
+      const finalTask = tasks.length ? tasks[tasks.length - 1] : null
+      const reportedCompleted = workOrder.status === 'RUNNING' && finalTask
+        ? Number(finalTask.qualifiedQuantity || 0)
         : 0
       const completedQuantity = Math.max(Number(workOrder.completedQuantity || 0), reportedCompleted)
       const defectQuantity = tasks.reduce((sum, item) => sum + Number(item.defectQuantity || 0), 0)
@@ -230,6 +258,7 @@ Page({
           actualQuantity: completedQuantity + defectQuantity
         },
         tasks,
+        activeStageAnchor: activeTask ? 'stage-task-' + activeTask.taskId : '',
         history: [],
         lookups,
         historyLoaded: false,

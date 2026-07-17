@@ -77,13 +77,10 @@ public class WmsReturnOrderController {
      * @return 操作结果或退料单ID
      */
     @PostMapping
-    public ResultData save(@RequestBody ReturnOrderFullRequest request) {
-        if (request.getDetails() != null) {
-            Long returnId = wmsReturnOrderService.saveReturnOrderFull(request, request.getDetails());
-            return ResultData.success(ResultCode.SUCCESS, Map.of("returnId", returnId));
-        }
-        boolean flag = wmsReturnOrderService.saveReturnOrder(request);
-        return flag ? ResultData.success(ResultCode.SUCCESS, Map.of("returnId", request.getReturnId())) : ResultData.fail(ResultCode.FAILED);
+    public ResultData save(@RequestBody ReturnOrderFullRequest request,
+                           @RequestAttribute("userId") Long userId) {
+        Long returnId = wmsReturnOrderService.saveReturnOrderFull(request, request.getDetails(), userId);
+        return ResultData.success(ResultCode.SUCCESS, Map.of("returnId", returnId));
     }
 
     /**
@@ -92,8 +89,9 @@ public class WmsReturnOrderController {
      * @return 退料单ID
      */
     @PostMapping("/full")
-    public ResultData saveFull(@RequestBody ReturnOrderFullRequest request) {
-        Long returnId = wmsReturnOrderService.saveReturnOrderFull(request, request.getDetails());
+    public ResultData saveFull(@RequestBody ReturnOrderFullRequest request,
+                               @RequestAttribute("userId") Long userId) {
+        Long returnId = wmsReturnOrderService.saveReturnOrderFull(request, request.getDetails(), userId);
         return ResultData.success(ResultCode.SUCCESS, Map.of("returnId", returnId));
     }
 
@@ -103,8 +101,9 @@ public class WmsReturnOrderController {
      * @return 操作结果
      */
     @PutMapping
-    public ResultData update(@RequestBody WmsReturnOrder returnOrder) {
-        boolean flag = wmsReturnOrderService.updateReturnOrder(returnOrder);
+    public ResultData update(@RequestBody WmsReturnOrder returnOrder,
+                             @RequestAttribute("userId") Long userId) {
+        boolean flag = wmsReturnOrderService.updateReturnOrder(returnOrder, userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
@@ -114,8 +113,9 @@ public class WmsReturnOrderController {
      * @return 操作结果
      */
     @PutMapping("/full")
-    public ResultData updateFull(@RequestBody ReturnOrderFullRequest request) {
-        boolean flag = wmsReturnOrderService.updateReturnOrderFull(request, request.getDetails());
+    public ResultData updateFull(@RequestBody ReturnOrderFullRequest request,
+                                 @RequestAttribute("userId") Long userId) {
+        boolean flag = wmsReturnOrderService.updateReturnOrderFull(request, request.getDetails(), userId);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 

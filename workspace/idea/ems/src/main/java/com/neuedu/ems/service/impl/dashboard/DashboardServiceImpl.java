@@ -8,6 +8,7 @@ import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.process.ProcessOperation;
 import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.wms.WmsReplenishmentSuggestion;
 import com.neuedu.ems.mapper.eam.EamEquipmentMapper;
@@ -15,6 +16,7 @@ import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.process.ProcessOperationMapper;
 import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
 import com.neuedu.ems.mapper.wms.WmsReplenishmentSuggestionMapper;
 import com.neuedu.ems.service.dashboard.DashboardService;
@@ -40,6 +42,8 @@ import java.util.stream.Collectors;
 @Service
 public class DashboardServiceImpl implements DashboardService {
 
+    private static final String FINAL_OUTPUT_OPERATION_CODE = "OP-PACK";
+
     @Autowired
     private MfgProductionOrderMapper mfgProductionOrderMapper;
 
@@ -51,6 +55,9 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Autowired
     private MfgWorkReportMapper mfgWorkReportMapper;
+
+    @Autowired
+    private ProcessOperationMapper processOperationMapper;
 
     @Autowired
     private WmsReplenishmentSuggestionMapper wmsReplenishmentSuggestionMapper;
@@ -72,11 +79,14 @@ public class DashboardServiceImpl implements DashboardService {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("productionOrderCount", countProductionOrders(beginDate, endDate));
         summary.put("workOrderCount", countWorkOrders(beginDate, endDate));
+        summary.put("activeProductionOrderCount", countActiveProductionOrders());
+        summary.put("activeWorkOrderCount", countActiveWorkOrders());
         summary.put("runningTaskCount", countTasks(BusinessStatus.Production.RUNNING));
         LocalDateTime quantityStart = normalizeStart(beginDate, endDate);
         LocalDateTime quantityEnd = normalizeEnd(beginDate, endDate);
-        summary.put("todayQualifiedQuantity", sumReportQuantity(quantityStart, quantityEnd, true));
-        summary.put("todayDefectQuantity", sumReportQuantity(quantityStart, quantityEnd, false));
+        List<MfgWorkReport> outputReports = listApprovedFinalOutputReports(quantityStart, quantityEnd);
+        summary.put("todayQualifiedQuantity", sumReportQuantity(outputReports, true));
+        summary.put("todayDefectQuantity", sumReportQuantity(outputReports, false));
         summary.put("inventoryWarningCount", countInventoryWarnings());
         summary.put("equipmentFaultCount", countEquipmentFaults());
         return summary;
@@ -100,11 +110,7 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDateTime start = actualStart.atStartOfDay();
         LocalDateTime end = actualEnd.atTime(LocalTime.MAX);
 
-        LambdaQueryWrapper<MfgWorkReport> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(MfgWorkReport::getDeletedFlag, 0)
-                .ge(MfgWorkReport::getReportTime, start)
-                .le(MfgWorkReport::getReportTime, end);
-        List<MfgWorkReport> reports = mfgWorkReportMapper.selectList(queryWrapper);
+        List<MfgWorkReport> reports = listApprovedFinalOutputReports(start, end);
         Map<LocalDate, List<MfgWorkReport>> grouped = reports.stream()
                 .collect(Collectors.groupingBy(item -> item.getReportTime().toLocalDate()));
 
@@ -148,13 +154,17 @@ public class DashboardServiceImpl implements DashboardService {
         long unqualifiedCount = orders.stream()
                 .filter(item -> BusinessStatus.Quality.FAIL.equals(item.getInspectionResult()))
                 .count();
-        BigDecimal qualifiedRate = inspectionCount == 0
+        long evaluatedCount = qualifiedCount + unqualifiedCount;
+        long pendingCount = inspectionCount - evaluatedCount;
+        BigDecimal qualifiedRate = evaluatedCount == 0
                 ? BigDecimal.ZERO
                 : BigDecimal.valueOf(qualifiedCount)
                         .multiply(BigDecimal.valueOf(100))
-                        .divide(BigDecimal.valueOf(inspectionCount), 2, RoundingMode.HALF_UP);
+                        .divide(BigDecimal.valueOf(evaluatedCount), 2, RoundingMode.HALF_UP);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("inspectionCount", inspectionCount);
+        result.put("evaluatedCount", evaluatedCount);
+        result.put("pendingCount", pendingCount);
         result.put("qualifiedCount", qualifiedCount);
         result.put("unqualifiedCount", unqualifiedCount);
         result.put("qualifiedRate", qualifiedRate);
@@ -169,6 +179,7 @@ public class DashboardServiceImpl implements DashboardService {
     public Map<String, Object> getEquipmentStatus() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("running", countEquipmentByStatus(BusinessStatus.Equipment.RUNNING));
+        result.put("idle", countEquipmentByStatus(BusinessStatus.Equipment.IDLE));
         result.put("stopped", countEquipmentByStatus(BusinessStatus.Equipment.STOPPED));
         result.put("fault", countEquipmentByStatus(BusinessStatus.Equipment.FAULT));
         result.put("maintenance", countEquipmentByStatuses(
@@ -223,6 +234,28 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     /**
+     * 统计已经下达且尚未完结的在制生产订单。
+     * @return 在制生产订单数量
+     */
+    private long countActiveProductionOrders() {
+        QueryWrapper<MfgProductionOrder> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("deleted_flag", 0)
+                .in("status", BusinessStatus.Document.RELEASED, BusinessStatus.Production.RUNNING);
+        return mfgProductionOrderMapper.selectCount(queryWrapper);
+    }
+
+    /**
+     * 统计已经下达或正在执行的在制生产工单。
+     * @return 在制生产工单数量
+     */
+    private long countActiveWorkOrders() {
+        QueryWrapper<MfgWorkOrder> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("deleted_flag", 0)
+                .in("status", BusinessStatus.Document.RELEASED, BusinessStatus.Production.RUNNING);
+        return mfgWorkOrderMapper.selectCount(queryWrapper);
+    }
+
+    /**
      * 统计指定状态的任务数量。
      * @param status 任务状态
      * @return 数量
@@ -235,18 +268,47 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     /**
-     * 汇总报工数量。
+     * 查询最终包装工序已经审核通过的报工，避免同一产品在多道工序重复计入产量。
      * @param start 开始时间
      * @param end 结束时间
+     * @return 最终产出报工
+     */
+    private List<MfgWorkReport> listApprovedFinalOutputReports(LocalDateTime start, LocalDateTime end) {
+        LambdaQueryWrapper<ProcessOperation> operationQuery = new LambdaQueryWrapper<>();
+        operationQuery.eq(ProcessOperation::getDeletedFlag, 0)
+                .eq(ProcessOperation::getOperationCode, FINAL_OUTPUT_OPERATION_CODE)
+                .last("LIMIT 1");
+        ProcessOperation finalOperation = processOperationMapper.selectOne(operationQuery);
+        if (finalOperation == null) {
+            return List.of();
+        }
+
+        LambdaQueryWrapper<MfgTask> taskQuery = new LambdaQueryWrapper<>();
+        taskQuery.eq(MfgTask::getDeletedFlag, 0)
+                .eq(MfgTask::getOperationId, finalOperation.getOperationId());
+        List<Long> taskIds = mfgTaskMapper.selectList(taskQuery).stream()
+                .map(MfgTask::getTaskId)
+                .toList();
+        if (taskIds.isEmpty()) {
+            return List.of();
+        }
+
+        LambdaQueryWrapper<MfgWorkReport> reportQuery = new LambdaQueryWrapper<>();
+        reportQuery.eq(MfgWorkReport::getDeletedFlag, 0)
+                .eq(MfgWorkReport::getAuditStatus, BusinessStatus.Document.APPROVED)
+                .in(MfgWorkReport::getTaskId, taskIds)
+                .ge(MfgWorkReport::getReportTime, start)
+                .le(MfgWorkReport::getReportTime, end);
+        return mfgWorkReportMapper.selectList(reportQuery);
+    }
+
+    /**
+     * 汇总最终产出报工数量。
+     * @param reports 最终产出报工
      * @param qualified 是否统计合格数量
      * @return 汇总值
      */
-    private BigDecimal sumReportQuantity(LocalDateTime start, LocalDateTime end, boolean qualified) {
-        LambdaQueryWrapper<MfgWorkReport> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(MfgWorkReport::getDeletedFlag, 0)
-                .ge(MfgWorkReport::getReportTime, start)
-                .le(MfgWorkReport::getReportTime, end);
-        List<MfgWorkReport> reports = mfgWorkReportMapper.selectList(queryWrapper);
+    private BigDecimal sumReportQuantity(List<MfgWorkReport> reports, boolean qualified) {
         return reports.stream()
                 .map(item -> qualified ? item.getQualifiedQuantity() : item.getDefectQuantity())
                 .map(value -> value == null ? BigDecimal.ZERO : value)

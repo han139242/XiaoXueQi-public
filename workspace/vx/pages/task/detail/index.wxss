@@ -27,6 +27,32 @@
   overflow-wrap: anywhere;
 }
 
+.summary-title-group {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  gap: 10rpx;
+}
+
+.summary-copy-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 56rpx;
+  width: 56rpx;
+  height: 56rpx;
+  margin: 0;
+  padding: 0;
+  background: #f4f6f8;
+  border-radius: 8rpx;
+  line-height: 1;
+}
+
+.summary-copy-button::after {
+  border: 0;
+}
+
 .task-status {
   flex: 0 0 auto;
   font-size: 29rpx;

@@ -1,7 +1,10 @@
 const guard = require('../../../utils/guard')
 const auth = require('../../../utils/auth')
 const qualityApi = require('../../../api/quality')
+const fileApi = require('../../../api/file')
 const format = require('../../../utils/format')
+
+const PHOTO_BIZ_TYPE = 'QMS_NONCONFORMING_ORDER'
 
 function currentTimeText() {
   const date = new Date()
@@ -42,7 +45,10 @@ Page({
     submitting: false,
     loading: false,
     mode: 'create',
-    canSave: false
+    canSave: false,
+    photoPath: '',
+    photoIsLocal: false,
+    photoUploading: false
   },
 
   onLoad(options) {
@@ -159,11 +165,63 @@ Page({
         entryTimeText: format.formatDateTime(detail.createdTime),
         associationLocked: true
       })
+      await this.loadPhoto(ncrId)
     } catch (error) {
       wx.showToast({ title: error.message || '加载失败', icon: 'none' })
     } finally {
       this.setData({ loading: false })
     }
+  },
+
+  async loadPhoto(ncrId) {
+    try {
+      const page = await fileApi.list({
+        current: 1,
+        size: 1,
+        bizType: PHOTO_BIZ_TYPE,
+        bizId: Number(ncrId)
+      })
+      const records = page && Array.isArray(page.records) ? page.records : []
+      if (records.length) {
+        this.setData({
+          photoPath: fileApi.absoluteUrl(records[0].fileUrl),
+          photoIsLocal: false,
+          'form.imageUrl': fileApi.absoluteUrl(records[0].fileUrl)
+        })
+      }
+    } catch (error) {
+      wx.showToast({ title: error.message || '现场照片加载失败', icon: 'none' })
+    }
+  },
+
+  choosePhoto() {
+    if (this.data.submitting || this.data.photoUploading) return
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sourceType: ['camera', 'album'],
+      sizeType: ['compressed'],
+      success: (result) => {
+        const file = result.tempFiles && result.tempFiles[0]
+        if (file && file.tempFilePath) {
+          this.setData({
+            photoPath: file.tempFilePath,
+            photoIsLocal: true,
+            'form.imageUrl': file.tempFilePath
+          })
+        }
+      }
+    })
+  },
+
+  previewPhoto() {
+    const photoPath = this.data.photoPath || this.data.form.imageUrl
+    if (photoPath) wx.previewImage({ current: photoPath, urls: [photoPath] })
+  },
+
+  removePhoto() {
+    if (this.data.submitting || this.data.photoUploading) return
+    this.setData({ photoPath: '', photoIsLocal: false, 'form.imageUrl': '' })
   },
 
   resetForm() {
@@ -173,7 +231,9 @@ Page({
     this.setData({
       form: { ...defaultForm, inspectionId, ncrId, ncrNo },
       dispositionIndex: 0,
-      inspectionIndex: this.data.inspectionIndex
+      inspectionIndex: this.data.inspectionIndex,
+      photoPath: '',
+      photoIsLocal: false
     })
   },
 
@@ -216,10 +276,24 @@ Page({
         dispositionType: form.dispositionType,
         remark: String(form.remark || '').trim()
       }
+      let ncrId = form.ncrId
       if (form.ncrId) {
         await qualityApi.updateNonconforming(form.ncrId, payload)
       } else {
-        await qualityApi.generateNonconforming(Number(form.inspectionId), payload)
+        const created = await qualityApi.generateNonconforming(Number(form.inspectionId), payload)
+        ncrId = created && created.ncrId ? created.ncrId : created && created.ncrId === 0 ? 0 : null
+        if (!ncrId) throw new Error('不良品记录已提交，但未返回记录编号')
+        this.setData({ 'form.ncrId': ncrId, associationLocked: true })
+      }
+      const photoPath = this.data.photoPath
+      if (photoPath && !/^https?:/i.test(photoPath)) {
+        this.setData({ photoUploading: true })
+        const uploaded = await fileApi.upload(photoPath, PHOTO_BIZ_TYPE, ncrId)
+        this.setData({
+          photoPath: fileApi.absoluteUrl(uploaded.fileUrl),
+          photoIsLocal: false,
+          'form.imageUrl': fileApi.absoluteUrl(uploaded.fileUrl)
+        })
       }
       wx.showToast({ title: form.ncrId ? '已保存' : '已录入', icon: 'success' })
       setTimeout(() => {
@@ -234,7 +308,7 @@ Page({
     } catch (error) {
       wx.showToast({ title: error.message || '提交失败', icon: 'none' })
     } finally {
-      this.setData({ submitting: false })
+      this.setData({ submitting: false, photoUploading: false })
     }
   }
 })

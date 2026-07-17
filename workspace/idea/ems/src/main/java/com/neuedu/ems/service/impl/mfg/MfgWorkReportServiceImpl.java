@@ -190,6 +190,8 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
         prepareWorkReport(workReport);
         validateWorkReport(workReport);
+        MfgTask task = activeTask(workReport.getTaskId());
+        validateTaskReportQuantity(task, workReport);
         if (dataScopeService != null) {
             dataScopeService.assertCanWriteWorkReport(workReport);
         }
@@ -918,6 +920,29 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
     }
 
+    private void validateTaskReportQuantity(MfgTask task, MfgWorkReport workReport) {
+        if (task == null || task.getTaskId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "报工未关联有效生产任务");
+        }
+        BigDecimal planned = zero(task.getPlannedQuantity());
+        if (planned.signum() <= 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产任务计划数量必须大于 0");
+        }
+        BigDecimal reported = baseMapper.selectList(new LambdaQueryWrapper<MfgWorkReport>()
+                        .eq(MfgWorkReport::getTaskId, task.getTaskId())
+                        .eq(MfgWorkReport::getDeletedFlag, 0)
+                        .in(MfgWorkReport::getAuditStatus, SUBMITTED_STATUS, APPROVED_STATUS))
+                .stream()
+                .map(report -> zero(report.getQualifiedQuantity()).add(zero(report.getDefectQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal candidate = reported
+                .add(zero(workReport.getQualifiedQuantity()))
+                .add(zero(workReport.getDefectQuantity()));
+        if (candidate.compareTo(planned) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "累计报工数量不能超过任务计划数量");
+        }
+    }
+
     private void validateReportMaterials(MfgWorkReport report, List<MfgReportMaterial> materials) {
         if (materials == null || materials.isEmpty()) {
             return;
@@ -925,6 +950,13 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         MfgTask task = activeTask(report == null ? null : report.getTaskId());
         if (task == null || task.getWorkOrderId() == null) {
             throw business(ResultCode.BUSINESS_ERROR, "报工未关联有效工单，不能登记实际用料");
+        }
+        MfgWorkOrder workOrder = mfgWorkOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, task.getWorkOrderId())
+                .eq(MfgWorkOrder::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (workOrder == null || BusinessStatus.Document.CLOSED.equals(workOrder.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "报工关联的生产工单不存在或已关闭");
         }
         Map<String, BigDecimal> requested = new HashMap<>();
         for (MfgReportMaterial material : materials) {
@@ -963,7 +995,7 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
                             .eq(WmsReturnDetail::getDeletedFlag, 0)
                             .inSql(WmsReturnDetail::getReturnId,
                                     "SELECT return_id FROM wms_return_order WHERE deleted_flag = 0 "
-                                            + "AND audit_status = 'APPROVED' AND work_order_id = "
+                                            + "AND audit_status IN ('SUBMITTED','APPROVED') AND work_order_id = "
                                             + task.getWorkOrderId()))
                     .stream().map(WmsReturnDetail::getReturnQuantity).map(this::zero)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);

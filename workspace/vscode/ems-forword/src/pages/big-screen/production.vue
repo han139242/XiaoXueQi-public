@@ -31,8 +31,10 @@ const failedDataCount = ref(0)
 const summary = ref({})
 const trend = ref([])
 const quality = ref({})
+const qualityClosure = ref({ total: 0, closed: 0, rate: null })
 const equipment = ref({})
 const schedulePlans = ref([])
+const productionLines = ref([])
 const scheduleError = ref('')
 const scheduleExpanded = ref(false)
 
@@ -43,9 +45,18 @@ let refreshTimer
 // 后端状态编码在大屏中转换为中文标签和CSS色调。
 const scheduleStatusMeta = {
   DRAFT: { label: '待生效', tone: 'draft' },
-  RELEASED: { label: '已生效', tone: 'released' },
+  RELEASED: { label: '待执行', tone: 'released' },
+  RUNNING: { label: '生产中', tone: 'running' },
   FINISHED: { label: '已完成', tone: 'finished' },
   CLOSED: { label: '已取消', tone: 'closed' }
+}
+
+const lineStatusMeta = {
+  RUNNING: { label: '运行中', tone: 'running' },
+  IDLE: { label: '待机', tone: 'idle' },
+  STOPPED: { label: '已停机', tone: 'stopped' },
+  MAINTENANCE: { label: '计划保养', tone: 'maintenance' },
+  MAINTAINING: { label: '计划保养', tone: 'maintenance' }
 }
 
 // 生成固定画布当前的平移和缩放CSS transform。
@@ -85,26 +96,30 @@ const reportPassRate = computed(() => todayOutput.value
   : null)
 // 读取当前质量检验总次数。
 const inspectionCount = computed(() => Number(quality.value.inspectionCount || 0))
-// 有检验数据时使用后端统计的检验合格率。
-const inspectionPassRate = computed(() => inspectionCount.value
-  ? Number(quality.value.qualifiedRate || 0)
+const qualifiedInspectionCount = computed(() => Number(quality.value.qualifiedCount || 0))
+const unqualifiedInspectionCount = computed(() => Number(quality.value.unqualifiedCount || 0))
+const evaluatedInspectionCount = computed(() => qualifiedInspectionCount.value + unqualifiedInspectionCount.value)
+const pendingInspectionCount = computed(() => Math.max(0, inspectionCount.value - evaluatedInspectionCount.value))
+// 一次检验合格率只使用已经判定为合格或不合格的质检单，待判定单不进入分母。
+const inspectionPassRate = computed(() => evaluatedInspectionCount.value
+  ? (qualifiedInspectionCount.value / evaluatedInspectionCount.value) * 100
   : null)
-// 把质量合格率限制在0到100之间，供进度条使用。
-const qualityProgressWidth = computed(() => Math.min(100, Math.max(0, inspectionPassRate.value || 0)))
+// 主质量指标固定为一次检验合格率，避免与不合格处理完成率混为同一口径。
+const qualityFocusRate = computed(() => inspectionPassRate.value)
+const qualityFocusLabel = computed(() => '一次检验合格率')
+// 把质量主读数限制在0到100之间，供环形进度使用。
+const qualityProgressWidth = computed(() => Math.min(100, Math.max(0, qualityFocusRate.value || 0)))
 // 将百分比换算为圆形质量仪表盘需要的角度CSS变量。
 const qualityDialStyle = computed(() => ({
   '--quality-angle': `${qualityProgressWidth.value * 3.6}deg`
 }))
-// 汇总运行、停机、故障和维保设备得到设备总数。
-const equipmentTotal = computed(() => ['running', 'stopped', 'fault', 'maintenance']
+// 汇总运行、待机、停机、故障和维保设备得到设备总数。
+const equipmentTotal = computed(() => ['running', 'idle', 'stopped', 'fault', 'maintenance']
   .reduce((total, key) => total + Number(equipment.value[key] || 0), 0))
 // 读取库存补货预警数量。
 const warningCount = computed(() => Number(summary.value.inventoryWarningCount || 0))
 // 读取设备故障数量。
 const faultCount = computed(() => Number(summary.value.equipmentFaultCount || 0))
-// 统计设备、库存和质量三类风险中有多少类当前非零。
-const riskCategoryCount = computed(() => [faultCount.value, warningCount.value, todayDefect.value]
-  .filter((value) => value > 0).length)
 // 将七日趋势原始记录补充总产量、日期、星期和合格率。
 const trendRows = computed(() => trend.value.map((item) => {
   // 给后端趋势记录补充总产量、日期文本、星期和当日合格率，便于表格与图表复用。
@@ -125,21 +140,137 @@ const hasTrendData = computed(() => trendRows.value.some((item) => item.output >
 // 汇总七日总报工产量。
 const sevenDayOutput = computed(() => trendRows.value.reduce((total, item) => total + item.output, 0))
 
-// 排期只保留时间有效的数据，并按开始时间排序。
+// 已超过结束时间且仍未完成/关闭的计划需要作为生产异常重点提示。
+function isOverduePlan(item) {
+  const end = dayjs(item.plannedEndTime)
+  return end.isValid()
+    && end.isBefore(now.value)
+    && !['FINISHED', 'CLOSED'].includes(item.status)
+}
+
+// 统计全部已加载计划中的逾期项，不受主时间轴的近7日显示窗口限制。
+const overduePlans = computed(() => schedulePlans.value
+  .filter(isOverduePlan)
+  .sort((a, b) => dayjs(a.plannedEndTime).valueOf() - dayjs(b.plannedEndTime).valueOf()))
+const overduePlanCount = computed(() => overduePlans.value.length)
+
+// 统计计划、设备、库存和质量四类风险中有多少类当前非零。
+const riskCategoryCount = computed(() => [overduePlanCount.value, faultCount.value, warningCount.value, todayDefect.value]
+  .filter((value) => value > 0).length)
+
+// 排期保留今天的正常计划、未来计划以及近7日仍未闭环的逾期计划，并按开始时间排序。
 const scheduleRows = computed(() => schedulePlans.value
   .filter((item) => {
     const start = dayjs(item.plannedStartTime)
     const end = dayjs(item.plannedEndTime)
-    return start.isValid() && end.isValid() && end.isAfter(start)
+    const recentRiskBoundary = now.value.subtract(6, 'day').startOf('day')
+    return start.isValid()
+      && end.isValid()
+      && end.isAfter(start)
+      && item.status !== 'CLOSED'
+      && (isOverduePlan(item)
+        ? !end.isBefore(recentRiskBoundary)
+        : !end.isBefore(now.value.startOf('day')))
+  })
+  .map((item) => {
+    if (isOverduePlan(item)) {
+      return { ...item, statusLabel: '已逾期', statusTone: 'overdue' }
+    }
+    const status = scheduleStatusMeta[item.status] || { label: item.status || '未知状态', tone: 'closed' }
+    return { ...item, statusLabel: status.label, statusTone: status.tone }
   })
   .sort((a, b) => dayjs(a.plannedStartTime).valueOf() - dayjs(b.plannedStartTime).valueOf()))
-// 首页排期卡片最多显示前5条有效计划。
-const visibleScheduleRows = computed(() => scheduleRows.value.slice(0, 5))
-// 展开弹窗最多显示前10条有效计划。
-const expandedScheduleRows = computed(() => scheduleRows.value.slice(0, 10))
-// 根据展开排期条数动态计算弹窗高度，并限制最小和最大值。
+const scheduledLineCount = computed(() => new Set(scheduleRows.value.map((item) => String(item.lineId))).size)
+const scheduledQuantity = computed(() => scheduleRows.value
+  .reduce((total, item) => total + Number(item.plannedQuantity || 0), 0))
+const scheduleSummaryText = computed(() => scheduleRows.value.length
+  ? `${scheduledLineCount.value} 条产线 · ${scheduleRows.value.length} 项计划 · ${formatNumber(scheduledQuantity.value)} 件`
+  : '当前窗口暂无生产计划')
+// 同一产线的多个计划共用一条时间轴，避免计划多时重复显示产线名称。
+const scheduleLineRows = computed(() => {
+  const grouped = new Map(productionLines.value.map((line) => [String(line.lineId), { ...line, plans: [] }]))
+  scheduleRows.value.forEach((plan) => {
+    const key = String(plan.lineId || 'unknown')
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        lineId: plan.lineId,
+        lineCode: '',
+        lineName: plan.lineName,
+        status: '',
+        dailyCapacity: 0,
+        plans: []
+      })
+    }
+    grouped.get(key).plans.push(plan)
+  })
+  return [...grouped.values()]
+    .sort((a, b) => {
+      const priority = (line) => {
+        if (line.plans.some((plan) => plan.statusTone === 'overdue')) return 0
+        if (line.plans.some((plan) => plan.status === 'RUNNING')) return 1
+        if (line.plans.length) return 2
+        if (line.stationCount === 0) return 4
+        if (['MAINTENANCE', 'MAINTAINING'].includes(line.status)) return 5
+        return 3
+      }
+      return priority(a) - priority(b)
+        || String(a.lineCode || a.lineName).localeCompare(String(b.lineCode || b.lineName), 'zh-CN')
+    })
+})
+
+const visibleScheduleLineRows = computed(() => scheduleLineRows.value.slice(0, 5))
+const expandedScheduleLineRows = computed(() => scheduleLineRows.value)
+
+// 产线状态只使用真实产线与真实生产计划，不用排期时间推导虚假的生产进度。
+const lineStatusRows = computed(() => productionLines.value.map((line) => {
+  const plans = scheduleRows.value.filter((plan) => String(plan.lineId) === String(line.lineId))
+  const lineOverduePlans = plans.filter((plan) => plan.statusTone === 'overdue')
+  const currentPlan = plans.find((plan) => {
+    const current = now.value.valueOf()
+    return current >= dayjs(plan.plannedStartTime).valueOf() && current <= dayjs(plan.plannedEndTime).valueOf()
+  })
+  const nextPlan = plans.find((plan) => dayjs(plan.plannedStartTime).isAfter(now.value))
+  const focusPlan = lineOverduePlans[0] || currentPlan || nextPlan || null
+  const isMaintaining = ['MAINTENANCE', 'MAINTAINING'].includes(line.status)
+  const status = line.stationCount === 0
+    ? { label: '配置不完整', tone: 'incomplete' }
+    : lineOverduePlans.length
+      ? { label: `${lineOverduePlans.length}项计划逾期`, tone: 'overdue' }
+      : currentPlan?.status === 'RUNNING'
+        ? { label: '生产中', tone: 'running' }
+        : currentPlan || nextPlan
+          ? { label: '待开工', tone: 'released' }
+          : isMaintaining
+            ? lineStatusMeta[line.status]
+            : { label: '待机', tone: 'idle' }
+  return {
+    ...line,
+    statusLabel: status.label,
+    statusTone: status.tone,
+    planCount: plans.length,
+    scheduledQuantity: plans.reduce((total, plan) => total + Number(plan.plannedQuantity || 0), 0),
+    currentPlan: currentPlan || null,
+    nextPlan: nextPlan || null,
+    focusPlan,
+    focusLabel: lineOverduePlans.length ? '逾期计划' : (currentPlan ? '当前计划' : '下一计划'),
+    overduePlanCount: lineOverduePlans.length
+  }
+}).sort((a, b) => {
+  const priority = (line) => {
+    if (line.overduePlanCount) return 0
+    if (line.currentPlan) return 1
+    if (line.nextPlan) return 2
+    if (line.stationCount === 0) return 4
+    if (line.statusTone === 'maintenance') return 5
+    return 3
+  }
+  return priority(a) - priority(b)
+    || String(a.lineCode || a.lineName).localeCompare(String(b.lineCode || b.lineName), 'zh-CN')
+}))
+
+// 根据展开产线数动态计算弹窗高度，并限制最小和最大值。
 const scheduleModalStyle = computed(() => ({
-  '--schedule-modal-height': `${Math.min(940, Math.max(560, 222 + expandedScheduleRows.value.length * 78))}px`
+  '--schedule-modal-height': `${Math.min(940, Math.max(560, 222 + expandedScheduleLineRows.value.length * 86))}px`
 }))
 // 根据全部有效计划计算统一时间轴起止点、时长和刻度。
 const scheduleWindow = computed(() => {
@@ -150,17 +281,39 @@ const scheduleWindow = computed(() => {
 
   const earliest = Math.min(...scheduleRows.value.map((item) => dayjs(item.plannedStartTime).valueOf()))
   const latest = Math.max(...scheduleRows.value.map((item) => dayjs(item.plannedEndTime).valueOf()))
-  const start = dayjs(earliest).startOf('hour')
+  let start = dayjs(earliest).startOf('hour')
   let end = dayjs(latest).add(1, 'hour').startOf('hour')
   if (end.diff(start, 'hour', true) < 8) {
     end = start.add(8, 'hour')
   }
   const duration = end.valueOf() - start.valueOf()
-  const tickFormat = duration <= 36 * 60 * 60 * 1000 ? 'HH:mm' : 'MM-DD'
+  if (duration > 36 * 60 * 60 * 1000) {
+    const firstShiftStart = dayjs(earliest).startOf('day').hour(8)
+    start = dayjs(earliest).isBefore(firstShiftStart) ? dayjs(earliest).startOf('hour') : firstShiftStart
+    const lastShiftEnd = dayjs(latest).startOf('day').hour(20)
+    end = dayjs(latest).isAfter(lastShiftEnd) ? dayjs(latest).add(1, 'hour').startOf('hour') : lastShiftEnd
+    const longDuration = end.valueOf() - start.valueOf()
+    const tickValues = []
+    for (let cursor = start; cursor.isBefore(end); cursor = cursor.add(1, 'day')) {
+      tickValues.push(cursor)
+    }
+    if (!tickValues.length || end.diff(tickValues.at(-1), 'hour', true) >= 16) {
+      tickValues.push(end)
+    }
+    return {
+      start,
+      end,
+      duration: longDuration,
+      ticks: tickValues.map((tick) => ({
+        label: tick.format('MM-DD HH:mm'),
+        left: `${((tick.valueOf() - start.valueOf()) / longDuration) * 100}%`
+      }))
+    }
+  }
   const ticks = Array.from({ length: 7 }, (_, index) => {
     const ratio = index / 6
     return {
-      label: start.add(duration * ratio, 'millisecond').format(tickFormat),
+      label: start.add(duration * ratio, 'millisecond').format('HH:mm'),
       left: `${ratio * 100}%`
     }
   })
@@ -179,18 +332,18 @@ const scheduleRangeLabel = computed(() => {
 // 将原始统计组织成模板可循环渲染的KPI、生产状态、设备状态和风险项结构。
 const kpis = computed(() => [
   {
-    label: '生产订单',
-    value: formatNumber(summary.value.productionOrderCount),
+    label: '在制生产订单',
+    value: formatNumber(summary.value.activeProductionOrderCount ?? summary.value.productionOrderCount),
     unit: '单',
-    description: '当前生产订单台账',
+    description: '已下达或正在生产',
     icon: 'clipboard',
     tone: 'blue'
   },
   {
-    label: '生产工单',
-    value: formatNumber(summary.value.workOrderCount),
+    label: '在制生产工单',
+    value: formatNumber(summary.value.activeWorkOrderCount ?? summary.value.workOrderCount),
     unit: '单',
-    description: '当前生产工单台账',
+    description: '待开工或正在执行',
     icon: 'package',
     tone: 'amber'
   },
@@ -219,27 +372,27 @@ const kpis = computed(() => [
     tone: 'steel'
   },
   {
-    label: '今日不良报工',
-    value: formatNumber(todayDefect.value),
-    unit: '件',
-    description: todayDefect.value > 0 ? '进入报工明细复核原因' : '今日暂无不良报工',
+    label: '逾期生产计划',
+    value: formatNumber(overduePlanCount.value),
+    unit: '项',
+    description: overduePlanCount.value > 0 ? '已超过计划结束时间' : '当前没有逾期计划',
     icon: 'alert',
-    tone: todayDefect.value > 0 ? 'red' : 'muted'
+    tone: overduePlanCount.value > 0 ? 'red' : 'muted'
   }
 ])
 
 // 把生产订单、工单和执行任务整理为统一统计卡数据。
 const productionStats = computed(() => [
   {
-    label: '当前生产订单',
-    value: Number(summary.value.productionOrderCount || 0),
-    note: '系统内未删除的订单总数',
+    label: '在制生产订单',
+    value: Number(summary.value.activeProductionOrderCount ?? summary.value.productionOrderCount ?? 0),
+    note: '已下达或正在生产的订单',
     icon: 'clipboard'
   },
   {
-    label: '当前生产工单',
-    value: Number(summary.value.workOrderCount || 0),
-    note: '系统内未删除的工单总数',
+    label: '在制生产工单',
+    value: Number(summary.value.activeWorkOrderCount ?? summary.value.workOrderCount ?? 0),
+    note: '待开工或正在执行的工单',
     icon: 'package'
   },
   {
@@ -250,16 +403,25 @@ const productionStats = computed(() => [
   }
 ])
 
-// 把设备状态对象转换为模板可循环的四类状态数组。
+// 把设备状态对象转换为模板可循环的五类状态数组。
 const equipmentItems = computed(() => [
   { key: 'running', label: '运行', value: Number(equipment.value.running || 0), tone: 'green' },
+  { key: 'idle', label: '待机', value: Number(equipment.value.idle || 0), tone: 'blue' },
   { key: 'stopped', label: '停机', value: Number(equipment.value.stopped || 0), tone: 'gray' },
   { key: 'maintenance', label: '维保', value: Number(equipment.value.maintenance || 0), tone: 'amber' },
   { key: 'fault', label: '故障', value: Number(equipment.value.fault || 0), tone: 'red' }
 ])
 
-// 将设备、库存和不良数据整理为可点击的风险关注事项。
+// 将计划、设备、库存和不良数据整理为可点击的风险关注事项。
 const attentionItems = computed(() => [
+  {
+    label: '逾期生产计划',
+    value: overduePlanCount.value,
+    note: overduePlanCount.value > 0 ? '需确认执行、完工或调整计划' : '当前没有逾期生产计划',
+    icon: 'calendar',
+    tone: overduePlanCount.value > 0 ? 'danger' : 'normal',
+    path: '/mfg/production-plans'
+  },
   {
     label: '故障设备',
     value: faultCount.value,
@@ -371,6 +533,23 @@ function formatPercent(value) {
   return value === null || value === undefined ? '--' : Number(value).toFixed(1)
 }
 
+// 中央排期使用简短产品标签，完整产品名仍保留在悬停提示中。
+function formatProductLabel(value) {
+  return String(value || '未维护产品')
+    .replace('雷尼克斯', '')
+    .replace(' OEM俱乐部级羽毛球', ' ')
+    .replace('训练级羽毛球', ' ')
+    .replace('比赛级羽毛球', ' ')
+    .replace(/ (\d{2})速$/, '·$1')
+}
+
+// 无排期时说明产线的实际状态，避免一律显示“暂无计划”。
+function lineEmptyScheduleText(line) {
+  if (line.stationCount === 0) return '执行配置待完善'
+  if (['MAINTENANCE', 'MAINTAINING'].includes(line.status)) return '计划保养，不参与当前排产'
+  return '当前排期窗口无计划'
+}
+
 // 从通用接口响应中兼容提取数组或分页records。
 function pageRecords(result) {
   // 兼容后端直接返回数组和MyBatis-Plus分页对象两种数据结构。
@@ -387,8 +566,9 @@ function scheduleBarStyle(item) {
   const itemEnd = dayjs(item.plannedEndTime).valueOf()
   const left = Math.max(0, Math.min(96, ((itemStart - start.valueOf()) / duration) * 100))
   const naturalWidth = Math.max(0, ((itemEnd - itemStart) / duration) * 100)
-  const width = Math.max(4, Math.min(100 - left, naturalWidth))
-  return { left: `${left}%`, width: `${width}%` }
+  const width = Math.max(10, Math.min(100 - left, naturalWidth))
+  const safeWidth = Math.min(100 - left, width)
+  return { left: `${left}%`, width: `${safeWidth}%` }
 }
 
 // 拼接排期块的悬停提示，包含订单、产品、产线、时间、数量和状态。
@@ -417,10 +597,11 @@ function formatScheduleTime(item) {
 // 并行查询计划、订单、产线和产品，再把关联ID补充为可读名称。
 async function loadProductionSchedule() {
   // 计划表只存关联ID，因此并行查询订单、产线、产品，再用Map补齐可读名称。
-  const [planResult, orderResult, lineResult, productResult] = await Promise.allSettled([
-    getResourcePage('/api/mfg/production-plan', { current: 1, size: 50 }),
+  const [planResult, orderResult, lineResult, stationResult, productResult] = await Promise.allSettled([
+    getResourcePage('/api/mfg/production-plan', { current: 1, size: 200 }),
     getResourcePage('/api/mfg/production-order', { current: 1, size: 200 }),
     getResourcePage('/api/factory/line', { current: 1, size: 200 }),
+    getResourcePage('/api/factory/station', { current: 1, size: 500 }),
     getResourcePage('/api/mdm/product', { current: 1, size: 200 })
   ])
   if (planResult.status === 'rejected') {
@@ -431,9 +612,14 @@ async function loadProductionSchedule() {
   const plans = pageRecords(planResult.value)
   const orders = new Map(optionalRecords(orderResult).map((item) => [String(item.productionOrderId), item]))
   const lines = new Map(optionalRecords(lineResult).map((item) => [String(item.lineId), item]))
+  const stationCounts = new Map()
+  optionalRecords(stationResult).forEach((station) => {
+    const key = String(station.lineId)
+    stationCounts.set(key, (stationCounts.get(key) || 0) + 1)
+  })
   const products = new Map(optionalRecords(productResult).map((item) => [String(item.productId), item]))
 
-  return plans.map((plan) => {
+  const mappedPlans = plans.map((plan) => {
     const order = orders.get(String(plan.productionOrderId)) || {}
     const line = lines.get(String(plan.lineId)) || {}
     const product = products.get(String(order.productId)) || {}
@@ -447,6 +633,35 @@ async function loadProductionSchedule() {
       statusTone: status.tone
     }
   })
+  const mappedLines = [...lines.values()].map((line) => ({
+    ...line,
+    stationCount: stationResult.status === 'fulfilled' ? (stationCounts.get(String(line.lineId)) || 0) : null
+  }))
+  const fallbackLines = [...new Map(mappedPlans.map((plan) => [String(plan.lineId), {
+    lineId: plan.lineId,
+    lineCode: '',
+    lineName: plan.lineName,
+    dailyCapacity: 0,
+    status: ''
+  }])).values()]
+  return { plans: mappedPlans, lines: mappedLines.length ? mappedLines : fallbackLines }
+}
+
+// 读取近7日不合格处理单并计算真实关闭率；权限不足时由主加载流程保留一次检验率回退。
+async function loadQualityClosure() {
+  const result = await getResourcePage('/api/qms/nonconforming-order', { current: 1, size: 200 })
+  const start = now.value.subtract(6, 'day').startOf('day')
+  const end = now.value.endOf('day')
+  const records = pageRecords(result).filter((item) => {
+    const createdTime = dayjs(item.createdTime)
+    return createdTime.isValid() && !createdTime.isBefore(start) && !createdTime.isAfter(end)
+  })
+  const closed = records.filter((item) => item.status === 'CLOSED').length
+  return {
+    total: records.length,
+    closed,
+    rate: records.length ? Number(((closed / records.length) * 100).toFixed(2)) : null
+  }
 }
 
 // 打开大屏中的生产排期展开弹窗。
@@ -522,8 +737,16 @@ async function loadData() {
     summary.value = data.summary
     trend.value = data.trend
     quality.value = data.quality
+    qualityClosure.value = data.qualityClosure || { total: 0, closed: 0, rate: null }
     equipment.value = data.equipment
     schedulePlans.value = data.schedule || []
+    productionLines.value = data.lines || [...new Map((data.schedule || []).map((item) => [String(item.lineId), {
+      lineId: item.lineId,
+      lineCode: `LINE-${item.lineId}`,
+      lineName: item.lineName,
+      dailyCapacity: 0,
+      status: 'RUNNING'
+    }])).values()]
     lastUpdated.value = dayjs()
     loadError.value = ''
     scheduleError.value = ''
@@ -546,10 +769,12 @@ async function loadData() {
       getProductionTrend(params),
       getQualityStatistics(params),
       getEquipmentStatus(),
-      loadProductionSchedule()
+      loadProductionSchedule(),
+      loadQualityClosure()
     ])
     const dashboardResults = results.slice(0, 4)
     const scheduleResult = results[4]
+    const qualityClosureResult = results[5]
     const targets = [summary, trend, quality, equipment]
     const labels = ['生产汇总', '生产趋势', '质量统计', '设备状态']
     const failedLabels = []
@@ -565,10 +790,15 @@ async function loadData() {
     })
 
     if (scheduleResult.status === 'fulfilled') {
-      schedulePlans.value = scheduleResult.value
+      schedulePlans.value = scheduleResult.value.plans
+      productionLines.value = scheduleResult.value.lines
     } else {
       scheduleError.value = scheduleResult.reason?.displayMessage || scheduleResult.reason?.message || '生产排期暂未更新'
     }
+
+    qualityClosure.value = qualityClosureResult.status === 'fulfilled'
+      ? qualityClosureResult.value
+      : { total: 0, closed: 0, rate: null }
 
     failedDataCount.value = failedLabels.length
     if (successCount > 0) {
@@ -686,12 +916,13 @@ onBeforeUnmount(() => {
           <article class="screen-panel schedule-panel">
             <header class="panel-header">
               <div>
-                <strong>生产订单排期</strong>
-                <span>基于生产计划起止时间与产线形成</span>
+                <strong>生产计划排期</strong>
+                <span>{{ scheduleSummaryText }}</span>
               </div>
               <aside class="panel-tools">
+                <span v-if="overduePlanCount" class="overdue-badge"><AppIcon name="alert" :size="14" />{{ overduePlanCount }} 项逾期</span>
                 <span class="schedule-range">{{ scheduleRangeLabel }}</span>
-                <button class="panel-link" type="button" title="放大生产订单排期" aria-label="放大生产订单排期" @click="openSchedule">
+                <button class="panel-link" type="button" title="放大生产计划排期" aria-label="放大生产计划排期" @click="openSchedule">
                   <AppIcon name="fullscreen" :size="19" />
                 </button>
                 <button class="panel-link" type="button" title="打开生产计划管理" aria-label="打开生产计划管理" @click="openProductionPlans">
@@ -703,7 +934,7 @@ onBeforeUnmount(() => {
               class="schedule-board"
               role="button"
               tabindex="0"
-              aria-label="点击放大生产订单排期"
+              aria-label="点击放大生产计划排期"
               @click="openSchedule"
               @keydown.enter="openSchedule"
               @keydown.space.prevent="openSchedule"
@@ -716,21 +947,26 @@ onBeforeUnmount(() => {
                   </i>
                 </div>
               </div>
-              <div v-if="visibleScheduleRows.length" class="schedule-rows">
-                <div v-for="item in visibleScheduleRows" :key="item.planId" class="schedule-row">
+              <div v-if="visibleScheduleLineRows.length" class="schedule-rows">
+                <div v-for="line in visibleScheduleLineRows" :key="line.lineId || line.lineName" class="schedule-row">
                   <div class="schedule-row-meta">
-                    <strong>{{ item.lineName }}</strong>
-                    <span>{{ item.planNo }} · {{ item.statusLabel }}</span>
+                    <strong>{{ line.lineName }}</strong>
+                    <span :class="{ 'has-overdue': line.plans.some((plan) => plan.statusTone === 'overdue') }">
+                      {{ line.plans.length }} 项 · {{ formatNumber(line.plans.reduce((total, plan) => total + Number(plan.plannedQuantity || 0), 0)) }} 件 · {{ formatNumber(line.dailyCapacity) }}/日
+                    </span>
                   </div>
                   <div class="schedule-row-track">
+                    <span v-if="!line.plans.length" class="schedule-row-empty">{{ lineEmptyScheduleText(line) }}</span>
                     <span
+                      v-for="item in line.plans"
+                      :key="item.planId"
                       class="schedule-bar"
                       :class="`is-${item.statusTone}`"
                       :style="scheduleBarStyle(item)"
                       :title="scheduleBarTitle(item)"
                     >
-                      <b>{{ item.orderNo }}</b>
-                      <small>{{ item.productName }} · {{ formatNumber(item.plannedQuantity) }} 件</small>
+                      <b>{{ formatProductLabel(item.productName) }}</b>
+                      <small>{{ formatNumber(item.plannedQuantity) }}件·{{ item.statusLabel }}</small>
                     </span>
                   </div>
                 </div>
@@ -745,50 +981,41 @@ onBeforeUnmount(() => {
                 <strong>暂无有效生产排期</strong>
                 <span>请先为生产订单建立包含开始、结束时间和产线的生产计划</span>
               </div>
-              <div v-if="scheduleError && visibleScheduleRows.length" class="schedule-stale"><AppIcon name="alert" :size="14" />当前保留上次成功排期</div>
+              <div v-if="scheduleError && visibleScheduleLineRows.length" class="schedule-stale"><AppIcon name="alert" :size="14" />当前保留上次成功排期</div>
               <div class="schedule-expand-hint"><AppIcon name="fullscreen" :size="16" />点击放大查看完整排期</div>
             </div>
           </article>
 
-          <article class="screen-panel report-table-panel">
+          <article class="screen-panel line-status-panel">
             <header class="panel-header">
               <div>
-                <strong>近 7 日报工明细</strong>
-                <span>按报工日期汇总实际产出</span>
+                <strong>产线运行状态</strong>
+                <span>生产状态、下一计划与产能配置</span>
               </div>
               <aside class="panel-tools">
-                <span class="table-status" :class="{ 'is-empty': !hasTrendData }"><i />{{ hasTrendData ? '已产生报工' : '暂无报工' }}</span>
-                <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
+                <strong class="line-count">{{ lineStatusRows.length }}<small>条</small></strong>
+                <button class="panel-link" type="button" title="打开产线管理" aria-label="打开产线管理" @click="openModule('/factory/lines')">
                   <AppIcon name="arrow" :size="20" />
                 </button>
               </aside>
             </header>
-            <div class="report-table-wrap">
-              <table class="report-table">
-                <caption>近 7 日报工产量、合格数量、不良数量和合格率</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">日期</th>
-                    <th scope="col">报工产量</th>
-                    <th scope="col">合格</th>
-                    <th scope="col">不良</th>
-                    <th scope="col">合格率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in trendRows" :key="row.date" :class="{ 'is-zero': row.output === 0 }">
-                    <td><b>{{ row.dateLabel }}</b><small>{{ row.weekdayLabel }}</small></td>
-                    <td>{{ formatNumber(row.output) }}</td>
-                    <td class="is-qualified">{{ formatNumber(row.qualifiedQuantity) }}</td>
-                    <td class="is-defect">{{ formatNumber(row.defectQuantity) }}</td>
-                    <td><span class="rate-chip" :class="{ 'is-empty': row.passRate === null }">{{ formatPercent(row.passRate) }}<small v-if="row.passRate !== null">%</small></span></td>
-                  </tr>
-                </tbody>
-              </table>
-              <div v-if="trendRows.length === 0" class="table-empty">
-                <AppIcon name="clipboard" :size="28" />
-                <span>报工明细暂未返回</span>
-              </div>
+            <div v-if="lineStatusRows.length" class="line-status-list">
+              <article v-for="line in lineStatusRows" :key="line.lineId" class="line-status-row" :class="`is-${line.statusTone}`">
+                <span class="line-status-icon"><AppIcon name="factory" :size="22" /></span>
+                <div class="line-status-copy">
+                  <div><strong>{{ line.lineName }}</strong><span><i />{{ line.statusLabel }}</span></div>
+                  <p v-if="line.focusPlan">
+                    {{ line.focusLabel }}：{{ line.focusPlan.orderNo }} · {{ formatNumber(line.focusPlan.plannedQuantity) }} 件
+                  </p>
+                  <p v-else>当前没有有效生产计划</p>
+                  <small>{{ line.stationCount ?? '--' }} 工位 · 日产能 {{ formatNumber(line.dailyCapacity) }} · 排期 {{ line.planCount }} 项</small>
+                </div>
+              </article>
+            </div>
+            <div v-else class="line-status-empty">
+              <AppIcon name="factory" :size="30" />
+              <strong>暂无产线数据</strong>
+              <span>请先维护工厂产线与运行状态</span>
             </div>
           </article>
 
@@ -799,7 +1026,7 @@ onBeforeUnmount(() => {
                 <span>今日报工结果与当前生产台账</span>
               </div>
               <aside class="panel-tools">
-                <span class="live-badge"><i />实时</span>
+                <span class="live-badge"><i />60 秒刷新</span>
                 <button class="panel-link" type="button" title="打开生产报工明细" aria-label="打开生产报工明细" @click="openModule('/mfg/work-reports')">
                   <AppIcon name="arrow" :size="20" />
                 </button>
@@ -863,24 +1090,35 @@ onBeforeUnmount(() => {
           <article class="screen-panel quality-panel">
             <header class="panel-header compact">
               <div>
-                <strong>近 7 日质量</strong>
-                <span>近 7 日新建质检单的结果统计</span>
+                <strong>近 7 日质量情况</strong>
+                <span>质检结果与不合格处理进度</span>
               </div>
               <button class="panel-link" type="button" title="打开检验单明细" aria-label="打开检验单明细" @click="openModule('/qms/inspection-orders')">
                 <AppIcon name="arrow" :size="20" />
               </button>
             </header>
             <div class="quality-main">
-              <div class="quality-dial" :class="{ 'is-empty': inspectionPassRate === null }" :style="qualityDialStyle">
-                <div>
-                  <span>质检单合格率</span>
-                  <strong>{{ formatPercent(inspectionPassRate) }}<small v-if="inspectionPassRate !== null">%</small></strong>
+              <div class="quality-dial-stack">
+                <strong class="quality-focus-title">{{ qualityFocusLabel }}</strong>
+                <div
+                  class="quality-dial"
+                  :class="{ 'is-empty': qualityFocusRate === null }"
+                  :style="qualityDialStyle"
+                  title="检验合格单数 ÷ 已判定质检单数；待判定单不进入分母"
+                >
+                  <div>
+                    <strong>{{ formatPercent(qualityFocusRate) }}<small v-if="qualityFocusRate !== null">%</small></strong>
+                  </div>
                 </div>
+                <small v-if="evaluatedInspectionCount" class="quality-dial-summary">{{ qualifiedInspectionCount }}/{{ evaluatedInspectionCount }} 已判定合格</small>
               </div>
               <div class="quality-counts">
                 <div><span>质检单</span><b>{{ formatNumber(inspectionCount) }}</b></div>
-                <div><span>合格</span><b>{{ formatNumber(quality.qualifiedCount) }}</b></div>
-                <div><span>不合格</span><b>{{ formatNumber(quality.unqualifiedCount) }}</b></div>
+                <div><span>已判定</span><b>{{ formatNumber(evaluatedInspectionCount) }}</b></div>
+                <div><span>检验合格</span><b>{{ formatNumber(qualifiedInspectionCount) }}</b></div>
+                <div><span>检验不合格</span><b>{{ formatNumber(unqualifiedInspectionCount) }}</b></div>
+                <div><span>待判定</span><b>{{ formatNumber(pendingInspectionCount) }}</b></div>
+                <div><span>不合格已处理</span><b>{{ qualityClosure.rate === null ? '--' : `${qualityClosure.closed}/${qualityClosure.total}` }}</b></div>
               </div>
             </div>
           </article>
@@ -922,7 +1160,7 @@ onBeforeUnmount(() => {
             <header class="panel-header compact">
               <div>
                 <strong>需关注事项</strong>
-                <span>设备故障、补货预警与不良报工</span>
+                <span>计划、设备、仓储与质量异常</span>
               </div>
               <strong class="attention-total" :class="{ 'has-warning': riskCategoryCount > 0 }">{{ riskCategoryCount }}<small>类关注</small></strong>
             </header>
@@ -951,7 +1189,7 @@ onBeforeUnmount(() => {
           <header class="schedule-modal-header">
             <div>
               <span>PRODUCTION SCHEDULE</span>
-              <strong id="schedule-modal-title">生产订单排期总览</strong>
+              <strong id="schedule-modal-title">生产计划排期总览</strong>
               <p>{{ previewMode ? '演示排期' : '真实生产计划' }} · {{ scheduleRangeLabel }}</p>
             </div>
             <aside>
@@ -974,22 +1212,27 @@ onBeforeUnmount(() => {
                 </i>
               </div>
             </div>
-            <div v-if="expandedScheduleRows.length" class="schedule-rows">
-              <div v-for="item in expandedScheduleRows" :key="`expanded-${item.planId}`" class="schedule-row">
+            <div v-if="expandedScheduleLineRows.length" class="schedule-rows">
+              <div v-for="line in expandedScheduleLineRows" :key="`expanded-${line.lineId || line.lineName}`" class="schedule-row">
                 <div class="schedule-row-meta">
-                  <strong>{{ item.lineName }}</strong>
-                  <span>{{ item.planNo }} · {{ item.statusLabel }}</span>
-                  <small>{{ formatScheduleTime(item) }}</small>
+                  <strong>{{ line.lineName }}</strong>
+                  <span :class="{ 'has-overdue': line.plans.some((plan) => plan.statusTone === 'overdue') }">
+                    {{ line.plans.length }} 项 · {{ formatNumber(line.plans.reduce((total, plan) => total + Number(plan.plannedQuantity || 0), 0)) }} 件 · {{ formatNumber(line.dailyCapacity) }}/日
+                  </span>
+                  <small>{{ line.plans.map(formatScheduleTime).join(' / ') }}</small>
                 </div>
                 <div class="schedule-row-track">
+                  <span v-if="!line.plans.length" class="schedule-row-empty">{{ lineEmptyScheduleText(line) }}</span>
                   <span
+                    v-for="item in line.plans"
+                    :key="`expanded-${item.planId}`"
                     class="schedule-bar"
                     :class="`is-${item.statusTone}`"
                     :style="scheduleBarStyle(item)"
                     :title="scheduleBarTitle(item)"
                   >
-                    <b>{{ item.orderNo }}</b>
-                    <small>{{ item.productName }} · {{ formatNumber(item.plannedQuantity) }} 件</small>
+                    <b>{{ formatProductLabel(item.productName) }}</b>
+                    <small>{{ formatNumber(item.plannedQuantity) }}件·{{ item.statusLabel }}</small>
                   </span>
                 </div>
               </div>
@@ -1008,10 +1251,11 @@ onBeforeUnmount(() => {
 
           <footer class="schedule-modal-footer">
             <span><i class="is-draft" />待生效</span>
-            <span><i class="is-released" />已生效</span>
+            <span><i class="is-released" />待执行</span>
+            <span><i class="is-running" />生产中</span>
             <span><i class="is-finished" />已完成</span>
-            <span><i class="is-closed" />已取消</span>
-            <b>显示 {{ expandedScheduleRows.length }} / {{ scheduleRows.length }} 条有效计划</b>
+            <span><i class="is-overdue" />已逾期</span>
+            <b>显示 {{ expandedScheduleLineRows.length }} 条产线 / {{ scheduleRows.length }} 项有效计划</b>
           </footer>
         </section>
       </div>
@@ -1242,13 +1486,13 @@ onBeforeUnmount(() => {
 .primary-grid {
   display: grid;
   min-height: 0;
-  grid-template-areas: 'execution schedule report';
-  grid-template-columns: minmax(320px, .65fr) minmax(780px, 1.65fr) minmax(480px, .92fr);
+  grid-template-areas: 'lines schedule execution';
+  grid-template-columns: 350px minmax(0, 1fr) 390px;
   gap: 16px;
 }
 
 .schedule-panel { grid-area: schedule; }
-.report-table-panel { grid-area: report; }
+.line-status-panel { grid-area: lines; }
 .execution-panel { grid-area: execution; }
 
 .secondary-grid {
@@ -1337,6 +1581,20 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.overdue-badge {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  color: #ffb0a6;
+  border: 1px solid rgb(226 99 104 / 38%);
+  border-radius: 3px;
+  background: rgb(173 49 57 / 18%);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
 
 .schedule-board {
   position: relative;
@@ -1411,12 +1669,22 @@ onBeforeUnmount(() => {
 }
 .schedule-row-meta strong { color: #dbe8f0; font-size: 17px; font-weight: 680; }
 .schedule-row-meta span { color: #829caf; font-size: 14px; }
+.schedule-row-meta span.has-overdue { color: #e88d82; }
 .schedule-row-track {
   position: relative;
   min-width: 0;
   overflow: hidden;
   background-image: linear-gradient(90deg, rgb(72 108 134 / 18%) 1px, transparent 1px);
   background-size: 16.6667% 100%;
+}
+.schedule-row-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  color: #607d91;
+  font-size: 13px;
 }
 .schedule-bar {
   position: absolute;
@@ -1436,8 +1704,10 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
   white-space: nowrap;
 }
-.schedule-bar.is-released { border-color: rgb(83 194 139 / 58%); background: #26704f; }
+.schedule-bar.is-released { border-color: rgb(90 169 209 / 60%); background: #2b6288; }
+.schedule-bar.is-running { border-color: rgb(83 194 139 / 58%); background: #26704f; }
 .schedule-bar.is-finished { border-color: rgb(215 166 83 / 58%); background: #765726; }
+.schedule-bar.is-overdue { border-color: rgb(238 105 111 / 72%); background: #8a3942; box-shadow: 0 4px 16px rgb(175 46 56 / 26%); }
 .schedule-bar.is-closed { border-color: rgb(130 149 164 / 48%); background: #485765; }
 .schedule-bar b,
 .schedule-bar small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1560,8 +1830,10 @@ onBeforeUnmount(() => {
 }
 .schedule-modal-footer span { display: inline-flex; align-items: center; gap: 7px; }
 .schedule-modal-footer i { width: 11px; height: 11px; border-radius: 2px; background: #315d88; }
-.schedule-modal-footer i.is-released { background: #26704f; }
+.schedule-modal-footer i.is-released { background: #2b6288; }
+.schedule-modal-footer i.is-running { background: #26704f; }
 .schedule-modal-footer i.is-finished { background: #765726; }
+.schedule-modal-footer i.is-overdue { background: #8a3942; }
 .schedule-modal-footer i.is-closed { background: #485765; }
 .schedule-modal-footer b { margin-left: auto; color: #c9d8e2; font-size: 14px; font-weight: 650; }
 
@@ -1583,6 +1855,95 @@ onBeforeUnmount(() => {
 .empty-overlay span { font-size: 16px; }
 .compact-empty { inset: 48px 20px 18px 56px; gap: 6px; }
 .compact-empty strong { font-size: 16px; }
+
+.line-count { color: #f2f7fb; font-size: 30px; font-weight: 750; }
+.line-count small { margin-left: 4px; color: #91a7b7; font-size: 15px; font-weight: 550; }
+.line-status-panel .panel-header { min-height: 72px; padding: 0 16px; }
+.line-status-panel .panel-header > div { min-width: 0; }
+.line-status-panel .panel-header > div > span {
+  overflow: hidden;
+  max-width: 210px;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-status-list {
+  display: grid;
+  height: calc(100% - 72px);
+  align-content: stretch;
+  grid-auto-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+.line-status-row {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgb(49 81 105 / 72%);
+  box-sizing: border-box;
+}
+.line-status-row:last-child { border-bottom: 0; }
+.line-status-row::after {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 3px;
+  background: #4bc58a;
+  content: '';
+}
+.line-status-row.is-idle::after { background: #5aa9d1; }
+.line-status-row.is-released::after { background: #5aa9d1; }
+.line-status-row.is-stopped::after { background: #df6972; }
+.line-status-row.is-maintenance::after { background: #d99a55; }
+.line-status-row.is-incomplete::after { background: #e07e57; }
+.line-status-row.is-overdue::after { background: #e26368; }
+.line-status-icon {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  color: #65cf9a;
+  border: 1px solid rgb(75 197 138 / 28%);
+  border-radius: 50%;
+  background: rgb(75 197 138 / 10%);
+}
+.line-status-row.is-idle .line-status-icon { color: #6fb9df; border-color: rgb(90 169 209 / 28%); background: rgb(90 169 209 / 10%); }
+.line-status-row.is-released .line-status-icon { color: #6fb9df; border-color: rgb(90 169 209 / 28%); background: rgb(90 169 209 / 10%); }
+.line-status-row.is-stopped .line-status-icon { color: #ed7a82; border-color: rgb(223 105 114 / 30%); background: rgb(223 105 114 / 11%); }
+.line-status-row.is-maintenance .line-status-icon { color: #e6a65d; border-color: rgb(217 154 85 / 30%); background: rgb(217 154 85 / 11%); }
+.line-status-row.is-incomplete .line-status-icon { color: #e88864; border-color: rgb(224 126 87 / 30%); background: rgb(224 126 87 / 11%); }
+.line-status-row.is-overdue .line-status-icon { color: #ed7b80; border-color: rgb(226 99 104 / 34%); background: rgb(226 99 104 / 12%); }
+.line-status-copy { display: grid; min-width: 0; gap: 3px; }
+.line-status-copy > div { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.line-status-copy strong,
+.line-status-copy p,
+.line-status-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line-status-copy strong { color: #e5eef4; font-size: 16px; }
+.line-status-copy > div > span { display: inline-flex; flex: none; align-items: center; gap: 5px; color: #75d4a0; font-size: 13px; }
+.line-status-copy > div > span i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.line-status-row.is-idle .line-status-copy > div > span { color: #75bce1; }
+.line-status-row.is-released .line-status-copy > div > span { color: #75bce1; }
+.line-status-row.is-stopped .line-status-copy > div > span { color: #ee858c; }
+.line-status-row.is-maintenance .line-status-copy > div > span { color: #e5aa67; }
+.line-status-row.is-incomplete .line-status-copy > div > span { color: #ed916e; }
+.line-status-row.is-overdue .line-status-copy > div > span { color: #ee8589; }
+.line-status-copy p { margin: 0; color: #a7bac7; font-size: 13px; }
+.line-status-copy small { color: #7893a6; font-size: 12px; }
+.line-status-empty {
+  display: grid;
+  height: calc(100% - 72px);
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: #7893a5;
+}
+.line-status-empty strong { color: #c1d0da; font-size: 18px; }
+.line-status-empty span { font-size: 14px; }
 
 .table-status { display: inline-flex; align-items: center; gap: 7px; color: #78cfa0; font-size: 15px; white-space: nowrap; }
 .table-status i { width: 7px; height: 7px; border-radius: 50%; background: #4bc58a; box-shadow: 0 0 7px rgb(75 197 138 / 48%); }
@@ -1651,28 +2012,30 @@ onBeforeUnmount(() => {
 .production-stat-row small { overflow: hidden; color: #91a6b5; font-size: 14px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .production-stat-row strong { color: #fff; font-size: 24px; }
 
-.quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; padding: 12px 14px 14px; box-sizing: border-box; }
+.quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px 12px; box-sizing: border-box; }
+.quality-dial-stack { display: grid; justify-items: center; gap: 4px; }
+.quality-focus-title { color: #aebfcb; font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; }
 .quality-dial {
   position: relative;
   display: grid;
-  width: 118px;
-  height: 118px;
+  width: 100px;
+  height: 100px;
   place-items: center;
   border-radius: 50%;
   background: conic-gradient(#4bc58a var(--quality-angle), #1b3548 0);
 }
-.quality-dial::after { position: absolute; inset: 11px; border: 1px solid #33566f; border-radius: 50%; background: #0b1e2e; content: ''; }
-.quality-dial::before { position: absolute; inset: -4px; border: 1px solid rgb(78 172 207 / 24%); border-radius: 50%; content: ''; }
+.quality-dial::after { position: absolute; inset: 10px; border: 1px solid #33566f; border-radius: 50%; background: #0b1e2e; content: ''; }
+.quality-dial::before { position: absolute; inset: -3px; border: 1px solid rgb(78 172 207 / 24%); border-radius: 50%; content: ''; }
 .quality-dial.is-empty { background: #1b3548; }
-.quality-dial > div { position: relative; z-index: 1; display: grid; justify-items: center; gap: 4px; }
-.quality-dial span { color: #93a9b8; font-size: 13px; }
-.quality-dial strong { color: #fff; font-size: 31px; line-height: 1; }
+.quality-dial > div { position: relative; z-index: 1; display: grid; justify-items: center; }
+.quality-dial strong { color: #fff; font-size: 28px; line-height: 1; }
 .quality-dial strong small { margin-left: 2px; color: #94a8b6; font-size: 15px; }
+.quality-dial-summary { color: #95a9b7; font-size: 13px; white-space: nowrap; }
 .quality-counts { display: grid; grid-template-columns: 1fr; gap: 0; border-left: 1px solid #365066; }
-.quality-counts > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; }
+.quality-counts > div { display: flex; min-height: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 9px; }
 .quality-counts > div + div { border-top: 1px solid rgb(54 80 102 / 76%); }
-.quality-counts span { color: #9aafbd; font-size: 15px; }
-.quality-counts b { color: #eaf3f8; font-size: 23px; }
+.quality-counts span { color: #9aafbd; font-size: 14px; line-height: 1.15; }
+.quality-counts b { color: #eaf3f8; font-size: 19px; line-height: 1.15; }
 
 .equipment-total,
 .attention-total { color: #f0f6fa; font-size: 30px; font-weight: 750; }
@@ -1684,6 +2047,7 @@ onBeforeUnmount(() => {
 .equipment-bar { display: flex; height: 18px; overflow: hidden; border-radius: 3px; background: #1b3346; }
 .equipment-bar i { display: block; height: 100%; min-width: 0; }
 .equipment-bar i.is-green { background: #4bc58a; }
+.equipment-bar i.is-blue { background: #5aa9d1; }
 .equipment-bar i.is-gray { background: #718493; }
 .equipment-bar i.is-amber { background: #d99a55; }
 .equipment-bar i.is-red { background: #df6972; }
@@ -1692,6 +2056,7 @@ onBeforeUnmount(() => {
 .equipment-grid > div { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 9px; }
 .equipment-grid i { width: 9px; height: 9px; border-radius: 2px; }
 .equipment-grid i.is-green { background: #4bc58a; }
+.equipment-grid i.is-blue { background: #5aa9d1; }
 .equipment-grid i.is-gray { background: #718493; }
 .equipment-grid i.is-amber { background: #d99a55; }
 .equipment-grid i.is-red { background: #df6972; }
@@ -1699,7 +2064,7 @@ onBeforeUnmount(() => {
 .equipment-grid b { color: #eef5f9; font-size: 26px; }
 .inline-empty { position: absolute; top: 52px; right: 22px; margin: 0; color: #91a5b3; font-size: 16px; }
 
-.attention-list { display: grid; height: calc(100% - 68px); align-content: center; padding: 4px 18px 8px; box-sizing: border-box; }
+.attention-list { display: grid; height: calc(100% - 68px); grid-auto-rows: minmax(0, 1fr); align-content: stretch; padding: 4px 18px 8px; box-sizing: border-box; }
 .attention-row {
   display: grid;
   width: 100%;
@@ -1707,7 +2072,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 8px 4px;
+  padding: 4px;
   color: inherit;
   border: 0;
   border-bottom: 1px solid #29445a;
@@ -1717,14 +2082,14 @@ onBeforeUnmount(() => {
 }
 .attention-row:last-child { border-bottom: 0; }
 .attention-row:hover { background: rgb(75 111 137 / 10%); }
-.attention-icon { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; color: #65c793; border-radius: 4px; background: rgb(75 197 138 / 12%); }
+.attention-icon { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; color: #65c793; border-radius: 4px; background: rgb(75 197 138 / 12%); }
 .attention-row.is-warning .attention-icon { color: #e4a65d; background: rgb(228 166 93 / 13%); }
 .attention-row.is-danger .attention-icon { color: #e2747c; background: rgb(226 116 124 / 13%); }
 .attention-copy { display: grid; min-width: 0; gap: 2px; }
-.attention-copy b { color: #dbe7ef; font-size: 17px; line-height: 1.25; }
-.attention-copy small { overflow: hidden; color: #95a9b7; font-size: 16px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.attention-copy b { color: #dbe7ef; font-size: 16px; line-height: 1.2; }
+.attention-copy small { overflow: hidden; color: #95a9b7; font-size: 13px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .attention-value { display: inline-flex; min-width: 68px; align-items: center; justify-content: flex-end; gap: 8px; color: #7891a3; }
-.attention-value strong { min-width: 42px; color: #edf5fa; font-size: 28px; text-align: right; }
+.attention-value strong { min-width: 42px; color: #edf5fa; font-size: 25px; text-align: right; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 

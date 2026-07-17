@@ -31,8 +31,19 @@
 
   <view class="form-section image-section">
     <view class="image-title">图片</view>
-    <image wx:if="{{form.imageUrl}}" class="image-placeholder" src="{{form.imageUrl}}" mode="aspectFill"></image>
-    <view wx:else class="image-placeholder"><app-icon name="camera" size="42" muted></app-icon></view>
+    <view class="photo-control">
+      <view wx:if="{{photoPath || form.imageUrl}}" class="photo-preview-wrap">
+        <image class="image-placeholder" src="{{photoPath || form.imageUrl}}" mode="aspectFill" bindtap="previewPhoto"></image>
+        <button wx:if="{{photoIsLocal}}" class="photo-remove" aria-label="删除待上传照片" bindtap="removePhoto"><app-icon name="trash-2" size="22" inverse></app-icon></button>
+      </view>
+      <button wx:else class="image-placeholder photo-button" disabled="{{submitting || photoUploading}}" bindtap="choosePhoto">
+        <app-icon name="camera" size="42" muted></app-icon>
+      </button>
+      <button wx:if="{{photoPath || form.imageUrl}}" class="photo-retake" disabled="{{submitting || photoUploading}}" bindtap="choosePhoto">
+        <app-icon name="camera" size="26"></app-icon><text>重拍</text>
+      </button>
+      <text wx:if="{{photoUploading}}" class="photo-status">上传中</text>
+    </view>
   </view>
 
   <view class="form-section">

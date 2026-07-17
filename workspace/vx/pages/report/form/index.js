@@ -6,6 +6,12 @@ const lookupApi = require('../../../api/lookup')
 const statusUtil = require('../../../utils/status')
 const format = require('../../../utils/format')
 
+function reportedTotal(task) {
+  const qualified = Math.max(Number(task.completedQuantity || 0), Number(task.reportedQualifiedQuantity || 0))
+  const defect = Math.max(Number(task.defectQuantity || 0), Number(task.reportedDefectQuantity || 0))
+  return qualified + defect
+}
+
 Page({
   data: {
     taskId: null,
@@ -110,6 +116,13 @@ Page({
     try {
       const latest = await taskApi.detail(this.data.taskId)
       if (!latest || latest.status !== 'RUNNING') throw new Error('任务状态已变化，只有生产中任务可以报工')
+      const plannedQuantity = Number(latest.plannedQuantity || 0)
+      const completedQuantity = reportedTotal(latest)
+      if (plannedQuantity <= 0) throw new Error('任务计划数量无效，无法报工')
+      if (completedQuantity >= plannedQuantity) throw new Error('累计报工已达到计划数量，无需再次报工')
+      if (completedQuantity + qualifiedQuantity + defectQuantity > plannedQuantity) {
+        throw new Error('本次报工超过剩余可报数量 ' + (plannedQuantity - completedQuantity))
+      }
       const payload = {
         taskId: this.data.taskId,
         operatorId,

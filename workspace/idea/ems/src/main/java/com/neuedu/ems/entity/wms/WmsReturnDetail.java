@@ -22,8 +22,10 @@ public class WmsReturnDetail {
     @TableId(value = "detail_id", type = IdType.AUTO)
     private Long detailId;
     private Long returnId;
+    private Long outboundDetailId;
     private Long materialId;
     private Long batchId;
+    private Long locationId;
     private BigDecimal returnQuantity;
     private String returnReason;
     private String remark;

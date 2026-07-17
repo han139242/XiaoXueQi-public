@@ -1,6 +1,22 @@
 const authApi = require('../../api/auth')
 const auth = require('../../utils/auth')
 
+function switchToWorkbench() {
+  return new Promise((resolve, reject) => {
+    wx.switchTab({
+      url: '/pages/workbench/index/index',
+      success: resolve,
+      fail(error) {
+        const detail = String(error && error.errMsg || '').replace(/^switchTab:fail\s*/i, '')
+        const message = detail ? '工作台打开失败：' + detail : '工作台打开失败，请重新编译小程序'
+        const navigationError = new Error(message)
+        navigationError.stage = 'navigation'
+        reject(navigationError)
+      }
+    })
+  })
+}
+
 Page({
   data: {
     username: '',
@@ -20,11 +36,11 @@ Page({
       return
     }
     try {
-      const user = await authApi.info()
+      const user = await authApi.info({ skipAuthRedirect: true, silent: true })
       auth.setUser(user)
-      wx.switchTab({ url: '/pages/workbench/index/index' })
+      await switchToWorkbench()
     } catch (error) {
-      auth.clearAuth()
+      if (error.stage !== 'navigation') auth.clearAuth()
       this.setData({
         checking: false,
         error: error.message || '会话校验失败，请重新登录'
@@ -47,18 +63,30 @@ Page({
     }
 
     this.setData({ submitting: true, error: '' })
+    let authEstablished = false
     try {
       const response = await authApi.login({ username, password })
       if (!response.token || typeof response.token !== 'string') {
         throw new Error('登录响应缺少有效 Token')
       }
-      auth.setToken(response.token)
-      const user = await authApi.info()
+      const token = response.token.trim()
+      auth.setToken(token)
+      if (auth.getToken() !== token) {
+        throw new Error('登录凭证保存失败，请清理小程序缓存后重试')
+      }
+
+      let user
+      try {
+        user = await authApi.info({ skipAuthRedirect: true, silent: true })
+      } catch (error) {
+        throw new Error('登录成功，但用户信息加载失败：' + (error.message || '未知错误'))
+      }
       auth.setUser(user)
-      this.setData({ password: '' })
-      wx.switchTab({ url: '/pages/workbench/index/index' })
+      authEstablished = true
+      this.setData({ submitting: false, password: '' })
+      await switchToWorkbench()
     } catch (error) {
-      auth.clearAuth()
+      if (!authEstablished || error.stage !== 'navigation') auth.clearAuth()
       this.setData({
         submitting: false,
         password: '',
