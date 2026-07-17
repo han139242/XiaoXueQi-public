@@ -304,7 +304,7 @@ const scheduleWindow = computed(() => {
     for (let cursor = start; cursor.isBefore(end); cursor = cursor.add(1, 'day')) {
       tickValues.push(cursor)
     }
-    if (!tickValues.length || end.diff(tickValues.at(-1), 'hour', true) >= 16) {
+    if (!tickValues.at(-1)?.isSame(end)) {
       tickValues.push(end)
     }
     return {
@@ -312,15 +312,19 @@ const scheduleWindow = computed(() => {
       end,
       duration: longDuration,
       ticks: tickValues.map((tick) => ({
-        label: tick.format('MM-DD HH:mm'),
+        dateLabel: tick.format('MM月DD日'),
+        timeLabel: tick.format('HH:mm'),
         left: `${((tick.valueOf() - start.valueOf()) / longDuration) * 100}%`
       }))
     }
   }
   const ticks = Array.from({ length: 7 }, (_, index) => {
     const ratio = index / 6
+    const tick = start.add(duration * ratio, 'millisecond')
+    const previousTick = index ? start.add(duration * ((index - 1) / 6), 'millisecond') : null
     return {
-      label: start.add(duration * ratio, 'millisecond').format('HH:mm'),
+      dateLabel: !previousTick || !tick.isSame(previousTick, 'day') ? tick.format('MM月DD日') : '',
+      timeLabel: tick.format('HH:mm'),
       left: `${ratio * 100}%`
     }
   })
@@ -920,8 +924,11 @@ onBeforeUnmount(() => {
               <div class="schedule-axis">
                 <span>产线 / 计划</span>
                 <div class="schedule-axis-track">
-                  <i v-for="tick in scheduleWindow.ticks" :key="`${tick.left}-${tick.label}`" :style="{ left: tick.left }">
-                    <b>{{ tick.label }}</b>
+                  <i v-for="tick in scheduleWindow.ticks" :key="`${tick.left}-${tick.dateLabel}-${tick.timeLabel}`" :style="{ left: tick.left }">
+                    <b class="schedule-tick">
+                      <strong v-if="tick.dateLabel">{{ tick.dateLabel }}</strong>
+                      <small>{{ tick.timeLabel }}</small>
+                    </b>
                   </i>
                 </div>
               </div>
@@ -1176,8 +1183,11 @@ onBeforeUnmount(() => {
             <div class="schedule-axis">
               <span>产线 / 生产计划</span>
               <div class="schedule-axis-track">
-                <i v-for="tick in scheduleWindow.ticks" :key="`expanded-${tick.left}-${tick.label}`" :style="{ left: tick.left }">
-                  <b>{{ tick.label }}</b>
+                <i v-for="tick in scheduleWindow.ticks" :key="`expanded-${tick.left}-${tick.dateLabel}-${tick.timeLabel}`" :style="{ left: tick.left }">
+                  <b class="schedule-tick">
+                    <strong v-if="tick.dateLabel">{{ tick.dateLabel }}</strong>
+                    <small>{{ tick.timeLabel }}</small>
+                  </b>
                 </i>
               </div>
             </div>
@@ -1574,19 +1584,19 @@ onBeforeUnmount(() => {
 }
 
 .schedule-axis {
-  height: 44px;
+  height: 58px;
   align-items: end;
   color: #91a7b7;
   border-bottom: 1px solid #31536b;
   font-size: 15px;
 }
 
-.schedule-axis > span { padding: 0 12px 10px 2px; }
+.schedule-axis > span { padding: 0 12px 11px 2px; }
 .schedule-axis-track { position: relative; height: 100%; }
 .schedule-axis-track i {
   position: absolute;
   bottom: -1px;
-  height: 11px;
+  height: 10px;
   border-left: 1px solid #42657d;
   font-style: normal;
   transform: translateX(-50%);
@@ -1596,13 +1606,15 @@ onBeforeUnmount(() => {
 .schedule-axis-track b {
   position: absolute;
   right: 0;
-  bottom: 15px;
-  color: #9eb5c5;
-  font-size: 15px;
-  font-weight: 550;
+  bottom: 14px;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
   white-space: nowrap;
   transform: translateX(50%);
 }
+.schedule-tick strong { color: #d2e2ec; font-size: 16px; font-weight: 700; line-height: 1; }
+.schedule-tick small { color: #7897a9; font-size: 12px; font-weight: 550; line-height: 1; }
 .schedule-axis-track i:first-child b { right: auto; left: 0; transform: none; }
 .schedule-axis-track i:last-child b { right: 0; transform: none; }
 
@@ -1672,7 +1684,7 @@ onBeforeUnmount(() => {
 
 .schedule-empty {
   display: grid;
-  height: calc(100% - 44px);
+  height: calc(100% - 58px);
   align-content: center;
   justify-items: center;
   gap: 8px;
@@ -1763,9 +1775,10 @@ onBeforeUnmount(() => {
 }
 .expanded-board .schedule-axis,
 .expanded-board .schedule-row { grid-template-columns: 260px minmax(0, 1fr); }
-.expanded-board .schedule-axis { height: 50px; font-size: 18px; }
+.expanded-board .schedule-axis { height: 68px; font-size: 18px; }
 .expanded-board .schedule-axis > span { padding-left: 6px; }
-.expanded-board .schedule-axis-track b { font-size: 18px; }
+.expanded-board .schedule-tick strong { font-size: 20px; }
+.expanded-board .schedule-tick small { font-size: 14px; }
 .expanded-board .schedule-row { height: 78px; }
 .expanded-board .schedule-row-meta { gap: 3px; padding-left: 6px; }
 .expanded-board .schedule-row-meta strong { font-size: 20px; }
