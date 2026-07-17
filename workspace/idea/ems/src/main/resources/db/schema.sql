@@ -333,7 +333,7 @@ CREATE TABLE `sys_event_outbox` (
 CREATE TABLE `sys_operation_log` (
   `log_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '日志主键。',
   `user_id` BIGINT UNSIGNED NULL COMMENT '操作用户。',
-  `operation_type` VARCHAR(32) NULL COMMENT '操作类型。',
+  `operation_type` VARCHAR(64) NULL COMMENT '操作类型。',
   `module_code` VARCHAR(64) NULL COMMENT '模块编码。',
   `biz_id` BIGINT UNSIGNED NULL COMMENT '业务 ID。',
   `request_ip` VARCHAR(64) NULL COMMENT '请求 IP。',
@@ -417,7 +417,8 @@ CREATE TABLE `org_employee` (
   `department_id` BIGINT UNSIGNED NULL COMMENT '所属部门。',
   `position_name` VARCHAR(128) NULL COMMENT '岗位名称。',
   `skill_level` VARCHAR(64) NULL COMMENT '技能等级。',
-  `phone` VARCHAR(64) NULL COMMENT '联系方式。',
+  `phone` VARCHAR(255) NULL COMMENT '联系方式 AES-GCM 密文。',
+  `phone_lookup_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL COMMENT '联系电话 HMAC-SHA-256 精确检索哈希。',
   `status` VARCHAR(32) NULL COMMENT 'ENABLE:在职，RESIGNED:离职，DISABLE:停用。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
@@ -428,7 +429,8 @@ CREATE TABLE `org_employee` (
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`employee_id`),
   UNIQUE KEY `uk_org_employee_employee_no` (`employee_no`),
-  KEY `idx_org_employee_department_id` (`department_id`)
+  KEY `idx_org_employee_department_id` (`department_id`),
+  KEY `idx_org_employee_phone_lookup_hash` (`phone_lookup_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='员工表';
 
 CREATE TABLE `org_team` (
@@ -504,7 +506,8 @@ CREATE TABLE `mdm_supplier` (
   `supplier_code` VARCHAR(64) NULL COMMENT '供应商编码。',
   `supplier_name` VARCHAR(128) NULL COMMENT '供应商名称。',
   `contact_name` VARCHAR(128) NULL COMMENT '联系人。',
-  `contact_phone` VARCHAR(64) NULL COMMENT '联系电话。',
+  `contact_phone` VARCHAR(255) NULL COMMENT '联系电话 AES-GCM 密文。',
+  `contact_phone_lookup_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL COMMENT '联系电话 HMAC-SHA-256 精确检索哈希。',
   `status` VARCHAR(32) NULL COMMENT 'ENABLE:合作中，DISABLE:停止合作。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
@@ -514,7 +517,8 @@ CREATE TABLE `mdm_supplier` (
   `updated_time` DATETIME NULL COMMENT '更新时间',
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`supplier_id`),
-  UNIQUE KEY `uk_mdm_supplier_supplier_code` (`supplier_code`)
+  UNIQUE KEY `uk_mdm_supplier_supplier_code` (`supplier_code`),
+  KEY `idx_mdm_supplier_contact_phone_lookup_hash` (`contact_phone_lookup_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='供应商表';
 
 CREATE TABLE `mdm_customer` (
@@ -522,7 +526,8 @@ CREATE TABLE `mdm_customer` (
   `customer_code` VARCHAR(64) NULL COMMENT '客户编码。',
   `customer_name` VARCHAR(128) NULL COMMENT '客户名称。',
   `contact_name` VARCHAR(128) NULL COMMENT '联系人。',
-  `contact_phone` VARCHAR(64) NULL COMMENT '联系电话。',
+  `contact_phone` VARCHAR(255) NULL COMMENT '联系电话 AES-GCM 密文。',
+  `contact_phone_lookup_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL COMMENT '联系电话 HMAC-SHA-256 精确检索哈希。',
   `status` VARCHAR(32) NULL COMMENT 'ENABLE:启用，DISABLE:停用。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
@@ -532,7 +537,8 @@ CREATE TABLE `mdm_customer` (
   `updated_time` DATETIME NULL COMMENT '更新时间',
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`customer_id`),
-  UNIQUE KEY `uk_mdm_customer_customer_code` (`customer_code`)
+  UNIQUE KEY `uk_mdm_customer_customer_code` (`customer_code`),
+  KEY `idx_mdm_customer_contact_phone_lookup_hash` (`contact_phone_lookup_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='客户表';
 
 CREATE TABLE `mdm_material_category` (
@@ -1030,6 +1036,9 @@ CREATE TABLE `mfg_task` (
   `planned_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '计划数量。',
   `completed_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '完成数量。',
   `defect_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '不良数量。',
+  `task_type` VARCHAR(32) NOT NULL DEFAULT 'NORMAL' COMMENT 'NORMAL:正常任务，REWORK:返工任务，SUPPLEMENT:补产或续作任务。',
+  `source_task_id` BIGINT UNSIGNED NULL COMMENT '补偿任务的来源任务 ID。',
+  `source_ncr_id` BIGINT UNSIGNED NULL COMMENT '质量补偿任务的来源不合格品处理单 ID。',
   `status` VARCHAR(32) NULL COMMENT 'WAIT_START:待开工，RUNNING:生产中，PAUSED:暂停，FINISHED:已完工，CLOSED:已关闭。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
@@ -1043,7 +1052,9 @@ CREATE TABLE `mfg_task` (
   KEY `idx_mfg_task_dispatch_id` (`dispatch_id`),
   KEY `idx_mfg_task_work_order_id` (`work_order_id`),
   KEY `idx_mfg_task_operation_id` (`operation_id`),
-  KEY `idx_mfg_task_station_id` (`station_id`)
+  KEY `idx_mfg_task_station_id` (`station_id`),
+  KEY `idx_mfg_task_source_task_id` (`source_task_id`),
+  KEY `idx_mfg_task_source_ncr_id` (`source_ncr_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='生产任务单表';
 
 CREATE TABLE `mfg_task_operator` (
@@ -1380,8 +1391,10 @@ CREATE TABLE `wms_return_order` (
 CREATE TABLE `wms_return_detail` (
   `detail_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '明细主键。',
   `return_id` BIGINT UNSIGNED NULL COMMENT '退料单 ID。',
+  `outbound_detail_id` BIGINT UNSIGNED NULL COMMENT '来源生产领料明细 ID。',
   `material_id` BIGINT UNSIGNED NULL COMMENT '物料 ID。',
   `batch_id` BIGINT UNSIGNED NULL COMMENT '批次 ID。',
+  `location_id` BIGINT UNSIGNED NULL COMMENT '退回库位 ID，必须与来源领料明细一致。',
   `return_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '退回数量。',
   `return_reason` VARCHAR(255) NULL COMMENT '退回原因。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
@@ -1393,8 +1406,10 @@ CREATE TABLE `wms_return_detail` (
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`detail_id`),
   KEY `idx_wms_return_detail_return_id` (`return_id`),
+  KEY `idx_wms_return_detail_outbound_detail_id` (`outbound_detail_id`),
   KEY `idx_wms_return_detail_material_id` (`material_id`),
-  KEY `idx_wms_return_detail_batch_id` (`batch_id`)
+  KEY `idx_wms_return_detail_batch_id` (`batch_id`),
+  KEY `idx_wms_return_detail_location_id` (`location_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='退料/退库明细表';
 
 CREATE TABLE `wms_stocktake_order` (
@@ -1551,7 +1566,8 @@ CREATE TABLE `qms_inspection_order` (
   `work_order_id` BIGINT UNSIGNED NULL COMMENT '工单 ID。',
   `task_id` BIGINT UNSIGNED NULL COMMENT '任务 ID。',
   `report_id` BIGINT UNSIGNED NULL COMMENT '报工 ID。',
-  `batch_id` BIGINT UNSIGNED NULL COMMENT '批次 ID。',
+  `batch_id` BIGINT UNSIGNED NULL COMMENT '原料物料批次 ID，仅来料检使用。',
+  `product_lot_id` BIGINT UNSIGNED NULL COMMENT '产品批次 ID，仅生产终检使用。',
   `inspector_id` BIGINT UNSIGNED NULL COMMENT '质检员。',
   `sample_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '实际抽检数量。',
   `qualified_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '抽检合格数量。',
@@ -1572,6 +1588,7 @@ CREATE TABLE `qms_inspection_order` (
   KEY `idx_qms_inspection_order_task_id` (`task_id`),
   KEY `idx_qms_inspection_order_report_id` (`report_id`),
   KEY `idx_qms_inspection_order_batch_id` (`batch_id`),
+  KEY `idx_qms_inspection_order_product_lot_id` (`product_lot_id`),
   KEY `idx_qms_inspection_order_inspector_id` (`inspector_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='检验单主表';
 
@@ -1833,10 +1850,11 @@ CREATE TABLE `trace_product_lot` (
   `lot_no` VARCHAR(64) NULL COMMENT '产品批次号。',
   `product_id` BIGINT UNSIGNED NULL COMMENT '产品 ID。',
   `work_order_id` BIGINT UNSIGNED NULL COMMENT '工单 ID。',
+  `source_report_id` BIGINT UNSIGNED NULL COMMENT '来源末工序报工 ID。',
   `batch_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '批次数量。',
   `qualified_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '合格数量。',
   `defect_quantity` DECIMAL(18,4) NOT NULL DEFAULT 0.0000 COMMENT '不良数量。',
-  `status` VARCHAR(32) NULL COMMENT 'RUNNING:生产中，WAIT_INSPECTION:待检，PASS:合格，STORED:入库，CLOSED:关闭。',
+  `status` VARCHAR(32) NULL COMMENT 'WAIT_INSPECTION:待检，PASS:合格，CONCESSION:让步放行，FAIL:不合格隔离，STORED:入库，CLOSED:关闭。',
   `remark` VARCHAR(500) NULL COMMENT '备注',
   `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
   `created_by` BIGINT UNSIGNED NULL COMMENT '创建人',
@@ -1846,6 +1864,7 @@ CREATE TABLE `trace_product_lot` (
   `deleted_flag` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0未删 1已删',
   PRIMARY KEY (`product_lot_id`),
   UNIQUE KEY `uk_trace_product_lot_lot_no` (`lot_no`),
+  UNIQUE KEY `uk_trace_product_lot_source_report_id` (`source_report_id`),
   KEY `idx_trace_product_lot_product_id` (`product_id`),
   KEY `idx_trace_product_lot_work_order_id` (`work_order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='产品批次表';

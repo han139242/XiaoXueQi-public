@@ -29,6 +29,7 @@ public class QmsInspectionOrder {
     private Long taskId;
     private Long reportId;
     private Long batchId;
+    private Long productLotId;
     private Long inspectorId;
     private BigDecimal sampleQuantity;
     private BigDecimal qualifiedQuantity;

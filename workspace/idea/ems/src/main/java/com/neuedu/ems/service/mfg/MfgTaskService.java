@@ -99,4 +99,11 @@ public interface MfgTaskService extends IService<MfgTask> {
      * @return 是否成功
      */
     boolean finishTask(Long taskId, BigDecimal completedQuantity, BigDecimal defectQuantity, String remark, Long operatorId);
+
+    MfgTask controlledCloseTask(Long taskId, Long operatorId, String reason);
+
+    MfgTask createCompensationTask(Long sourceTaskId, Long sourceNcrId, BigDecimal plannedQuantity,
+                                   String taskType, Long operatorId, String remark);
+
+    void withdrawTaskStart(Long taskId, Long operatorId, String remark);
 }

@@ -31,6 +31,9 @@ public class MfgTask {
     private BigDecimal plannedQuantity;
     private BigDecimal completedQuantity;
     private BigDecimal defectQuantity;
+    private String taskType;
+    private Long sourceTaskId;
+    private Long sourceNcrId;
     @TableField(exist = false)
     private BigDecimal reportedQualifiedQuantity;
     @TableField(exist = false)

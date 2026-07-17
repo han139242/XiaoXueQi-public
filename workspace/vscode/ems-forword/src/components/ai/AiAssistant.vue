@@ -5,11 +5,14 @@ import AppIcon from '@/components/common/AppIcon.vue'
 import { chatWithAi, getAiStatus, getDashboardInsight, getModuleSuggestion } from '@/api/ai'
 import { isFrameworkPreview } from '@/utils/auth'
 
+// 这是各业务页面可复用的侧边AI助手；open由父组件v-model控制，module决定AI分析上下文。
 const open = defineModel({ type: Boolean, default: false })
+// module由父页面传入，决定AI使用通用、看板还是具体业务模块接口。
 const props = defineProps({
   module: { type: String, default: 'general' }
 })
 
+// status描述后端开关、密钥配置和模型可用性；messages保存当前抽屉中的临时对话。
 const previewMode = isFrameworkPreview()
 const loadingStatus = ref(false)
 const sending = ref(false)
@@ -32,34 +35,43 @@ const messages = ref([
 ])
 let abortController
 
+// 快捷问题只是把常见问题填入输入框，最终仍调用与手工输入相同的sendQuestion流程。
 const quickQuestions = [
   '解读今日生产情况',
   '分析当前质量风险',
   '检查库存与设备异常'
 ]
 
+// 将后端AI状态编码转换成用户能看到的服务状态文字。
 const statusLabel = computed(() => {
   if (status.value.state === 'READY') return '服务就绪'
   if (status.value.state === 'MISCONFIGURED') return '配置不完整'
   return '服务未启用'
 })
 
+// 将AI状态转换为CSS色调名称，用于正常、警告和离线三种视觉样式。
 const statusTone = computed(() => {
   if (status.value.state === 'READY') return 'ready'
   if (status.value.state === 'MISCONFIGURED') return 'warning'
   return 'offline'
 })
 
+// 服务可用时提示输入问题，不可用时明确禁止发送。
 const inputPlaceholder = computed(() => {
   if (status.value.available) return '输入需要分析的问题'
   return 'AI 服务尚未可用'
 })
 
+// 统一清洗父组件传入的模块名称，避免大小写和空格影响接口选择。
 const normalizedModule = computed(() => String(props.module || 'general').trim().toLowerCase())
+// 仪表盘、具体业务模块和普通聊天使用三个不同后端提示词接口。
 const dashboardContext = computed(() => normalizedModule.value === 'dashboard')
+// 除dashboard和general外的名称都按具体业务模块分析。
 const moduleContext = computed(() => !['dashboard', 'general'].includes(normalizedModule.value))
 
+// 查询后端AI开关和模型配置，并更新抽屉顶部的服务状态。
 async function loadStatus() {
+  // 打开抽屉时查询AI服务状态；开发预览明确不调用真实模型。
   if (previewMode) {
     status.value = {
       enabled: false,
@@ -83,6 +95,7 @@ async function loadStatus() {
   }
 }
 
+// 点击快捷问题后写入输入框；服务可用时直接发送。
 function selectQuickQuestion(value) {
   question.value = value
   if (status.value.available) {
@@ -90,7 +103,9 @@ function selectQuickQuestion(value) {
   }
 }
 
+// 从后端详情、Axios显示消息和统一兜底中选择最适合用户的AI错误说明。
 function resolveAiErrorMessage(error) {
+  // 优先显示后端业务错误，其次使用Axios拦截器整理的错误，最后使用通用文案。
   const detail = error?.data?.message
   if (typeof detail === 'string' && detail.trim()) {
     return detail.trim()
@@ -101,7 +116,9 @@ function resolveAiErrorMessage(error) {
   return '本次分析未完成，请稍后重试。'
 }
 
+// 将用户问题加入消息列表，选择对应AI接口，并把回答或错误追加回会话。
 async function sendQuestion() {
+  // 防止空问题、重复提交和服务不可用时发送请求。
   const content = question.value.trim()
   if (!content || sending.value || !status.value.available) {
     return
@@ -115,9 +132,11 @@ async function sendQuestion() {
   })
   question.value = ''
   sending.value = true
+  // 每次提问创建独立AbortController，用户可在模型生成过程中点击停止。
   abortController = new AbortController()
 
   try {
+    // 根据module选择对应AI接口，signal传给Axios用于取消本次HTTP请求。
     const requestAi = dashboardContext.value
       ? getDashboardInsight
       : moduleContext.value ? getModuleSuggestion : chatWithAi
@@ -151,17 +170,22 @@ async function sendQuestion() {
   }
 }
 
+// 主动终止当前AbortController关联的Axios请求。
 function cancelRequest() {
+  // abort后Axios抛出ERR_CANCELED，catch中不会把它当成真正错误显示。
   abortController?.abort()
 }
 
+// 把失败消息保存的原问题重新放入输入框并再次提交。
 function retryMessage(message) {
   if (sending.value || !status.value.available || !message.retryQuestion) return
   question.value = message.retryQuestion
   sendQuestion()
 }
 
+// 监听抽屉开关：打开时刷新服务状态，关闭时停止仍在生成的回答。
 watch(open, (value) => {
+  // 打开时检查服务，关闭抽屉时取消仍在生成的请求。
   if (value) {
     loadStatus()
   } else if (sending.value) {
@@ -171,6 +195,7 @@ watch(open, (value) => {
 </script>
 
 <template>
+  <!-- AI侧边抽屉依次显示服务状态、消息列表、快捷问题和输入发送区域。 -->
   <el-drawer
     v-model="open"
     class="ai-assistant-drawer"
@@ -293,6 +318,7 @@ watch(open, (value) => {
 </template>
 
 <style>
+/* 抽屉挂载到body外层，此处使用非scoped样式调整Element Plus抽屉容器。 */
 .ai-assistant-drawer .el-drawer__body {
   padding: 0;
 }
@@ -305,6 +331,7 @@ watch(open, (value) => {
 </style>
 
 <style scoped>
+/* AI助手内部样式：控制消息气泡、状态提示、快捷问题和输入区域。 */
 .ai-shell {
   display: grid;
   height: 100dvh;

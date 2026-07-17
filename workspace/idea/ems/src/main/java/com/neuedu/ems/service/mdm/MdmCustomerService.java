@@ -15,9 +15,9 @@ public interface MdmCustomerService extends IService<MdmCustomer> {
 
     MdmCustomer getCustomerById(Long customerId);
 
-    boolean saveCustomer(MdmCustomer customer);
+    boolean saveCustomer(MdmCustomer customer, String rawContactPhone);
 
-    boolean updateCustomer(MdmCustomer customer);
+    boolean updateCustomer(MdmCustomer customer, String rawContactPhone);
 
     boolean removeCustomerById(Long customerId);
 

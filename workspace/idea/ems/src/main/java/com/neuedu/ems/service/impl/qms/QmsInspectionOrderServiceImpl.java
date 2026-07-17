@@ -10,14 +10,17 @@ import com.neuedu.ems.entity.qms.QmsInspectionResult;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
+import com.neuedu.ems.entity.trace.TraceProductLot;
 import com.neuedu.ems.entity.wms.WmsMaterialBatch;
 import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
 import com.neuedu.ems.mapper.qms.QmsInspectionResultMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.trace.TraceProductLotMapper;
 import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.service.qms.QmsInspectionOrderService;
+import com.neuedu.ems.service.mfg.MfgWorkReportService;
 import com.neuedu.ems.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -57,7 +60,13 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     private WmsMaterialBatchMapper wmsMaterialBatchMapper;
 
     @Autowired
+    private TraceProductLotMapper traceProductLotMapper;
+
+    @Autowired
     private QmsResponsibilityNotificationService responsibilityNotificationService;
+
+    @Autowired
+    private MfgWorkReportService mfgWorkReportService;
 
     /**
      * 分页查询检验单，支持单号、类型、方案、工单、任务、报工、批次、检验员、状态和结果筛选。
@@ -78,10 +87,11 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     @Override
     public Page<QmsInspectionOrder> pageInspectionOrders(Integer current, Integer size, String keyword, String inspectionType,
                                                          Long schemeId, Long workOrderId, Long taskId, Long reportId,
-                                                         Long batchId, Long inspectorId, String status, String inspectionResult) {
+                                                         Long batchId, Long productLotId, Long inspectorId,
+                                                         String status, String inspectionResult) {
         Page<QmsInspectionOrder> page = new Page<>(current, size);
         return baseMapper.selectPage(page, buildInspectionOrderQuery(keyword, inspectionType, schemeId, workOrderId,
-                taskId, reportId, batchId, inspectorId, status, inspectionResult));
+                taskId, reportId, batchId, productLotId, inspectorId, status, inspectionResult));
     }
 
     /**
@@ -100,10 +110,10 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
      */
     @Override
     public List<QmsInspectionOrder> listInspectionOrders(String keyword, String inspectionType, Long schemeId, Long workOrderId,
-                                                         Long taskId, Long reportId, Long batchId, Long inspectorId,
-                                                         String status, String inspectionResult) {
+                                                         Long taskId, Long reportId, Long batchId, Long productLotId,
+                                                         Long inspectorId, String status, String inspectionResult) {
         return baseMapper.selectList(buildInspectionOrderQuery(keyword, inspectionType, schemeId, workOrderId,
-                taskId, reportId, batchId, inspectorId, status, inspectionResult));
+                taskId, reportId, batchId, productLotId, inspectorId, status, inspectionResult));
     }
 
     /**
@@ -127,6 +137,11 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     @Override
     @Transactional
     public boolean saveInspectionOrder(QmsInspectionOrder inspectionOrder) {
+        if (inspectionOrder != null && ("PROCESS".equalsIgnoreCase(inspectionOrder.getInspectionType())
+                || "FINAL".equalsIgnoreCase(inspectionOrder.getInspectionType()))) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "过程检和终检不能空白新建：过程检必须从需检报工发起，终检必须从待检产品批次发起");
+        }
         prepareInspectionOrder(inspectionOrder);
         boolean saved = baseMapper.insert(inspectionOrder) > 0;
         if (saved) {
@@ -161,7 +176,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
             return false;
         }
         QmsInspectionOrder existing = getInspectionOrderById(inspectionOrder.getInspectionId());
-        if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
+        if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
             return false;
         }
         inspectionOrder.setStatus(null);
@@ -171,6 +186,13 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         inspectionOrder.setUnqualifiedQuantity(null);
         inspectionOrder.setInspectionTime(null);
         inspectionOrder.setDeletedFlag(null);
+        inspectionOrder.setInspectionNo(null);
+        inspectionOrder.setInspectionType(null);
+        inspectionOrder.setWorkOrderId(null);
+        inspectionOrder.setTaskId(null);
+        inspectionOrder.setReportId(null);
+        inspectionOrder.setBatchId(null);
+        inspectionOrder.setProductLotId(null);
         if (inspectionOrder.getVersion() == null) {
             inspectionOrder.setVersion(existing.getVersion());
         }
@@ -212,8 +234,12 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     @Transactional
     public boolean removeInspectionOrderById(Long inspectionId) {
         QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
-        if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
+        if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
             return false;
+        }
+        if (existing.getProductLotId() != null) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "来源生成的产品终检单不能删除，应保留产品批次质量链路");
         }
         QmsInspectionOrder inspectionOrder = new QmsInspectionOrder();
         inspectionOrder.setInspectionId(inspectionId);
@@ -225,6 +251,36 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
             responsibilityNotificationService.cancelOpenInspection(inspectionId, existing.getUpdatedBy());
         }
         return removed;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawInspectionOrder(Long inspectionId, Long operatorId, String remark) {
+        QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
+        if (existing == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "检验单和操作人不能为空");
+        }
+        remark = StringUtils.hasText(remark) ? remark.trim() : "用户主动撤回，未填写补充原因";
+        if (!BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有尚未开始检验的检验单可以撤回");
+        }
+        if (existing.getProductLotId() != null) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "产品批次终检单不能普通撤回，请从来源报工或质量异常流程处理");
+        }
+        if (qmsInspectionResultMapper.selectCount(new LambdaQueryWrapper<QmsInspectionResult>()
+                .eq(QmsInspectionResult::getInspectionId, inspectionId)
+                .eq(QmsInspectionResult::getDeletedFlag, 0)) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "检验单已有检验结果，不能撤回");
+        }
+        QmsInspectionOrder update = new QmsInspectionOrder();
+        update.setInspectionId(inspectionId); update.setVersion(existing.getVersion());
+        update.setStatus(BusinessStatus.Document.CLOSED); update.setUpdatedBy(operatorId); update.setUpdatedTime(LocalDateTime.now());
+        if (baseMapper.updateById(update) == 0) throw business(ResultCode.DATA_CONFLICT, "检验单已被并发修改");
+        LocalDateTime now = LocalDateTime.now();
+        insertStatusChangeLog(inspectionId, existing.getStatus(), BusinessStatus.Document.CLOSED,
+                "QMS_INSPECTION_ORDER", "WITHDRAW_INSPECTION", operatorId, remark, now);
+        insertOperationLog(inspectionId, "WITHDRAW_INSPECTION", "qms_inspection_order", operatorId, remark, now);
     }
 
     /**
@@ -257,15 +313,30 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
             return false;
         }
         QmsInspectionOrder existing = getInspectionOrderById(inspectionId);
-        if (existing == null || BusinessStatus.Production.FINISHED.equals(existing.getStatus())) {
+        if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
             return false;
         }
         if (quantitiesProvided && !validInspectionQuantities(existing, sampleQuantity, qualifiedQuantity, unqualifiedQuantity)) {
             return false;
         }
         WmsMaterialBatch batch = existing.getBatchId() == null ? null : getActiveBatch(existing.getBatchId());
+        TraceProductLot productLot = existing.getProductLotId() == null ? null
+                : getActiveProductLot(existing.getProductLotId());
+        if (existing.getBatchId() != null && existing.getProductLotId() != null) {
+            throw business(ResultCode.BUSINESS_ERROR, "检验单不能同时关联原料物料批次和产品批次");
+        }
         if (existing.getBatchId() != null && batch == null) {
             throw business(ResultCode.NOT_FOUND, "检验单关联的物料批次不存在或已删除");
+        }
+        if (existing.getProductLotId() != null && productLot == null) {
+            throw business(ResultCode.NOT_FOUND, "终检单关联的产品批次不存在或已删除");
+        }
+        if (productLot != null && (!"FINAL".equals(existing.getInspectionType())
+                || !"WAIT_INSPECTION".equals(productLot.getStatus())
+                || !Objects.equals(productLot.getWorkOrderId(), existing.getWorkOrderId())
+                || !Objects.equals(productLot.getSourceReportId(), existing.getReportId()))) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "终检单与待检产品批次、工单或来源报工不一致");
         }
         if (batch != null && !BusinessStatus.Quality.FAIL.equals(normalizedInspectionResult)
                 && (BATCH_EXHAUSTED.equals(batch.getStatus()) || BATCH_SCRAPPED.equals(batch.getStatus()))) {
@@ -293,6 +364,11 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         if (batch != null) {
             synchronizeBatchQuality(batch, normalizedInspectionResult, inspectionId, operatorId, inspectionTime);
         }
+        if (productLot != null) {
+            synchronizeProductLotQuality(productLot, normalizedInspectionResult, inspectionId, operatorId, inspectionTime);
+            mfgWorkReportService.recalculateWorkOrderCompletion(existing.getWorkOrderId(), operatorId,
+                    "终检单 " + inspectionId + " 提交结果 " + normalizedInspectionResult);
+        }
         responsibilityNotificationService.cancelOpenInspection(inspectionId, operatorId);
         responsibilityNotificationService.publishInspectionCompleted(existing, normalizedInspectionResult, operatorId);
         return true;
@@ -303,6 +379,35 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
         query.eq(WmsMaterialBatch::getBatchId, batchId)
                 .eq(WmsMaterialBatch::getDeletedFlag, 0);
         return wmsMaterialBatchMapper.selectOne(query);
+    }
+
+    private TraceProductLot getActiveProductLot(Long productLotId) {
+        return traceProductLotMapper.selectOne(new LambdaQueryWrapper<TraceProductLot>()
+                .eq(TraceProductLot::getProductLotId, productLotId)
+                .eq(TraceProductLot::getDeletedFlag, 0));
+    }
+
+    private void synchronizeProductLotQuality(TraceProductLot productLot, String inspectionResult,
+                                              Long inspectionId, Long operatorId, LocalDateTime now) {
+        String targetStatus = switch (inspectionResult) {
+            case BusinessStatus.Quality.PASS -> BusinessStatus.Quality.PASS;
+            case BusinessStatus.Quality.CONCESSION -> BusinessStatus.Quality.CONCESSION;
+            default -> BusinessStatus.Quality.FAIL;
+        };
+        TraceProductLot update = new TraceProductLot();
+        update.setProductLotId(productLot.getProductLotId());
+        update.setVersion(productLot.getVersion());
+        update.setStatus(targetStatus);
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (traceProductLotMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "产品批次已被其他用户处理，请刷新后重试");
+        }
+        insertStatusChangeLog(productLot.getProductLotId(), productLot.getStatus(), targetStatus,
+                "TRACE_PRODUCT_LOT", "SYNC_FINAL_INSPECTION_RESULT", operatorId,
+                "终检单ID=" + inspectionId, now);
+        insertOperationLog(productLot.getProductLotId(), "SYNC_FINAL_INSPECTION_RESULT", "trace_product_lot",
+                operatorId, "终检单ID=" + inspectionId, now);
     }
 
     private void synchronizeBatchQuality(WmsMaterialBatch batch, String inspectionResult, Long inspectionId,
@@ -374,7 +479,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
     private LambdaQueryWrapper<QmsInspectionOrder> buildInspectionOrderQuery(String keyword, String inspectionType,
                                                                              Long schemeId, Long workOrderId,
                                                                              Long taskId, Long reportId,
-                                                                             Long batchId, Long inspectorId,
+                                                                             Long batchId, Long productLotId, Long inspectorId,
                                                                              String status, String inspectionResult) {
         LambdaQueryWrapper<QmsInspectionOrder> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(QmsInspectionOrder::getDeletedFlag, 0)
@@ -385,6 +490,7 @@ public class QmsInspectionOrderServiceImpl extends ServiceImpl<QmsInspectionOrde
                 .eq(taskId != null, QmsInspectionOrder::getTaskId, taskId)
                 .eq(reportId != null, QmsInspectionOrder::getReportId, reportId)
                 .eq(batchId != null, QmsInspectionOrder::getBatchId, batchId)
+                .eq(productLotId != null, QmsInspectionOrder::getProductLotId, productLotId)
                 .eq(inspectorId != null, QmsInspectionOrder::getInspectorId, inspectorId)
                 .eq(StringUtils.hasText(status), QmsInspectionOrder::getStatus, status)
                 .eq(StringUtils.hasText(inspectionResult), QmsInspectionOrder::getInspectionResult, inspectionResult)

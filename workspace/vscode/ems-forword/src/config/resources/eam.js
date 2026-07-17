@@ -1,5 +1,8 @@
 import { defineResource, field, optionSets, values } from './helpers'
 
+// EAM设备管理资源：设备台账、运行状态、保养、点检和维修。
+// actions描述状态操作，relations描述主记录可以跳转查看的关联记录。
+// 默认导出该业务域的资源数组，由resources/index.js统一汇总。
 export default [
   defineResource({
     key: 'eam-equipment-category', domain: 'eam', route: 'eam/equipment-categories', title: '设备分类', icon: 'database', baseUrl: '/api/eam/equipment-category', idField: 'categoryId',

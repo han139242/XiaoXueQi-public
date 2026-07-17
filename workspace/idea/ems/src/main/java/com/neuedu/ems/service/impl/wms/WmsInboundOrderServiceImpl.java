@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.entity.mdm.MdmProduct;
+import com.neuedu.ems.entity.trace.TraceProductLot;
 import com.neuedu.ems.entity.wms.WmsInboundDetail;
 import com.neuedu.ems.entity.wms.WmsInboundOrder;
 import com.neuedu.ems.entity.wms.WmsInventory;
@@ -17,6 +19,8 @@ import com.neuedu.ems.mapper.wms.WmsInboundOrderMapper;
 import com.neuedu.ems.mapper.wms.WmsInventoryMapper;
 import com.neuedu.ems.mapper.wms.WmsMaterialBatchMapper;
 import com.neuedu.ems.mapper.wms.WmsStockMovementMapper;
+import com.neuedu.ems.mapper.mdm.MdmProductMapper;
+import com.neuedu.ems.mapper.trace.TraceProductLotMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.wms.WmsInboundOrderService;
@@ -28,6 +32,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -55,6 +60,12 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
 
     @Autowired
     private WmsMaterialBatchMapper wmsMaterialBatchMapper;
+
+    @Autowired
+    private TraceProductLotMapper traceProductLotMapper;
+
+    @Autowired
+    private MdmProductMapper mdmProductMapper;
 
     @Autowired
     private SysStatusChangeLogMapper sysStatusChangeLogMapper;
@@ -124,6 +135,10 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         if (inboundOrder == null || inboundOrder.getWarehouseId() == null) {
             return false;
         }
+        if ("PRODUCTION".equalsIgnoreCase(inboundOrder.getInboundType())) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "生产入库不能空白新建：必须从质检放行的产品批次发起并自动带入成品物料和可入数量");
+        }
         inboundOrder.setAuditStatus(SUBMITTED_STATUS);
         inboundOrder.setInboundTime(null);
         if (inboundOrder.getDeletedFlag() == null) {
@@ -172,12 +187,15 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
             return false;
         }
         WmsInboundOrder existing = getInboundOrderById(inboundOrder.getInboundId());
-        if (existing == null || APPROVED_STATUS.equals(existing.getAuditStatus())) {
+        if (existing == null || !SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
             return false;
         }
         inboundOrder.setDeletedFlag(null);
         inboundOrder.setAuditStatus(null);
         inboundOrder.setInboundTime(null);
+        inboundOrder.setInboundType(null);
+        inboundOrder.setSourceOrderType(null);
+        inboundOrder.setSourceOrderId(null);
         if (inboundOrder.getVersion() == null) {
             inboundOrder.setVersion(existing.getVersion());
         }
@@ -227,7 +245,7 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
     @Transactional
     public boolean removeInboundOrderById(Long inboundId) {
         WmsInboundOrder existing = getInboundOrderById(inboundId);
-        if (existing == null || APPROVED_STATUS.equals(existing.getAuditStatus())) {
+        if (existing == null || !SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
             return false;
         }
         WmsInboundOrder inboundOrder = new WmsInboundOrder();
@@ -240,6 +258,196 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
             responsibilityNotificationService.cancelInboundPending(inboundId, existing.getUpdatedBy());
         }
         return orderRemoved;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawInboundOrder(Long inboundId, Long operatorId, String remark) {
+        WmsInboundOrder existing = getInboundOrderById(inboundId);
+        if (existing == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "入库单和操作人不能为空");
+        }
+        remark = StringUtils.hasText(remark) ? remark.trim() : "用户主动撤回，未填写补充原因";
+        if (!SUBMITTED_STATUS.equals(existing.getAuditStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有未确认入库单可以撤回");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        WmsInboundOrder update = new WmsInboundOrder();
+        update.setInboundId(inboundId); update.setVersion(existing.getVersion());
+        update.setAuditStatus(BusinessStatus.Document.CLOSED); update.setUpdatedBy(operatorId); update.setUpdatedTime(now);
+        if (baseMapper.updateById(update) == 0) throw business(ResultCode.DATA_CONFLICT, "入库单已被并发修改");
+        SysStatusChangeLog status = new SysStatusChangeLog();
+        status.setBizType("WMS_INBOUND_ORDER"); status.setBizId(inboundId); status.setOldStatus(existing.getAuditStatus());
+        status.setNewStatus(BusinessStatus.Document.CLOSED); status.setChangeReason("WITHDRAW_INBOUND");
+        status.setChangedBy(operatorId); status.setChangedTime(now); status.setCreatedBy(operatorId);
+        status.setCreatedTime(now); status.setRemark(remark); status.setDeletedFlag(0);
+        if (sysStatusChangeLogMapper.insert(status) == 0) throw new BusinessException(ResultCode.FAILED);
+        SysOperationLog operation = new SysOperationLog();
+        operation.setUserId(operatorId); operation.setOperationType("WITHDRAW_INBOUND");
+        operation.setModuleCode("wms_inbound_order"); operation.setBizId(inboundId); operation.setOperationTime(now);
+        operation.setCreatedBy(operatorId); operation.setCreatedTime(now); operation.setRemark(remark); operation.setDeletedFlag(0);
+        if (sysOperationLogMapper.insert(operation) == 0) throw new BusinessException(ResultCode.FAILED);
+        responsibilityNotificationService.cancelInboundPending(inboundId, operatorId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public WmsInboundOrder generateProductionInbound(Long productLotId, Long warehouseId, Long locationId,
+                                                      Long operatorId, String remark) {
+        if (productLotId == null || warehouseId == null || locationId == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "产品批次、目标仓库、目标库位和操作人不能为空");
+        }
+        TraceProductLot productLot = traceProductLotMapper.selectOne(new LambdaQueryWrapper<TraceProductLot>()
+                .eq(TraceProductLot::getProductLotId, productLotId)
+                .eq(TraceProductLot::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (productLot == null) {
+            throw business(ResultCode.NOT_FOUND, "产品批次不存在或已删除");
+        }
+        if (!RELEASED_QUALITY_STATUSES.contains(productLot.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有终检合格或让步放行的产品批次可以生成生产入库");
+        }
+        List<WmsInboundOrder> activeOrders = baseMapper.selectList(new LambdaQueryWrapper<WmsInboundOrder>()
+                .eq(WmsInboundOrder::getInboundType, "PRODUCTION")
+                .eq(WmsInboundOrder::getSourceOrderType, "PRODUCT_LOT")
+                .eq(WmsInboundOrder::getSourceOrderId, productLotId)
+                .eq(WmsInboundOrder::getDeletedFlag, 0)
+                .eq(WmsInboundOrder::getAuditStatus, SUBMITTED_STATUS));
+        if (activeOrders.size() > 1) {
+            throw business(ResultCode.DATA_CONFLICT, "该产品批次存在多张待确认生产入库单，请先处理重复数据");
+        }
+        if (activeOrders.size() == 1) {
+            return activeOrders.get(0);
+        }
+        MdmProduct product = mdmProductMapper.selectOne(new LambdaQueryWrapper<MdmProduct>()
+                .eq(MdmProduct::getProductId, productLot.getProductId())
+                .eq(MdmProduct::getStatus, BusinessStatus.Common.ENABLE)
+                .eq(MdmProduct::getDeletedFlag, 0));
+        if (product == null || product.getMaterialId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "产品未关联启用的成品物料，不能生成生产入库");
+        }
+        BigDecimal remaining = zero(productLot.getQualifiedQuantity())
+                .subtract(approvedProductionInboundQuantity(productLotId));
+        if (remaining.signum() <= 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "产品批次已全部入库，没有剩余可入数量");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        WmsMaterialBatch finishedBatch = resolveFinishedBatch(productLot, product, operatorId, now);
+        WmsInboundOrder order = new WmsInboundOrder();
+        order.setInboundNo("IN-PROD-" + productLotId);
+        order.setInboundType("PRODUCTION");
+        order.setWarehouseId(warehouseId);
+        order.setSourceOrderType("PRODUCT_LOT");
+        order.setSourceOrderId(productLotId);
+        order.setAuditStatus(SUBMITTED_STATUS);
+        order.setRemark(StringUtils.hasText(remark) ? remark.trim() : "产品批次终检放行后生成生产入库");
+        order.setVersion(0);
+        order.setCreatedBy(operatorId);
+        order.setCreatedTime(now);
+        order.setUpdatedBy(operatorId);
+        order.setUpdatedTime(now);
+        order.setDeletedFlag(0);
+        if (baseMapper.insert(order) == 0 || order.getInboundId() == null) {
+            throw business(ResultCode.FAILED, "生产入库单生成失败");
+        }
+        WmsInboundDetail detail = new WmsInboundDetail();
+        detail.setInboundId(order.getInboundId());
+        detail.setMaterialId(product.getMaterialId());
+        detail.setBatchId(finishedBatch.getBatchId());
+        detail.setLocationId(locationId);
+        detail.setInboundQuantity(remaining);
+        detail.setRemark("来源产品批次：" + productLot.getLotNo());
+        detail.setVersion(0);
+        detail.setCreatedBy(operatorId);
+        detail.setCreatedTime(now);
+        detail.setUpdatedBy(operatorId);
+        detail.setUpdatedTime(now);
+        detail.setDeletedFlag(0);
+        if (wmsInboundDetailMapper.insert(detail) == 0) {
+            throw business(ResultCode.FAILED, "生产入库明细生成失败");
+        }
+        insertGeneratedInboundAudit(order, productLotId, operatorId, now);
+        responsibilityNotificationService.publishInboundPending(order, operatorId);
+        return order;
+    }
+
+    private WmsMaterialBatch resolveFinishedBatch(TraceProductLot productLot, MdmProduct product,
+                                                  Long operatorId, LocalDateTime now) {
+        List<WmsMaterialBatch> batches = wmsMaterialBatchMapper.selectList(new LambdaQueryWrapper<WmsMaterialBatch>()
+                .eq(WmsMaterialBatch::getSourceProductLotId, productLot.getProductLotId())
+                .eq(WmsMaterialBatch::getDeletedFlag, 0));
+        if (batches.size() > 1) {
+            throw business(ResultCode.DATA_CONFLICT, "产品批次关联了多个成品物料批次，请先修复追溯数据");
+        }
+        if (batches.size() == 1) {
+            WmsMaterialBatch existing = batches.get(0);
+            if (!Objects.equals(existing.getMaterialId(), product.getMaterialId())) {
+                throw business(ResultCode.BUSINESS_ERROR, "产品批次关联的成品物料批次与产品主数据不一致");
+            }
+            return existing;
+        }
+        WmsMaterialBatch batch = new WmsMaterialBatch();
+        batch.setBatchNo("FG-" + productLot.getLotNo());
+        batch.setMaterialId(product.getMaterialId());
+        batch.setProductionDate(LocalDate.now());
+        batch.setQualityStatus(productLot.getStatus());
+        batch.setStatus("AVAILABLE");
+        batch.setSourceOrderType("PRODUCT_LOT");
+        batch.setSourceOrderId(productLot.getProductLotId());
+        batch.setSourceProductLotId(productLot.getProductLotId());
+        batch.setRemark("由终检放行产品批次自动生成");
+        batch.setVersion(0);
+        batch.setCreatedBy(operatorId);
+        batch.setCreatedTime(now);
+        batch.setUpdatedBy(operatorId);
+        batch.setUpdatedTime(now);
+        batch.setDeletedFlag(0);
+        if (wmsMaterialBatchMapper.insert(batch) == 0 || batch.getBatchId() == null) {
+            throw business(ResultCode.FAILED, "成品物料批次生成失败");
+        }
+        return batch;
+    }
+
+    private BigDecimal approvedProductionInboundQuantity(Long productLotId) {
+        return wmsInboundDetailMapper.selectList(new LambdaQueryWrapper<WmsInboundDetail>()
+                        .eq(WmsInboundDetail::getDeletedFlag, 0)
+                        .inSql(WmsInboundDetail::getInboundId,
+                                "SELECT inbound_id FROM wms_inbound_order WHERE deleted_flag = 0 "
+                                        + "AND inbound_type = 'PRODUCTION' AND source_order_type = 'PRODUCT_LOT' "
+                                        + "AND audit_status = 'APPROVED' AND source_order_id = " + productLotId))
+                .stream().map(WmsInboundDetail::getInboundQuantity).map(this::zero)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal zero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private void insertGeneratedInboundAudit(WmsInboundOrder order, Long productLotId,
+                                             Long operatorId, LocalDateTime now) {
+        SysStatusChangeLog status = new SysStatusChangeLog();
+        status.setBizType("WMS_INBOUND_ORDER");
+        status.setBizId(order.getInboundId());
+        status.setNewStatus(SUBMITTED_STATUS);
+        status.setChangeReason("GENERATE_PRODUCTION_INBOUND");
+        status.setChangedBy(operatorId);
+        status.setChangedTime(now);
+        status.setCreatedBy(operatorId);
+        status.setCreatedTime(now);
+        status.setRemark("来源产品批次ID=" + productLotId);
+        status.setDeletedFlag(0);
+        if (sysStatusChangeLogMapper.insert(status) == 0) throw new BusinessException(ResultCode.FAILED);
+        SysOperationLog operation = new SysOperationLog();
+        operation.setUserId(operatorId);
+        operation.setOperationType("GENERATE_PRODUCTION_INBOUND");
+        operation.setModuleCode("wms_inbound_order");
+        operation.setBizId(order.getInboundId());
+        operation.setOperationTime(now);
+        operation.setCreatedBy(operatorId);
+        operation.setCreatedTime(now);
+        operation.setRemark("来源产品批次ID=" + productLotId);
+        operation.setDeletedFlag(0);
+        if (sysOperationLogMapper.insert(operation) == 0) throw new BusinessException(ResultCode.FAILED);
     }
 
     /**
@@ -269,6 +477,9 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         if (details.isEmpty()) {
             throw business(ResultCode.BUSINESS_ERROR, "入库单至少需要一条有效明细");
         }
+        ProductionInboundContext productionContext = "PRODUCTION".equals(inboundOrder.getInboundType())
+                ? validateProductionInbound(inboundOrder, details)
+                : null;
         validateInboundDetails(details);
         LocalDateTime now = LocalDateTime.now();
         for (WmsInboundDetail detail : details) {
@@ -286,9 +497,63 @@ public class WmsInboundOrderServiceImpl extends ServiceImpl<WmsInboundOrderMappe
         }
         insertStatusChangeLog(inboundOrder, operatorId, remark, now);
         insertOperationLog(inboundOrder, operatorId, remark, now);
+        if (productionContext != null
+                && productionContext.totalAfterConfirm().compareTo(
+                zero(productionContext.productLot().getQualifiedQuantity())) >= 0) {
+            TraceProductLot lotUpdate = new TraceProductLot();
+            lotUpdate.setProductLotId(productionContext.productLot().getProductLotId());
+            lotUpdate.setVersion(productionContext.productLot().getVersion());
+            lotUpdate.setStatus("STORED");
+            lotUpdate.setUpdatedBy(operatorId);
+            lotUpdate.setUpdatedTime(now);
+            if (traceProductLotMapper.updateById(lotUpdate) == 0) {
+                throw business(ResultCode.DATA_CONFLICT, "产品批次状态已变化，生产入库确认已回滚");
+            }
+        }
         responsibilityNotificationService.cancelInboundPending(inboundId, operatorId);
         responsibilityNotificationService.publishInboundCompleted(inboundOrder, operatorId);
         return true;
+    }
+
+    private ProductionInboundContext validateProductionInbound(WmsInboundOrder order,
+                                                                List<WmsInboundDetail> details) {
+        if (!"PRODUCT_LOT".equals(order.getSourceOrderType()) || order.getSourceOrderId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产入库单必须关联来源产品批次");
+        }
+        TraceProductLot productLot = traceProductLotMapper.selectOne(new LambdaQueryWrapper<TraceProductLot>()
+                .eq(TraceProductLot::getProductLotId, order.getSourceOrderId())
+                .eq(TraceProductLot::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (productLot == null || !RELEASED_QUALITY_STATUSES.contains(productLot.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "来源产品批次未终检放行，不能确认生产入库");
+        }
+        MdmProduct product = mdmProductMapper.selectOne(new LambdaQueryWrapper<MdmProduct>()
+                .eq(MdmProduct::getProductId, productLot.getProductId())
+                .eq(MdmProduct::getStatus, BusinessStatus.Common.ENABLE)
+                .eq(MdmProduct::getDeletedFlag, 0));
+        if (product == null || product.getMaterialId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "来源产品没有有效成品物料映射");
+        }
+        BigDecimal current = BigDecimal.ZERO;
+        for (WmsInboundDetail detail : details) {
+            WmsMaterialBatch batch = getActiveBatch(detail.getBatchId());
+            if (batch == null || !Objects.equals(batch.getSourceProductLotId(), productLot.getProductLotId())
+                    || !Objects.equals(batch.getMaterialId(), product.getMaterialId())
+                    || !Objects.equals(detail.getMaterialId(), product.getMaterialId())) {
+                throw business(ResultCode.BUSINESS_ERROR,
+                        "生产入库明细的成品物料批次与来源产品批次不一致");
+            }
+            current = current.add(zero(detail.getInboundQuantity()));
+        }
+        BigDecimal totalAfterConfirm = approvedProductionInboundQuantity(productLot.getProductLotId()).add(current);
+        if (current.signum() <= 0 || totalAfterConfirm.compareTo(zero(productLot.getQualifiedQuantity())) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "生产入库累计数量不能超过产品批次终检放行数量");
+        }
+        return new ProductionInboundContext(productLot, totalAfterConfirm);
+    }
+
+    private record ProductionInboundContext(TraceProductLot productLot, BigDecimal totalAfterConfirm) {
     }
 
     private void validateInboundDetails(List<WmsInboundDetail> details) {

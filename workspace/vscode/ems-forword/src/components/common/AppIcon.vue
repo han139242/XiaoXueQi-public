@@ -1,13 +1,14 @@
 <script setup>
 import { computed } from 'vue'
 
+// 通用图标组件：父组件只传图标名称和尺寸，不需要在每个按钮中重复编写SVG。
 const props = defineProps({
   name: { type: String, required: true },
   size: { type: [Number, String], default: 18 },
   strokeWidth: { type: [Number, String], default: 1.8 }
 })
 
-// Path data follows the Lucide icon set (MIT License).
+// 每个键是项目使用的图标名，值是Lucide图标的SVG path路径数据（MIT License）。
 const paths = {
   menu: 'M4 6h16M4 12h16M4 18h16',
   close: 'M18 6 6 18M6 6l12 12',
@@ -59,10 +60,12 @@ const paths = {
   ,palette: 'M12 22a10 10 0 1 1 10-10c0 2.21-1.79 4-4 4h-1.8a1.2 1.2 0 0 0-.85 2.05c.42.44.65 1.03.65 1.65 0 1.1-.9 2-2 2h-3ZM7.5 10.5h.01M12 7.5h.01M16.5 10.5h.01M9 15h.01'
 }
 
+// 名称不存在时使用dashboard图标兜底，避免SVG渲染为空。
 const iconPath = computed(() => paths[props.name] || paths.dashboard)
 </script>
 
 <template>
+  <!-- currentColor让图标自动继承按钮或文字的CSS颜色。 -->
   <svg
     class="app-icon"
     :width="size"
@@ -80,6 +83,7 @@ const iconPath = computed(() => paths[props.name] || paths.dashboard)
 </template>
 
 <style scoped>
+/* 图标本身不参与弹性拉伸，尺寸完全由组件参数控制。 */
 .app-icon {
   display: block;
   flex: none;

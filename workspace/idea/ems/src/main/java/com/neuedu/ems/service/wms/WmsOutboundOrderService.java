@@ -62,6 +62,8 @@ public interface WmsOutboundOrderService extends IService<WmsOutboundOrder> {
      */
     Long saveOutboundOrderFull(WmsOutboundOrder outboundOrder, List<WmsOutboundDetail> details);
 
+    WmsOutboundOrder generateMaterialIssue(Long workOrderId, Long warehouseId, Long operatorId, String remark);
+
     /**
      * 更新出库单。
      * @param outboundOrder 出库单实体
@@ -83,6 +85,8 @@ public interface WmsOutboundOrderService extends IService<WmsOutboundOrder> {
      * @return 是否成功
      */
     boolean removeOutboundOrderById(Long outboundId);
+
+    void withdrawOutboundOrder(Long outboundId, Long operatorId, String remark);
 
     /**
      * 确认出库，扣减库存并写入库存流水。

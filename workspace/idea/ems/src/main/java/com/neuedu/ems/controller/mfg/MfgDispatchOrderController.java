@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.common.ResultData;
 import com.neuedu.ems.entity.mfg.MfgDispatchOrder;
+import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.service.mfg.MfgDispatchOrderService;
 import com.neuedu.ems.util.ExcelExportUtil;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,11 +15,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 派工单管理控制器。
@@ -77,6 +80,14 @@ public class MfgDispatchOrderController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PostMapping("/generate/{workOrderId}")
+    public ResultData generate(@PathVariable Long workOrderId,
+                               @RequestBody MfgDispatchOrder request,
+                               @RequestAttribute("userId") Long userId) {
+        return ResultData.success(ResultCode.SUCCESS,
+                mfgDispatchOrderService.generateDispatchOrder(workOrderId, request, userId));
+    }
+
     /**
      * 更新派工单信息。
      * @param dispatchOrder 派工单实体（JSON格式，必须包含dispatchId）
@@ -86,6 +97,24 @@ public class MfgDispatchOrderController {
     public ResultData update(@RequestBody MfgDispatchOrder dispatchOrder) {
         boolean flag = mfgDispatchOrderService.updateDispatchOrder(dispatchOrder);
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
+    }
+
+    @PutMapping("/{dispatchId}/release")
+    public ResultData release(@PathVariable Long dispatchId,
+                              @RequestAttribute("userId") Long userId,
+                              @RequestBody(required = false) Map<String, Object> request) {
+        List<MfgTask> tasks = mfgDispatchOrderService.releaseDispatchOrder(dispatchId, userId,
+                request == null || request.get("remark") == null ? null : request.get("remark").toString());
+        return ResultData.success(ResultCode.SUCCESS, Map.of("dispatchId", dispatchId, "taskCount", tasks.size()));
+    }
+
+    @PutMapping("/{dispatchId}/withdraw")
+    public ResultData withdraw(@PathVariable Long dispatchId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        mfgDispatchOrderService.withdrawDispatchOrder(dispatchId, userId,
+                request == null || request.get("remark") == null ? null : request.get("remark").toString());
+        return ResultData.success(ResultCode.SUCCESS);
     }
 
     /**

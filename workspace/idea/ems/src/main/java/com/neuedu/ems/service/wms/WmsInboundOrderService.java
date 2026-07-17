@@ -84,6 +84,14 @@ public interface WmsInboundOrderService extends IService<WmsInboundOrder> {
      */
     boolean removeInboundOrderById(Long inboundId);
 
+    void withdrawInboundOrder(Long inboundId, Long operatorId, String remark);
+
+    /**
+     * 从已放行产品批次生成生产入库申请，自动确定成品物料、批次和剩余可入数量。
+     */
+    WmsInboundOrder generateProductionInbound(Long productLotId, Long warehouseId, Long locationId,
+                                               Long operatorId, String remark);
+
     /**
      * 确认入库，更新库存余额并写入库存流水。
      * @param inboundId 入库单ID

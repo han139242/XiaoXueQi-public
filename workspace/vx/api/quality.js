@@ -278,11 +278,11 @@ function fallbackCreateNonconforming(data) {
     ncrNo: 'NCR-20260713-' + String(ncrId).slice(-3),
     inspectionId: Number(data.inspectionId),
     inspectionNo: inspection.inspectionNo,
-    productLotId: data.productLotId ? Number(data.productLotId) : 0,
+    productLotId: inspection.productLotId ? Number(inspection.productLotId) : 0,
     defectReason: String(data.defectReason || '').trim(),
     dispositionType,
-    approvalStatus: 'PENDING',
-    status: 'OPEN',
+    approvalStatus: 'SUBMITTED',
+    status: 'SUBMITTED',
     createdByName: '超级管理员',
     imageUrl: data.imageUrl || '',
     remark: data.remark || '',
@@ -355,15 +355,15 @@ function nonconformingDetail(ncrId) {
   )
 }
 
-function createNonconforming(data) {
+function generateNonconforming(inspectionId, data) {
   return withMockFallback(
     () => request({
-      url: '/api/qms/nonconforming-order',
+      url: '/api/qms/nonconforming-order/generate-from-inspection/' + encodeURIComponent(inspectionId),
       method: 'POST',
       data,
       silent: env.useMockData()
     }),
-    () => fallbackCreateNonconforming(data)
+    () => fallbackCreateNonconforming({ ...(data || {}), inspectionId })
   )
 }
 
@@ -385,6 +385,6 @@ module.exports = {
   submitInspection,
   nonconformingPage,
   nonconformingDetail,
-  createNonconforming,
+  generateNonconforming,
   updateNonconforming
 }

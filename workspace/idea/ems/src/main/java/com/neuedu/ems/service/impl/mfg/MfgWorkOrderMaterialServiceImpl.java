@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
+import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
 import com.neuedu.ems.service.mfg.MfgWorkOrderMaterialService;
 import org.springframework.stereotype.Service;
@@ -75,10 +77,8 @@ public class MfgWorkOrderMaterialServiceImpl extends ServiceImpl<MfgWorkOrderMat
      */
     @Override
     public boolean saveWorkOrderMaterial(MfgWorkOrderMaterial workOrderMaterial) {
-        if (workOrderMaterial.getDeletedFlag() == null) {
-            workOrderMaterial.setDeletedFlag(0);
-        }
-        return baseMapper.insert(workOrderMaterial) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "工单用料需求由生产工单的物料清单自动生成，不能手工新增");
     }
 
     /**
@@ -88,11 +88,8 @@ public class MfgWorkOrderMaterialServiceImpl extends ServiceImpl<MfgWorkOrderMat
      */
     @Override
     public boolean updateWorkOrderMaterial(MfgWorkOrderMaterial workOrderMaterial) {
-        if (workOrderMaterial.getRequirementId() == null) {
-            return false;
-        }
-        workOrderMaterial.setDeletedFlag(null);
-        return baseMapper.updateById(workOrderMaterial) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "工单用料需求由生产与仓储业务自动维护，不能手工修改");
     }
 
     /**
@@ -102,10 +99,8 @@ public class MfgWorkOrderMaterialServiceImpl extends ServiceImpl<MfgWorkOrderMat
      */
     @Override
     public boolean removeWorkOrderMaterialById(Long requirementId) {
-        MfgWorkOrderMaterial workOrderMaterial = new MfgWorkOrderMaterial();
-        workOrderMaterial.setRequirementId(requirementId);
-        workOrderMaterial.setDeletedFlag(1);
-        return baseMapper.updateById(workOrderMaterial) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "工单用料需求属于生产审计记录，不能手工删除");
     }
 
     /**

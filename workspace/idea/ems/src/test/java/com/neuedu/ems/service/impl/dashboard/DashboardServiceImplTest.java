@@ -107,27 +107,31 @@ class DashboardServiceImplTest {
                 LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 10));
 
         assertEquals(4L, result.get("inspectionCount"));
+        assertEquals(2L, result.get("evaluatedCount"));
+        assertEquals(2L, result.get("pendingCount"));
         assertEquals(1L, result.get("qualifiedCount"));
         assertEquals(1L, result.get("unqualifiedCount"));
-        assertEquals(new BigDecimal("25.00"), result.get("qualifiedRate"));
+        assertEquals(new BigDecimal("50.00"), result.get("qualifiedRate"));
     }
 
     @Test
     void equipmentStatisticsUseEnglishCodesAndAggregateMaintenance() {
-        when(equipmentMapper.selectCount(any())).thenReturn(10L, 2L, 1L, 3L);
+        when(equipmentMapper.selectCount(any())).thenReturn(10L, 4L, 2L, 1L, 3L);
 
         Map<String, Object> result = service.getEquipmentStatus();
 
         assertEquals(10L, result.get("running"));
+        assertEquals(4L, result.get("idle"));
         assertEquals(2L, result.get("stopped"));
         assertEquals(1L, result.get("fault"));
         assertEquals(3L, result.get("maintenance"));
         ArgumentCaptor<Wrapper<EamEquipment>> queries = wrapperCaptor();
-        verify(equipmentMapper, times(4)).selectCount(queries.capture());
+        verify(equipmentMapper, times(5)).selectCount(queries.capture());
         assertTrue(values(queries.getAllValues().get(0)).contains(BusinessStatus.Equipment.RUNNING));
-        assertTrue(values(queries.getAllValues().get(1)).contains(BusinessStatus.Equipment.STOPPED));
-        assertTrue(values(queries.getAllValues().get(2)).contains(BusinessStatus.Equipment.FAULT));
-        Collection<Object> maintenanceValues = values(queries.getAllValues().get(3));
+        assertTrue(values(queries.getAllValues().get(1)).contains(BusinessStatus.Equipment.IDLE));
+        assertTrue(values(queries.getAllValues().get(2)).contains(BusinessStatus.Equipment.STOPPED));
+        assertTrue(values(queries.getAllValues().get(3)).contains(BusinessStatus.Equipment.FAULT));
+        Collection<Object> maintenanceValues = values(queries.getAllValues().get(4));
         assertTrue(maintenanceValues.contains(BusinessStatus.Equipment.MAINTAINING));
         assertTrue(maintenanceValues.contains(BusinessStatus.Equipment.REPAIRING));
     }

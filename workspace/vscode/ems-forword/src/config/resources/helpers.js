@@ -1,5 +1,6 @@
 const option = (value, label, type = 'info') => ({ value, label, type })
 
+// 全项目共享的状态字典，value提交后端，label显示中文，type控制标签颜色。
 export const optionSets = {
   enable: [option('ENABLE', '启用', 'success'), option('DISABLE', '停用', 'info')],
   userStatus: [
@@ -61,7 +62,9 @@ export const optionSets = {
   audit: [
     option('SUBMITTED', '待审核', 'warning'),
     option('APPROVED', '已通过', 'success'),
-    option('REJECTED', '已驳回', 'danger')
+    option('REJECTED', '已驳回', 'danger'),
+    option('WITHDRAWN', '已撤回', 'info'),
+    option('CLOSED', '已关闭', 'info')
   ],
   approval: [
     option('SUBMITTED', '待审批', 'warning'),
@@ -112,7 +115,8 @@ export const optionSets = {
   inspectionOrder: [
     option('DRAFT', '待检', 'info'),
     option('RUNNING', '检验中', 'warning'),
-    option('FINISHED', '已完成', 'success')
+    option('FINISHED', '已完成', 'success'),
+    option('CLOSED', '已撤回', 'info')
   ],
   ncrStatus: [
     option('SUBMITTED', '待处理', 'warning'),
@@ -143,12 +147,15 @@ export const optionSets = {
     option('RUNNING', '生产中', 'primary'),
     option('WAIT_INSPECTION', '待检', 'warning'),
     option('PASS', '合格', 'success'),
+    option('CONCESSION', '让步放行', 'warning'),
+    option('FAIL', '不合格隔离', 'danger'),
     option('STORED', '已入库', 'success'),
     option('CLOSED', '已关闭', 'info')
   ],
   yesNo: [option(1, '是', 'success'), option(0, '否', 'info')]
 }
 
+// 字段名到中文标题的统一映射，通用表格和表单都从这里取得默认标签。
 const labels = {
   keyword: '关键字', username: '用户名', passwordHash: '初始密码', employeeId: '员工', status: '状态',
   lastLoginTime: '最后登录时间', roleCode: '角色编码', roleName: '角色名称', dataScope: '数据范围',
@@ -167,7 +174,7 @@ const labels = {
   contactName: '联系人', contactPhone: '联系电话', categoryCode: '分类编码', categoryName: '分类名称', categoryId: '所属分类',
   materialCode: '物料编码', materialName: '物料名称', specModel: '规格型号', unitId: '计量单位', materialType: '物料类型',
   productCode: '产品编码', productName: '产品名称', productModel: '产品型号', materialId: '物料',
-  bomCode: 'BOM 编码', bomVersion: 'BOM 版本', effectiveDate: '生效日期', bomId: 'BOM', quantity: '数量', lossRate: '损耗率', sequenceNo: '顺序号',
+  bomCode: '物料清单编码', bomVersion: '物料清单版本', effectiveDate: '生效日期', bomId: '物料清单', quantity: '数量', lossRate: '损耗率', sequenceNo: '顺序号',
   operationCode: '工序编码', operationName: '工序名称', operationId: '工序', standardTime: '标准工时',
   parameterName: '参数名称', standardValue: '标准值', upperLimit: '上限', lowerLimit: '下限',
   routeCode: '路线编码', routeName: '路线名称', routeId: '工艺路线', version: '版本', qcRequired: '需要质检',
@@ -192,14 +199,14 @@ const labels = {
   movementNo: '流水编号', movementType: '变动类型', direction: '方向', operationTime: '操作时间',
   inboundNo: '入库单号', inboundId: '入库单', inboundType: '入库类型', inboundTime: '入库时间', inboundQuantity: '入库数量',
   outboundNo: '出库单号', outboundId: '出库单', outboundType: '出库类型', applicantId: '申请人', outboundTime: '出库时间', outboundQuantity: '出库数量',
-  returnNo: '退料单号', returnId: '退料单', returnType: '退料类型', returnTime: '退料时间', returnQuantity: '退料数量', returnReason: '退料原因',
+  returnNo: '退料单号', returnId: '退料单', returnType: '退料类型', returnTime: '退料时间', returnQuantity: '退料数量', returnReason: '退料原因', outboundDetailId: '来源领料明细',
   stocktakeNo: '盘点单号', stocktakeId: '盘点单', stocktakeType: '盘点类型', stocktakeStatus: '盘点状态', startedTime: '开始盘点时间', finishedTime: '完成盘点时间', bookQuantity: '账面数量', actualQuantity: '实盘数量', differenceQuantity: '差异数量',
   suggestionNo: '建议编号', suggestionId: '补货建议', suggestedQuantity: '建议数量',
   itemCode: '检验项目编码', itemName: '检验项目名称', itemId: '检验项目', itemType: '项目类型', inspectionMethod: '检验方法',
   schemeCode: '方案编码', schemeName: '方案名称', schemeId: '检验方案', inspectionType: '检验类型', standardId: '检验标准', sampleQuantity: '抽样数量', judgementRule: '判定规则',
   inspectionNo: '检验单号', inspectionId: '检验单', inspectorId: '检验员', inspectionResult: '检验结果',
   measuredValue: '实测值', result: '判定结果', defectDescription: '缺陷描述', photoFileId: '检验照片',
-  ncrNo: '不合格品单号', ncrId: '不合格品单', productLotId: '产品批次', defectReason: '不合格原因', dispositionType: '处置方式', approvalStatus: '审批状态', barcodeId: '条码', inspectionResultId: '检验结果', finalDisposition: '最终处置', recheckResult: '复检结果',
+  ncrNo: '不合格品单号', ncrId: '不合格品单', productLotId: '产品批次', sourceReportId: '来源报工', defectReason: '不合格原因', dispositionType: '处置方式', approvalStatus: '审批状态', barcodeId: '条码', inspectionResultId: '检验结果', finalDisposition: '最终处置', recheckResult: '复检结果',
   equipmentCode: '设备编码', equipmentName: '设备名称', equipmentId: '设备', model: '设备型号', manufacturer: '制造商', purchaseDate: '购置日期',
   runningStatus: '运行状态', downtimeType: '停机类型', alertLevel: '告警等级', collectedTime: '采集时间',
   maintenanceType: '保养类型', cycleType: '周期类型', cycleValue: '周期值', maintenanceContent: '保养内容', responsibleId: '负责人',
@@ -210,6 +217,8 @@ const labels = {
   remark: '备注', createdTime: '创建时间', updatedTime: '更新时间'
 }
 
+// 关联字段在数据库中保存 ID，但下拉框不能只显示数字。
+// 这里规定每种资源用哪些可读字段拼成选项文字，例如设备显示“设备名称 + 设备编码”。
 export const referencePresentation = {
   'sys-user': ['username'], 'sys-role': ['roleName', 'roleCode'], 'sys-menu': ['menuName'], 'sys-file': ['fileName'],
   'org-department': ['departmentName', 'departmentCode'], 'org-employee': ['employeeName', 'employeeNo'], 'org-team': ['teamName', 'teamCode'], 'org-shift': ['shiftName', 'shiftCode'],
@@ -224,9 +233,11 @@ export const referencePresentation = {
   'trace-barcode': ['barcodeValue'], 'trace-product-lot': ['lotNo']
 }
 
+// 根据常见的“xxxId”字段名，推断它关联哪一种资源。
+// 例如 productId 自动关联 mdm-product，页面就能加载产品下拉选项。
 const defaultReferences = {
   userId: 'sys-user', approverId: 'org-employee', changedBy: 'org-employee', employeeId: 'org-employee', managerId: 'org-employee', leaderId: 'org-employee', operatorId: 'org-employee', applicantId: 'org-employee', inspectorId: 'org-employee', maintainerId: 'org-employee', checkerId: 'org-employee', repairerId: 'org-employee', responsibleId: 'org-employee', reportedBy: 'org-employee', triggeredBy: 'org-employee',
-  roleId: 'sys-role', menuId: 'sys-menu', fileId: 'sys-file', photoFileId: 'sys-file', departmentId: 'org-department', teamId: 'org-team', shiftId: 'org-shift', unitId: 'mdm-unit', supplierId: 'mdm-supplier', customerId: 'mdm-customer', materialId: 'mdm-material', productId: 'mdm-product', bomId: 'mdm-bom', operationId: 'process-operation', routeId: 'process-route', workshopId: 'factory-workshop', lineId: 'factory-line', stationId: 'factory-station', productionOrderId: 'mfg-production-order', workOrderId: 'mfg-work-order', dispatchId: 'mfg-dispatch-order', taskId: 'mfg-task', reportId: 'mfg-work-report', warehouseId: 'wms-warehouse', locationId: 'wms-location', batchId: 'wms-material-batch', schemeId: 'qms-inspection-scheme', itemId: 'qms-inspection-item', standardId: 'qms-inspection-standard', inspectionId: 'qms-inspection-order', inspectionResultId: 'qms-inspection-result', ncrId: 'qms-nonconforming-order', equipmentId: 'eam-equipment', exceptionId: 'mfg-exception', barcodeId: 'trace-barcode', productLotId: 'trace-product-lot'
+  roleId: 'sys-role', menuId: 'sys-menu', fileId: 'sys-file', photoFileId: 'sys-file', departmentId: 'org-department', teamId: 'org-team', shiftId: 'org-shift', unitId: 'mdm-unit', supplierId: 'mdm-supplier', customerId: 'mdm-customer', materialId: 'mdm-material', productId: 'mdm-product', bomId: 'mdm-bom', operationId: 'process-operation', routeId: 'process-route', workshopId: 'factory-workshop', lineId: 'factory-line', stationId: 'factory-station', productionOrderId: 'mfg-production-order', workOrderId: 'mfg-work-order', dispatchId: 'mfg-dispatch-order', taskId: 'mfg-task', reportId: 'mfg-work-report', warehouseId: 'wms-warehouse', locationId: 'wms-location', batchId: 'wms-material-batch', outboundDetailId: 'wms-outbound-detail', schemeId: 'qms-inspection-scheme', itemId: 'qms-inspection-item', standardId: 'qms-inspection-standard', inspectionId: 'qms-inspection-order', inspectionResultId: 'qms-inspection-result', ncrId: 'qms-nonconforming-order', equipmentId: 'eam-equipment', exceptionId: 'mfg-exception', barcodeId: 'trace-barcode', productLotId: 'trace-product-lot'
 }
 
 const dateProps = new Set(['deliveryDate', 'effectiveDate', 'joinDate', 'leaveDate', 'productionDate', 'receivedDate', 'purchaseDate'])
@@ -236,11 +247,15 @@ const textareaPattern = /(remark|description|content|comment|result|reason|items
 const auditProps = new Set(['createdBy', 'updatedBy', 'deletedFlag', 'version'])
 const secondaryTableProps = new Set(['remark', 'createdTime', 'updatedTime'])
 
+// 没有预先配置中文名时，把 camelCase 字段名转换成较容易阅读的标题作为兜底。
 function humanize(prop) {
   return labels[prop] || prop.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase())
 }
 
+// 将一个数据库/实体字段名转换为通用页面可以直接使用的完整字段配置。
 export function field(prop, overrides = {}) {
+  // 先根据字段名推断关联、日期、数字、长文本等控件类型，再用 overrides 覆盖特殊规则。
+  // 最终结果会交给 ResourceField.vue，决定页面显示输入框、下拉框还是日期控件。
   let type = overrides.type
   const reference = overrides.reference || defaultReferences[prop]
   if (!type) {
@@ -267,7 +282,10 @@ export function field(prop, overrides = {}) {
   }
 }
 
+// 将业务文件中的精简资源声明补全为路由、表格、筛选和表单需要的标准配置。
 export function defineResource(config) {
+  // 将 mfg.js 等文件中的精简配置标准化：补齐字段对象、筛选条件、默认权限、路由路径等。
+  // 因此业务资源只需描述差异，不必为每个页面重复编写整套表格和表单代码。
   const overrides = config.overrides || {}
   const fields = config.fields.map((prop) => field(prop, overrides[prop]))
   const fieldMap = Object.fromEntries(fields.map((item) => [item.prop, item]))
@@ -290,6 +308,8 @@ export function defineResource(config) {
   }
 }
 
+// 把 [值, 中文标签, 标签颜色] 的简写数组转换成 Element Plus 下拉选项对象。
+// 把三元组简写批量转换为Element Plus使用的value/label/type选项对象。
 export function values(entries) {
   return entries.map(([value, label, type]) => option(value, label, type))
 }

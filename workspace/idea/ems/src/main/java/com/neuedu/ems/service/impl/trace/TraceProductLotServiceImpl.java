@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.common.BusinessStatus;
+import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.entity.qms.QmsInspectionOrder;
 import com.neuedu.ems.entity.qms.QmsInspectionResult;
 import com.neuedu.ems.entity.trace.TraceMaterialUsage;
@@ -88,23 +90,8 @@ public class TraceProductLotServiceImpl extends ServiceImpl<TraceProductLotMappe
      */
     @Override
     public boolean saveProductLot(TraceProductLot productLot) {
-        if (!StringUtils.hasText(productLot.getStatus())) {
-            productLot.setStatus(BusinessStatus.Production.RUNNING);
-        } else {
-            String normalizedStatus = BusinessStatus.normalizeCode(productLot.getStatus());
-            if (normalizedStatus == null) {
-                return false;
-            }
-            productLot.setStatus(normalizedStatus);
-        }
-        if (productLot.getCreatedTime() == null) {
-            productLot.setCreatedTime(java.time.LocalDateTime.now());
-        }
-        productLot.setUpdatedTime(productLot.getCreatedTime());
-        if (productLot.getDeletedFlag() == null) {
-            productLot.setDeletedFlag(0);
-        }
-        return baseMapper.insert(productLot) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "产品批次必须由最终工序有效产出生成，不能脱离报工和工单手工新建");
     }
 
     /**
@@ -114,19 +101,8 @@ public class TraceProductLotServiceImpl extends ServiceImpl<TraceProductLotMappe
      */
     @Override
     public boolean updateProductLot(TraceProductLot productLot) {
-        if (productLot.getProductLotId() == null) {
-            return false;
-        }
-        if (StringUtils.hasText(productLot.getStatus())) {
-            String normalizedStatus = BusinessStatus.normalizeCode(productLot.getStatus());
-            if (normalizedStatus == null) {
-                return false;
-            }
-            productLot.setStatus(normalizedStatus);
-        }
-        productLot.setUpdatedTime(java.time.LocalDateTime.now());
-        productLot.setDeletedFlag(null);
-        return baseMapper.updateById(productLot) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "产品批次由生产、质量和入库命令维护，不能通过普通编辑修改");
     }
 
     /**
@@ -136,10 +112,8 @@ public class TraceProductLotServiceImpl extends ServiceImpl<TraceProductLotMappe
      */
     @Override
     public boolean removeProductLotById(Long productLotId) {
-        TraceProductLot productLot = new TraceProductLot();
-        productLot.setProductLotId(productLotId);
-        productLot.setDeletedFlag(1);
-        return baseMapper.updateById(productLot) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "产品批次属于永久追溯记录，不能删除；异常批次应走冻结、关闭或处置流程");
     }
 
     /**

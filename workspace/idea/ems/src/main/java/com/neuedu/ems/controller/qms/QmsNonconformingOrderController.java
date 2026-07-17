@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -137,6 +139,28 @@ public class QmsNonconformingOrderController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PostMapping("/generate-from-inspection/{inspectionId}")
+    public ResultData generate(@PathVariable("inspectionId") Long inspectionId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody Map<String, Object> request) {
+        QmsNonconformingOrder order = qmsNonconformingOrderService.generateFromInspection(
+                inspectionId, getString(request, "dispositionType"), getString(request, "defectReason"),
+                getBigDecimal(request, "defectQuantity"), userId, getString(request, "remark"));
+        return ResultData.success(ResultCode.SUCCESS, Map.of("ncrId", order.getNcrId()));
+    }
+
+    @PutMapping("/{ncrId}/complete-disposition")
+    public ResultData complete(@PathVariable("ncrId") Long ncrId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        Long compensationTaskId = qmsNonconformingOrderService.completeDisposition(
+                ncrId, getBoolean(request, "requireAdditionalMaterial"), userId, getString(request, "remark"));
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("ncrId", ncrId);
+        data.put("compensationTaskId", compensationTaskId);
+        return ResultData.success(ResultCode.SUCCESS, data);
+    }
+
     /**
      * 软删除不合格品处理单和处理明细。
      * @param ncrId 不合格品处理单ID
@@ -180,6 +204,16 @@ public class QmsNonconformingOrderController {
     private String getString(Map<String, Object> request, String key) {
         Object value = request == null ? null : request.get(key);
         return value == null ? null : value.toString();
+    }
+
+    private BigDecimal getBigDecimal(Map<String, Object> request, String key) {
+        Object value = request == null ? null : request.get(key);
+        return value == null || value.toString().isBlank() ? null : new BigDecimal(value.toString());
+    }
+
+    private boolean getBoolean(Map<String, Object> request, String key) {
+        Object value = request == null ? null : request.get(key);
+        return value != null && Boolean.parseBoolean(value.toString());
     }
 
     /**

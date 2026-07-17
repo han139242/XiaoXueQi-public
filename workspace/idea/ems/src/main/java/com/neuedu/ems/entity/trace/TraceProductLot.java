@@ -24,6 +24,7 @@ public class TraceProductLot {
     private String lotNo;
     private Long productId;
     private Long workOrderId;
+    private Long sourceReportId;
     private BigDecimal batchQuantity;
     private BigDecimal qualifiedQuantity;
     private BigDecimal defectQuantity;

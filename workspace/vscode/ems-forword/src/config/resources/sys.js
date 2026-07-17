@@ -1,7 +1,10 @@
 import { defineResource, field, optionSets, values } from './helpers'
 
+// SYS系统管理资源：用户、角色、菜单、字典、参数、文件和审计日志。
+// 用户分配角色、角色分配菜单等特殊动作通过actions配置独立接口和权限。
 const enable = { type: 'select', options: optionSets.enable, defaultValue: 'ENABLE' }
 
+// 默认导出系统管理资源数组，由resources/index.js统一汇总并生成路由菜单。
 export default [
   defineResource({
     key: 'sys-user', domain: 'sys', route: 'sys/users', title: '用户管理', icon: 'users', baseUrl: '/api/sys/user', idField: 'userId',

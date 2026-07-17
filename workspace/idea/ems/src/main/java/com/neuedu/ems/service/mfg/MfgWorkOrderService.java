@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -55,7 +56,12 @@ public interface MfgWorkOrderService extends IService<MfgWorkOrder> {
 
     MfgWorkOrder releaseWorkOrder(Long workOrderId, Long operatorId, String remark);
 
+    void withdrawWorkOrder(Long workOrderId, Long operatorId, String remark);
+
     MfgWorkOrder startWorkOrder(Long workOrderId, Long operatorId);
+
+    void addSupplementMaterialRequirements(Long workOrderId, BigDecimal supplementQuantity,
+                                           Long operatorId, String reason);
 
     /**
      * 查询生产工单列表，支持关键字搜索、状态筛选、生产计划筛选和产品筛选。

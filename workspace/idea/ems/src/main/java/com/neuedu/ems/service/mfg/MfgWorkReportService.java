@@ -86,7 +86,9 @@ public interface MfgWorkReportService extends IService<MfgWorkReport> {
      * @param materials 报工用料明细列表
      * @return 报工ID
      */
-    Long submitWorkReport(MfgWorkReport workReport, List<MfgReportMaterial> materials);
+    Long submitWorkReport(MfgWorkReport workReport, List<MfgReportMaterial> materials, Long userId);
+
+    void withdrawWorkReport(Long reportId, Long userId, String remark);
 
     /**
      * 审核生产报工。
@@ -97,4 +99,6 @@ public interface MfgWorkReportService extends IService<MfgWorkReport> {
      * @return 是否成功
      */
     boolean auditWorkReport(Long reportId, String auditResult, String auditComment, Long operatorId);
+
+    void recalculateWorkOrderCompletion(Long workOrderId, Long operatorId, String reason);
 }

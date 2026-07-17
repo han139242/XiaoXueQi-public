@@ -63,11 +63,13 @@ public class QmsInspectionOrderController {
                            @RequestParam(required = false) Long taskId,
                            @RequestParam(required = false) Long reportId,
                            @RequestParam(required = false) Long batchId,
+                           @RequestParam(required = false) Long productLotId,
                            @RequestParam(required = false) Long inspectorId,
                            @RequestParam(required = false) String status,
                            @RequestParam(required = false) String inspectionResult) {
         Page<QmsInspectionOrder> result = qmsInspectionOrderService.pageInspectionOrders(
-                current, size, keyword, inspectionType, schemeId, workOrderId, taskId, reportId, batchId, inspectorId, status, inspectionResult);
+                current, size, keyword, inspectionType, schemeId, workOrderId, taskId, reportId,
+                batchId, productLotId, inspectorId, status, inspectionResult);
         return ResultData.success(ResultCode.SUCCESS, result);
     }
 
@@ -148,6 +150,14 @@ public class QmsInspectionOrderController {
         return flag ? ResultData.success(ResultCode.SUCCESS) : ResultData.fail(ResultCode.FAILED);
     }
 
+    @PutMapping("/{inspectionId}/withdraw")
+    public ResultData withdraw(@PathVariable Long inspectionId,
+                               @RequestAttribute("userId") Long userId,
+                               @RequestBody(required = false) Map<String, Object> request) {
+        qmsInspectionOrderService.withdrawInspectionOrder(inspectionId, userId, getString(request, "remark"));
+        return ResultData.success(ResultCode.SUCCESS);
+    }
+
     /**
      * 软删除检验单和检验结果明细。
      * @param inspectionId 检验单ID
@@ -182,11 +192,13 @@ public class QmsInspectionOrderController {
                       @RequestParam(required = false) Long taskId,
                       @RequestParam(required = false) Long reportId,
                       @RequestParam(required = false) Long batchId,
+                      @RequestParam(required = false) Long productLotId,
                       @RequestParam(required = false) Long inspectorId,
                       @RequestParam(required = false) String status,
                       @RequestParam(required = false) String inspectionResult) {
         List<QmsInspectionOrder> orders = qmsInspectionOrderService.listInspectionOrders(
-                keyword, inspectionType, schemeId, workOrderId, taskId, reportId, batchId, inspectorId, status, inspectionResult);
+                keyword, inspectionType, schemeId, workOrderId, taskId, reportId,
+                batchId, productLotId, inspectorId, status, inspectionResult);
         excelExportUtil.exportExcel(response, orders, QmsInspectionOrder.class, "检验单列表", "检验单列表");
     }
 

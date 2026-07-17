@@ -3,8 +3,10 @@ package com.neuedu.ems.service.mfg;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.neuedu.ems.common.AiResponse;
+import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgScheduleItem;
 import com.neuedu.ems.entity.mfg.MfgScheduleScenario;
+import com.neuedu.ems.vo.mfg.ManualScheduleBoard;
 import com.neuedu.ems.vo.mfg.ManualScheduleCandidateLine;
 
 import java.time.LocalDateTime;
@@ -23,7 +25,17 @@ public interface MfgScheduleScenarioService extends IService<MfgScheduleScenario
 
     MfgScheduleScenario openManualDraft(Long operatorId);
 
+    ManualScheduleBoard getManualScheduleBoard(Long operatorId);
+
+    AiResponse generateManualScheduleBoardAdvice(Long operatorId);
+
     List<ManualScheduleCandidateLine> listEligibleLines(Long scenarioId, Long productionOrderId);
+
+    List<ManualScheduleCandidateLine> listEligibleLinesForOrder(Long productionOrderId);
+
+    ManualScheduleCandidateLine validatePlanningPlacement(Long productionOrderId, Long lineId,
+                                                           LocalDateTime plannedStartTime,
+                                                           LocalDateTime plannedEndTime);
 
     MfgScheduleItem addManualItem(Long scenarioId, Integer scenarioVersion, Long productionOrderId,
                                   Long lineId, Long operatorId);
@@ -34,6 +46,9 @@ public interface MfgScheduleScenarioService extends IService<MfgScheduleScenario
 
     MfgScheduleScenario removeManualItem(Long scenarioId, Long scheduleItemId, Integer scenarioVersion,
                                          Integer itemVersion, Long operatorId);
+
+    MfgProductionPlan confirmManualItem(Long scenarioId, Long scheduleItemId, Integer scenarioVersion,
+                                        Integer itemVersion, String remark, Long operatorId);
 
     MfgScheduleScenario validateManualDraft(Long scenarioId, Integer scenarioVersion, Long operatorId);
 

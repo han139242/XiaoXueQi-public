@@ -8,16 +8,25 @@ import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.qms.QmsNonconformingDetail;
 import com.neuedu.ems.entity.qms.QmsNonconformingOrder;
 import com.neuedu.ems.entity.qms.QmsInspectionOrder;
+import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.trace.TraceProductLot;
 import com.neuedu.ems.entity.sys.SysApprovalRecord;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.qms.QmsNonconformingDetailMapper;
 import com.neuedu.ems.mapper.qms.QmsNonconformingOrderMapper;
 import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.trace.TraceProductLotMapper;
 import com.neuedu.ems.mapper.sys.SysApprovalRecordMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.qms.QmsNonconformingOrderService;
+import com.neuedu.ems.service.mfg.MfgTaskService;
+import com.neuedu.ems.service.mfg.MfgWorkOrderService;
+import com.neuedu.ems.service.mfg.MfgWorkReportService;
 import com.neuedu.ems.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -51,6 +60,24 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
 
     @Autowired
     private QmsResponsibilityNotificationService responsibilityNotificationService;
+
+    @Autowired
+    private MfgTaskMapper mfgTaskMapper;
+
+    @Autowired
+    private MfgWorkReportMapper mfgWorkReportMapper;
+
+    @Autowired
+    private TraceProductLotMapper traceProductLotMapper;
+
+    @Autowired
+    private MfgTaskService mfgTaskService;
+
+    @Autowired
+    private MfgWorkOrderService mfgWorkOrderService;
+
+    @Autowired
+    private MfgWorkReportService mfgWorkReportService;
 
     /**
      * 分页查询不合格品处理单，支持单号、检验单、产品批次、处理方式、审批状态和状态筛选。
@@ -108,17 +135,8 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
     @Override
     @Transactional
     public boolean saveNonconformingOrder(QmsNonconformingOrder nonconformingOrder) {
-        if (!isFailedInspection(nonconformingOrder.getInspectionId())
-                || !StringUtils.hasText(nonconformingOrder.getDispositionType())) {
-            return false;
-        }
-        prepareNonconformingOrder(nonconformingOrder);
-        boolean saved = baseMapper.insert(nonconformingOrder) > 0;
-        if (saved) {
-            responsibilityNotificationService.publishPendingNonconforming(
-                    nonconformingOrder, nonconformingOrder.getCreatedBy());
-        }
-        return saved;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "不合格品处理单必须从已完成且不合格的检验单发起，不能空白新建");
     }
 
     /**
@@ -251,6 +269,233 @@ public class QmsNonconformingOrderServiceImpl extends ServiceImpl<QmsNonconformi
                     existing, normalizedApprovalResult, operatorId);
         }
         return updated;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public QmsNonconformingOrder generateFromInspection(Long inspectionId, String dispositionType,
+                                                        String defectReason, BigDecimal defectQuantity,
+                                                        Long operatorId, String remark) {
+        if (inspectionId == null || operatorId == null || !StringUtils.hasText(dispositionType)
+                || !StringUtils.hasText(defectReason)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(),
+                    "检验单、处置方式、不合格原因和操作人不能为空");
+        }
+        QmsInspectionOrder inspection = qmsInspectionOrderMapper.selectOne(
+                new LambdaQueryWrapper<QmsInspectionOrder>()
+                        .eq(QmsInspectionOrder::getInspectionId, inspectionId)
+                        .eq(QmsInspectionOrder::getDeletedFlag, 0)
+                        .last("FOR UPDATE"));
+        if (inspection == null || !BusinessStatus.Production.FINISHED.equals(inspection.getStatus())
+                || !BusinessStatus.Quality.FAIL.equals(inspection.getInspectionResult())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "只有已完成且结论为 FAIL 的检验单可以发起不合格品处置");
+        }
+        List<QmsNonconformingOrder> existingOrders = baseMapper.selectList(
+                new LambdaQueryWrapper<QmsNonconformingOrder>()
+                        .eq(QmsNonconformingOrder::getInspectionId, inspectionId)
+                        .eq(QmsNonconformingOrder::getDeletedFlag, 0));
+        if (existingOrders.size() > 1) {
+            throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(),
+                    "该检验单存在多张不合格品处理单，请先处理重复数据");
+        }
+        if (existingOrders.size() == 1) return existingOrders.get(0);
+
+        String normalizedDisposition = normalizeDispositionCode(dispositionType);
+        BigDecimal resolvedDefectQuantity = resolveDefectQuantity(inspection, defectQuantity);
+        LocalDateTime now = LocalDateTime.now();
+        QmsNonconformingOrder order = new QmsNonconformingOrder();
+        order.setNcrNo("NCR-" + inspectionId + "-" + System.currentTimeMillis());
+        order.setInspectionId(inspectionId);
+        order.setProductLotId(inspection.getProductLotId());
+        order.setDefectReason(defectReason.trim());
+        order.setDispositionType(normalizedDisposition);
+        order.setApprovalStatus(BusinessStatus.Document.SUBMITTED);
+        order.setStatus(BusinessStatus.Document.SUBMITTED);
+        order.setRemark(remark);
+        order.setVersion(0);
+        order.setCreatedBy(operatorId);
+        order.setCreatedTime(now);
+        order.setUpdatedBy(operatorId);
+        order.setUpdatedTime(now);
+        order.setDeletedFlag(0);
+        if (baseMapper.insert(order) == 0 || order.getNcrId() == null) {
+            throw new BusinessException(ResultCode.FAILED.getCode(), "不合格品处理单生成失败");
+        }
+        QmsNonconformingDetail detail = new QmsNonconformingDetail();
+        detail.setDefectQuantity(resolvedDefectQuantity);
+        detail.setFinalDisposition(normalizedDisposition);
+        detail.setRemark("由不合格检验单 " + inspection.getInspectionNo() + " 自动生成");
+        detail.setVersion(0);
+        detail.setCreatedBy(operatorId);
+        detail.setCreatedTime(now);
+        detail.setUpdatedBy(operatorId);
+        detail.setUpdatedTime(now);
+        detail.setDeletedFlag(0);
+        insertDetails(order.getNcrId(), List.of(detail));
+        insertStatusChangeLog(order.getNcrId(), null, BusinessStatus.Document.SUBMITTED,
+                "QMS_NONCONFORMING_ORDER", "GENERATE_NONCONFORMING_FROM_INSPECTION",
+                operatorId, "来源检验单ID=" + inspectionId, now);
+        insertOperationLog(order.getNcrId(), "GENERATE_NONCONFORMING_FROM_INSPECTION",
+                "qms_nonconforming_order", operatorId, "来源检验单ID=" + inspectionId, now);
+        responsibilityNotificationService.publishPendingNonconforming(order, operatorId);
+        return order;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long completeDisposition(Long ncrId, boolean requireAdditionalMaterial,
+                                    Long operatorId, String remark) {
+        if (ncrId == null || operatorId == null || !StringUtils.hasText(remark)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(),
+                    "不合格品处理单、完成说明和操作人不能为空");
+        }
+        QmsNonconformingOrder existing = baseMapper.selectOne(
+                new LambdaQueryWrapper<QmsNonconformingOrder>()
+                        .eq(QmsNonconformingOrder::getNcrId, ncrId)
+                        .eq(QmsNonconformingOrder::getDeletedFlag, 0)
+                        .last("FOR UPDATE"));
+        if (existing == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "不合格品处理单不存在或已删除");
+        }
+        if (BusinessStatus.Document.CLOSED.equals(existing.getStatus())) {
+            return existingCompensationTaskId(ncrId);
+        }
+        if (!BusinessStatus.Document.APPROVED.equals(existing.getApprovalStatus())
+                || !BusinessStatus.Workflow.PROCESSING.equals(existing.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "只有审批通过且处理中的不合格品处理单可以完成处置");
+        }
+        QmsInspectionOrder inspection = qmsInspectionOrderMapper.selectOne(
+                new LambdaQueryWrapper<QmsInspectionOrder>()
+                        .eq(QmsInspectionOrder::getInspectionId, existing.getInspectionId())
+                        .eq(QmsInspectionOrder::getDeletedFlag, 0));
+        if (inspection == null || !BusinessStatus.Quality.FAIL.equals(inspection.getInspectionResult())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "来源检验单不存在或已不再是不合格结论");
+        }
+        List<QmsNonconformingDetail> details = activeDetails(ncrId);
+        BigDecimal dispositionQuantity = details.stream().map(QmsNonconformingDetail::getDefectQuantity)
+                .map(value -> value == null ? BigDecimal.ZERO : value)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (dispositionQuantity.signum() <= 0) {
+            dispositionQuantity = resolveDefectQuantity(inspection, null);
+        }
+        String disposition = normalizeDispositionCode(existing.getDispositionType());
+        String taskType = BusinessStatus.Quality.REWORK.equals(disposition) ? "REWORK"
+                : List.of(BusinessStatus.Quality.SCRAP, BusinessStatus.Quality.DOWNGRADE).contains(disposition)
+                ? "SUPPLEMENT" : null;
+        MfgTask compensationTask = null;
+        if (taskType != null) {
+            if (inspection.getTaskId() == null || inspection.getWorkOrderId() == null) {
+                throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                        "生产质量处置缺少来源任务或工单，不能生成返工/补产任务");
+            }
+            compensationTask = mfgTaskService.createCompensationTask(
+                    inspection.getTaskId(), ncrId, dispositionQuantity, taskType, operatorId,
+                    "不合格品处理单 " + existing.getNcrNo() + "：" + remark.trim());
+            if ("SUPPLEMENT".equals(taskType) || requireAdditionalMaterial) {
+                mfgWorkOrderService.addSupplementMaterialRequirements(
+                        inspection.getWorkOrderId(), dispositionQuantity, operatorId,
+                        "不合格品处理单 " + existing.getNcrNo() + "，处置=" + disposition);
+            }
+        }
+        synchronizeProductLotDisposition(existing, disposition, operatorId, remark.trim());
+        LocalDateTime now = LocalDateTime.now();
+        QmsNonconformingOrder update = new QmsNonconformingOrder();
+        update.setNcrId(ncrId);
+        update.setVersion(existing.getVersion());
+        update.setStatus(BusinessStatus.Document.CLOSED);
+        update.setRemark(remark.trim());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (baseMapper.updateById(update) == 0) {
+            throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(),
+                    "不合格品处理单已被其他用户修改，请刷新后重试");
+        }
+        for (QmsNonconformingDetail detail : details) {
+            QmsNonconformingDetail detailUpdate = new QmsNonconformingDetail();
+            detailUpdate.setDetailId(detail.getDetailId());
+            detailUpdate.setFinalDisposition(disposition);
+            detailUpdate.setUpdatedBy(operatorId);
+            detailUpdate.setUpdatedTime(now);
+            qmsNonconformingDetailMapper.updateById(detailUpdate);
+        }
+        insertStatusChangeLog(ncrId, existing.getStatus(), BusinessStatus.Document.CLOSED,
+                "QMS_NONCONFORMING_ORDER", "COMPLETE_NONCONFORMING_DISPOSITION",
+                operatorId, remark.trim(), now);
+        insertOperationLog(ncrId, "COMPLETE_NONCONFORMING_DISPOSITION", "qms_nonconforming_order",
+                operatorId, "处置=" + disposition + "；" + remark.trim(), now);
+        if (inspection.getProductLotId() != null && inspection.getWorkOrderId() != null) {
+            mfgWorkReportService.recalculateWorkOrderCompletion(inspection.getWorkOrderId(), operatorId,
+                    "不合格品处理单 " + ncrId + " 完成处置 " + disposition);
+        }
+        return compensationTask == null ? null : compensationTask.getTaskId();
+    }
+
+    private BigDecimal resolveDefectQuantity(QmsInspectionOrder inspection, BigDecimal requestedQuantity) {
+        BigDecimal quantity = requestedQuantity != null && requestedQuantity.signum() > 0
+                ? requestedQuantity : inspection.getUnqualifiedQuantity();
+        if ((quantity == null || quantity.signum() <= 0) && inspection.getReportId() != null) {
+            MfgWorkReport report = mfgWorkReportMapper.selectOne(new LambdaQueryWrapper<MfgWorkReport>()
+                    .eq(MfgWorkReport::getReportId, inspection.getReportId())
+                    .eq(MfgWorkReport::getDeletedFlag, 0));
+            quantity = report == null ? null : report.getDefectQuantity();
+        }
+        if (quantity == null || quantity.signum() <= 0) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "检验单没有可处置的不合格数量，请补充实际不合格数量");
+        }
+        return quantity;
+    }
+
+    private List<QmsNonconformingDetail> activeDetails(Long ncrId) {
+        return qmsNonconformingDetailMapper.selectList(new LambdaQueryWrapper<QmsNonconformingDetail>()
+                .eq(QmsNonconformingDetail::getNcrId, ncrId)
+                .eq(QmsNonconformingDetail::getDeletedFlag, 0));
+    }
+
+    private void synchronizeProductLotDisposition(QmsNonconformingOrder order, String disposition,
+                                                   Long operatorId, String remark) {
+        if (order.getProductLotId() == null) return;
+        TraceProductLot productLot = traceProductLotMapper.selectOne(new LambdaQueryWrapper<TraceProductLot>()
+                .eq(TraceProductLot::getProductLotId, order.getProductLotId())
+                .eq(TraceProductLot::getDeletedFlag, 0));
+        if (productLot == null || !List.of(BusinessStatus.Quality.FAIL, BusinessStatus.Quality.REWORK)
+                .contains(productLot.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                    "产品批次不存在或当前质量状态不允许完成不合格处置");
+        }
+        String targetStatus = switch (disposition) {
+            case BusinessStatus.Quality.CONCESSION -> BusinessStatus.Quality.CONCESSION;
+            case BusinessStatus.Quality.REWORK -> BusinessStatus.Quality.REWORK;
+            case BusinessStatus.Quality.SCRAP -> "SCRAPPED";
+            case BusinessStatus.Quality.DOWNGRADE -> BusinessStatus.Quality.DOWNGRADE;
+            default -> throw new BusinessException(ResultCode.PARAM_ERROR);
+        };
+        TraceProductLot update = new TraceProductLot();
+        update.setProductLotId(productLot.getProductLotId());
+        update.setVersion(productLot.getVersion());
+        update.setStatus(targetStatus);
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(LocalDateTime.now());
+        if (traceProductLotMapper.updateById(update) == 0) {
+            throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(),
+                    "产品批次已被其他用户处理，请刷新后重试");
+        }
+        insertStatusChangeLog(productLot.getProductLotId(), productLot.getStatus(), targetStatus,
+                "TRACE_PRODUCT_LOT", "APPLY_NONCONFORMING_DISPOSITION", operatorId, remark, LocalDateTime.now());
+    }
+
+    private Long existingCompensationTaskId(Long ncrId) {
+        List<MfgTask> tasks = mfgTaskMapper.selectList(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getSourceNcrId, ncrId)
+                .eq(MfgTask::getDeletedFlag, 0));
+        if (tasks.size() > 1) {
+            throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(),
+                    "该不合格品处理单存在多张补偿任务，请先处理重复数据");
+        }
+        return tasks.isEmpty() ? null : tasks.get(0).getTaskId();
     }
 
     /**

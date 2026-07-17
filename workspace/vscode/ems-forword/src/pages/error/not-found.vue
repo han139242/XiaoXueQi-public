@@ -2,10 +2,12 @@
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/common/AppIcon.vue'
 
+// 404页面用于匹配不存在的地址，replace返回首页后不会把错误地址留在返回历史中。
 const router = useRouter()
 </script>
 
 <template>
+  <!-- 未匹配到任何路由时显示404说明和返回首页按钮。 -->
   <main class="not-found">
     <div class="error-code">404</div>
     <h1>页面不存在</h1>
@@ -18,6 +20,7 @@ const router = useRouter()
 </template>
 
 <style scoped>
+/* 404页面使用全屏居中布局突出错误码和恢复入口。 */
 .not-found {
   display: flex;
   min-height: 100dvh;

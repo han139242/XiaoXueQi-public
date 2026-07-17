@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.trace.TraceMaterialUsage;
+import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.trace.TraceMaterialUsageMapper;
 import com.neuedu.ems.service.trace.TraceMaterialUsageService;
 import org.springframework.stereotype.Service;
@@ -72,14 +74,8 @@ public class TraceMaterialUsageServiceImpl extends ServiceImpl<TraceMaterialUsag
      */
     @Override
     public boolean saveMaterialUsage(TraceMaterialUsage materialUsage) {
-        if (materialUsage.getCreatedTime() == null) {
-            materialUsage.setCreatedTime(java.time.LocalDateTime.now());
-        }
-        materialUsage.setUpdatedTime(materialUsage.getCreatedTime());
-        if (materialUsage.getDeletedFlag() == null) {
-            materialUsage.setDeletedFlag(0);
-        }
-        return baseMapper.insert(materialUsage) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "物料使用追溯必须由已审核报工和产品批次自动生成，不能手工拼接");
     }
 
     /**
@@ -89,12 +85,8 @@ public class TraceMaterialUsageServiceImpl extends ServiceImpl<TraceMaterialUsag
      */
     @Override
     public boolean updateMaterialUsage(TraceMaterialUsage materialUsage) {
-        if (materialUsage.getUsageId() == null) {
-            return false;
-        }
-        materialUsage.setUpdatedTime(java.time.LocalDateTime.now());
-        materialUsage.setDeletedFlag(null);
-        return baseMapper.updateById(materialUsage) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "物料使用追溯是审计事实，不能通过普通编辑修改");
     }
 
     /**
@@ -104,10 +96,8 @@ public class TraceMaterialUsageServiceImpl extends ServiceImpl<TraceMaterialUsag
      */
     @Override
     public boolean removeMaterialUsageById(Long usageId) {
-        TraceMaterialUsage materialUsage = new TraceMaterialUsage();
-        materialUsage.setUsageId(usageId);
-        materialUsage.setDeletedFlag(1);
-        return baseMapper.updateById(materialUsage) > 0;
+        throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
+                "物料使用追溯是永久审计记录，不能删除");
     }
 
     /**

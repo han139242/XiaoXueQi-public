@@ -5,6 +5,8 @@ import com.neuedu.ems.exception.AiServiceException;
 import com.neuedu.ems.exception.AccountStatusException;
 import com.neuedu.ems.exception.OptimisticLockConflictException;
 import com.neuedu.ems.exception.DataScopeAccessDeniedException;
+import com.neuedu.ems.exception.SensitivePhoneAccessDeniedException;
+import com.neuedu.ems.exception.SensitivePhoneCryptoException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,8 +20,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
-import java.util.stream.Collectors;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 全局异常处理器
@@ -35,6 +38,20 @@ public class GlobalExceptionHandler {
     public ResultData handleDataScopeAccessDenied(DataScopeAccessDeniedException e) {
         log.info("数据范围拒绝：{}", e.getMessage());
         return ResultData.fail(ResultCode.FORBIDDEN);
+    }
+
+    @ExceptionHandler(SensitivePhoneAccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ResultData handleSensitivePhoneAccessDenied(SensitivePhoneAccessDeniedException e) {
+        log.info("联系电话字段权限拒绝");
+        return ResultData.fail(ResultCode.FORBIDDEN);
+    }
+
+    @ExceptionHandler(SensitivePhoneCryptoException.class)
+    public ResultData handleSensitivePhoneCrypto(SensitivePhoneCryptoException e) {
+        log.error("联系电话加密服务失败：{}", e.getClass().getSimpleName());
+        return ResultData.fail(ResultCode.BUSINESS_ERROR,
+                Map.of("message", "联系电话敏感数据暂不可用"));
     }
 
     /**
@@ -68,9 +85,17 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public ResultData handleBusinessException(BusinessException e) {
-        // 业务异常只打印info级别日志，不打印堆栈（避免日志冗余）
-        //log.info("业务异常：{}", e.getMessage());
-        return ResultData.fail(ResultCode.BUSINESS_ERROR);
+        ResultCode resultCode = Arrays.stream(ResultCode.values())
+                .filter(code -> code.getCode() == e.getCode())
+                .findFirst()
+                .orElse(ResultCode.BUSINESS_ERROR);
+        String message = e.getMessage();
+        if (message == null || message.isBlank()) {
+            message = resultCode.getMessage();
+        }
+        log.info("业务请求被拒绝：{}", message);
+        return ResultData.fail(resultCode,
+                Map.of("message", message, "businessCode", e.getCode()));
     }
 
     /**

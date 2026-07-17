@@ -55,6 +55,18 @@ public class MfgScheduleScenarioController {
         return ResultData.success(ResultCode.SUCCESS, mfgScheduleScenarioService.openManualDraft(operatorId));
     }
 
+    @GetMapping("/manual-board")
+    public ResultData manualBoard(@RequestAttribute("userId") Long operatorId) {
+        return ResultData.success(ResultCode.SUCCESS,
+                mfgScheduleScenarioService.getManualScheduleBoard(operatorId));
+    }
+
+    @PostMapping("/manual-board/ai-advice")
+    public ResultData generateManualBoardAdvice(@RequestAttribute("userId") Long operatorId) {
+        return ResultData.success(ResultCode.SUCCESS,
+                mfgScheduleScenarioService.generateManualScheduleBoardAdvice(operatorId));
+    }
+
     @GetMapping("/{scenarioId}/orders/{productionOrderId}/eligible-lines")
     public ResultData eligibleLines(@PathVariable Long scenarioId, @PathVariable Long productionOrderId) {
         return ResultData.success(ResultCode.SUCCESS,
@@ -83,6 +95,15 @@ public class MfgScheduleScenarioController {
                                        @RequestBody ManualScheduleRemoveRequest request) {
         return ResultData.success(ResultCode.SUCCESS, mfgScheduleScenarioService.removeManualItem(scenarioId,
                 scheduleItemId, request.getScenarioVersion(), request.getItemVersion(), operatorId));
+    }
+
+    @PutMapping("/{scenarioId}/items/{scheduleItemId}/confirm")
+    public ResultData confirmManualItem(@PathVariable Long scenarioId, @PathVariable Long scheduleItemId,
+                                        @RequestAttribute("userId") Long operatorId,
+                                        @RequestBody ManualScheduleConfirmRequest request) {
+        return ResultData.success(ResultCode.SUCCESS, mfgScheduleScenarioService.confirmManualItem(
+                scenarioId, scheduleItemId, request.getScenarioVersion(), request.getItemVersion(),
+                request.getRemark(), operatorId));
     }
 
     @PostMapping("/{scenarioId}/validate")
@@ -167,5 +188,12 @@ public class MfgScheduleScenarioController {
     public static class ManualScheduleRemoveRequest {
         private Integer scenarioVersion;
         private Integer itemVersion;
+    }
+
+    @lombok.Data
+    public static class ManualScheduleConfirmRequest {
+        private Integer scenarioVersion;
+        private Integer itemVersion;
+        private String remark;
     }
 }

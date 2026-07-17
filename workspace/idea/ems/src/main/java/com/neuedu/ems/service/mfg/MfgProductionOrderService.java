@@ -51,6 +51,18 @@ public interface MfgProductionOrderService extends IService<MfgProductionOrder> 
      */
     boolean removeOrderById(Long productionOrderId);
 
+    /**
+     * 撤回尚未产生执行数据的生产订单链路，保留下游记录并将订单恢复为草稿。
+     * @param productionOrderId 生产订单ID
+     * @param operatorId 操作人ID
+     * @param remark 撤回原因
+     */
+    void withdrawUnexecutedOrderChain(Long productionOrderId, Long operatorId, String remark);
+
+    void withdrawUnexecutedPlanChain(Long planId, Long operatorId, String remark);
+
+    void withdrawUnexecutedWorkOrderChain(Long workOrderId, Long operatorId, String remark);
+
     MfgProductionOrder releaseOrder(Long productionOrderId, Long operatorId, String remark);
 
     /**

@@ -36,6 +36,8 @@ class PermissionCodeResolverTest {
                 resolver.resolve("PUT", "/api/mfg/task/12/start").orElseThrow());
         assertEquals("wms:outbound-order:confirm",
                 resolver.resolve("PUT", "/api/wms/outbound-order/9/confirm").orElseThrow());
+        assertEquals("wms:inbound-order:create",
+                resolver.resolve("POST", "/api/wms/inbound-order/generate-production/31").orElseThrow());
         assertEquals("qms:inspection-result:batch-save",
                 resolver.resolve("POST", "/api/qms/inspection-result/batch").orElseThrow());
         assertEquals("trace:material-usage:reverse-trace",
@@ -44,16 +46,50 @@ class PermissionCodeResolverTest {
                 resolver.resolve("POST", "/api/mfg/schedule-scenario/5/validate").orElseThrow());
         assertEquals("mfg:schedule-scenario:ai-advice",
                 resolver.resolve("POST", "/api/mfg/schedule-scenario/5/orders/8/ai-advice").orElseThrow());
+        assertEquals("mfg:schedule-scenario:ai-advice",
+                resolver.resolve("POST", "/api/mfg/schedule-scenario/manual-board/ai-advice").orElseThrow());
         assertEquals("mfg:schedule-scenario:confirm",
                 resolver.resolve("PUT", "/api/mfg/schedule-scenario/5/confirm").orElseThrow());
+        assertEquals("mfg:schedule-scenario:confirm",
+                resolver.resolve("PUT", "/api/mfg/schedule-scenario/5/items/9/confirm").orElseThrow());
         assertEquals("mfg:production-order:release",
                 resolver.resolve("PUT", "/api/mfg/production-order/5/release").orElseThrow());
+        assertEquals("mfg:production-order:withdraw",
+                resolver.resolve("PUT", "/api/mfg/production-order/5/withdraw").orElseThrow());
+        assertEquals("mfg:production-plan:withdraw",
+                resolver.resolve("PUT", "/api/mfg/production-plan/5/withdraw").orElseThrow());
+        assertEquals("mfg:work-order:withdraw",
+                resolver.resolve("PUT", "/api/mfg/work-order/6/withdraw").orElseThrow());
+        assertEquals("mfg:dispatch-order:withdraw",
+                resolver.resolve("PUT", "/api/mfg/dispatch-order/7/withdraw").orElseThrow());
+        assertEquals("mfg:task:withdraw",
+                resolver.resolve("PUT", "/api/mfg/task/8/withdraw").orElseThrow());
+        assertEquals("mfg:task:controlled-close",
+                resolver.resolve("PUT", "/api/mfg/task/8/controlled-close").orElseThrow());
+        assertEquals("mfg:work-report:withdraw",
+                resolver.resolve("PUT", "/api/mfg/work-report/9/withdraw").orElseThrow());
+        assertEquals("wms:outbound-order:withdraw",
+                resolver.resolve("PUT", "/api/wms/outbound-order/10/withdraw").orElseThrow());
+        assertEquals("qms:inspection-order:withdraw",
+                resolver.resolve("PUT", "/api/qms/inspection-order/11/withdraw").orElseThrow());
+        assertEquals("qms:nonconforming-order:generate",
+                resolver.resolve("POST", "/api/qms/nonconforming-order/generate-from-inspection/11").orElseThrow());
+        assertEquals("qms:nonconforming-order:complete",
+                resolver.resolve("PUT", "/api/qms/nonconforming-order/12/complete-disposition").orElseThrow());
         assertEquals("mfg:production-plan:generate",
                 resolver.resolve("POST", "/api/mfg/production-plan/generate/5").orElseThrow());
+        assertEquals("mfg:production-plan:release",
+                resolver.resolve("PUT", "/api/mfg/production-plan/5/release").orElseThrow());
         assertEquals("mfg:work-order:generate",
                 resolver.resolve("POST", "/api/mfg/work-order/generate/6").orElseThrow());
+        assertEquals("mfg:work-order:material-issue",
+                resolver.resolve("POST", "/api/mfg/work-order/6/generate-material-issue").orElseThrow());
         assertEquals("mfg:work-order:release",
                 resolver.resolve("PUT", "/api/mfg/work-order/6/release").orElseThrow());
+        assertEquals("mfg:dispatch-order:generate",
+                resolver.resolve("POST", "/api/mfg/dispatch-order/generate/6").orElseThrow());
+        assertEquals("mfg:dispatch-order:release",
+                resolver.resolve("PUT", "/api/mfg/dispatch-order/7/release").orElseThrow());
         assertEquals("mfg:work-order:start",
                 resolver.resolve("PUT", "/api/mfg/work-order/6/start").orElseThrow());
         assertEquals("mfg:work-report:submit",

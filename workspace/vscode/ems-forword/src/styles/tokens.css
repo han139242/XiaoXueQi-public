@@ -1,10 +1,16 @@
+/*
+ * 全局设计变量（Design Tokens）。页面和组件尽量引用--mes-*变量，
+ * 这样切换主题时只需覆盖变量，不必重写每个组件的CSS。
+ */
 :root {
+  /* 品牌主色及其悬停、浅色背景、边框和RGB拆分值。 */
   --mes-primary: #2d8cf0;
   --mes-primary-hover: #0170e3;
   --mes-primary-soft: #eaf5ff;
   --mes-primary-border: #b7d8f7;
   --mes-primary-rgb: 45 140 240;
 
+  /* 顶部栏、品牌区和顶部控件颜色。 */
   --mes-header-bg: #2d8cf0;
   --mes-header-hover: #0170e3;
   --mes-header-text: #ffffff;
@@ -15,6 +21,7 @@
   --mes-header-divider: rgb(255 255 255 / 24%);
   --mes-brand-bg: #2d8cf0;
 
+  /* 侧边导航的背景、文字、边框和选中状态。 */
   --mes-sidebar: #ffffff;
   --mes-sidebar-raised: #f1f5f8;
   --mes-sidebar-text: #293746;
@@ -30,6 +37,7 @@
   --mes-command-border: #1f7ed5;
   --mes-command-accent: #d9edff;
 
+  /* 数据状态语义色：成功、警告、危险和普通信息。 */
   --mes-data: #2db7f5;
   --mes-data-soft: #e9f5fa;
   --mes-success: #2f8b70;
@@ -40,6 +48,7 @@
   --mes-danger-soft: #fff0ef;
   --mes-info: #64707d;
 
+  /* 页面表面、正文、阴影、圆角和整体布局尺寸。 */
   --mes-bg: #eef2f6;
   --mes-surface: #ffffff;
   --mes-surface-muted: #f6f8fa;
@@ -60,6 +69,7 @@
   --mes-tabs-height: 38px;
   --mes-font: Inter, 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
 
+  /* 将MES变量映射给Element Plus，使按钮、输入框、表格等第三方组件保持同一主题。 */
   --el-color-primary: var(--mes-primary);
   --el-color-primary-light-3: color-mix(in srgb, var(--mes-primary) 70%, white);
   --el-color-primary-light-5: color-mix(in srgb, var(--mes-primary) 50%, white);
@@ -77,6 +87,7 @@
   --el-font-family: var(--mes-font);
 }
 
+/* data-theme由theme.js写到html元素；各主题只覆盖需要变化的变量。 */
 :root[data-theme='dark'] {
   --mes-primary: #277bc0;
   --mes-primary-hover: #1c6199;
@@ -105,6 +116,7 @@
   --mes-command-accent: #8bc5ef;
 }
 
+/* 制造绿色主题。 */
 :root[data-theme='green'] {
   --mes-primary: #147a5c;
   --mes-primary-hover: #0f6048;
@@ -124,6 +136,7 @@
   --mes-command-accent: #c8f0e2;
 }
 
+/* 工业橙色主题。 */
 :root[data-theme='orange'] {
   --mes-primary: #b85a12;
   --mes-primary-hover: #91450d;
@@ -143,6 +156,7 @@
   --mes-command-accent: #ffe0c5;
 }
 
+/* 企业红色主题。 */
 :root[data-theme='red'] {
   --mes-primary: #b5393e;
   --mes-primary-hover: #902c31;

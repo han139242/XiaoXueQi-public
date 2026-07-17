@@ -15,9 +15,9 @@ public interface OrgEmployeeService extends IService<OrgEmployee> {
 
     OrgEmployee getEmployeeById(Long employeeId);
 
-    boolean saveEmployee(OrgEmployee employee);
+    boolean saveEmployee(OrgEmployee employee, String rawPhone);
 
-    boolean updateEmployee(OrgEmployee employee);
+    boolean updateEmployee(OrgEmployee employee, String rawPhone);
 
     boolean removeEmployeeById(Long employeeId);
 

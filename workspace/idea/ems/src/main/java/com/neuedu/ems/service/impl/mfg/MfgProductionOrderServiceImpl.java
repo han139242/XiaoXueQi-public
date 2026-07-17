@@ -1,17 +1,34 @@
 package com.neuedu.ems.service.impl.mfg;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgProductionOrder;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.common.ResultCode;
+import com.neuedu.ems.entity.mfg.MfgDispatchOrder;
+import com.neuedu.ems.entity.mfg.MfgProductionPlan;
+import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgWorkOrder;
+import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.exception.BusinessException;
+import com.neuedu.ems.mapper.mfg.MfgDispatchOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
+import com.neuedu.ems.mapper.qms.QmsInspectionOrderMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.mapper.trace.TraceMaterialUsageMapper;
+import com.neuedu.ems.mapper.trace.TraceProductLotMapper;
+import com.neuedu.ems.mapper.wms.WmsOutboundOrderMapper;
+import com.neuedu.ems.mapper.wms.WmsReturnOrderMapper;
 import com.neuedu.ems.service.mfg.MfgProductionOrderService;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +37,9 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * 生产订单管理 Service 实现类。
@@ -28,11 +47,49 @@ import java.time.LocalDateTime;
 @Service
 public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrderMapper, MfgProductionOrder> implements MfgProductionOrderService {
 
+    private static final DateTimeFormatter ORDER_NUMBER_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+
     @Autowired
     private SysStatusChangeLogMapper sysStatusChangeLogMapper;
 
     @Autowired
     private SysOperationLogMapper sysOperationLogMapper;
+
+    @Autowired
+    private MfgProductionPlanMapper productionPlanMapper;
+
+    @Autowired
+    private MfgWorkOrderMapper workOrderMapper;
+
+    @Autowired
+    private MfgWorkOrderMaterialMapper workOrderMaterialMapper;
+
+    @Autowired
+    private MfgDispatchOrderMapper dispatchOrderMapper;
+
+    @Autowired
+    private MfgTaskMapper taskMapper;
+
+    @Autowired
+    private MfgWorkReportMapper workReportMapper;
+
+    @Autowired
+    private WmsOutboundOrderMapper outboundOrderMapper;
+
+    @Autowired
+    private WmsReturnOrderMapper returnOrderMapper;
+
+    @Autowired
+    private QmsInspectionOrderMapper inspectionOrderMapper;
+
+    @Autowired
+    private TraceProductLotMapper productLotMapper;
+
+    @Autowired
+    private TraceMaterialUsageMapper materialUsageMapper;
+
+    @Autowired
+    private MfgResponsibilityNotificationService responsibilityNotificationService;
 
     /**
      * 分页查询生产订单列表，支持关键字搜索、状态筛选、客户筛选和产品筛选。
@@ -70,11 +127,16 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
      */
     @Override
     public boolean saveOrder(MfgProductionOrder order) {
-        if (order == null || !StringUtils.hasText(order.getProductionOrderNo()) || order.getProductId() == null
+        if (order == null || order.getProductId() == null
                 || order.getOrderQuantity() == null || order.getOrderQuantity().compareTo(BigDecimal.ZERO) <= 0) {
             return false;
         }
+        order.setProductionOrderId(null);
+        order.setProductionOrderNo("PO-" + LocalDateTime.now().format(ORDER_NUMBER_TIME));
         order.setStatus(BusinessStatus.Document.DRAFT);
+        if (!StringUtils.hasText(order.getSourceType())) {
+            order.setSourceType("MANUAL");
+        }
         if (order.getDeletedFlag() == null) {
             order.setDeletedFlag(0);
         }
@@ -95,8 +157,12 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         if (existing == null || !BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
             return false;
         }
+        if (order.getOrderQuantity() != null && order.getOrderQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw business(ResultCode.PARAM_ERROR, "生产订单数量必须大于 0");
+        }
         order.setDeletedFlag(null);
         order.setStatus(null);
+        order.setProductionOrderNo(null);
         if (order.getVersion() == null) {
             order.setVersion(existing.getVersion());
         }
@@ -123,17 +189,100 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void withdrawUnexecutedOrderChain(Long productionOrderId, Long operatorId, String remark) {
+        if (productionOrderId == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, "生产订单和操作人不能为空");
+        }
+        remark = normalizedWithdrawRemark(remark);
+
+        MfgProductionOrder order = activeOrderForUpdate(productionOrderId);
+        if (order == null) {
+            throw business(ResultCode.NOT_FOUND, "生产订单不存在或已删除");
+        }
+        if (!BusinessStatus.Document.RELEASED.equals(order.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有已下达且尚未执行的生产订单可以撤回修改");
+        }
+
+        List<MfgProductionPlan> plans = activePlansForUpdate(productionOrderId);
+        validateRemovablePlans(plans);
+        List<Long> planIds = plans.stream().map(MfgProductionPlan::getPlanId).toList();
+        List<MfgWorkOrder> workOrders = activeWorkOrdersForUpdate(planIds);
+        validateRemovableWorkOrders(workOrders);
+        List<Long> workOrderIds = workOrders.stream().map(MfgWorkOrder::getWorkOrderId).toList();
+        List<MfgDispatchOrder> dispatchOrders = activeDispatchOrdersForUpdate(workOrderIds);
+        List<MfgTask> tasks = activeTasksForUpdate(workOrderIds);
+        validateUnexecutedTasks(tasks);
+        validateUnexecutedDispatchOrders(dispatchOrders);
+        rejectExistingExecutionData(workOrderIds, tasks);
+
+        LocalDateTime now = LocalDateTime.now();
+        validateUnusedMaterialRequirements(workOrderIds);
+        for (MfgTask task : tasks) {
+            closeTask(task, operatorId, remark, now);
+        }
+        for (MfgDispatchOrder dispatchOrder : dispatchOrders) {
+            rejectDispatchOrder(dispatchOrder, operatorId, remark, now);
+        }
+        for (MfgWorkOrder workOrder : workOrders) {
+            closeWorkOrder(workOrder, operatorId, remark, now);
+        }
+        for (MfgProductionPlan plan : plans) {
+            closePlan(plan, operatorId, remark, now);
+        }
+        restoreOrderToDraft(order, operatorId, remark, now);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawUnexecutedPlanChain(Long planId, Long operatorId, String remark) {
+        requireWithdrawArguments(planId, operatorId, "生产计划");
+        remark = normalizedWithdrawRemark(remark);
+        MfgProductionPlan plan = planForUpdate(planId);
+        if (plan == null || !BusinessStatus.Document.RELEASED.equals(plan.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有已生效且尚未执行的生产计划可以撤回修改");
+        }
+        List<MfgWorkOrder> workOrders = activeWorkOrdersForUpdate(List.of(planId));
+        validateRemovableWorkOrders(workOrders);
+        withdrawWorkOrdersAndExecution(workOrders, operatorId, remark, LocalDateTime.now());
+        restorePlanToDraft(plan, operatorId, remark, LocalDateTime.now());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void withdrawUnexecutedWorkOrderChain(Long workOrderId, Long operatorId, String remark) {
+        requireWithdrawArguments(workOrderId, operatorId, "生产工单");
+        remark = normalizedWithdrawRemark(remark);
+        MfgWorkOrder workOrder = workOrderForUpdate(workOrderId);
+        if (workOrder == null || !BusinessStatus.Document.RELEASED.equals(workOrder.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有已下达且尚未执行的生产工单可以撤回修改");
+        }
+        validateRemovableWorkOrders(List.of(workOrder));
+        List<Long> workOrderIds = List.of(workOrderId);
+        List<MfgDispatchOrder> dispatchOrders = activeDispatchOrdersForUpdate(workOrderIds);
+        List<MfgTask> tasks = activeTasksForUpdate(workOrderIds);
+        validateUnexecutedTasks(tasks);
+        validateUnexecutedDispatchOrders(dispatchOrders);
+        rejectExistingExecutionData(workOrderIds, tasks);
+        validateUnusedMaterialRequirements(workOrderIds);
+        LocalDateTime now = LocalDateTime.now();
+        closeTasksAndDispatches(tasks, dispatchOrders, operatorId, remark, now);
+        restoreWorkOrderToDraft(workOrder, operatorId, remark, now);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public MfgProductionOrder releaseOrder(Long productionOrderId, Long operatorId, String remark) {
         MfgProductionOrder existing = getOrderById(productionOrderId);
         if (existing == null) {
             throw business(ResultCode.NOT_FOUND, "生产订单不存在或已删除");
         }
         if (!BusinessStatus.Document.DRAFT.equals(existing.getStatus())) {
-            throw business(ResultCode.BUSINESS_ERROR, "只有 DRAFT 状态的生产订单可以下达");
+            throw business(ResultCode.BUSINESS_ERROR, "只有草稿生产订单可以提交排产");
         }
         if (operatorId == null) {
             throw business(ResultCode.PARAM_ERROR, "操作人不能为空");
         }
+        validateOrderForScheduling(existing);
         LocalDateTime now = LocalDateTime.now();
         MfgProductionOrder update = new MfgProductionOrder();
         update.setProductionOrderId(productionOrderId);
@@ -145,10 +294,24 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         if (baseMapper.updateById(update) == 0) {
             throw business(ResultCode.DATA_CONFLICT, "生产订单已被其他用户修改，请刷新后重试");
         }
-        insertStatusLog(productionOrderId, existing.getStatus(), BusinessStatus.Document.RELEASED,
+        insertStatusLog("MFG_PRODUCTION_ORDER", productionOrderId,
+                existing.getStatus(), BusinessStatus.Document.RELEASED,
                 "RELEASE_PRODUCTION_ORDER", operatorId, remark, now);
-        insertOperationLog(productionOrderId, "RELEASE_PRODUCTION_ORDER", operatorId, remark, now);
+        insertOperationLog("mfg_production_order", productionOrderId,
+                "RELEASE_PRODUCTION_ORDER", operatorId, remark, now);
         return getOrderById(productionOrderId);
+    }
+
+    private void validateOrderForScheduling(MfgProductionOrder order) {
+        if (order.getCustomerId() == null || order.getProductId() == null
+                || order.getOrderQuantity() == null || order.getOrderQuantity().compareTo(BigDecimal.ZERO) <= 0
+                || order.getDeliveryDate() == null || !StringUtils.hasText(order.getSourceType())) {
+            throw business(ResultCode.PARAM_ERROR, "提交排产前必须填写客户、产品、正数数量、交付日期和需求来源");
+        }
+        if (order.getDeliveryDate().isBefore(LocalDate.now())) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "订单交付日期 " + order.getDeliveryDate() + " 已早于当前日期，不能提交排产，请先调整交期");
+        }
     }
 
     /**
@@ -191,10 +354,349 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         return wrapper;
     }
 
-    private void insertStatusLog(Long bizId, String oldStatus, String newStatus, String reason,
+    private MfgProductionOrder activeOrderForUpdate(Long productionOrderId) {
+        QueryWrapper<MfgProductionOrder> query = new QueryWrapper<>();
+        query.eq("production_order_id", productionOrderId)
+                .eq("deleted_flag", 0)
+                .last("FOR UPDATE");
+        return baseMapper.selectOne(query);
+    }
+
+    private MfgProductionPlan planForUpdate(Long planId) {
+        QueryWrapper<MfgProductionPlan> query = new QueryWrapper<>();
+        query.eq("plan_id", planId).eq("deleted_flag", 0).last("FOR UPDATE");
+        return productionPlanMapper.selectOne(query);
+    }
+
+    private MfgWorkOrder workOrderForUpdate(Long workOrderId) {
+        QueryWrapper<MfgWorkOrder> query = new QueryWrapper<>();
+        query.eq("work_order_id", workOrderId).eq("deleted_flag", 0).last("FOR UPDATE");
+        return workOrderMapper.selectOne(query);
+    }
+
+    private List<MfgProductionPlan> activePlansForUpdate(Long productionOrderId) {
+        QueryWrapper<MfgProductionPlan> query = new QueryWrapper<>();
+        query.eq("production_order_id", productionOrderId)
+                .eq("deleted_flag", 0)
+                .ne("status", BusinessStatus.Document.CLOSED)
+                .last("FOR UPDATE");
+        return productionPlanMapper.selectList(query);
+    }
+
+    private List<MfgWorkOrder> activeWorkOrdersForUpdate(List<Long> planIds) {
+        if (planIds.isEmpty()) {
+            return List.of();
+        }
+        QueryWrapper<MfgWorkOrder> query = new QueryWrapper<>();
+        query.in("plan_id", planIds)
+                .eq("deleted_flag", 0)
+                .ne("status", BusinessStatus.Document.CLOSED)
+                .last("FOR UPDATE");
+        return workOrderMapper.selectList(query);
+    }
+
+    private List<MfgDispatchOrder> activeDispatchOrdersForUpdate(List<Long> workOrderIds) {
+        if (workOrderIds.isEmpty()) {
+            return List.of();
+        }
+        QueryWrapper<MfgDispatchOrder> query = new QueryWrapper<>();
+        query.in("work_order_id", workOrderIds)
+                .eq("deleted_flag", 0)
+                .last("FOR UPDATE");
+        return dispatchOrderMapper.selectList(query);
+    }
+
+    private List<MfgTask> activeTasksForUpdate(List<Long> workOrderIds) {
+        if (workOrderIds.isEmpty()) {
+            return List.of();
+        }
+        QueryWrapper<MfgTask> query = new QueryWrapper<>();
+        query.in("work_order_id", workOrderIds)
+                .eq("deleted_flag", 0)
+                .last("FOR UPDATE");
+        return taskMapper.selectList(query);
+    }
+
+    private void validateRemovablePlans(List<MfgProductionPlan> plans) {
+        for (MfgProductionPlan plan : plans) {
+            String status = plan.getStatus();
+            if (status == null || !(BusinessStatus.Document.DRAFT.equals(status)
+                    || BusinessStatus.Document.RELEASED.equals(status)
+                    || BusinessStatus.Document.CLOSED.equals(status))) {
+                throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产计划已经开始执行或完成");
+            }
+        }
+    }
+
+    private void validateRemovableWorkOrders(List<MfgWorkOrder> workOrders) {
+        for (MfgWorkOrder workOrder : workOrders) {
+            String status = workOrder.getStatus();
+            boolean removableStatus = BusinessStatus.Document.DRAFT.equals(status)
+                    || BusinessStatus.Document.APPROVED.equals(status)
+                    || BusinessStatus.Document.RELEASED.equals(status)
+                    || BusinessStatus.Document.CLOSED.equals(status);
+            boolean hasCompletedQuantity = workOrder.getCompletedQuantity() != null
+                    && workOrder.getCompletedQuantity().compareTo(BigDecimal.ZERO) > 0;
+            if (!removableStatus || hasCompletedQuantity) {
+                throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产工单已经开工或产生完成数量");
+            }
+        }
+    }
+
+    private void validateUnexecutedTasks(List<MfgTask> tasks) {
+        for (MfgTask task : tasks) {
+            boolean unexecutedStatus = BusinessStatus.Production.WAIT_START.equals(task.getStatus())
+                    || BusinessStatus.Document.CLOSED.equals(task.getStatus());
+            boolean hasQuantity = positive(task.getCompletedQuantity()) || positive(task.getDefectQuantity());
+            if (!unexecutedStatus || hasQuantity) {
+                throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产任务已经开工或产生完成/不良数量");
+            }
+        }
+    }
+
+    private void validateUnexecutedDispatchOrders(List<MfgDispatchOrder> dispatchOrders) {
+        for (MfgDispatchOrder dispatchOrder : dispatchOrders) {
+            String status = dispatchOrder.getStatus();
+            boolean unexecutedStatus = "WAIT_DISPATCH".equals(status)
+                    || BusinessStatus.Document.RELEASED.equals(status)
+                    || "ACCEPTED".equals(status)
+                    || BusinessStatus.Document.REJECTED.equals(status);
+            if (!unexecutedStatus) {
+                throw business(ResultCode.BUSINESS_ERROR, "无法撤回：派工单已经进入生产或完成状态");
+            }
+        }
+    }
+
+    private void requireWithdrawArguments(Long id, Long operatorId, String label) {
+        if (id == null || operatorId == null) {
+            throw business(ResultCode.PARAM_ERROR, label + "和操作人不能为空");
+        }
+    }
+
+    private String normalizedWithdrawRemark(String remark) {
+        return StringUtils.hasText(remark) ? remark.trim() : "用户主动撤回，未填写补充原因";
+    }
+
+    private void withdrawWorkOrdersAndExecution(List<MfgWorkOrder> workOrders, Long operatorId,
+                                                String remark, LocalDateTime now) {
+        List<Long> workOrderIds = workOrders.stream().map(MfgWorkOrder::getWorkOrderId).toList();
+        List<MfgDispatchOrder> dispatchOrders = activeDispatchOrdersForUpdate(workOrderIds);
+        List<MfgTask> tasks = activeTasksForUpdate(workOrderIds);
+        validateUnexecutedTasks(tasks);
+        validateUnexecutedDispatchOrders(dispatchOrders);
+        rejectExistingExecutionData(workOrderIds, tasks);
+        validateUnusedMaterialRequirements(workOrderIds);
+        closeTasksAndDispatches(tasks, dispatchOrders, operatorId, remark, now);
+        for (MfgWorkOrder workOrder : workOrders) {
+            closeWorkOrder(workOrder, operatorId, remark, now);
+        }
+    }
+
+    private void closeTasksAndDispatches(List<MfgTask> tasks, List<MfgDispatchOrder> dispatchOrders,
+                                         Long operatorId, String remark, LocalDateTime now) {
+        for (MfgTask task : tasks) {
+            closeTask(task, operatorId, remark, now);
+        }
+        for (MfgDispatchOrder dispatchOrder : dispatchOrders) {
+            rejectDispatchOrder(dispatchOrder, operatorId, remark, now);
+        }
+    }
+
+    private void rejectExistingExecutionData(List<Long> workOrderIds, List<MfgTask> tasks) {
+        if (workOrderIds.isEmpty()) {
+            return;
+        }
+        List<Long> taskIds = tasks.stream().map(MfgTask::getTaskId).toList();
+        if (!taskIds.isEmpty() && hasEffectiveWorkReports(taskIds)) {
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产任务已经产生有效报工记录");
+        }
+        if (hasOpenWarehouseOrders(outboundOrderMapper, workOrderIds)
+                || hasOpenWarehouseOrders(returnOrderMapper, workOrderIds)) {
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：已经产生领料或退料单，请先在仓储流程处理对应单据");
+        }
+        if (hasOpenInspectionOrders(workOrderIds)) {
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：已经产生质量检验单");
+        }
+        if (hasActiveRecords(productLotMapper, "work_order_id", workOrderIds)
+                || hasActiveRecords(materialUsageMapper, "work_order_id", workOrderIds)) {
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：已经产生批次或物料追溯记录");
+        }
+    }
+
+    private boolean hasEffectiveWorkReports(List<Long> taskIds) {
+        QueryWrapper<com.neuedu.ems.entity.mfg.MfgWorkReport> query = new QueryWrapper<>();
+        query.in("task_id", taskIds).eq("deleted_flag", 0)
+                .ne("audit_status", BusinessStatus.Document.WITHDRAWN);
+        return workReportMapper.selectCount(query) > 0;
+    }
+
+    private void validateUnusedMaterialRequirements(List<Long> workOrderIds) {
+        if (workOrderIds.isEmpty()) {
+            return;
+        }
+        QueryWrapper<MfgWorkOrderMaterial> query = new QueryWrapper<>();
+        query.in("work_order_id", workOrderIds)
+                .eq("deleted_flag", 0)
+                .last("FOR UPDATE");
+        List<MfgWorkOrderMaterial> requirements = workOrderMaterialMapper.selectList(query);
+        boolean issued = requirements.stream().anyMatch(item -> item.getIssuedQuantity() != null
+                && item.getIssuedQuantity().compareTo(BigDecimal.ZERO) > 0);
+        if (issued) {
+            throw business(ResultCode.BUSINESS_ERROR, "无法撤回：生产工单已经发料");
+        }
+    }
+
+    private void closeTask(MfgTask existing, Long operatorId, String remark, LocalDateTime now) {
+        if (BusinessStatus.Document.CLOSED.equals(existing.getStatus())) {
+            return;
+        }
+        MfgTask update = new MfgTask();
+        update.setTaskId(existing.getTaskId());
+        update.setStatus(BusinessStatus.Document.CLOSED);
+        update.setVersion(existing.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (taskMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产任务已被其他用户修改，请刷新后重试");
+        }
+        insertStatusLog("MFG_TASK", existing.getTaskId(), existing.getStatus(), BusinessStatus.Document.CLOSED,
+                "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+        insertOperationLog("mfg_task", existing.getTaskId(),
+                "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+        responsibilityNotificationService.cancelOpenTaskNotifications(existing.getTaskId(), operatorId);
+    }
+
+    private void rejectDispatchOrder(MfgDispatchOrder existing, Long operatorId, String remark, LocalDateTime now) {
+        if (BusinessStatus.Document.REJECTED.equals(existing.getStatus())) {
+            return;
+        }
+        MfgDispatchOrder update = new MfgDispatchOrder();
+        update.setDispatchId(existing.getDispatchId());
+        update.setStatus(BusinessStatus.Document.REJECTED);
+        update.setVersion(existing.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (dispatchOrderMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "派工单已被其他用户修改，请刷新后重试");
+        }
+        insertStatusLog("MFG_DISPATCH_ORDER", existing.getDispatchId(), existing.getStatus(),
+                BusinessStatus.Document.REJECTED, "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+        insertOperationLog("mfg_dispatch_order", existing.getDispatchId(),
+                "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+    }
+
+    private void closeWorkOrder(MfgWorkOrder existing, Long operatorId, String remark, LocalDateTime now) {
+        MfgWorkOrder update = new MfgWorkOrder();
+        update.setWorkOrderId(existing.getWorkOrderId());
+        update.setStatus(BusinessStatus.Document.CLOSED);
+        update.setVersion(existing.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (workOrderMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产工单已被其他用户修改，请刷新后重试");
+        }
+        if (!BusinessStatus.Document.CLOSED.equals(existing.getStatus())) {
+            insertStatusLog("MFG_WORK_ORDER", existing.getWorkOrderId(), existing.getStatus(),
+                    BusinessStatus.Document.CLOSED, "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+        }
+        insertOperationLog("mfg_work_order", existing.getWorkOrderId(),
+                "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+    }
+
+    private void closePlan(MfgProductionPlan existing, Long operatorId, String remark, LocalDateTime now) {
+        MfgProductionPlan update = new MfgProductionPlan();
+        update.setPlanId(existing.getPlanId());
+        update.setStatus(BusinessStatus.Document.CLOSED);
+        update.setVersion(existing.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (productionPlanMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产计划已被其他用户修改，请刷新后重试");
+        }
+        if (!BusinessStatus.Document.CLOSED.equals(existing.getStatus())) {
+            insertStatusLog("MFG_PRODUCTION_PLAN", existing.getPlanId(), existing.getStatus(),
+                    BusinessStatus.Document.CLOSED, "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+        }
+        insertOperationLog("mfg_production_plan", existing.getPlanId(),
+                "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+    }
+
+    private void restorePlanToDraft(MfgProductionPlan existing, Long operatorId, String remark, LocalDateTime now) {
+        MfgProductionPlan update = new MfgProductionPlan();
+        update.setPlanId(existing.getPlanId());
+        update.setStatus(BusinessStatus.Document.DRAFT);
+        update.setVersion(existing.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (productionPlanMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产计划已被其他用户修改，请刷新后重试");
+        }
+        insertStatusLog("MFG_PRODUCTION_PLAN", existing.getPlanId(), existing.getStatus(),
+                BusinessStatus.Document.DRAFT, "WITHDRAW_UNEXECUTED_PLAN_CHAIN", operatorId, remark, now);
+        insertOperationLog("mfg_production_plan", existing.getPlanId(),
+                "WITHDRAW_UNEXECUTED_PLAN_CHAIN", operatorId, remark, now);
+    }
+
+    private void restoreWorkOrderToDraft(MfgWorkOrder existing, Long operatorId, String remark, LocalDateTime now) {
+        MfgWorkOrder update = new MfgWorkOrder();
+        update.setWorkOrderId(existing.getWorkOrderId());
+        update.setStatus(BusinessStatus.Document.DRAFT);
+        update.setVersion(existing.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (workOrderMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产工单已被其他用户修改，请刷新后重试");
+        }
+        insertStatusLog("MFG_WORK_ORDER", existing.getWorkOrderId(), existing.getStatus(),
+                BusinessStatus.Document.DRAFT, "WITHDRAW_UNEXECUTED_WORK_ORDER_CHAIN", operatorId, remark, now);
+        insertOperationLog("mfg_work_order", existing.getWorkOrderId(),
+                "WITHDRAW_WORK_ORDER", operatorId, remark, now);
+    }
+
+    private void restoreOrderToDraft(MfgProductionOrder existing, Long operatorId, String remark, LocalDateTime now) {
+        MfgProductionOrder update = new MfgProductionOrder();
+        update.setProductionOrderId(existing.getProductionOrderId());
+        update.setStatus(BusinessStatus.Document.DRAFT);
+        update.setVersion(existing.getVersion());
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (baseMapper.updateById(update) == 0) {
+            throw business(ResultCode.DATA_CONFLICT, "生产订单已被其他用户修改，请刷新后重试");
+        }
+        insertStatusLog("MFG_PRODUCTION_ORDER", existing.getProductionOrderId(), existing.getStatus(),
+                BusinessStatus.Document.DRAFT, "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+        insertOperationLog("mfg_production_order", existing.getProductionOrderId(),
+                "WITHDRAW_UNEXECUTED_ORDER_CHAIN", operatorId, remark, now);
+    }
+
+    private boolean positive(BigDecimal value) {
+        return value != null && value.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    private <T> boolean hasActiveRecords(BaseMapper<T> mapper, String field, List<Long> values) {
+        QueryWrapper<T> query = new QueryWrapper<>();
+        query.in(field, values).eq("deleted_flag", 0);
+        return mapper.selectCount(query) > 0;
+    }
+
+    private <T> boolean hasOpenWarehouseOrders(BaseMapper<T> mapper, List<Long> workOrderIds) {
+        QueryWrapper<T> query = new QueryWrapper<>();
+        query.in("work_order_id", workOrderIds).eq("deleted_flag", 0)
+                .ne("audit_status", BusinessStatus.Document.CLOSED);
+        return mapper.selectCount(query) > 0;
+    }
+
+    private boolean hasOpenInspectionOrders(List<Long> workOrderIds) {
+        QueryWrapper<com.neuedu.ems.entity.qms.QmsInspectionOrder> query = new QueryWrapper<>();
+        query.in("work_order_id", workOrderIds).eq("deleted_flag", 0)
+                .ne("status", BusinessStatus.Document.CLOSED);
+        return inspectionOrderMapper.selectCount(query) > 0;
+    }
+
+    private void insertStatusLog(String bizType, Long bizId, String oldStatus, String newStatus, String reason,
                                  Long operatorId, String remark, LocalDateTime now) {
         SysStatusChangeLog log = new SysStatusChangeLog();
-        log.setBizType("MFG_PRODUCTION_ORDER");
+        log.setBizType(bizType);
         log.setBizId(bizId);
         log.setOldStatus(oldStatus);
         log.setNewStatus(newStatus);
@@ -210,11 +712,12 @@ public class MfgProductionOrderServiceImpl extends ServiceImpl<MfgProductionOrde
         if (sysStatusChangeLogMapper.insert(log) == 0) throw new BusinessException(ResultCode.FAILED);
     }
 
-    private void insertOperationLog(Long bizId, String type, Long operatorId, String remark, LocalDateTime now) {
+    private void insertOperationLog(String moduleCode, Long bizId, String type,
+                                    Long operatorId, String remark, LocalDateTime now) {
         SysOperationLog log = new SysOperationLog();
         log.setUserId(operatorId);
         log.setOperationType(type);
-        log.setModuleCode("mfg_production_order");
+        log.setModuleCode(moduleCode);
         log.setBizId(bizId);
         log.setOperationTime(now);
         log.setRemark(remark);

@@ -36,7 +36,7 @@ Page({
 
   onShow() {
     if (!guard.requireAuth()) return
-    this.setData({ canCreate: auth.hasPermission('qms:nonconforming-order:create') })
+    this.setData({ canCreate: auth.hasPermission('qms:nonconforming-order:generate') })
     if (!this.data.loading) this.loadPage(true)
   },
 
@@ -95,7 +95,7 @@ Page({
   },
 
   openForm() {
-    if (!guard.requirePermission('qms:nonconforming-order:create')) return
+    if (!guard.requirePermission('qms:nonconforming-order:generate')) return
     wx.navigateTo({ url: '/pages/quality/defect-form/index' })
   },
 

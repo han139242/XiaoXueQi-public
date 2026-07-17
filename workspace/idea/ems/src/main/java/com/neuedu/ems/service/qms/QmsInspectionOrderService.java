@@ -31,7 +31,8 @@ public interface QmsInspectionOrderService extends IService<QmsInspectionOrder> 
      */
     Page<QmsInspectionOrder> pageInspectionOrders(Integer current, Integer size, String keyword, String inspectionType,
                                                   Long schemeId, Long workOrderId, Long taskId, Long reportId,
-                                                  Long batchId, Long inspectorId, String status, String inspectionResult);
+                                                  Long batchId, Long productLotId, Long inspectorId,
+                                                  String status, String inspectionResult);
 
     /**
      * 查询检验单列表，支持单号、类型、方案、工单、任务、报工、批次、检验员、状态和结果筛选。
@@ -48,7 +49,7 @@ public interface QmsInspectionOrderService extends IService<QmsInspectionOrder> 
      * @return 检验单列表
      */
     List<QmsInspectionOrder> listInspectionOrders(String keyword, String inspectionType, Long schemeId, Long workOrderId,
-                                                  Long taskId, Long reportId, Long batchId, Long inspectorId,
+                                                  Long taskId, Long reportId, Long batchId, Long productLotId, Long inspectorId,
                                                   String status, String inspectionResult);
 
     /**
@@ -94,6 +95,8 @@ public interface QmsInspectionOrderService extends IService<QmsInspectionOrder> 
      * @return 是否成功
      */
     boolean removeInspectionOrderById(Long inspectionId);
+
+    void withdrawInspectionOrder(Long inspectionId, Long operatorId, String remark);
 
     /**
      * 提交检验单结果并结束检验单。

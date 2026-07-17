@@ -1,8 +1,10 @@
 package com.neuedu.ems.entity.mdm;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -23,7 +25,12 @@ public class MdmCustomer {
     private String customerCode;
     private String customerName;
     private String contactName;
+    /** 数据库存储 AES-GCM 密文，HTTP 响应必须通过 MdmCustomerView 返回。 */
+    @JsonIgnore
     private String contactPhone;
+    @JsonIgnore
+    @TableField("contact_phone_lookup_hash")
+    private String contactPhoneLookupHash;
     private String status;
     private String remark;
     private Integer version;

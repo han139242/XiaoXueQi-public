@@ -3,6 +3,7 @@ package com.neuedu.ems.service.mfg;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.neuedu.ems.entity.mfg.MfgDispatchOrder;
+import com.neuedu.ems.entity.mfg.MfgTask;
 
 import java.util.List;
 
@@ -61,4 +62,12 @@ public interface MfgDispatchOrderService extends IService<MfgDispatchOrder> {
      * @return 操作是否成功
      */
     boolean removeDispatchOrderById(Long dispatchId);
+
+    MfgDispatchOrder generateDispatchOrder(Long workOrderId, MfgDispatchOrder request, Long operatorId);
+
+    List<MfgTask> releaseDispatchOrder(Long dispatchId, Long operatorId, String remark);
+
+    void refreshMaterialReadiness(Long workOrderId, Long operatorId);
+
+    void withdrawDispatchOrder(Long dispatchId, Long operatorId, String remark);
 }

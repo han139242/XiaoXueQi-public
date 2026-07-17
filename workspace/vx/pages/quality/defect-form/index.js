@@ -71,11 +71,11 @@ Page({
     if (!guard.requireAuth()) return
     const permission = this.data.mode === 'detail'
       ? 'qms:nonconforming-order:update'
-      : 'qms:nonconforming-order:create'
+      : 'qms:nonconforming-order:generate'
     const canSave = auth.hasPermission(permission)
     this.setData({ canSave })
     if (!canSave && this.data.mode !== 'detail') {
-      wx.showToast({ title: '当前账号无新增权限', icon: 'none' })
+      wx.showToast({ title: '当前账号无发起处置权限', icon: 'none' })
       setTimeout(() => wx.navigateBack(), 300)
     }
   },
@@ -259,7 +259,7 @@ Page({
   },
 
   async submit() {
-    const permission = this.data.form.ncrId ? 'qms:nonconforming-order:update' : 'qms:nonconforming-order:create'
+    const permission = this.data.form.ncrId ? 'qms:nonconforming-order:update' : 'qms:nonconforming-order:generate'
     if (!guard.requirePermission(permission)) return
     if (this.data.submitting) return
     const message = this.validate()
@@ -272,7 +272,6 @@ Page({
       const form = this.data.form
       if (!form.ncrId) await this.loadInspection(form.inspectionId)
       const payload = {
-        productLotId: form.productLotId ? Number(form.productLotId) : null,
         defectReason: String(form.defectReason || '').trim(),
         dispositionType: form.dispositionType,
         remark: String(form.remark || '').trim()
@@ -281,8 +280,7 @@ Page({
       if (form.ncrId) {
         await qualityApi.updateNonconforming(form.ncrId, payload)
       } else {
-        payload.inspectionId = Number(form.inspectionId)
-        const created = await qualityApi.createNonconforming(payload)
+        const created = await qualityApi.generateNonconforming(Number(form.inspectionId), payload)
         ncrId = created && created.ncrId ? created.ncrId : created && created.ncrId === 0 ? 0 : null
         if (!ncrId) throw new Error('不良品记录已提交，但未返回记录编号')
         this.setData({ 'form.ncrId': ncrId, associationLocked: true })

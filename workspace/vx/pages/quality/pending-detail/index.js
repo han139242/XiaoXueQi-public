@@ -62,7 +62,7 @@ Page({
     if (!guard.requireAuth()) return
     this.setData({
       canSubmit: auth.hasPermission('qms:inspection-order:submit'),
-      canCreateDefect: auth.hasPermission('qms:nonconforming-order:create')
+      canCreateDefect: auth.hasPermission('qms:nonconforming-order:generate')
     })
     if (this.data.inspectionId && !this.data.loading) this.loadDetail()
   },

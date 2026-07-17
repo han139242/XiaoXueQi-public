@@ -45,34 +45,30 @@ public interface WmsReturnOrderService extends IService<WmsReturnOrder> {
     WmsReturnOrder getReturnOrderById(Long returnId);
 
     /**
-     * 新增退料单。
-     * @param returnOrder 退料单实体
-     * @return 是否成功
-     */
-    boolean saveReturnOrder(WmsReturnOrder returnOrder);
-
-    /**
      * 新增退料单并保存明细。
      * @param returnOrder 退料单实体
      * @param details 退料明细列表
+     * @param operatorId 当前登录用户ID
      * @return 退料单ID
      */
-    Long saveReturnOrderFull(WmsReturnOrder returnOrder, List<WmsReturnDetail> details);
+    Long saveReturnOrderFull(WmsReturnOrder returnOrder, List<WmsReturnDetail> details, Long operatorId);
 
     /**
      * 更新退料单。
      * @param returnOrder 退料单实体
+     * @param operatorId 当前登录用户ID
      * @return 是否成功
      */
-    boolean updateReturnOrder(WmsReturnOrder returnOrder);
+    boolean updateReturnOrder(WmsReturnOrder returnOrder, Long operatorId);
 
     /**
      * 更新退料单并替换明细。
      * @param returnOrder 退料单实体
      * @param details 退料明细列表
+     * @param operatorId 当前登录用户ID
      * @return 是否成功
      */
-    boolean updateReturnOrderFull(WmsReturnOrder returnOrder, List<WmsReturnDetail> details);
+    boolean updateReturnOrderFull(WmsReturnOrder returnOrder, List<WmsReturnDetail> details, Long operatorId);
 
     /**
      * 根据ID软删除退料单和明细。
@@ -80,6 +76,8 @@ public interface WmsReturnOrderService extends IService<WmsReturnOrder> {
      * @return 是否成功
      */
     boolean removeReturnOrderById(Long returnId);
+
+    void withdrawReturnOrder(Long returnId, Long operatorId, String remark);
 
     /**
      * 确认退料入库，回加库存并写入库存流水。
