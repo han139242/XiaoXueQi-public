@@ -10,7 +10,6 @@ const PAGE_PERMISSIONS = {
   'pages/task/index/index': 'mfg:task:view',
   'pages/task/detail/index': 'mfg:task:view',
   'pages/task/finish/index': 'mfg:task:finish',
-  'pages/dashboard/index': 'dashboard:summary:view',
   'pages/report/index/index': 'mfg:work-report:view',
   'pages/report/detail/index': 'mfg:work-report:view',
   'pages/report/form/index': 'mfg:work-report:create',

@@ -65,8 +65,13 @@ public class MfgTaskController {
                            @RequestParam(required = false) Long operationId,
                            @RequestParam(required = false) Long stationId,
                            @RequestParam(required = false) Long employeeId,
-                           @RequestParam(required = false) String sort) {
-        Page<MfgTask> result = mfgTaskService.pageTasks(current, size, keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort);
+                           @RequestParam(required = false) String sort,
+                           @RequestParam(defaultValue = "false") boolean fullView) {
+        Page<MfgTask> result = fullView
+                ? mfgTaskService.pageTasksForView(current, size, keyword, status, dispatchId, workOrderId,
+                operationId, stationId, employeeId, sort)
+                : mfgTaskService.pageTasks(current, size, keyword, status, dispatchId, workOrderId,
+                operationId, stationId, employeeId, sort);
         return ResultData.success(ResultCode.SUCCESS, result);
     }
 
@@ -81,8 +86,9 @@ public class MfgTaskController {
      * @return 生产任务实体信息
      */
     @GetMapping("/{taskId}")
-    public ResultData getTask(@PathVariable("taskId") Long taskId) {
-        MfgTask task = mfgTaskService.getTaskById(taskId);
+    public ResultData getTask(@PathVariable("taskId") Long taskId,
+                              @RequestParam(defaultValue = "false") boolean fullView) {
+        MfgTask task = fullView ? mfgTaskService.getTaskForView(taskId) : mfgTaskService.getTaskById(taskId);
         return ResultData.success(ResultCode.SUCCESS, task);
     }
 

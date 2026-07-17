@@ -35,6 +35,8 @@ public class MfgTask {
     private BigDecimal reportedQualifiedQuantity;
     @TableField(exist = false)
     private BigDecimal reportedDefectQuantity;
+    @TableField(exist = false)
+    private Boolean assignedToCurrentUser;
     private String status;
     private String remark;
     @Version

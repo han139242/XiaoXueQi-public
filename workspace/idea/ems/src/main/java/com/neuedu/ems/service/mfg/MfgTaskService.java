@@ -30,6 +30,12 @@ public interface MfgTaskService extends IService<MfgTask> {
                             Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort);
 
     /**
+     * 分页查询完整只读任务视图，不按当前账号的数据范围截断结果。
+     */
+    Page<MfgTask> pageTasksForView(Integer current, Integer size, String keyword, String status,
+                                   Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort);
+
+    /**
      * 查询生产任务列表，支持任务编号、状态、派工单、工单、工序和工位筛选。
      * @param keyword 关键字（匹配任务编号）
      * @param status 任务状态
@@ -49,6 +55,11 @@ public interface MfgTaskService extends IService<MfgTask> {
      * @return 生产任务实体
      */
     MfgTask getTaskById(Long taskId);
+
+    /**
+     * 查询完整只读任务详情，写操作仍必须使用受数据范围约束的 {@link #getTaskById(Long)}。
+     */
+    MfgTask getTaskForView(Long taskId);
 
     /**
      * 新增生产任务。

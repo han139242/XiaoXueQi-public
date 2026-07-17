@@ -1,7 +1,6 @@
 package com.neuedu.ems.entity.qms;
 
 import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
@@ -31,13 +30,9 @@ public class QmsInspectionOrder {
     private Long reportId;
     private Long batchId;
     private Long inspectorId;
-    @TableField(exist = false)
     private BigDecimal sampleQuantity;
-    @TableField(exist = false)
     private BigDecimal qualifiedQuantity;
-    @TableField(exist = false)
     private BigDecimal unqualifiedQuantity;
-    @TableField(exist = false)
     private LocalDateTime inspectionTime;
     private String inspectionResult;
     private String status;

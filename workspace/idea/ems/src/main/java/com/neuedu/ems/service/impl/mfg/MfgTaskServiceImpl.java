@@ -7,12 +7,16 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.common.BusinessStatus;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.mfg.MfgWorkOrder;
+import com.neuedu.ems.entity.process.ProcessRouteItem;
 import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgTaskService;
@@ -28,6 +32,7 @@ import java.util.List;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.time.LocalDateTime;
 
 /**
@@ -51,6 +56,12 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     @Autowired
     private MfgWorkReportMapper mfgWorkReportMapper;
 
+    @Autowired
+    private MfgWorkOrderMapper mfgWorkOrderMapper;
+
+    @Autowired
+    private ProcessRouteItemMapper processRouteItemMapper;
+
     /**
      * 分页查询生产任务列表，支持任务编号、状态、派工单、工单、工序和工位筛选。
      * @param current 当前页码
@@ -71,7 +82,19 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         Page<MfgTask> page = new Page<>(current, size);
         Page<MfgTask> result = baseMapper.selectPage(page,
                 buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
-        enrichReportedQuantities(result.getRecords());
+        enrichTaskView(result.getRecords());
+        return result;
+    }
+
+    @Override
+    public Page<MfgTask> pageTasksForView(Integer current, Integer size, String keyword, String status,
+                                          Long dispatchId, Long workOrderId, Long operationId, Long stationId,
+                                          Long employeeId, String sort) {
+        Page<MfgTask> page = new Page<>(current, size);
+        Page<MfgTask> result = baseMapper.selectPage(page,
+                buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId,
+                        employeeId, sort, false));
+        enrichTaskView(result.getRecords());
         return result;
     }
 
@@ -91,7 +114,7 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
     public List<MfgTask> listTasks(String keyword, String status, Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort) {
         List<MfgTask> tasks = baseMapper.selectList(
                 buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId, employeeId, sort));
-        enrichReportedQuantities(tasks);
+        enrichTaskView(tasks);
         return tasks;
     }
 
@@ -112,8 +135,36 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 .eq(MfgTask::getTaskId, taskId).eq(MfgTask::getDeletedFlag, 0)) > 0) {
             throw new DataScopeAccessDeniedException();
         }
-        enrichReportedQuantities(task == null ? Collections.emptyList() : Collections.singletonList(task));
+        enrichTaskView(task == null ? Collections.emptyList() : Collections.singletonList(task));
         return task;
+    }
+
+    @Override
+    public MfgTask getTaskForView(Long taskId) {
+        MfgTask task = baseMapper.selectOne(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getTaskId, taskId)
+                .eq(MfgTask::getDeletedFlag, 0));
+        enrichTaskView(task == null ? Collections.emptyList() : Collections.singletonList(task));
+        return task;
+    }
+
+    private void enrichTaskView(List<MfgTask> tasks) {
+        enrichReportedQuantities(tasks);
+        markCurrentUserAssignments(tasks);
+    }
+
+    private void markCurrentUserAssignments(List<MfgTask> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return;
+        }
+        if (dataScopeService == null) {
+            tasks.forEach(task -> task.setAssignedToCurrentUser(true));
+            return;
+        }
+        Set<Long> operableTaskIds = dataScopeService.findOperableTaskIds(
+                tasks.stream().map(MfgTask::getTaskId).filter(java.util.Objects::nonNull).toList());
+        tasks.forEach(task -> task.setAssignedToCurrentUser(
+                task.getTaskId() != null && operableTaskIds.contains(task.getTaskId())));
     }
 
     private void enrichReportedQuantities(List<MfgTask> tasks) {
@@ -156,9 +207,34 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      */
     @Override
     public boolean saveTask(MfgTask task) {
+        if (task == null || task.getWorkOrderId() == null || task.getOperationId() == null) {
+            return false;
+        }
         if (dataScopeService != null) {
             dataScopeService.assertCanCreateTask(task);
         }
+        MfgWorkOrder workOrder = mfgWorkOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, task.getWorkOrderId())
+                .eq(MfgWorkOrder::getDeletedFlag, 0));
+        if (workOrder == null || !StringUtils.hasText(workOrder.getWorkOrderNo())
+                || !workOrder.getWorkOrderNo().matches("^WO-[0-9]{8}-[0-9]{3}-[0-9]+$")
+                || workOrder.getRouteId() == null) {
+            return false;
+        }
+        ProcessRouteItem routeItem = processRouteItemMapper.selectOne(new LambdaQueryWrapper<ProcessRouteItem>()
+                .eq(ProcessRouteItem::getRouteId, workOrder.getRouteId())
+                .eq(ProcessRouteItem::getOperationId, task.getOperationId())
+                .eq(ProcessRouteItem::getDeletedFlag, 0));
+        if (routeItem == null || routeItem.getSequenceNo() == null
+                || routeItem.getSequenceNo() <= 0 || routeItem.getSequenceNo() > 999
+                || baseMapper.selectCount(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getWorkOrderId, task.getWorkOrderId())
+                .eq(MfgTask::getOperationId, task.getOperationId())
+                .eq(MfgTask::getDeletedFlag, 0)) > 0) {
+            return false;
+        }
+        task.setTaskNo("TASK-" + workOrder.getWorkOrderNo().substring("WO-".length())
+                + "-" + String.format("%03d", routeItem.getSequenceNo()));
         if (task.getDeletedFlag() == null) {
             task.setDeletedFlag(0);
         }
@@ -183,6 +259,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             return false;
         }
         task.setDeletedFlag(null);
+        task.setTaskNo(null);
+        task.setWorkOrderId(null);
+        task.setOperationId(null);
         task.setStatus(null);
         task.setCompletedQuantity(null);
         task.setDefectQuantity(null);
@@ -223,6 +302,12 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         if (existing == null || operatorId == null || !BusinessStatus.Production.WAIT_START.equals(existing.getStatus())) {
             return false;
         }
+        MfgWorkOrder workOrder = mfgWorkOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
+                .eq(MfgWorkOrder::getWorkOrderId, existing.getWorkOrderId())
+                .eq(MfgWorkOrder::getDeletedFlag, 0));
+        if (workOrder == null || !BusinessStatus.Production.RUNNING.equals(workOrder.getStatus())) {
+            return false;
+        }
         MfgTask task = new MfgTask();
         task.setTaskId(taskId);
         task.setVersion(existing.getVersion());
@@ -261,6 +346,14 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 || BusinessStatus.Production.PAUSED.equals(existing.getStatus()));
         if (!finishable || operatorId == null || completedQuantity == null || completedQuantity.signum() < 0
                 || defectQuantity == null || defectQuantity.signum() < 0) {
+            return false;
+        }
+        long reportCount = mfgWorkReportMapper.selectCount(new LambdaQueryWrapper<MfgWorkReport>()
+                .eq(MfgWorkReport::getTaskId, taskId)
+                .eq(MfgWorkReport::getDeletedFlag, 0)
+                .in(MfgWorkReport::getAuditStatus,
+                        BusinessStatus.Document.SUBMITTED, BusinessStatus.Document.APPROVED));
+        if (reportCount == 0) {
             return false;
         }
         MfgTask task = new MfgTask();
@@ -308,6 +401,14 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
      */
     private LambdaQueryWrapper<MfgTask> buildTaskQuery(String keyword, String status,
                                                        Long dispatchId, Long workOrderId, Long operationId, Long stationId, Long employeeId, String sort) {
+        return buildTaskQuery(keyword, status, dispatchId, workOrderId, operationId, stationId,
+                employeeId, sort, true);
+    }
+
+    private LambdaQueryWrapper<MfgTask> buildTaskQuery(String keyword, String status,
+                                                       Long dispatchId, Long workOrderId, Long operationId,
+                                                       Long stationId, Long employeeId, String sort,
+                                                       boolean applyCurrentDataScope) {
         LambdaQueryWrapper<MfgTask> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(MfgTask::getDeletedFlag, 0)
                 .like(StringUtils.hasText(keyword), MfgTask::getTaskNo, keyword)
@@ -323,7 +424,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                     "SELECT work_order_id FROM mfg_work_order WHERE deleted_flag = 0 "
                             + "AND status IN ('RUNNING', 'FINISHED', 'CLOSED')");
         }
-        applyDataScope(queryWrapper);
+        if (applyCurrentDataScope) {
+            applyDataScope(queryWrapper);
+        }
         if ("oldest".equalsIgnoreCase(sort)) {
             queryWrapper.orderByAsc(MfgTask::getCreatedTime);
         } else {

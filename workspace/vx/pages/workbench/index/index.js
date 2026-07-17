@@ -4,7 +4,6 @@ const auth = require('../../../utils/auth')
 
 Page({
   data: {
-    canDashboard: false,
     canWorkOrder: false,
     canTask: false,
     canReport: false,
@@ -33,7 +32,6 @@ Page({
     const canEquipment = auth.hasPermission('eam:equipment:view')
     const canRepair = auth.hasPermission('eam:repair-order:view')
     this.setData({
-      canDashboard: auth.hasPermission('dashboard:summary:view'),
       canWorkOrder: auth.hasPermission('mfg:work-order:view'),
       canTask: auth.hasPermission('mfg:task:view'),
       canReport: auth.hasPermission('mfg:work-report:view'),

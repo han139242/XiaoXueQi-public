@@ -27,6 +27,23 @@ function createError(message, body, statusCode) {
   return error
 }
 
+function networkErrorMessage(error) {
+  const detail = String(error && (error.errMsg || error.message) || '')
+  if (/url not in domain list|domain.*(invalid|not configured|not allowed)/i.test(detail)) {
+    return '请求域名未授权，请使用真机调试或配置 HTTPS 合法域名'
+  }
+  if (/timeout/i.test(detail)) {
+    return '连接后端超时，请确认电脑上的 MES 后端和 Tailscale Funnel 正常运行'
+  }
+  if (/connection refused|err_connection_refused|unable to connect|failed to connect/i.test(detail)) {
+    return '无法连接 MES 后端，请确认电脑后端已启动'
+  }
+  if (/ssl|certificate|handshake/i.test(detail)) {
+    return '后端 HTTPS 证书校验失败'
+  }
+  return detail ? '网络连接失败：' + detail.replace(/^request:fail\s*/i, '') : '网络连接失败'
+}
+
 function request(options) {
   const config = options || {}
   const token = auth.getToken()
@@ -61,7 +78,7 @@ function request(options) {
       success(res) {
         const body = res.data || {}
         if (res.statusCode === 401 || Number(body.code) === 1002) {
-          redirectToLogin()
+          if (!config.skipAuthRedirect) redirectToLogin()
           reject(createError('登录已失效', body, res.statusCode))
           return
         }
@@ -83,8 +100,11 @@ function request(options) {
         resolve(config.raw ? body : body.data)
       },
       fail(error) {
-        if (!config.silent) wx.showToast({ title: '网络异常，请稍后重试', icon: 'none' })
-        reject(error)
+        const message = networkErrorMessage(error)
+        if (!config.silent) wx.showToast({ title: message, icon: 'none', duration: 3500 })
+        const requestError = createError(message, { detail: error && error.errMsg }, null)
+        requestError.errMsg = error && error.errMsg
+        reject(requestError)
       }
     })
   })

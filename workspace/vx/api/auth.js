@@ -5,12 +5,16 @@ function login(data) {
     url: '/api/auth/login',
     method: 'POST',
     data,
-    raw: true
+    raw: true,
+    timeout: 30000
   })
 }
 
-function info() {
-  return request({ url: '/api/auth/info' })
+function info(options) {
+  return request(Object.assign({
+    url: '/api/auth/info',
+    timeout: 30000
+  }, options || {}))
 }
 
 function logout() {

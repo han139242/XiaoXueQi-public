@@ -11,6 +11,7 @@ import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.process.ProcessRouteItem;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.mapper.mfg.MfgReportMaterialMapper;
@@ -19,9 +20,11 @@ import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
 import com.neuedu.ems.service.mfg.MfgWorkReportService;
+import com.neuedu.ems.service.mfg.MfgTaskService;
 import com.neuedu.ems.service.sys.DataScopeService;
 import com.neuedu.ems.exception.DataScopeAccessDeniedException;
 import com.neuedu.ems.exception.BusinessException;
@@ -56,6 +59,9 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
     private MfgTaskMapper mfgTaskMapper;
 
     @Autowired
+    private MfgTaskService mfgTaskService;
+
+    @Autowired
     private MfgWorkOrderMapper mfgWorkOrderMapper;
 
     @Autowired
@@ -63,6 +69,9 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
 
     @Autowired
     private MfgProductionOrderMapper mfgProductionOrderMapper;
+
+    @Autowired
+    private ProcessRouteItemMapper processRouteItemMapper;
 
     @Autowired(required = false)
     private DataScopeService dataScopeService;
@@ -132,11 +141,12 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         if (workReport == null) {
             throw business(ResultCode.PARAM_ERROR, "报工信息不能为空");
         }
-        prepareWorkReport(workReport);
+        MfgTask task = prepareWorkReport(workReport);
         validateWorkReport(workReport);
         if (dataScopeService != null) {
             dataScopeService.assertCanWriteWorkReport(workReport);
         }
+        validateTaskReportQuantity(task, workReport);
         return baseMapper.insert(workReport) > 0;
     }
 
@@ -236,7 +246,37 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         if (responsibilityNotificationService != null) {
             responsibilityNotificationService.publishWorkReportSubmitted(workReport, currentUserId);
         }
+        finishTaskWhenReportedQuantityReached(workReport, currentUserId);
         return reportId;
+    }
+
+    /**
+     * 累计有效报工达到计划数量时自动完成任务，避免任务数量达标后仍停留在生产中。
+     */
+    private void finishTaskWhenReportedQuantityReached(MfgWorkReport workReport, Long operatorId) {
+        MfgTask task = activeTask(workReport.getTaskId());
+        if (task == null || !BusinessStatus.Production.RUNNING.equals(task.getStatus())) {
+            return;
+        }
+        List<MfgWorkReport> reports = baseMapper.selectList(new LambdaQueryWrapper<MfgWorkReport>()
+                .eq(MfgWorkReport::getTaskId, task.getTaskId())
+                .eq(MfgWorkReport::getDeletedFlag, 0)
+                .in(MfgWorkReport::getAuditStatus, SUBMITTED_STATUS, APPROVED_STATUS));
+        BigDecimal qualified = reports.stream()
+                .map(MfgWorkReport::getQualifiedQuantity)
+                .map(this::zero)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal defect = reports.stream()
+                .map(MfgWorkReport::getDefectQuantity)
+                .map(this::zero)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (qualified.add(defect).compareTo(zero(task.getPlannedQuantity())) < 0) {
+            return;
+        }
+        if (!mfgTaskService.finishTask(task.getTaskId(), qualified, defect,
+                "累计报工达到任务计划数量，系统自动完工", operatorId)) {
+            throw business(ResultCode.DATA_CONFLICT, "报工已达标，但任务自动完工失败，请刷新后重试");
+        }
     }
 
     /**
@@ -294,8 +334,11 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
                 .contains(workOrder.getStatus())) {
             throw business(ResultCode.BUSINESS_ERROR, "报工关联的生产工单不存在或当前状态不可审核");
         }
-        BigDecimal currentApproved = approvedQuantity(workOrder.getWorkOrderId());
-        BigDecimal candidate = currentApproved.add(zero(report.getQualifiedQuantity()));
+        Long finalOperationId = finalOperationId(workOrder.getRouteId());
+        BigDecimal currentApproved = approvedQuantity(workOrder, finalOperationId);
+        BigDecimal candidate = finalOperationId.equals(task.getOperationId())
+                ? currentApproved.add(zero(report.getQualifiedQuantity()))
+                : currentApproved;
         if (candidate.compareTo(workOrder.getPlannedQuantity()) > 0) {
             throw business(ResultCode.BUSINESS_ERROR, "累计审核合格数量不能超过工单计划数量");
         }
@@ -303,7 +346,7 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
     }
 
     private void aggregateWorkOrder(MfgWorkOrder workOrder, Long operatorId, LocalDateTime now) {
-        BigDecimal completed = approvedQuantity(workOrder.getWorkOrderId());
+        BigDecimal completed = approvedQuantity(workOrder, finalOperationId(workOrder.getRouteId()));
         if (completed.compareTo(workOrder.getPlannedQuantity()) > 0) {
             throw business(ResultCode.BUSINESS_ERROR, "累计审核合格数量不能超过工单计划数量");
         }
@@ -395,16 +438,32 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
     }
 
-    private BigDecimal approvedQuantity(Long workOrderId) {
+    private BigDecimal approvedQuantity(MfgWorkOrder workOrder, Long finalOperationId) {
         LambdaQueryWrapper<MfgWorkReport> query = new LambdaQueryWrapper<>();
         query.eq(MfgWorkReport::getDeletedFlag, 0)
                 .eq(MfgWorkReport::getAuditStatus, APPROVED_STATUS)
                 .inSql(MfgWorkReport::getTaskId,
-                        "SELECT task_id FROM mfg_task WHERE deleted_flag = 0 AND work_order_id = " + workOrderId);
+                        "SELECT task_id FROM mfg_task WHERE deleted_flag = 0 AND work_order_id = "
+                                + workOrder.getWorkOrderId() + " AND operation_id = " + finalOperationId);
         return baseMapper.selectList(query).stream()
                 .map(MfgWorkReport::getQualifiedQuantity)
                 .map(this::zero)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private Long finalOperationId(Long routeId) {
+        if (routeId == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单未配置工艺路线");
+        }
+        ProcessRouteItem routeItem = processRouteItemMapper.selectOne(new LambdaQueryWrapper<ProcessRouteItem>()
+                .eq(ProcessRouteItem::getRouteId, routeId)
+                .eq(ProcessRouteItem::getDeletedFlag, 0)
+                .orderByDesc(ProcessRouteItem::getSequenceNo)
+                .last("LIMIT 1"));
+        if (routeItem == null || routeItem.getOperationId() == null) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产工单工艺路线缺少有效工序");
+        }
+        return routeItem.getOperationId();
     }
 
     private MfgTask activeTask(Long taskId) {
@@ -481,10 +540,16 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
      * 补齐报工默认值。
      * @param workReport 报工实体
      */
-    private void prepareWorkReport(MfgWorkReport workReport) {
-        if (!StringUtils.hasText(workReport.getReportNo())) {
-            workReport.setReportNo("WR" + System.currentTimeMillis());
+    private MfgTask prepareWorkReport(MfgWorkReport workReport) {
+        MfgTask task = activeTaskForUpdate(workReport.getTaskId());
+        if (task == null || !StringUtils.hasText(task.getTaskNo())
+                || !task.getTaskNo().matches("^TASK-[0-9]{8}-[0-9]{3}-[0-9]+-[0-9]{3}$")) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产任务不存在或任务编号不符合标准");
         }
+        if (!BusinessStatus.Production.RUNNING.equals(task.getStatus())) {
+            throw business(ResultCode.BUSINESS_ERROR, "只有生产中的任务允许报工");
+        }
+        workReport.setReportNo(nextReportNo(task.getTaskNo()));
         if (workReport.getQualifiedQuantity() == null) {
             workReport.setQualifiedQuantity(BigDecimal.ZERO);
         }
@@ -501,6 +566,25 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         if (workReport.getDeletedFlag() == null) {
             workReport.setDeletedFlag(0);
         }
+        return task;
+    }
+
+    private MfgTask activeTaskForUpdate(Long taskId) {
+        return taskId == null ? null : mfgTaskMapper.selectOne(new LambdaQueryWrapper<MfgTask>()
+                .eq(MfgTask::getTaskId, taskId)
+                .eq(MfgTask::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+    }
+
+    private String nextReportNo(String taskNo) {
+        String baseReportNo = "WR-" + taskNo.substring("TASK-".length());
+        String candidate = baseReportNo;
+        int sequence = 2;
+        while (baseMapper.selectCount(new LambdaQueryWrapper<MfgWorkReport>()
+                .eq(MfgWorkReport::getReportNo, candidate)) > 0) {
+            candidate = baseReportNo + "-" + sequence++;
+        }
+        return candidate;
     }
 
     private void validateWorkReport(MfgWorkReport workReport) {
@@ -515,6 +599,26 @@ public class MfgWorkReportServiceImpl extends ServiceImpl<MfgWorkReportMapper, M
         }
         if (qualified.add(defect).signum() <= 0) {
             throw business(ResultCode.PARAM_ERROR, "报工数量必须大于 0");
+        }
+    }
+
+    private void validateTaskReportQuantity(MfgTask task, MfgWorkReport workReport) {
+        BigDecimal planned = zero(task.getPlannedQuantity());
+        if (planned.signum() <= 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "生产任务计划数量必须大于 0");
+        }
+        BigDecimal reported = baseMapper.selectList(new LambdaQueryWrapper<MfgWorkReport>()
+                        .eq(MfgWorkReport::getTaskId, task.getTaskId())
+                        .eq(MfgWorkReport::getDeletedFlag, 0)
+                        .in(MfgWorkReport::getAuditStatus, SUBMITTED_STATUS, APPROVED_STATUS))
+                .stream()
+                .map(report -> zero(report.getQualifiedQuantity()).add(zero(report.getDefectQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal candidate = reported
+                .add(zero(workReport.getQualifiedQuantity()))
+                .add(zero(workReport.getDefectQuantity()));
+        if (candidate.compareTo(planned) > 0) {
+            throw business(ResultCode.BUSINESS_ERROR, "累计报工数量不能超过任务计划数量");
         }
     }
 

@@ -33,6 +33,25 @@ function compareTasks(left, right) {
   return Number(left.taskId || 0) - Number(right.taskId || 0)
 }
 
+function progressTaskScore(task) {
+  const statusScore = { RUNNING: 50, PAUSED: 45, FINISHED: 40, WAIT_START: 30, CLOSED: 10 }
+  const normalizedNumberBonus = /-\d{3}$/.test(String(task.taskNo || '')) ? 5 : 0
+  return (statusScore[task.status] || 0) + normalizedNumberBonus
+}
+
+function selectProgressTasks(records) {
+  const selected = {}
+  records.forEach((task) => {
+    const key = task.operationId == null ? 'task-' + task.taskId : 'operation-' + task.operationId
+    const current = selected[key]
+    if (!current || progressTaskScore(task) > progressTaskScore(current)
+      || (progressTaskScore(task) === progressTaskScore(current) && Number(task.taskId) < Number(current.taskId))) {
+      selected[key] = task
+    }
+  })
+  return Object.keys(selected).map((key) => selected[key])
+}
+
 Page({
   data: {
     id: null,
@@ -74,11 +93,24 @@ Page({
     this.loadData().finally(() => wx.stopPullDownRefresh())
   },
 
+  copyTaskNo() {
+    const taskNo = this.data.task && this.data.task.taskNo
+    if (!taskNo) {
+      wx.showToast({ title: '暂无任务编号', icon: 'none' })
+      return
+    }
+    wx.setClipboardData({
+      data: String(taskNo),
+      success: () => wx.showToast({ title: '任务编号已复制', icon: 'success' }),
+      fail: () => wx.showToast({ title: '复制失败，请重试', icon: 'none' })
+    })
+  },
+
   async startTask(event) {
     if (!guard.requirePermission('mfg:task:start')) return
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
-    if (this.data.submitting || !target || target.status !== 'WAIT_START') return
+    if (this.data.submitting || !target || target.assignedToCurrentUser !== true || target.status !== 'WAIT_START') return
     const confirmed = await new Promise((resolve) => {
       wx.showModal({
         title: '开始任务',
@@ -104,7 +136,7 @@ Page({
     if (!guard.requirePermission('mfg:work-report:create') || !guard.requirePermission('mfg:work-report:submit')) return
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
-    if (!target || target.status !== 'RUNNING') return
+    if (!target || target.assignedToCurrentUser !== true || target.status !== 'RUNNING' || target.reportingComplete) return
     wx.navigateTo({ url: '/pages/report/form/index?taskId=' + encodeURIComponent(taskId) })
   },
 
@@ -112,7 +144,7 @@ Page({
     if (!guard.requirePermission('mfg:task:finish')) return
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
-    if (!target || !['RUNNING', 'PAUSED'].includes(target.status)) return
+    if (!target || target.assignedToCurrentUser !== true || !['RUNNING', 'PAUSED'].includes(target.status)) return
     wx.navigateTo({ url: '/pages/task/finish/index?taskId=' + encodeURIComponent(taskId) })
   },
 
@@ -132,12 +164,15 @@ Page({
   decorateTask(item, lookups) {
     const completed = Math.max(Number(item.completedQuantity || 0), Number(item.reportedQualifiedQuantity || 0))
     const defects = Math.max(Number(item.defectQuantity || 0), Number(item.reportedDefectQuantity || 0))
+    const planned = Number(item.plannedQuantity || 0)
     return {
       ...item,
       statusView: statusUtil.getStatus('task', item.status),
       operationLabel: lookupApi.label(lookups.operation, item.operationId, '工序'),
       stationLabel: lookupApi.label(lookups.station, item.stationId, '工位'),
       qualifiedQuantity: completed,
+      defectQuantity: defects,
+      reportingComplete: planned > 0 && completed + defects >= planned,
       actualQuantity: completed + defects
     }
   },
@@ -145,14 +180,14 @@ Page({
   async loadData() {
     this.setData({ loading: true, error: '' })
     try {
-      const task = await taskApi.detail(this.data.id)
+      const task = await taskApi.detailForView(this.data.id)
       if (!task) {
         this.setData({ task: null, progressTasks: [], reports: [], loading: false })
         return
       }
       const [workOrder, taskPage, reportPage, lookups, planPage] = await Promise.all([
         workOrderApi.detail(task.workOrderId),
-        taskApi.page({ current: 1, size: 100, workOrderId: task.workOrderId }),
+        taskApi.pageForView({ current: 1, size: 100, workOrderId: task.workOrderId }),
         reportApi.page({ current: 1, size: 20, taskId: this.data.id }),
         lookupApi.load(['operation', 'station', 'employee', 'product']),
         productionPlanApi.page({ current: 1, size: 500 })
@@ -161,7 +196,9 @@ Page({
       const plans = planPage && Array.isArray(planPage.records) ? planPage.records : []
       const plan = workOrder ? plans.find((item) => String(item.planId) === String(workOrder.planId)) : null
       const reports = reportPage && Array.isArray(reportPage.records) ? reportPage.records : []
-      const relatedTasks = taskPage && Array.isArray(taskPage.records) ? taskPage.records : [task]
+      const relatedTasks = selectProgressTasks(
+        taskPage && Array.isArray(taskPage.records) ? taskPage.records : [task]
+      )
       const decoratedTask = this.decorateTask(task, lookups)
       this.setData({
         task: {

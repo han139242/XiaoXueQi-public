@@ -16,7 +16,8 @@ function submit(data) {
   return request({
     url: '/api/mfg/work-report/submit',
     method: 'POST',
-    data
+    data,
+    timeout: 30000
   })
 }
 

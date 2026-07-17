@@ -16,7 +16,7 @@ const currentUser = {
   roles: ['生产操作员'],
   roleNames: ['生产操作员'],
   permissions: [
-    'dashboard:summary:view', 'mfg:work-order:view', 'mfg:task:view', 'mfg:task:start', 'mfg:task:finish',
+    'mfg:work-order:view', 'mfg:task:view', 'mfg:task:start', 'mfg:task:finish',
     'mfg:work-report:view', 'mfg:work-report:create', 'mfg:work-report:submit', 'trace:barcode:scan'
   ],
   lastLoginTime: now
@@ -835,22 +835,6 @@ function createInspectionOrderFromReport(report, task) {
   return inspection
 }
 
-function summary() {
-  return {
-    productionOrderCount: productionOrders.length,
-    workOrderCount: workOrders.length,
-    runningTaskCount: tasks.filter((item) => item.status === 'RUNNING').length,
-    todayQualifiedQuantity: reports
-      .filter((item) => String(item.reportTime).startsWith('2026-07-13'))
-      .reduce((sum, item) => sum + Number(item.qualifiedQuantity || 0), 0),
-    todayDefectQuantity: reports
-      .filter((item) => String(item.reportTime).startsWith('2026-07-13'))
-      .reduce((sum, item) => sum + Number(item.defectQuantity || 0), 0),
-    inventoryWarningCount: inventories.filter((item) => Number(item.warningQuantity || 0) > 0 && Number(item.quantity || 0) < Number(item.warningQuantity || 0)).length,
-    equipmentFaultCount: equipments.filter((item) => item.status === 'FAULT').length
-  }
-}
-
 function startTask(id, data) {
   const task = findById(tasks, 'taskId', id)
   if (!task) throw new Error('任务不存在')
@@ -1085,7 +1069,6 @@ function route(config) {
   if (url === '/api/auth/login') return { token: 'mock-token', data: currentUser, ...currentUser }
   if (url === '/api/auth/info') return currentUser
   if (url === '/api/auth/logout') return true
-  if (url === '/api/dashboard/summary') return summary()
   if (url === '/api/mdm/product/page') return pageProducts(data)
   if (url === '/api/mdm/customer/page') return pageCustomers(data)
   if (url === '/api/mdm/material/page') return pageMaterials(data)

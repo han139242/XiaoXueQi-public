@@ -4,7 +4,13 @@
   <empty-state wx:elif="{{!task}}" title="任务不存在" description="记录可能已删除"></empty-state>
   <block wx:else>
     <view class="task-summary-card">
-      <view class="summary-header"><text class="summary-title" selectable>{{task.taskNo || ('任务 ID ' + task.taskId)}}</text><text class="task-status task-status--{{task.statusView.tone}}">{{task.statusView.text}}</text></view>
+      <view class="summary-header">
+        <view class="summary-title-group">
+          <text class="summary-title" selectable>{{task.taskNo || ('任务 ID ' + task.taskId)}}</text>
+          <button wx:if="{{task.taskNo}}" class="summary-copy-button" aria-label="复制任务编号" catchtap="copyTaskNo"><app-icon name="copy" size="28" muted></app-icon></button>
+        </view>
+        <text class="task-status task-status--{{task.statusView.tone}}">{{task.statusView.text}}</text>
+      </view>
       <view class="summary-fields">
         <view><text>工单编号</text><text selectable>{{task.workOrderLabel}}</text></view>
         <view><text>产品信息</text><text>{{product.productCode}} | {{product.productName}}</text></view>
@@ -25,9 +31,9 @@
         <view class="progress-quantity"><text>良品数: {{item.qualifiedQuantity}}</text><text>不良品数: {{item.defectQuantity == null ? 0 : item.defectQuantity}}</text></view>
         <view class="progress-actions">
           <button class="detail-action" data-id="{{item.taskId}}" bindtap="openProgressDetail">详情</button>
-          <button wx:if="{{canStart && item.status === 'WAIT_START'}}" class="primary-action" loading="{{submitting}}" disabled="{{submitting}}" data-id="{{item.taskId}}" bindtap="startTask">开工</button>
-          <button wx:elif="{{canReport && item.status === 'RUNNING'}}" class="primary-action" data-id="{{item.taskId}}" bindtap="openReportForm">报工</button>
-          <button wx:elif="{{canFinish && item.status === 'PAUSED'}}" class="primary-action" data-id="{{item.taskId}}" bindtap="openFinish">完工</button>
+          <button wx:if="{{canStart && item.assignedToCurrentUser && item.status === 'WAIT_START'}}" class="primary-action" loading="{{submitting}}" disabled="{{submitting}}" data-id="{{item.taskId}}" bindtap="startTask">开工</button>
+          <button wx:elif="{{canReport && item.assignedToCurrentUser && item.status === 'RUNNING' && !item.reportingComplete}}" class="primary-action" data-id="{{item.taskId}}" bindtap="openReportForm">报工</button>
+          <button wx:elif="{{canFinish && item.assignedToCurrentUser && item.status === 'PAUSED'}}" class="primary-action" data-id="{{item.taskId}}" bindtap="openFinish">完工</button>
         </view>
       </view>
     </view>
@@ -45,7 +51,7 @@
           <text class="report-count">良品 {{item.qualifiedQuantity}} / 不良 {{item.defectQuantity}}</text>
         </view>
       </view>
-      <button wx:if="{{canFinish && (task.status === 'RUNNING' || task.status === 'PAUSED')}}" class="finish-action" data-id="{{task.taskId}}" bindtap="openFinish">完成当前任务</button>
+      <button wx:if="{{canFinish && task.assignedToCurrentUser && (task.status === 'RUNNING' || task.status === 'PAUSED')}}" class="finish-action" data-id="{{task.taskId}}" bindtap="openFinish">完成当前任务</button>
     </view>
   </block>
 </view>

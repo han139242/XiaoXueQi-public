@@ -3,9 +3,9 @@
   <empty-state wx:elif="{{error && list.length === 0}}" title="库存余额加载失败" description="{{error}}" action-text="重试" bind:action="loadPage"></empty-state>
   <empty-state wx:elif="{{!loading && list.length === 0}}" title="暂无库存余额"></empty-state>
   <view wx:else class="record-list">
-    <view wx:for="{{list}}" wx:key="inventoryId" class="record-card">
+    <view wx:for="{{list}}" wx:key="groupKey" class="record-card">
       <view class="record-header">
-        <view class="record-identity"><view class="record-icon"><app-icon name="boxes" size="34"></app-icon></view><view><text class="record-number" selectable>{{item.materialLabel}}</text><text class="record-subline">{{item.batchLabel}}</text></view></view>
+        <view class="record-identity"><view class="record-icon"><app-icon name="boxes" size="34"></app-icon></view><view><text class="record-number" selectable>{{item.materialLabel}}</text><text class="record-subline">{{item.batchSummary}}</text></view></view>
         <status-tag text="{{item.statusText}}" tone="{{item.statusTone}}"></status-tag>
       </view>
       <view class="stat-grid">
@@ -15,6 +15,7 @@
       <view class="inventory-fields">
         <view><text>所在仓库</text><text>{{item.warehouseLabel}}</text></view>
         <view><text>所在库位</text><text>{{item.locationLabel}}</text></view>
+        <view><text>批次明细</text><text selectable>{{item.batchDetail}}</text></view>
         <view><text>锁定数量</text><text>{{item.lockedQuantity}}</text></view>
         <view><text>待检数量</text><text>{{item.inspectionQuantity}}</text></view>
         <view><text>更新时间</text><text>{{item.updatedTimeText}}</text></view>

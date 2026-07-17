@@ -36,7 +36,7 @@ import java.time.format.DateTimeFormatter;
 @Service
 public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, MfgWorkOrder> implements MfgWorkOrderService {
 
-    private static final DateTimeFormatter NUMBER_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    private static final DateTimeFormatter NUMBER_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     @Autowired
     private MfgProductionPlanMapper productionPlanMapper;
@@ -173,7 +173,7 @@ public class MfgWorkOrderServiceImpl extends ServiceImpl<MfgWorkOrderMapper, Mfg
         }
         LocalDateTime now = LocalDateTime.now();
         MfgWorkOrder workOrder = new MfgWorkOrder();
-        workOrder.setWorkOrderNo("WO-" + planId + "-" + now.format(NUMBER_TIME));
+        workOrder.setWorkOrderNo(String.format("WO-%s-%03d-1", now.format(NUMBER_DATE), planId));
         workOrder.setPlanId(planId);
         workOrder.setProductId(order.getProductId());
         workOrder.setBomId(request.getBomId());

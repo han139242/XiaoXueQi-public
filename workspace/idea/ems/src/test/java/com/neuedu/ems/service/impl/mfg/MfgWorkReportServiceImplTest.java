@@ -9,6 +9,7 @@ import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgTask;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
+import com.neuedu.ems.entity.process.ProcessRouteItem;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
 import com.neuedu.ems.exception.BusinessException;
@@ -18,8 +19,10 @@ import com.neuedu.ems.mapper.mfg.MfgReportMaterialMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
+import com.neuedu.ems.service.mfg.MfgTaskService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -46,6 +49,8 @@ class MfgWorkReportServiceImplTest {
     private MfgWorkOrderMapper workOrderMapper;
     private MfgProductionPlanMapper planMapper;
     private MfgProductionOrderMapper orderMapper;
+    private ProcessRouteItemMapper routeItemMapper;
+    private MfgTaskService taskService;
 
     @BeforeEach
     void setUp() {
@@ -55,18 +60,23 @@ class MfgWorkReportServiceImplTest {
         workOrderMapper = mock(MfgWorkOrderMapper.class);
         planMapper = mock(MfgProductionPlanMapper.class);
         orderMapper = mock(MfgProductionOrderMapper.class);
+        routeItemMapper = mock(ProcessRouteItemMapper.class);
+        taskService = mock(MfgTaskService.class);
         ReflectionTestUtils.setField(service, "baseMapper", reportMapper);
         ReflectionTestUtils.setField(service, "mfgReportMaterialMapper", mock(MfgReportMaterialMapper.class));
         ReflectionTestUtils.setField(service, "mfgTaskMapper", taskMapper);
         ReflectionTestUtils.setField(service, "mfgWorkOrderMapper", workOrderMapper);
         ReflectionTestUtils.setField(service, "mfgProductionPlanMapper", planMapper);
         ReflectionTestUtils.setField(service, "mfgProductionOrderMapper", orderMapper);
+        ReflectionTestUtils.setField(service, "processRouteItemMapper", routeItemMapper);
+        ReflectionTestUtils.setField(service, "mfgTaskService", taskService);
         SysStatusChangeLogMapper statusLogMapper = mock(SysStatusChangeLogMapper.class);
         SysOperationLogMapper operationLogMapper = mock(SysOperationLogMapper.class);
         ReflectionTestUtils.setField(service, "sysStatusChangeLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "sysOperationLogMapper", operationLogMapper);
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
         when(operationLogMapper.insert(any(SysOperationLog.class))).thenReturn(1);
+        when(routeItemMapper.selectOne(any())).thenReturn(finalRouteItem());
     }
 
     @Test
@@ -155,6 +165,7 @@ class MfgWorkReportServiceImplTest {
 
     @Test
     void submitRejectsNegativeQuantityBeforeDatabaseMutation() {
+        when(taskMapper.selectOne(any())).thenReturn(task());
         MfgWorkReport request = new MfgWorkReport();
         request.setTaskId(2L);
         request.setOperatorId(3L);
@@ -180,6 +191,101 @@ class MfgWorkReportServiceImplTest {
         assertTrue(query.getParamNameValuePairs().containsValue("TASK-20260714-003-1-050"));
     }
 
+    @Test
+    void submitAutomaticallyFinishesTaskWhenCumulativeQuantityReachesPlan() {
+        MfgTask task = task();
+        MfgWorkReport existing = report("80");
+        MfgWorkReport request = validReportRequest();
+        request.setQualifiedQuantity(new BigDecimal("15"));
+        request.setDefectQuantity(new BigDecimal("5"));
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        when(reportMapper.selectList(any())).thenReturn(List.of(existing), List.of(existing, request));
+        when(reportMapper.selectCount(any())).thenReturn(0L);
+        when(reportMapper.insert(any(MfgWorkReport.class))).thenAnswer(invocation -> {
+            request.setReportId(2L);
+            return 1;
+        });
+        when(taskService.finishTask(2L, new BigDecimal("95"), new BigDecimal("5"),
+                "累计报工达到任务计划数量，系统自动完工", 3L)).thenReturn(true);
+
+        service.submitWorkReport(request, List.of());
+
+        verify(taskService).finishTask(2L, new BigDecimal("95"), new BigDecimal("5"),
+                "累计报工达到任务计划数量，系统自动完工", 3L);
+    }
+
+    @Test
+    void submitKeepsTaskRunningWhenCumulativeQuantityIsBelowPlan() {
+        MfgWorkReport existing = report("50");
+        MfgWorkReport request = validReportRequest();
+        when(taskMapper.selectOne(any())).thenReturn(task());
+        when(reportMapper.selectList(any())).thenReturn(List.of(existing), List.of(existing, request));
+        when(reportMapper.selectCount(any())).thenReturn(0L);
+        when(reportMapper.insert(any(MfgWorkReport.class))).thenAnswer(invocation -> {
+            request.setReportId(2L);
+            return 1;
+        });
+
+        service.submitWorkReport(request, List.of());
+
+        verify(taskService, never()).finishTask(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void saveDerivesReportNumberFromTaskNumberAndSequence() {
+        MfgTask task = task();
+        task.setTaskNo("TASK-20260714-003-1-050");
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        when(reportMapper.selectCount(any())).thenReturn(1L, 0L);
+        when(reportMapper.insert(any(MfgWorkReport.class))).thenReturn(1);
+        MfgWorkReport request = new MfgWorkReport();
+        request.setTaskId(2L);
+        request.setOperatorId(3L);
+        request.setCreatedBy(3L);
+        request.setStationId(4L);
+        request.setQualifiedQuantity(BigDecimal.TEN);
+        request.setDefectQuantity(BigDecimal.ZERO);
+        request.setActualWorkHours(BigDecimal.ONE);
+
+        assertTrue(service.saveWorkReport(request));
+        assertEquals("WR-20260714-003-1-050-2", request.getReportNo());
+    }
+
+    @Test
+    void saveRejectsTaskThatIsNotRunning() {
+        MfgTask task = task();
+        task.setStatus(BusinessStatus.Production.FINISHED);
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        MfgWorkReport request = validReportRequest();
+
+        assertThrows(BusinessException.class, () -> service.saveWorkReport(request));
+
+        verify(reportMapper, never()).insert(any(MfgWorkReport.class));
+    }
+
+    @Test
+    void saveRejectsCumulativeQuantityAboveTaskPlan() {
+        when(taskMapper.selectOne(any())).thenReturn(task());
+        when(reportMapper.selectList(any())).thenReturn(List.of(report("95")));
+        MfgWorkReport request = validReportRequest();
+
+        assertThrows(BusinessException.class, () -> service.saveWorkReport(request));
+
+        verify(reportMapper, never()).insert(any(MfgWorkReport.class));
+    }
+
+    private MfgWorkReport validReportRequest() {
+        MfgWorkReport request = new MfgWorkReport();
+        request.setTaskId(2L);
+        request.setOperatorId(3L);
+        request.setCreatedBy(3L);
+        request.setStationId(4L);
+        request.setQualifiedQuantity(BigDecimal.TEN);
+        request.setDefectQuantity(BigDecimal.ZERO);
+        request.setActualWorkHours(BigDecimal.ONE);
+        return request;
+    }
+
     private MfgWorkReport report(String quantity) {
         MfgWorkReport report = new MfgWorkReport();
         report.setReportId(1L);
@@ -199,7 +305,11 @@ class MfgWorkReportServiceImplTest {
     private MfgTask task() {
         MfgTask task = new MfgTask();
         task.setTaskId(2L);
+        task.setTaskNo("TASK-20260714-003-1-050");
         task.setWorkOrderId(3L);
+        task.setOperationId(7L);
+        task.setPlannedQuantity(new BigDecimal("100"));
+        task.setStatus(BusinessStatus.Production.RUNNING);
         return task;
     }
 
@@ -207,10 +317,19 @@ class MfgWorkReportServiceImplTest {
         MfgWorkOrder workOrder = new MfgWorkOrder();
         workOrder.setWorkOrderId(3L);
         workOrder.setPlanId(4L);
+        workOrder.setRouteId(5L);
         workOrder.setPlannedQuantity(new BigDecimal("100"));
         workOrder.setStatus(BusinessStatus.Document.RELEASED);
         workOrder.setVersion(2);
         return workOrder;
+    }
+
+    private ProcessRouteItem finalRouteItem() {
+        ProcessRouteItem routeItem = new ProcessRouteItem();
+        routeItem.setRouteId(5L);
+        routeItem.setOperationId(7L);
+        routeItem.setSequenceNo(70);
+        return routeItem;
     }
 
     private MfgProductionPlan plan() {

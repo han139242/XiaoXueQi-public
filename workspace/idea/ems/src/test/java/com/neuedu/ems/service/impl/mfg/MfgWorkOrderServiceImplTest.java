@@ -72,7 +72,7 @@ class MfgWorkOrderServiceImplTest {
         assertEquals(5L, result.getWorkOrderId());
         assertEquals(BusinessStatus.Document.DRAFT, result.getStatus());
         assertEquals(11L, result.getProductId());
-        assertTrue(result.getWorkOrderNo().startsWith("WO-2-"));
+        assertTrue(result.getWorkOrderNo().matches("^WO-\\d{8}-002-1$"));
     }
 
     @Test

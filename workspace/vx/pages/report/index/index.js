@@ -149,6 +149,10 @@ Page({
   },
 
   search() {
+    if (this.data.keyword.trim() && this.data.myOnly) {
+      this.setData({ myOnly: false, scopeIndex: 0 }, () => this.loadPage(true))
+      return
+    }
     this.loadPage(true)
   },
 
