@@ -2,7 +2,7 @@ const BASE_URL_KEY = 'MES_BASE_URL'
 const MOCK_DATA_KEY = 'MES_USE_MOCK_DATA'
 
 const versionUrls = {
-  trial: '',
+  trial: 'https://zjy.tail8d376f.ts.net',
   release: ''
 }
 

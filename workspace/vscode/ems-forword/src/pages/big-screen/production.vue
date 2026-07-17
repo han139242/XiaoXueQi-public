@@ -94,6 +94,9 @@ const todayOutput = computed(() => todayQualified.value + todayDefect.value)
 const reportPassRate = computed(() => todayOutput.value
   ? (todayQualified.value / todayOutput.value) * 100
   : null)
+const outputDialStyle = computed(() => ({
+  '--output-angle': `${Math.min(100, Math.max(0, reportPassRate.value || 0)) * 3.6}deg`
+}))
 // 读取当前质量检验总次数。
 const inspectionCount = computed(() => Number(quality.value.inspectionCount || 0))
 const qualifiedInspectionCount = computed(() => Number(quality.value.qualifiedCount || 0))
@@ -378,28 +381,6 @@ const kpis = computed(() => [
     description: overduePlanCount.value > 0 ? '已超过计划结束时间' : '当前没有逾期计划',
     icon: 'alert',
     tone: overduePlanCount.value > 0 ? 'red' : 'muted'
-  }
-])
-
-// 把生产订单、工单和执行任务整理为统一统计卡数据。
-const productionStats = computed(() => [
-  {
-    label: '在制生产订单',
-    value: Number(summary.value.activeProductionOrderCount ?? summary.value.productionOrderCount ?? 0),
-    note: '已下达或正在生产的订单',
-    icon: 'clipboard'
-  },
-  {
-    label: '在制生产工单',
-    value: Number(summary.value.activeWorkOrderCount ?? summary.value.workOrderCount ?? 0),
-    note: '待开工或正在执行的工单',
-    icon: 'package'
-  },
-  {
-    label: '正在执行任务',
-    value: Number(summary.value.runningTaskCount || 0),
-    note: '当前处于生产中的任务',
-    icon: 'activity'
   }
 ])
 
@@ -990,7 +971,7 @@ onBeforeUnmount(() => {
             <header class="panel-header">
               <div>
                 <strong>产线运行状态</strong>
-                <span>生产状态、下一计划与产能配置</span>
+                <span>生产状态、计划与产能配置</span>
               </div>
               <aside class="panel-tools">
                 <strong class="line-count">{{ lineStatusRows.length }}<small>条</small></strong>
@@ -1020,10 +1001,10 @@ onBeforeUnmount(() => {
           </article>
 
           <article class="screen-panel execution-panel">
-            <header class="panel-header">
+            <header class="panel-header compact">
               <div>
-                <strong>今日生产情况</strong>
-                <span>今日报工结果与当前生产台账</span>
+                <strong>今日生产达成</strong>
+                <span>最终包装报工与执行任务</span>
               </div>
               <aside class="panel-tools">
                 <span class="live-badge"><i />60 秒刷新</span>
@@ -1032,41 +1013,30 @@ onBeforeUnmount(() => {
                 </button>
               </aside>
             </header>
-
-            <div class="output-focus">
-              <span>今日报工总产量</span>
-              <strong>{{ formatNumber(todayOutput) }}<small>件</small></strong>
-              <em v-if="reportPassRate !== null">合格率 {{ formatPercent(reportPassRate) }}%</em>
-              <em v-else class="is-empty">暂无今日报工</em>
-            </div>
-
-            <div class="output-breakdown">
-              <div class="is-qualified">
-                <span>合格产量</span>
-                <b>{{ formatNumber(todayQualified) }}</b>
+            <div class="execution-overview">
+              <div class="output-dial-stack">
+                <span>报工合格率</span>
+                <div class="output-dial" :class="{ 'is-empty': reportPassRate === null }" :style="outputDialStyle">
+                  <div>
+                    <strong>{{ formatPercent(reportPassRate) }}<small v-if="reportPassRate !== null">%</small></strong>
+                    <em>{{ reportPassRate === null ? '暂无报工' : '最终包装' }}</em>
+                  </div>
+                </div>
               </div>
-              <div class="is-defect">
-                <span>不良产量</span>
-                <b>{{ formatNumber(todayDefect) }}</b>
-              </div>
-            </div>
-
-            <div class="production-stat-list">
-              <div v-for="item in productionStats" :key="item.label" class="production-stat-row">
-                <span><AppIcon :name="item.icon" :size="20" /></span>
-                <div><b>{{ item.label }}</b><small>{{ item.note }}</small></div>
-                <strong>{{ formatNumber(item.value) }}</strong>
+              <div class="execution-metrics">
+                <div><span>今日总产量</span><b>{{ formatNumber(todayOutput) }}<small>件</small></b></div>
+                <div class="is-qualified"><span>合格产量</span><b>{{ formatNumber(todayQualified) }}</b></div>
+                <div class="is-defect"><span>不良产量</span><b>{{ formatNumber(todayDefect) }}</b></div>
+                <div><span>执行中任务</span><b>{{ formatNumber(summary.runningTaskCount) }}<small>项</small></b></div>
               </div>
             </div>
           </article>
-        </section>
 
-        <section class="secondary-grid">
           <article class="screen-panel trend-summary-panel">
             <header class="panel-header compact">
               <div>
                 <strong>近 7 日生产趋势</strong>
-                <span>报工总量与报工合格率</span>
+                <span>最终包装产量与报工合格率</span>
               </div>
               <aside class="panel-tools">
                 <div class="panel-total compact-total">
@@ -1079,14 +1049,16 @@ onBeforeUnmount(() => {
               </aside>
             </header>
             <div class="trend-chart-wrap compact-chart">
-              <MesChart :option="trendOption" height="205px" />
+              <MesChart :option="trendOption" height="100%" />
               <div v-if="!hasTrendData" class="empty-overlay compact-empty">
                 <AppIcon name="activity" :size="24" />
-                <strong>近 7 日暂无报工</strong>
+                <strong>近 7 日暂无最终包装报工</strong>
               </div>
             </div>
           </article>
+        </section>
 
+        <section class="secondary-grid">
           <article class="screen-panel quality-panel">
             <header class="panel-header compact">
               <div>
@@ -1486,19 +1458,23 @@ onBeforeUnmount(() => {
 .primary-grid {
   display: grid;
   min-height: 0;
-  grid-template-areas: 'lines schedule execution';
-  grid-template-columns: 350px minmax(0, 1fr) 390px;
+  grid-template-areas:
+    'lines schedule execution'
+    'lines schedule trend';
+  grid-template-columns: 330px minmax(0, 1fr) 390px;
+  grid-template-rows: minmax(0, 0.92fr) minmax(0, 1.08fr);
   gap: 16px;
 }
 
 .schedule-panel { grid-area: schedule; }
 .line-status-panel { grid-area: lines; }
 .execution-panel { grid-area: execution; }
+.trend-summary-panel { grid-area: trend; }
 
 .secondary-grid {
   display: grid;
   min-height: 0;
-  grid-template-columns: 1.18fr 1.05fr 1fr 1.17fr;
+  grid-template-columns: 1.08fr 1fr 1.32fr;
   gap: 16px;
 }
 
@@ -1537,6 +1513,7 @@ onBeforeUnmount(() => {
 
 .panel-header {
   display: flex;
+  height: 72px;
   min-height: 72px;
   align-items: center;
   justify-content: space-between;
@@ -1546,7 +1523,7 @@ onBeforeUnmount(() => {
   background: rgb(13 37 56 / 82%);
 }
 
-.panel-header.compact { min-height: 68px; }
+.panel-header.compact { height: 68px; min-height: 68px; }
 .panel-header > div { display: grid; gap: 5px; }
 .panel-header > div > strong { color: #f2f7fb; font-size: 21px; font-weight: 720; line-height: 1.25; }
 .panel-header > div > span { color: #9db1c0; font-size: 16px; line-height: 1.25; }
@@ -1978,7 +1955,7 @@ onBeforeUnmount(() => {
 .rate-chip.is-empty { color: #8296a5; border-color: rgb(113 132 147 / 22%); background: rgb(113 132 147 / 8%); }
 .table-empty { position: absolute; inset: 42px 16px 12px; display: grid; align-content: center; justify-items: center; gap: 8px; color: #879cab; background: #0b1d2c; font-size: 16px; }
 
-.execution-panel { display: grid; grid-template-rows: auto 1fr auto auto; }
+.execution-panel { display: block; }
 .execution-panel .panel-header { gap: 8px; padding: 0 14px; }
 .execution-panel .panel-header > div { min-width: 0; }
 .execution-panel .panel-header > div > span { max-width: 194px; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
@@ -1988,29 +1965,32 @@ onBeforeUnmount(() => {
 .execution-panel .live-badge { gap: 5px; font-size: 14px; }
 .live-badge i { width: 8px; height: 8px; border-radius: 50%; background: #4bc58a; box-shadow: 0 0 8px rgb(75 197 138 / 58%); }
 
-.output-focus { display: grid; align-content: center; justify-items: center; gap: 7px; padding: 12px 18px 8px; }
-.output-focus > span { color: #a8bac6; font-size: 17px; line-height: 1.25; }
-.output-focus strong { color: #fff; font-size: 60px; font-weight: 780; line-height: 1; }
-.output-focus strong small { margin-left: 8px; color: #91a5b5; font-size: 19px; font-weight: 550; }
-.output-focus em { padding: 5px 12px; color: #7ed5a5; border-radius: 3px; background: rgb(75 197 138 / 10%); font-size: 16px; font-style: normal; line-height: 1.25; }
-.output-focus em.is-empty { color: #8da0ae; background: rgb(120 140 155 / 10%); }
-
-.output-breakdown { display: grid; grid-template-columns: 1fr 1fr; margin: 0 14px 10px; border-top: 1px solid #29445a; border-bottom: 1px solid #29445a; }
-.output-breakdown > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 10px; }
-.output-breakdown > div + div { border-left: 1px solid #29445a; }
-.output-breakdown span { color: #9eb1bf; font-size: 15px; line-height: 1.25; }
-.output-breakdown b { color: #dcebf4; font-size: 24px; line-height: 1.1; }
-.output-breakdown .is-qualified b { color: #66cf98; }
-.output-breakdown .is-defect b { color: #e58b68; }
-
-.production-stat-list { display: grid; grid-template-columns: 1fr; padding: 0 14px 8px; }
-.production-stat-row { display: grid; min-width: 0; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 6px 3px; }
-.production-stat-row + .production-stat-row { border-top: 1px solid #29445a; }
-.production-stat-row > span { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; color: #73add3; border-radius: 4px; background: #123149; }
-.production-stat-row div { display: grid; min-width: 0; gap: 2px; }
-.production-stat-row b { color: #c9d7e1; font-size: 15px; line-height: 1.25; }
-.production-stat-row small { overflow: hidden; color: #91a6b5; font-size: 14px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-.production-stat-row strong { color: #fff; font-size: 24px; }
+.execution-overview { display: grid; height: calc(100% - 68px); grid-template-columns: 144px minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px 12px; box-sizing: border-box; }
+.output-dial-stack { display: grid; justify-items: center; gap: 7px; }
+.output-dial-stack > span { color: #aebfcb; font-size: 14px; font-weight: 600; line-height: 1.2; }
+.output-dial {
+  position: relative;
+  display: grid;
+  width: 112px;
+  height: 112px;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(#49b9d0 var(--output-angle), #1b3548 0);
+}
+.output-dial::before { position: absolute; inset: -4px; border: 1px solid rgb(73 185 208 / 28%); border-radius: 50%; content: ''; }
+.output-dial::after { position: absolute; inset: 11px; border: 1px solid #33566f; border-radius: 50%; background: #0b1e2e; content: ''; }
+.output-dial.is-empty { background: #1b3548; }
+.output-dial > div { position: relative; z-index: 1; display: grid; justify-items: center; gap: 5px; }
+.output-dial strong { color: #fff; font-size: 30px; font-weight: 760; line-height: 1; }
+.output-dial strong small { margin-left: 2px; color: #9db2c0; font-size: 15px; }
+.output-dial em { color: #8fa8b8; font-size: 12px; font-style: normal; }
+.execution-metrics { display: grid; min-width: 0; grid-template-columns: 1fr 1fr; border-top: 1px solid #29445a; border-left: 1px solid #29445a; }
+.execution-metrics > div { display: grid; min-width: 0; gap: 5px; padding: 10px 11px; border-right: 1px solid #29445a; border-bottom: 1px solid #29445a; }
+.execution-metrics span { color: #98adbb; font-size: 13px; line-height: 1.2; white-space: nowrap; }
+.execution-metrics b { overflow: hidden; color: #eff6fa; font-size: 25px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.execution-metrics b small { margin-left: 4px; color: #8fa3b2; font-size: 12px; font-weight: 550; }
+.execution-metrics .is-qualified b { color: #66cf98; }
+.execution-metrics .is-defect b { color: #e58b68; }
 
 .quality-main { display: grid; height: calc(100% - 68px); grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px 12px; box-sizing: border-box; }
 .quality-dial-stack { display: grid; justify-items: center; gap: 4px; }
