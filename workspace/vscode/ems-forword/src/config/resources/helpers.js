@@ -187,7 +187,7 @@ const labels = {
   planNo: '计划编号', planId: '生产计划', plannedStartTime: '计划开始', plannedEndTime: '计划结束', plannedQuantity: '计划数量',
   workOrderNo: '工单编号', workOrderId: '生产工单', completedQuantity: '完成数量', requiredQuantity: '需求数量', issuedQuantity: '已发数量', shortageQuantity: '缺料数量',
   dispatchNo: '派工单号', dispatchId: '派工单', dueTime: '要求完成时间', materialReadyStatus: '齐套状态',
-  taskNo: '任务编号', taskId: '生产任务', defectQuantity: '不良数量', roleInTask: '任务角色', assignedTime: '分配时间',
+  taskNo: '任务编号', taskId: '生产任务', defectQuantity: '不良数量', employeeDisplay: '员工/工号/账号', roleInTask: '任务角色', assignedTime: '分配时间',
   reportNo: '报工单号', reportId: '报工单', operatorId: '操作员工', qualifiedQuantity: '合格数量', actualWorkHours: '实际工时', reportTime: '报工时间', auditStatus: '审核状态',
   usedQuantity: '使用数量', scrapQuantity: '报废数量', batchId: '物料批次',
   exceptionNo: '异常编号', exceptionId: '生产异常', exceptionType: '异常类型', sourceAlertId: '来源安灯', reportedBy: '报告人', description: '异常描述', handleResult: '处理结果',

@@ -5,13 +5,16 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgDispatchOrder;
 import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgTaskOperator;
 import com.neuedu.ems.entity.mfg.MfgWorkReport;
 import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
+import com.neuedu.ems.entity.mdm.MdmProduct;
 import com.neuedu.ems.entity.factory.FactoryStation;
 import com.neuedu.ems.entity.factory.FactoryStationOperation;
 import com.neuedu.ems.entity.org.OrgTeam;
+import com.neuedu.ems.entity.org.OrgTeamMember;
 import com.neuedu.ems.entity.process.ProcessRouteItem;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
@@ -20,13 +23,16 @@ import com.neuedu.ems.common.ResultCode;
 import com.neuedu.ems.exception.BusinessException;
 import com.neuedu.ems.mapper.mfg.MfgDispatchOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskOperatorMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
+import com.neuedu.ems.mapper.mdm.MdmProductMapper;
 import com.neuedu.ems.mapper.factory.FactoryStationMapper;
 import com.neuedu.ems.mapper.factory.FactoryStationOperationMapper;
 import com.neuedu.ems.mapper.org.OrgTeamMapper;
+import com.neuedu.ems.mapper.org.OrgTeamMemberMapper;
 import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
@@ -40,6 +46,8 @@ import java.util.List;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * 派工单业务逻辑实现类。
@@ -50,17 +58,22 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
 
     private static final String WAIT_DISPATCH = "WAIT_DISPATCH";
     private static final String MATERIAL_READY = "READY";
+    private static final String ROLE_LEADER = "LEADER";
+    private static final String ROLE_OPERATOR = "OPERATOR";
     private static final DateTimeFormatter NUMBER_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     @Autowired private MfgTaskMapper taskMapper;
+    @Autowired private MfgTaskOperatorMapper taskOperatorMapper;
     @Autowired private MfgWorkReportMapper workReportMapper;
     @Autowired private MfgWorkOrderMapper workOrderMapper;
     @Autowired private MfgWorkOrderMaterialMapper workOrderMaterialMapper;
     @Autowired private MfgProductionPlanMapper productionPlanMapper;
     @Autowired private ProcessRouteItemMapper routeItemMapper;
+    @Autowired private MdmProductMapper productMapper;
     @Autowired private FactoryStationOperationMapper stationOperationMapper;
     @Autowired private FactoryStationMapper stationMapper;
     @Autowired private OrgTeamMapper teamMapper;
+    @Autowired private OrgTeamMemberMapper teamMemberMapper;
     @Autowired private SysStatusChangeLogMapper statusLogMapper;
     @Autowired private SysOperationLogMapper operationLogMapper;
     @Autowired(required = false) private MfgResponsibilityNotificationService notificationService;
@@ -199,6 +212,7 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         if (team == null) {
             throw business(ResultCode.BUSINESS_ERROR, "派工班组不存在或已停用");
         }
+        validateTeamMatchesProduct(workOrder, team);
         long activeDispatches = baseMapper.selectCount(new LambdaQueryWrapper<MfgDispatchOrder>()
                 .eq(MfgDispatchOrder::getWorkOrderId, workOrderId)
                 .eq(MfgDispatchOrder::getDeletedFlag, 0)
@@ -274,6 +288,10 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         if (team == null) {
             throw business(ResultCode.BUSINESS_ERROR, "派工班组不存在或已停用");
         }
+        List<Long> assigneeIds = activeTeamAssigneeIds(team);
+        if (assigneeIds.isEmpty()) {
+            throw business(ResultCode.BUSINESS_ERROR, "派工班组没有有效成员，不能派发生成无人负责的生产任务");
+        }
         List<MfgTask> tasks = new ArrayList<>(routeItems.size());
         for (ProcessRouteItem routeItem : routeItems) {
             if (routeItem.getOperationId() == null) {
@@ -303,8 +321,10 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
             }
             audit("MFG_TASK", "mfg_task", task.getTaskId(), null, BusinessStatus.Production.WAIT_START,
                     "GENERATE_TASK_FROM_DISPATCH", operatorId, remark, now);
+            assignTaskOperators(task.getTaskId(), team, assigneeIds, operatorId, now);
             if (notificationService != null) {
-                notificationService.publishTaskUnassigned(task, team.getTeamId(), team.getLeaderId());
+                assigneeIds.forEach(employeeId ->
+                        notificationService.publishTaskAssigned(task.getTaskId(), employeeId, operatorId));
             }
             tasks.add(task);
         }
@@ -466,6 +486,73 @@ public class MfgDispatchOrderServiceImpl extends ServiceImpl<MfgDispatchOrderMap
         return teamId == null ? null : teamMapper.selectOne(new LambdaQueryWrapper<OrgTeam>()
                 .eq(OrgTeam::getTeamId, teamId)
                 .eq(OrgTeam::getDeletedFlag, 0));
+    }
+
+    private List<Long> activeTeamAssigneeIds(OrgTeam team) {
+        Set<Long> assigneeIds = new LinkedHashSet<>();
+        if (team.getLeaderId() != null) {
+            assigneeIds.add(team.getLeaderId());
+        }
+        List<OrgTeamMember> members = teamMemberMapper.selectList(new LambdaQueryWrapper<OrgTeamMember>()
+                .eq(OrgTeamMember::getTeamId, team.getTeamId())
+                .eq(OrgTeamMember::getStatus, BusinessStatus.Common.ENABLE)
+                .eq(OrgTeamMember::getDeletedFlag, 0)
+                .and(wrapper -> wrapper.isNull(OrgTeamMember::getLeaveDate)
+                        .or().ge(OrgTeamMember::getLeaveDate, java.time.LocalDate.now())));
+        members.stream()
+                .map(OrgTeamMember::getEmployeeId)
+                .filter(employeeId -> employeeId != null)
+                .forEach(assigneeIds::add);
+        return new ArrayList<>(assigneeIds);
+    }
+
+    private void assignTaskOperators(Long taskId, OrgTeam team, List<Long> assigneeIds,
+                                     Long operatorId, LocalDateTime now) {
+        for (Long employeeId : assigneeIds) {
+            MfgTaskOperator assignment = new MfgTaskOperator();
+            assignment.setTaskId(taskId);
+            assignment.setEmployeeId(employeeId);
+            assignment.setRoleInTask(employeeId.equals(team.getLeaderId()) ? ROLE_LEADER : ROLE_OPERATOR);
+            assignment.setAssignedTime(now);
+            assignment.setCreatedBy(operatorId);
+            assignment.setCreatedTime(now);
+            assignment.setDeletedFlag(0);
+            if (taskOperatorMapper.insert(assignment) == 0) {
+                throw business(ResultCode.FAILED, "生产任务人员分配失败");
+            }
+        }
+    }
+
+    private void validateTeamMatchesProduct(MfgWorkOrder workOrder, OrgTeam team) {
+        if (workOrder.getProductId() == null || team == null) {
+            return;
+        }
+        MdmProduct product = productMapper.selectOne(new LambdaQueryWrapper<MdmProduct>()
+                .eq(MdmProduct::getProductId, workOrder.getProductId())
+                .eq(MdmProduct::getDeletedFlag, 0));
+        if (product == null) {
+            return;
+        }
+        String productText = normalize(product.getProductCode(), product.getProductName(), product.getProductModel());
+        String teamText = normalize(team.getTeamCode(), team.getTeamName());
+        boolean productIsMatch = productText.contains("MATCH") || productText.contains("比赛");
+        boolean productIsTrain = productText.contains("TRAIN") || productText.contains("训练");
+        boolean teamIsMatch = teamText.contains("MATCH") || teamText.contains("比赛");
+        boolean teamIsTrain = teamText.contains("TRAIN") || teamText.contains("训练");
+        if ((productIsMatch && teamIsTrain) || (productIsTrain && teamIsMatch)) {
+            throw business(ResultCode.BUSINESS_ERROR,
+                    "派工班组与订单产品类型不匹配，请选择对应的比赛球/训练球班组");
+        }
+    }
+
+    private String normalize(String... values) {
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                builder.append(' ').append(value.trim());
+            }
+        }
+        return builder.toString().toUpperCase();
     }
 
     private Long resolveDefaultStation(Long operationId, Long lineId) {
