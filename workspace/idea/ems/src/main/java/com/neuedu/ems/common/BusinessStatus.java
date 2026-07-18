@@ -92,6 +92,7 @@ public final class BusinessStatus {
         public static final String RUNNING = "RUNNING";
         public static final String MAINTAINING = "MAINTAINING";
         public static final String REPAIRING = "REPAIRING";
+        public static final String REPAIRED = "REPAIRED";
         public static final String STOPPED = "STOPPED";
         public static final String FAULT = "FAULT";
         public static final String SCRAPPED = "SCRAPPED";

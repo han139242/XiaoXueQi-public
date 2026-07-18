@@ -128,6 +128,7 @@ export const optionSets = {
     option('RUNNING', '运行', 'success'),
     option('MAINTAINING', '保养中', 'warning'),
     option('REPAIRING', '维修中', 'warning'),
+    option('REPAIRED', '维修完毕', 'success'),
     option('STOPPED', '停机', 'info'),
     option('FAULT', '故障', 'danger'),
     option('SCRAPPED', '报废', 'danger')

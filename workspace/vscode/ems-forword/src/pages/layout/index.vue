@@ -15,7 +15,7 @@ const mobile = ref(false)
 const mobileMenuOpen = ref(false)
 // 刷新标签页时递增 key，Vue 会重新创建当前路由组件，从而重新执行页面初始化和数据加载。
 const viewVersion = ref(0)
-const tabs = ref([{ path: '/dashboard', title: '首页', affix: true }])
+const tabs = ref([])
 
 // 根据窗口宽度更新移动端状态，并在回到桌面端时关闭移动抽屉。
 function updateViewport() {

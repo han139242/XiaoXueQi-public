@@ -35,7 +35,7 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
     private static final String STATUS_REPAIRING = BusinessStatus.Repair.REPAIRING;
     private static final String STATUS_CLOSED = BusinessStatus.Repair.CLOSED;
     private static final String EQUIPMENT_STATUS_REPAIRING = BusinessStatus.Equipment.REPAIRING;
-    private static final String EQUIPMENT_STATUS_RUNNING = BusinessStatus.Equipment.RUNNING;
+    private static final String EQUIPMENT_STATUS_REPAIRED = BusinessStatus.Equipment.REPAIRED;
     private static final String BIZ_TYPE = "EAM_REPAIR_ORDER";
     private static final String MODULE_CODE = "eam_repair_order";
 
@@ -234,8 +234,8 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
         update.setStatus(STATUS_CLOSED);
         boolean updated = baseMapper.update(update, repairOrderInState(repairId, existing.getStatus())) > 0;
         if (updated) {
-            EamEquipment equipment = updateEquipmentStatus(existing.getEquipmentId(), EQUIPMENT_STATUS_RUNNING);
-            insertEquipmentStatusLog(existing.getEquipmentId(), equipment, EQUIPMENT_STATUS_RUNNING, repairResult, operatorUserId, now);
+            EamEquipment equipment = updateEquipmentStatus(existing.getEquipmentId(), EQUIPMENT_STATUS_REPAIRED);
+            insertEquipmentStatusLog(existing.getEquipmentId(), equipment, EQUIPMENT_STATUS_REPAIRED, repairResult, operatorUserId, now);
             insertStatusChangeLog(existing, STATUS_CLOSED, "CLOSE_REPAIR", operatorUserId, repairResult, now);
             insertOperationLog(existing.getRepairId(), "CLOSE_REPAIR", operatorUserId, repairResult, now);
             responsibilityNotificationService.cancelOpenRepair(repairId, operatorUserId);
@@ -311,6 +311,17 @@ public class EamRepairOrderServiceImpl extends ServiceImpl<EamRepairOrderMapper,
      */
     private void insertEquipmentStatusLog(Long equipmentId, EamEquipment equipment, String runningStatus,
                                           String description, Long operatorId, LocalDateTime collectedTime) {
+        if (equipmentId == null) {
+            return;
+        }
+        LambdaUpdateWrapper<EamEquipmentStatusLog> oldStatusUpdate = new LambdaUpdateWrapper<>();
+        oldStatusUpdate.eq(EamEquipmentStatusLog::getEquipmentId, equipmentId)
+                .eq(EamEquipmentStatusLog::getDeletedFlag, 0)
+                .set(EamEquipmentStatusLog::getDeletedFlag, 1)
+                .set(EamEquipmentStatusLog::getUpdatedBy, operatorId)
+                .set(EamEquipmentStatusLog::getUpdatedTime, collectedTime);
+        eamEquipmentStatusLogMapper.update(null, oldStatusUpdate);
+
         EamEquipmentStatusLog statusLog = new EamEquipmentStatusLog();
         statusLog.setEquipmentId(equipmentId);
         statusLog.setRunningStatus(runningStatus);

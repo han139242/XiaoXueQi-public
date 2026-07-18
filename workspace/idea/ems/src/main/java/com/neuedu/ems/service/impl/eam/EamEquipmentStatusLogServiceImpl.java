@@ -79,6 +79,13 @@ public class EamEquipmentStatusLogServiceImpl extends ServiceImpl<EamEquipmentSt
                                                                           Long stationId) {
         LambdaQueryWrapper<EamEquipmentStatusLog> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(EamEquipmentStatusLog::getDeletedFlag, 0)
+                .inSql(EamEquipmentStatusLog::getStatusLogId,
+                        "SELECT latest.status_log_id FROM ("
+                                + "SELECT MAX(status_log_id) AS status_log_id "
+                                + "FROM eam_equipment_status_log "
+                                + "WHERE deleted_flag = 0 "
+                                + "GROUP BY equipment_id"
+                                + ") latest")
                 .eq(equipmentId != null, EamEquipmentStatusLog::getEquipmentId, equipmentId)
                 .eq(StringUtils.hasText(runningStatus), EamEquipmentStatusLog::getRunningStatus, runningStatus)
                 .eq(StringUtils.hasText(downtimeType), EamEquipmentStatusLog::getDowntimeType, downtimeType)

@@ -9,6 +9,7 @@ import com.neuedu.ems.dto.org.OrgEmployeeView;
 import com.neuedu.ems.entity.mdm.MdmCustomer;
 import com.neuedu.ems.entity.mdm.MdmSupplier;
 import com.neuedu.ems.entity.org.OrgEmployee;
+import com.neuedu.ems.exception.SensitivePhoneCryptoException;
 import org.springframework.stereotype.Component;
 
 /**
@@ -82,7 +83,7 @@ public class SensitivePhoneDtoMapper {
         view.setDepartmentId(entity.getDepartmentId());
         view.setPositionName(entity.getPositionName());
         view.setSkillLevel(entity.getSkillLevel());
-        view.setPhone(phoneService.display(SensitivePhoneField.EMPLOYEE, entity.getPhone()));
+        view.setPhone(safeDisplay(SensitivePhoneField.EMPLOYEE, entity.getPhone()));
         view.setStatus(entity.getStatus());
         view.setRemark(entity.getRemark());
         copyAudit(entity, view);
@@ -96,7 +97,7 @@ public class SensitivePhoneDtoMapper {
         view.setCustomerCode(entity.getCustomerCode());
         view.setCustomerName(entity.getCustomerName());
         view.setContactName(entity.getContactName());
-        view.setContactPhone(phoneService.display(SensitivePhoneField.CUSTOMER, entity.getContactPhone()));
+        view.setContactPhone(safeDisplay(SensitivePhoneField.CUSTOMER, entity.getContactPhone()));
         view.setStatus(entity.getStatus());
         view.setRemark(entity.getRemark());
         view.setVersion(entity.getVersion());
@@ -115,7 +116,7 @@ public class SensitivePhoneDtoMapper {
         view.setSupplierCode(entity.getSupplierCode());
         view.setSupplierName(entity.getSupplierName());
         view.setContactName(entity.getContactName());
-        view.setContactPhone(phoneService.display(SensitivePhoneField.SUPPLIER, entity.getContactPhone()));
+        view.setContactPhone(safeDisplay(SensitivePhoneField.SUPPLIER, entity.getContactPhone()));
         view.setStatus(entity.getStatus());
         view.setRemark(entity.getRemark());
         view.setVersion(entity.getVersion());
@@ -134,5 +135,13 @@ public class SensitivePhoneDtoMapper {
         target.setUpdatedBy(source.getUpdatedBy());
         target.setUpdatedTime(source.getUpdatedTime());
         target.setDeletedFlag(source.getDeletedFlag());
+    }
+
+    private String safeDisplay(SensitivePhoneField field, String storedValue) {
+        try {
+            return phoneService.display(field, storedValue);
+        } catch (SensitivePhoneCryptoException e) {
+            return null;
+        }
     }
 }

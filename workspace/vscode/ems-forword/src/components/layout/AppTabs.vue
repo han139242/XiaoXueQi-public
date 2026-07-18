@@ -2,7 +2,7 @@
 import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/common/AppIcon.vue'
-import { getModuleDefinition } from '@/config/navigation'
+import { firstAccessiblePath, getModuleDefinition } from '@/config/navigation'
 
 // refresh事件交给layout处理，因为重新创建RouterView组件需要由父布局修改key。
 const emit = defineEmits(['refresh'])
@@ -52,7 +52,7 @@ function closeTab(tab) {
   const index = tabs.value.findIndex((item) => item.path === tab.path)
   tabs.value.splice(index, 1)
   if (activePath.value === tab.path) {
-    const next = tabs.value[index] || tabs.value[index - 1] || { path: '/dashboard' }
+    const next = tabs.value[index] || tabs.value[index - 1] || { path: firstAccessiblePath('/forbidden') }
     router.push(next.path)
   }
 }

@@ -19,7 +19,7 @@ import {
 } from '@/api/resource'
 import { getResourceConfig } from '@/config/resources'
 import { canUseResourceMockFallback, clearReferenceOptions, createPreviewRows, loadReferenceOptions } from '@/utils/resource-options'
-import { isFrameworkPreview } from '@/utils/auth'
+import { getCurrentUser, isFrameworkPreview } from '@/utils/auth'
 import { hasPermission, hasRequestPermission, resourcePermission } from '@/utils/permission'
 
 // 这是约 80 个配置化 CRUD 页面共用的“通用资源页”。路由只传入 resourceKey，
@@ -289,9 +289,12 @@ function flattenTree(items) {
 // 根据资源筛选配置和当前路由query初始化查询表单。
 function initFilters() {
   Object.keys(filters).forEach((key) => delete filters[key])
+  const defaultFilters = typeof config.value.defaultFilters === 'function'
+    ? config.value.defaultFilters(getCurrentUser())
+    : (config.value.defaultFilters || {})
   config.value.filters.forEach((item) => {
     const queryValue = route.query[item.prop]
-    filters[item.prop] = queryValue ?? ''
+    filters[item.prop] = queryValue ?? defaultFilters[item.prop] ?? ''
   })
 }
 
@@ -340,9 +343,20 @@ function collectReferenceFields() {
     .filter((item) => {
       if (item.type !== 'reference' || !item.reference) return false
       if (previewMode) return true
+      if (item.loadWithoutPermission) return true
       const referenceConfig = getResourceConfig(item.reference)
       return referenceConfig && hasPermission(resourcePermission(referenceConfig.key, 'view'))
     })
+}
+
+async function loadActionReferences(action) {
+  const keys = [...new Set((action.fields || [])
+    .filter((item) => item.type === 'reference' && item.reference)
+    .map((item) => item.reference))]
+  await Promise.all(keys.map(async (key) => {
+    clearReferenceOptions(key)
+    referenceOptions[key] = await loadReferenceOptions(key, previewMode)
+  }))
 }
 
 // 确保当前选中的明细标签仍然存在；不存在时切换到第一个有权限的明细。
@@ -901,6 +915,7 @@ async function openAction(action, row = null) {
     }
   }
   if (action.fields?.length) {
+    await loadActionReferences(action)
     actionOpen.value = true
     await nextTick()
     actionFormRef.value?.clearValidate()
@@ -935,6 +950,7 @@ async function submitAction() {
       const data = cleanParams(rawData)
       actionResult = await executeResourceAction({ method: action.method || 'put', url: action.url || action.path(actionRow.value), data })
     }
+    ;(action.refreshReferences || []).forEach((resourceKey) => clearReferenceOptions(resourceKey))
     ElMessage.success(`${currentAction.value.label}成功`)
     actionOpen.value = false
     if (!localDataMode.value && action.successNavigate) {

@@ -7,6 +7,7 @@ import { clearAuth, getCurrentUser, hasAuthenticatedSession, isFrameworkPreview,
 import { getDomainResources, resourceRoutes } from '@/config/resources'
 import { getCurrentUserInfo } from '@/api/auth'
 import { hasPermission, resourcePermission } from '@/utils/permission'
+import { firstAccessiblePath, isNavigationPathAccessible } from '@/config/navigation'
 
 // routes 是整个系统的“路径 -> 页面组件”映射表。
 const routes = [
@@ -28,7 +29,7 @@ const routes = [
     path: '/',
     // layout 是登录后的整体框架，包含侧边菜单、顶部导航和内部 RouterView。
     component: () => import('@/pages/layout/index.vue'),
-    redirect: '/dashboard',
+    redirect: () => hasAuthenticatedSession() ? firstAccessiblePath('/dashboard') : '/dashboard',
     // children 中的页面都显示在 layout 的内部路由出口中。
     children: [
       // 下面四个是独立实现的固定页面，数量较少，直接写在主路由表中更容易阅读。
@@ -42,7 +43,7 @@ const routes = [
         path: 'ai/workbench',
         name: 'AiWorkbench',
         component: () => import('@/pages/ai/workbench.vue'),
-        meta: { title: 'AI 工作台', icon: 'bot' }
+        meta: { title: 'AI 工作台', icon: 'bot', permission: 'ai:assistant:use' }
       },
       {
         path: 'mfg/schedule-workbench',
@@ -62,7 +63,7 @@ const routes = [
         path: 'module/:moduleKey',
         name: 'ModuleHub',
         redirect: (to) => getDomainResources(to.params.moduleKey)
-          .find((resource) => hasPermission(resourcePermission(resource.key, 'view')))?.routePath || '/dashboard',
+          .find((resource) => hasPermission(resourcePermission(resource.key, 'view')))?.routePath || firstAccessiblePath('/forbidden'),
         meta: { title: '模块总览', icon: 'package' }
       }
     ]
@@ -96,7 +97,10 @@ router.beforeEach(async (to) => {
   if (to.meta.public) {
     // 已登录用户再次访问登录页时，直接送回原目标页或首页。
     if (to.name === 'Login' && hasAuthenticatedSession()) {
-      return to.query.redirect || '/dashboard'
+      const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : ''
+      return redirect.startsWith('/') && isNavigationPathAccessible(redirect)
+        ? redirect
+        : firstAccessiblePath('/dashboard')
     }
     return true
   }

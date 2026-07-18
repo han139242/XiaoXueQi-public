@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import AppIcon from '@/components/common/AppIcon.vue'
 import { getCurrentUserInfo, login } from '@/api/auth'
 import shuttlecockImage from '@/assets/login-background-blue.png'
+import { firstAccessiblePath, isNavigationPathAccessible } from '@/config/navigation'
 import {
   setCurrentUser,
   setToken,
@@ -33,8 +34,12 @@ const rules = {
 // 路由守卫把未登录用户送到登录页时，会用 redirect 记录用户原本想访问的页面。
 // 登录成功后回到该页面；没有 redirect 时进入首页，并限制目标必须是站内路径。
 function resolveTarget() {
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
-  return redirect.startsWith('/') ? redirect : '/dashboard'
+  const fallback = firstAccessiblePath('/forbidden')
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+  if (!redirect.startsWith('/')) {
+    return fallback
+  }
+  return isNavigationPathAccessible(redirect) ? redirect : fallback
 }
 
 // 执行表单校验、调用登录接口、保存Token和用户权限，最后进入原目标页面。

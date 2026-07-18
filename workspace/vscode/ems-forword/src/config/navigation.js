@@ -122,6 +122,20 @@ export function getNavigationItems() {
   return getNavigationGroups().flatMap((group) => flattenItems(group.items))
 }
 
+const preferredHomePaths = ['/dashboard', '/eam/equipment', '/eam/repair-orders']
+
+export function firstAccessiblePath(fallback = '/dashboard') {
+  const items = getNavigationItems()
+  return preferredHomePaths.find((path) => items.some((item) => item.path === path))
+    || items.find((item) => item.path)?.path
+    || fallback
+}
+
+export function isNavigationPathAccessible(path) {
+  const plainPath = String(path || '').split(/[?#]/, 1)[0]
+  return Boolean(plainPath) && getNavigationItems().some((item) => item.path === plainPath)
+}
+
 // 逐组执行权限过滤，删除没有任何可见子项的空分组。
 export function getNavigationGroups() {
   return navigationGroups.map((group) => ({

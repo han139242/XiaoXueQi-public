@@ -6,7 +6,7 @@ import { ElNotification } from 'element-plus'
 import AppIcon from '@/components/common/AppIcon.vue'
 import ThemeDrawer from '@/components/layout/ThemeDrawer.vue'
 import { clearAuth, getCurrentUser, isFrameworkPreview } from '@/utils/auth'
-import { getModuleDefinition, getNavigationItems } from '@/config/navigation'
+import { firstAccessiblePath, getModuleDefinition, getNavigationItems } from '@/config/navigation'
 import { openAiAssistant } from '@/utils/app-events'
 import { activeTheme } from '@/utils/theme'
 import { getCurrentUserInfo, logout } from '@/api/auth'
@@ -140,6 +140,14 @@ function isSafeNotificationRoute(path) {
   return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')
 }
 
+async function redirectIfCurrentRouteForbidden() {
+  const requiredPermission = route.meta.permission
+    || (route.name === 'ModuleHub' ? `module:${route.params.moduleKey}:view` : '')
+  if (requiredPermission && !hasPermission(requiredPermission)) {
+    await router.replace(firstAccessiblePath('/forbidden'))
+  }
+}
+
 // 按当前用户生成紧急通知去重所需的localStorage键。
 function urgentStorageKey() {
   const identity = currentUser.value.userId || currentUser.value.username || 'unknown'
@@ -256,6 +264,7 @@ onMounted(async () => {
       const result = await getCurrentUserInfo()
       currentUser.value = result.data || {}
       setCurrentUser(currentUser.value)
+      await redirectIfCurrentRouteForbidden()
     } catch {
       // 请求层负责处理失效登录；其他错误下继续使用本地用户信息。
     }
