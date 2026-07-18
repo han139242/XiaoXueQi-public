@@ -59,7 +59,7 @@
           <view class="task-quantity"><text>良品数: {{item.qualifiedQuantity}}</text><text>不良品数: {{item.defectQuantity}}</text></view>
           <view class="task-actions">
             <button class="task-action" data-id="{{item.taskId}}" catchtap="openTask">详情</button>
-            <button wx:if="{{canReport && item.assignedToCurrentUser && item.status === 'RUNNING' && !item.reportingComplete}}" class="task-action task-action--primary" data-id="{{item.taskId}}" catchtap="openReportForm">报工</button>
+            <button wx:if="{{canReport && item.canOperate && item.status === 'RUNNING' && !item.reportingComplete}}" class="task-action task-action--primary" data-id="{{item.taskId}}" catchtap="openReportForm">报工</button>
           </view>
         </view>
       </view>

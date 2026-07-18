@@ -69,6 +69,24 @@ class PermissionServiceImplTest {
         assertEquals("ALL", context.dataScope());
     }
 
+    @Test
+    void adminUsernameHasSuperAdminPermissionsEvenWithoutRoleRelation() {
+        SysUserMapper mapper = mock(SysUserMapper.class);
+        SysUser admin = enabledUser();
+        admin.setUsername("admin");
+        when(mapper.selectById(7L)).thenReturn(admin);
+        when(mapper.listRoleCodes(7L)).thenReturn(List.of());
+        when(mapper.listPermissionCodes(7L)).thenReturn(List.of());
+        when(mapper.listDataScopes(7L)).thenReturn(List.of("SELF"));
+        when(mapper.listTeamIdsByUserId(7L)).thenReturn(List.of());
+
+        AuthorizationContext context = new PermissionServiceImpl(mapper).getContext(7L);
+
+        assertTrue(context.isSuperAdmin());
+        assertTrue(context.hasPermission("mfg:work-report:submit"));
+        assertEquals("ALL", context.dataScope());
+    }
+
     private SysUser enabledUser() {
         SysUser user = new SysUser();
         user.setUserId(7L);

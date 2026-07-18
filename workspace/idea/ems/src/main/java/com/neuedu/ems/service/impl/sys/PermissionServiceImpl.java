@@ -122,6 +122,9 @@ public class PermissionServiceImpl implements PermissionService {
         }
         // 权限由“用户 -> 角色 -> 菜单”关系计算，不信任前端传入的权限列表。
         Set<String> roles = new LinkedHashSet<>(sysUserMapper.listRoleCodes(userId));
+        if ("admin".equalsIgnoreCase(user.getUsername())) {
+            roles.add(AuthorizationContext.SUPER_ADMIN_ROLE);
+        }
         Set<String> permissions = new LinkedHashSet<>(sysUserMapper.listPermissionCodes(userId));
         List<String> scopes = sysUserMapper.listDataScopes(userId);
         // 超级管理员始终拥有全部数据范围；其他用户取其角色配置中范围最大的有效值。

@@ -136,6 +136,28 @@ class MfgTaskServiceImplTest {
     }
 
     @Test
+    void startAllowsAdminWithoutEmployeeOrTaskAssignment() {
+        when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.WAIT_START));
+        when(taskMapper.update(any(MfgTask.class), any())).thenReturn(1);
+        prepareStartGate();
+        SysUser admin = new SysUser();
+        admin.setUserId(1L);
+        admin.setUsername("admin");
+        admin.setStatus(BusinessStatus.Common.ENABLE);
+        when(userMapper.selectOne(any())).thenReturn(admin);
+        when(taskOperatorMapper.selectCount(any())).thenReturn(0L);
+
+        assertTrue(service.startTask(1L, null, 1L));
+
+        ArgumentCaptor<SysOperationLog> operationLog = ArgumentCaptor.forClass(SysOperationLog.class);
+        verify(operationLogMapper).insert(operationLog.capture());
+        assertEquals(1L, operationLog.getValue().getUserId());
+        assertTrue(operationLog.getValue().getRemark().contains("员工ID：1"));
+        verify(employeeMapper, never()).selectOne(any());
+        verify(taskOperatorMapper, never()).selectCount(any());
+    }
+
+    @Test
     void repeatedStartIsRejectedBeforeUpdate() {
         when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.RUNNING));
 

@@ -68,7 +68,8 @@ Page({
     submitting: false,
     canStart: false,
     canReport: false,
-    canFinish: false
+    canFinish: false,
+    isSuperAdmin: false
   },
 
   onLoad(options) {
@@ -84,6 +85,7 @@ Page({
   onShow() {
     if (!guard.requireAuth()) return
     this.setData({
+      isSuperAdmin: auth.isSuperAdmin(),
       canStart: auth.hasPermission('mfg:task:start'),
       canReport: auth.hasPermission('mfg:work-report:create') && auth.hasPermission('mfg:work-report:submit'),
       canFinish: auth.hasPermission('mfg:task:finish')
@@ -113,7 +115,8 @@ Page({
     if (!guard.requirePermission('mfg:task:start')) return
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
-    if (this.data.submitting || !target || target.assignedToCurrentUser !== true || target.status !== 'WAIT_START') return
+    if (this.data.submitting || !target || (!auth.isSuperAdmin() && target.assignedToCurrentUser !== true)
+      || target.status !== 'WAIT_START') return
     const confirmed = await new Promise((resolve) => {
       wx.showModal({
         title: '开始任务',
@@ -142,7 +145,8 @@ Page({
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
     // 只有“派给当前用户 + 生产中 + 未达标”的任务才允许进入报工。
-    if (!target || target.assignedToCurrentUser !== true || target.status !== 'RUNNING' || target.reportingComplete) return
+    if (!target || (!auth.isSuperAdmin() && target.assignedToCurrentUser !== true)
+      || target.status !== 'RUNNING' || target.reportingComplete) return
     wx.navigateTo({ url: '/pages/report/form/index?taskId=' + encodeURIComponent(taskId) })
   },
 
@@ -150,7 +154,8 @@ Page({
     if (!guard.requirePermission('mfg:task:finish')) return
     const taskId = Number(event.currentTarget.dataset.id || this.data.id)
     const target = this.data.progressTasks.find((item) => Number(item.taskId) === taskId) || this.data.task
-    if (!target || target.assignedToCurrentUser !== true || !['RUNNING', 'PAUSED'].includes(target.status)) return
+    if (!target || (!auth.isSuperAdmin() && target.assignedToCurrentUser !== true)
+      || !['RUNNING', 'PAUSED'].includes(target.status)) return
     wx.navigateTo({ url: '/pages/task/finish/index?taskId=' + encodeURIComponent(taskId) })
   },
 
@@ -167,7 +172,7 @@ Page({
     wx.navigateTo({ url: '/pages/report/detail/index?id=' + encodeURIComponent(event.currentTarget.dataset.id) })
   },
 
-  decorateTask(item, lookups) {
+  decorateTask(item, lookups, isSuperAdmin) {
     // 把后端原始任务记录转换成页面可直接展示的数据：
     // 状态文案、工序/工位名称、累计数量、是否达标等。
     const completed = Math.max(Number(item.completedQuantity || 0), Number(item.reportedQualifiedQuantity || 0))
@@ -180,6 +185,8 @@ Page({
       stationLabel: lookupApi.label(lookups.station, item.stationId, '工位'),
       qualifiedQuantity: completed,
       defectQuantity: defects,
+      canOperate: isSuperAdmin || item.assignedToCurrentUser === true,
+      finishable: item.status === 'RUNNING' || item.status === 'PAUSED',
       reportingComplete: planned > 0 && completed + defects >= planned,
       actualQuantity: completed + defects,
       remark: ''
@@ -210,7 +217,8 @@ Page({
       const relatedTasks = selectProgressTasks(
         taskPage && Array.isArray(taskPage.records) ? taskPage.records : [task]
       )
-      const decoratedTask = this.decorateTask(task, lookups)
+      const isSuperAdmin = auth.isSuperAdmin()
+      const decoratedTask = this.decorateTask(task, lookups, isSuperAdmin)
       this.setData({
         task: {
           ...decoratedTask,
@@ -221,7 +229,7 @@ Page({
         },
         workOrder,
         product: product || { productCode: '-', productName: '-' },
-        progressTasks: relatedTasks.slice().sort(compareTasks).map((item) => this.decorateTask(item, lookups)),
+        progressTasks: relatedTasks.slice().sort(compareTasks).map((item) => this.decorateTask(item, lookups, isSuperAdmin)),
         reports: reports.map((item) => ({
           ...item,
           statusView: statusUtil.getStatus('audit', item.auditStatus),

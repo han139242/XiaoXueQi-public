@@ -83,7 +83,10 @@ public class AuthServiceImpl implements AuthService {
         }
         validateAccountStatus(user);
         List<String> roles = sysUserMapper.listRoleCodes(userId);
-        boolean superAdmin = roles.contains("SUPER_ADMIN");
+        boolean superAdmin = "admin".equalsIgnoreCase(user.getUsername()) || roles.contains("SUPER_ADMIN");
+        if (superAdmin && !roles.contains("SUPER_ADMIN")) {
+            roles = List.of("SUPER_ADMIN");
+        }
         List<String> dataScopes = sysUserMapper.listDataScopes(userId);
         String dataScope = superAdmin ? "ALL" : List.of("ALL", "DEPARTMENT", "TEAM", "SELF").stream()
                 .filter(dataScopes::contains)

@@ -137,16 +137,17 @@ class AuthServiceImplTest {
     @Test
     void returnsCurrentUserRolesAndPermissions() {
         SysUser user = userWithStatus("ENABLE");
+        user.setUsername("operator");
         user.setEmployeeId(9L);
         when(sysUserMapper.selectById(1L)).thenReturn(user);
-        when(sysUserMapper.listRoleCodes(1L)).thenReturn(List.of("admin"));
+        when(sysUserMapper.listRoleCodes(1L)).thenReturn(List.of("OPERATOR"));
         when(sysUserMapper.listPermissionCodes(1L)).thenReturn(List.of("sys:user:list"));
         when(sysUserMapper.listDataScopes(1L)).thenReturn(List.of("TEAM"));
 
         AuthUserInfo info = authService.getUserInfo(1L);
 
-        assertEquals("admin", info.username());
-        assertEquals(List.of("admin"), info.roles());
+        assertEquals("operator", info.username());
+        assertEquals(List.of("OPERATOR"), info.roles());
         assertEquals(List.of("sys:user:list"), info.permissions());
         assertEquals("TEAM", info.dataScope());
         assertEquals(false, info.superAdmin());
@@ -163,6 +164,21 @@ class AuthServiceImplTest {
         AuthUserInfo info = authService.getUserInfo(1L);
 
         assertTrue(info.superAdmin());
+        assertEquals("ALL", info.dataScope());
+    }
+
+    @Test
+    void marksAdminUsernameAsSuperAdminEvenWithoutRoleRelation() {
+        SysUser user = userWithStatus("ENABLE");
+        when(sysUserMapper.selectById(1L)).thenReturn(user);
+        when(sysUserMapper.listRoleCodes(1L)).thenReturn(List.of());
+        when(sysUserMapper.listPermissionCodes(1L)).thenReturn(List.of());
+        when(sysUserMapper.listDataScopes(1L)).thenReturn(List.of("SELF"));
+
+        AuthUserInfo info = authService.getUserInfo(1L);
+
+        assertTrue(info.superAdmin());
+        assertEquals(List.of("SUPER_ADMIN"), info.roles());
         assertEquals("ALL", info.dataScope());
     }
 

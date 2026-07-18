@@ -29,8 +29,13 @@ function clearAuth() {
   if (app && app.globalData) app.globalData.user = null
 }
 
+function isAdminAccount(user) {
+  return String(user && user.username || '').toLowerCase() === 'admin'
+}
+
 function isSuperAdmin(user = getUser()) {
-  return Boolean(user && (user.superAdmin || (Array.isArray(user.roles) && user.roles.includes('SUPER_ADMIN'))))
+  return Boolean(user && (user.superAdmin || isAdminAccount(user)
+    || (Array.isArray(user.roles) && user.roles.includes('SUPER_ADMIN'))))
 }
 
 function hasPermission(permissionCode, user = getUser()) {

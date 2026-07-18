@@ -463,6 +463,87 @@ class MfgWorkReportServiceImplTest {
     }
 
     @Test
+    void submitAllowsAdminWithoutEmployeeOrTaskAssignment() {
+        SysUser admin = new SysUser();
+        admin.setUserId(1L);
+        admin.setUsername("admin");
+        when(userMapper.selectOne(any())).thenReturn(admin);
+        when(taskOperatorMapper.selectCount(any())).thenReturn(0L);
+        MfgTask runningTask = task();
+        runningTask.setStatus(BusinessStatus.Production.RUNNING);
+        runningTask.setStationId(4L);
+        when(taskMapper.selectOne(any())).thenReturn(runningTask);
+        when(reportMapper.insert(any(MfgWorkReport.class))).thenAnswer(invocation -> {
+            invocation.<MfgWorkReport>getArgument(0).setReportId(10L);
+            return 1;
+        });
+        MfgWorkReport request = new MfgWorkReport();
+        request.setTaskId(2L);
+        request.setQualifiedQuantity(BigDecimal.ONE);
+        request.setDefectQuantity(BigDecimal.ZERO);
+        request.setActualWorkHours(BigDecimal.ONE);
+
+        service.submitWorkReport(request, List.of(), 1L);
+
+        ArgumentCaptor<MfgWorkReport> inserted = ArgumentCaptor.forClass(MfgWorkReport.class);
+        verify(reportMapper).insert(inserted.capture());
+        verify(taskOperatorMapper, never()).selectCount(any());
+        assertEquals(1L, inserted.getValue().getOperatorId());
+        assertEquals(4L, inserted.getValue().getStationId());
+        assertEquals(1L, inserted.getValue().getCreatedBy());
+    }
+
+    @Test
+    void submitFinishesTaskWhenReportedQuantityReachesPlan() {
+        MfgTask runningTask = task();
+        runningTask.setStatus(BusinessStatus.Production.RUNNING);
+        runningTask.setStationId(4L);
+        runningTask.setVersion(7);
+        MfgWorkReport existing = approvedReport("40");
+        MfgWorkReport current = report("60");
+        current.setAuditStatus(BusinessStatus.Document.SUBMITTED);
+        when(taskMapper.selectOne(any())).thenReturn(runningTask);
+        when(reportMapper.selectList(any())).thenReturn(List.of(existing), List.of(existing, current));
+        when(reportMapper.insert(any(MfgWorkReport.class))).thenAnswer(invocation -> {
+            invocation.<MfgWorkReport>getArgument(0).setReportId(10L);
+            return 1;
+        });
+        when(taskMapper.updateById(any(MfgTask.class))).thenReturn(1);
+        MfgWorkReport request = new MfgWorkReport();
+        request.setTaskId(2L);
+        request.setQualifiedQuantity(new BigDecimal("60"));
+        request.setDefectQuantity(BigDecimal.ZERO);
+        request.setActualWorkHours(BigDecimal.ONE);
+
+        service.submitWorkReport(request, List.of(), 9L);
+
+        ArgumentCaptor<MfgTask> taskUpdate = ArgumentCaptor.forClass(MfgTask.class);
+        verify(taskMapper).updateById(taskUpdate.capture());
+        assertEquals(2L, taskUpdate.getValue().getTaskId());
+        assertEquals(BusinessStatus.Production.FINISHED, taskUpdate.getValue().getStatus());
+        assertEquals(new BigDecimal("100"), taskUpdate.getValue().getCompletedQuantity());
+        assertEquals(BigDecimal.ZERO, taskUpdate.getValue().getDefectQuantity());
+        assertEquals(9L, taskUpdate.getValue().getUpdatedBy());
+    }
+
+    @Test
+    void submitRejectsFinishedTaskAfterReportedQuantityReachedPlan() {
+        MfgTask finishedTask = task();
+        finishedTask.setStatus(BusinessStatus.Production.FINISHED);
+        finishedTask.setStationId(4L);
+        when(taskMapper.selectOne(any())).thenReturn(finishedTask);
+        MfgWorkReport request = new MfgWorkReport();
+        request.setTaskId(2L);
+        request.setQualifiedQuantity(BigDecimal.ONE);
+        request.setDefectQuantity(BigDecimal.ZERO);
+        request.setActualWorkHours(BigDecimal.ONE);
+
+        assertThrows(BusinessException.class, () -> service.submitWorkReport(request, List.of(), 9L));
+
+        verify(reportMapper, never()).insert(any(MfgWorkReport.class));
+    }
+
+    @Test
     void submitRejectsJwtEmployeeNotAssignedToTask() {
         MfgTask runningTask = task();
         runningTask.setStatus(BusinessStatus.Production.RUNNING);

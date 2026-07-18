@@ -72,6 +72,7 @@ Page({
     startingWorkOrder: false,
     canReport: false,
     canViewHistory: false,
+    isSuperAdmin: false,
     loading: true,
     error: ''
   },
@@ -99,6 +100,7 @@ Page({
 
   syncPermissions() {
     this.setData({
+      isSuperAdmin: auth.isSuperAdmin(),
       canStartWorkOrder: auth.hasPermission('mfg:work-order:start'),
       canReport: auth.hasPermission('mfg:work-report:create') && auth.hasPermission('mfg:work-report:submit'),
       canViewHistory: auth.hasPermission('mfg:work-report:view')
@@ -141,7 +143,8 @@ Page({
     if (!guard.requirePermission('mfg:work-report:create') || !guard.requirePermission('mfg:work-report:submit')) return
     const taskId = Number(event.currentTarget.dataset.id)
     const task = this.data.tasks.find((item) => Number(item.taskId) === taskId)
-    if (!task || task.assignedToCurrentUser !== true || task.status !== 'RUNNING' || task.reportingComplete) return
+    if (!task || (!auth.isSuperAdmin() && task.assignedToCurrentUser !== true)
+      || task.status !== 'RUNNING' || task.reportingComplete) return
     wx.navigateTo({ url: '/pages/report/form/index?taskId=' + encodeURIComponent(taskId) })
   },
 
@@ -149,7 +152,7 @@ Page({
     wx.navigateTo({ url: '/pages/report/detail/index?id=' + encodeURIComponent(event.currentTarget.dataset.id) })
   },
 
-  decorateTasks(records, lookups) {
+  decorateTasks(records, lookups, isSuperAdmin) {
     const tasks = selectProgressTasks(records).sort(compareTasks).map((item) => {
       const planned = Number(item.plannedQuantity || 0)
       const qualified = Math.max(Number(item.completedQuantity || 0), Number(item.reportedQualifiedQuantity || 0))
@@ -165,6 +168,7 @@ Page({
         stationLabel: lookupApi.label(lookups.station, item.stationId, '工位'),
         qualifiedQuantity: qualified,
         defectQuantity: defect,
+        canOperate: isSuperAdmin || item.assignedToCurrentUser === true,
         reportingComplete: planned > 0 && reported >= planned,
         progressText: progress.toFixed(2) + '%'
       }
@@ -238,7 +242,8 @@ Page({
         workOrder.planId ? productionPlanApi.detail(workOrder.planId).catch(() => null) : Promise.resolve(null)
       ])
       const records = taskPage && Array.isArray(taskPage.records) ? taskPage.records : []
-      const tasks = this.decorateTasks(records, lookups)
+      const isSuperAdmin = auth.isSuperAdmin()
+      const tasks = this.decorateTasks(records, lookups, isSuperAdmin)
       const product = findItem(lookups.product, workOrder.productId) || {}
       const activeTask = tasks.find((item) => item.stageState === 'active')
       const finalTask = tasks.length ? tasks[tasks.length - 1] : null

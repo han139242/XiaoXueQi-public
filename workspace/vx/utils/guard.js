@@ -69,6 +69,7 @@ function requireEmployee() {
   // 如果账号没有关联员工档案，就不能提交报工、质检等业务记录。
   const user = auth.getUser()
   if (user && user.employeeId) return user.employeeId
+  if (auth.isSuperAdmin(user) && user && user.userId) return user.userId
   wx.showModal({
     title: '无法执行现场操作',
     content: '当前账号未关联员工档案，请联系管理员。',

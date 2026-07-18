@@ -375,6 +375,9 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 .eq(SysUser::getUserId, userId)
                 .eq(SysUser::getStatus, BusinessStatus.Common.ENABLE)
                 .eq(SysUser::getDeletedFlag, 0));
+        if (isSuperAdmin(user)) {
+            return user.getEmployeeId() != null ? user.getEmployeeId() : user.getUserId();
+        }
         if (user == null || user.getEmployeeId() == null) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
                     "当前登录账号未关联启用员工，不能执行车间开工");
@@ -396,6 +399,17 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                     "该任务未分配给当前员工，不能代替他人开工");
         }
         return user.getEmployeeId();
+    }
+
+    private boolean isSuperAdmin(SysUser user) {
+        if (user == null) {
+            return false;
+        }
+        if ("admin".equalsIgnoreCase(user.getUsername())) {
+            return true;
+        }
+        List<String> roles = sysUserMapper.listRoleCodes(user.getUserId());
+        return roles != null && roles.contains("SUPER_ADMIN");
     }
 
     private MfgWorkOrder requireRunningWorkOrder(Long workOrderId) {
