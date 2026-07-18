@@ -4,7 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.neuedu.ems.entity.mfg.MfgTaskOperator;
+import com.neuedu.ems.entity.org.OrgEmployee;
+import com.neuedu.ems.entity.sys.SysUser;
 import com.neuedu.ems.mapper.mfg.MfgTaskOperatorMapper;
+import com.neuedu.ems.mapper.org.OrgEmployeeMapper;
+import com.neuedu.ems.mapper.sys.SysUserMapper;
 import com.neuedu.ems.service.mfg.MfgTaskOperatorService;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +17,10 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 任务人员分配管理 Service 实现类。
@@ -22,6 +30,10 @@ public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMappe
 
     @Autowired(required = false)
     private MfgResponsibilityNotificationService notificationService;
+    @Autowired
+    private OrgEmployeeMapper employeeMapper;
+    @Autowired
+    private SysUserMapper userMapper;
 
     /**
      * 分页查询任务人员分配列表，支持任务、员工和任务角色筛选。
@@ -35,7 +47,9 @@ public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMappe
     @Override
     public Page<MfgTaskOperator> pageTaskOperators(Integer current, Integer size, Long taskId, Long employeeId, String roleInTask) {
         Page<MfgTaskOperator> page = new Page<>(current, size);
-        return baseMapper.selectPage(page, buildTaskOperatorQuery(taskId, employeeId, roleInTask));
+        Page<MfgTaskOperator> result = baseMapper.selectPage(page, buildTaskOperatorQuery(taskId, employeeId, roleInTask));
+        enrichOperatorView(result.getRecords());
+        return result;
     }
 
     /**
@@ -47,7 +61,9 @@ public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMappe
      */
     @Override
     public List<MfgTaskOperator> listTaskOperators(Long taskId, Long employeeId, String roleInTask) {
-        return baseMapper.selectList(buildTaskOperatorQuery(taskId, employeeId, roleInTask));
+        List<MfgTaskOperator> operators = baseMapper.selectList(buildTaskOperatorQuery(taskId, employeeId, roleInTask));
+        enrichOperatorView(operators);
+        return operators;
     }
 
     /**
@@ -57,7 +73,9 @@ public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMappe
      */
     @Override
     public List<MfgTaskOperator> listTaskOperatorsByTaskId(Long taskId) {
-        return baseMapper.selectList(buildTaskOperatorQuery(taskId, null, null));
+        List<MfgTaskOperator> operators = baseMapper.selectList(buildTaskOperatorQuery(taskId, null, null));
+        enrichOperatorView(operators);
+        return operators;
     }
 
     /**
@@ -70,7 +88,9 @@ public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMappe
         LambdaQueryWrapper<MfgTaskOperator> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(MfgTaskOperator::getId, id)
                 .eq(MfgTaskOperator::getDeletedFlag, 0);
-        return baseMapper.selectOne(queryWrapper);
+        MfgTaskOperator taskOperator = baseMapper.selectOne(queryWrapper);
+        enrichOperatorView(taskOperator == null ? List.of() : List.of(taskOperator));
+        return taskOperator;
     }
 
     /**
@@ -163,5 +183,44 @@ public class MfgTaskOperatorServiceImpl extends ServiceImpl<MfgTaskOperatorMappe
                 .eq(StringUtils.hasText(roleInTask), MfgTaskOperator::getRoleInTask, roleInTask)
                 .orderByDesc(MfgTaskOperator::getCreatedTime);
         return queryWrapper;
+    }
+
+    private void enrichOperatorView(List<MfgTaskOperator> operators) {
+        Set<Long> employeeIds = operators.stream()
+                .map(MfgTaskOperator::getEmployeeId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        if (employeeIds.isEmpty()) {
+            return;
+        }
+        Map<Long, OrgEmployee> employees = employeeMapper.selectList(new LambdaQueryWrapper<OrgEmployee>()
+                        .in(OrgEmployee::getEmployeeId, employeeIds)
+                        .eq(OrgEmployee::getDeletedFlag, 0))
+                .stream()
+                .collect(Collectors.toMap(OrgEmployee::getEmployeeId, Function.identity(), (left, right) -> left));
+        Map<Long, SysUser> users = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                        .in(SysUser::getEmployeeId, employeeIds)
+                        .eq(SysUser::getDeletedFlag, 0)
+                        .orderByAsc(SysUser::getUserId))
+                .stream()
+                .collect(Collectors.toMap(SysUser::getEmployeeId, Function.identity(), (left, right) -> left));
+        operators.forEach(operator -> {
+            OrgEmployee employee = employees.get(operator.getEmployeeId());
+            SysUser user = users.get(operator.getEmployeeId());
+            if (employee != null) {
+                operator.setEmployeeNo(employee.getEmployeeNo());
+                operator.setEmployeeName(employee.getEmployeeName());
+            }
+            if (user != null) {
+                operator.setUsername(user.getUsername());
+            }
+            operator.setEmployeeDisplay(displayEmployee(operator));
+        });
+    }
+
+    private String displayEmployee(MfgTaskOperator operator) {
+        return List.of(operator.getEmployeeName(), operator.getEmployeeNo(), operator.getUsername()).stream()
+                .filter(StringUtils::hasText)
+                .collect(Collectors.joining(" / "));
     }
 }

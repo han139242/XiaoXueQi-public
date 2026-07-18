@@ -7,6 +7,42 @@ const alertTypes = values([['MATERIAL', '缺料', 'warning'], ['EQUIPMENT', '设
 const weekdays = values([[1, '周一', 'primary'], [2, '周二', 'primary'], [3, '周三', 'primary'], [4, '周四', 'primary'], [5, '周五', 'primary'], [6, '周六', 'warning'], [7, '周日', 'info']])
 
 // 默认导出生产制造资源数组，由resources/index.js统一汇总并生成路由菜单。
+function normalizedText(...values) {
+  return values.filter(Boolean).join(' ').toUpperCase()
+}
+
+function onlyRawWarehouse(option) {
+  const row = option?.row || {}
+  return row.status !== 'ENABLE' || row.warehouseType !== 'RAW'
+}
+
+function productText(row, context) {
+  const productOption = context.referenceOptions?.['mdm-product']?.find((item) => String(item.value) === String(row?.productId))
+  const product = productOption?.row || {}
+  return normalizedText(product.productCode, product.productName, product.productModel, productOption?.label)
+}
+
+function teamDisabledForProduct(option, row, context) {
+  const product = productText(row, context)
+  const team = normalizedText(option?.row?.teamCode, option?.row?.teamName, option?.label)
+  const productIsMatch = product.includes('MATCH') || product.includes('比赛')
+  const productIsTrain = product.includes('TRAIN') || product.includes('训练')
+  const teamIsMatch = team.includes('MATCH') || team.includes('比赛')
+  const teamIsTrain = team.includes('TRAIN') || team.includes('训练')
+  return (productIsMatch && teamIsTrain) || (productIsTrain && teamIsMatch)
+}
+
+function disabledDispatchDate(row, context) {
+  const planOption = context.referenceOptions?.['mfg-production-plan']?.find((item) => String(item.value) === String(row?.planId))
+  const planEnd = planOption?.row?.plannedEndTime ? new Date(planOption.row.plannedEndTime) : null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  if (planEnd && !Number.isNaN(planEnd.getTime())) {
+    planEnd.setHours(23, 59, 59, 999)
+  }
+  return (date) => date < today || (planEnd && date > planEnd)
+}
+
 export default [
   defineResource({
     key: 'mfg-line-product-capability', domain: 'mfg', route: 'mfg/line-product-capabilities', title: '产线产品能力', icon: 'route', baseUrl: '/api/mfg/line-product-capability', idField: 'capabilityId',
@@ -126,10 +162,10 @@ export default [
     ],
     actions: [
       { key: 'release', label: '下达工单', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/work-order/${row.workOrderId}/release`, visible: (row) => ['DRAFT', 'APPROVED'].includes(row.status), fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) },
-      { key: 'generate-material-issue', label: '发起领料', icon: 'package', method: 'post', type: 'primary', path: (row) => `/api/mfg/work-order/${row.workOrderId}/generate-material-issue`, visible: (row) => ['RELEASED', 'RUNNING'].includes(row.status), fields: [field('warehouseId', { required: true, type: 'reference', reference: 'wms-warehouse' }), field('remark', { type: 'textarea' })], successNavigate: { targetResource: 'wms-outbound-order', query: (data, row) => ({ workOrderId: row.workOrderId, outboundType: 'MATERIAL_ISSUE', focus: data?.outboundId, from: row.workOrderNo }) } },
+      { key: 'generate-material-issue', label: '发起领料', icon: 'package', method: 'post', type: 'primary', path: (row) => `/api/mfg/work-order/${row.workOrderId}/generate-material-issue`, visible: (row) => ['RELEASED', 'RUNNING'].includes(row.status), fields: [field('warehouseId', { required: true, type: 'reference', reference: 'wms-warehouse', optionDisabled: onlyRawWarehouse }), field('remark', { type: 'textarea' })], successNavigate: { targetResource: 'wms-outbound-order', query: (data, row) => ({ workOrderId: row.workOrderId, outboundType: 'MATERIAL_ISSUE', focus: data?.outboundId, from: row.workOrderNo }) } },
       { key: 'view-material-issues', label: '领料详情', icon: 'arrow', kind: 'navigate', detailKey: 'materialIssues', detailCount: 'positive', targetResource: 'wms-outbound-order', query: (row) => ({ workOrderId: row.workOrderId, outboundType: 'MATERIAL_ISSUE', from: row.workOrderNo }) },
       { key: 'return-material', label: '发起退料', icon: 'refresh', kind: 'navigate', targetResource: 'wms-return-order', permissionAction: 'create', visible: (row) => ['RELEASED', 'RUNNING', 'FINISHED'].includes(row.status), query: (row) => ({ workOrderId: row.workOrderId, create: '1', from: row.workOrderNo }) },
-      { key: 'generate-dispatch', label: '生成派工单', icon: 'users', method: 'post', type: 'primary', detailKey: 'dispatches', detailCount: 'zero', path: (row) => `/api/mfg/dispatch-order/generate/${row.workOrderId}`, visible: (row) => row.status === 'RELEASED', fields: [field('teamId', { required: true, type: 'reference', reference: 'org-team' }), field('dueTime', { required: true, type: 'datetime' }), field('remark', { type: 'textarea' })] },
+      { key: 'generate-dispatch', label: '生成派工单', icon: 'users', method: 'post', type: 'primary', detailKey: 'dispatches', detailCount: 'zero', path: (row) => `/api/mfg/dispatch-order/generate/${row.workOrderId}`, visible: (row) => row.status === 'RELEASED', fields: [field('teamId', { required: true, type: 'reference', reference: 'org-team', optionDisabled: teamDisabledForProduct }), field('dueTime', { required: true, type: 'datetime', disabledDate: disabledDispatchDate }), field('remark', { type: 'textarea' })] },
       { key: 'view-dispatches', label: '派工详情', icon: 'arrow', kind: 'navigate', detailKey: 'dispatches', detailCount: 'positive', targetResource: 'mfg-dispatch-order', query: (row) => ({ workOrderId: row.workOrderId, from: row.workOrderNo }) },
       { key: 'view-tasks', label: '生产任务详情', icon: 'arrow', kind: 'navigate', detailKey: 'tasks', detailCount: 'positive', targetResource: 'mfg-task', query: (row) => ({ workOrderId: row.workOrderId, from: row.workOrderNo }) },
       { key: 'withdraw', label: '撤回修改', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/work-order/${row.workOrderId}/withdraw`, visible: (row) => row.status === 'RELEASED', fields: [field('remark', { label: '撤回原因（选填）', type: 'textarea' })], previewPatch: () => ({ status: 'DRAFT' }) }
@@ -151,13 +187,13 @@ export default [
     masterDetail: {
       title: '派工关联生产任务', resource: 'mfg-task', parentField: 'dispatchId',
       endpoint: () => '/api/mfg/task/page',
-      params: (row) => ({ current: 1, size: 100, dispatchId: row.dispatchId, sort: 'oldest' }),
+      params: (row) => ({ current: 1, size: 100, dispatchId: row.dispatchId, workOrderId: row.workOrderId, sort: 'oldest' }),
       label: (row) => row.dispatchNo || `派工单 #${row.dispatchId}`
     },
     canEdit: (row) => row.status === 'WAIT_DISPATCH', canDelete: (row) => row.status === 'WAIT_DISPATCH', lockedReason: '只有待派发派工单可以编辑或删除',
     actions: [
       { key: 'release', label: '派发并生成任务', icon: 'check', method: 'put', type: 'success', path: (row) => `/api/mfg/dispatch-order/${row.dispatchId}/release`, visible: (row) => row.status === 'WAIT_DISPATCH', fields: [field('remark', { type: 'textarea' })], previewPatch: () => ({ status: 'RELEASED' }) },
-      { key: 'view-tasks', label: '生产任务详情', icon: 'arrow', kind: 'navigate', detailKey: 'mfg-task', detailCount: 'positive', targetResource: 'mfg-task', query: (row) => ({ dispatchId: row.dispatchId, from: row.dispatchNo }) },
+      { key: 'view-tasks', label: '生产任务详情', icon: 'arrow', kind: 'navigate', detailKey: 'mfg-task', detailCount: 'positive', targetResource: 'mfg-task', query: (row) => ({ dispatchId: row.dispatchId, workOrderId: row.workOrderId, from: row.dispatchNo }) },
       { key: 'withdraw', label: '撤回派工', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/dispatch-order/${row.dispatchId}/withdraw`, visible: (row) => ['RELEASED', 'ACCEPTED'].includes(row.status), fields: [field('remark', { label: '撤回原因（选填）', type: 'textarea' })], previewPatch: () => ({ status: 'WAIT_DISPATCH' }) }
     ]
   }),
@@ -181,7 +217,7 @@ export default [
       }
     ],
     actions: [
-      { key: 'start', label: '开始任务', icon: 'play', method: 'put', type: 'primary', path: (row) => `/api/mfg/task/${row.taskId}/start`, visible: (row) => row.status === 'WAIT_START', fields: [field('stationId', { label: '实际工位', type: 'reference', reference: 'factory-station' })], previewPatch: (values) => ({ status: 'RUNNING', ...(values.stationId ? { stationId: values.stationId } : {}) }) },
+      { key: 'start', label: '开始任务', icon: 'play', method: 'put', type: 'primary', path: (row) => `/api/mfg/task/${row.taskId}/start`, visible: (row) => row.status === 'WAIT_START', previewPatch: () => ({ status: 'RUNNING' }) },
       { key: 'report', label: '去报工', icon: 'arrow', kind: 'navigate', targetResource: 'mfg-work-report', permissionAction: 'submit', visible: (row) => ['RUNNING', 'PAUSED'].includes(row.status), query: (row) => ({ taskId: row.taskId, create: '1', from: row.taskNo }) },
       { key: 'withdraw', label: '撤回开工', icon: 'refresh', method: 'put', type: 'warning', path: (row) => `/api/mfg/task/${row.taskId}/withdraw`, visible: (row) => ['RUNNING', 'PAUSED'].includes(row.status), fields: [field('remark', { label: '撤回原因（选填）', type: 'textarea' })], previewPatch: () => ({ status: 'WAIT_START' }) },
       { key: 'controlled-close', label: '提前关闭并续作', icon: 'refresh', method: 'put', type: 'danger', path: (row) => `/api/mfg/task/${row.taskId}/controlled-close`, visible: (row) => ['RUNNING', 'PAUSED'].includes(row.status), fields: [field('reason', { label: '提前关闭原因', type: 'textarea', required: true })], previewPatch: () => ({ status: 'CLOSED' }), successNavigate: { targetResource: 'mfg-task', query: (data, row) => ({ workOrderId: row.workOrderId, focus: data?.compensationTaskId, from: row.taskNo }) } },
@@ -189,7 +225,7 @@ export default [
     ],
     relations: [{ key: 'operators', title: '任务人员', resource: 'mfg-task-operator', parentField: 'taskId', endpoint: (row) => `/api/mfg/task-operator/task/${row.taskId}` }]
   }),
-  defineResource({ key: 'mfg-task-operator', domain: 'mfg', route: 'mfg/task-operators', title: '任务人员', baseUrl: '/api/mfg/task-operator', idField: 'id', menu: false, fields: ['taskId', 'employeeId', 'roleInTask', 'assignedTime'], filters: ['taskId', 'employeeId', 'roleInTask'], overrides: { taskId: { required: true }, employeeId: { required: true }, roleInTask: { required: true }, assignedTime: { required: true } } }),
+  defineResource({ key: 'mfg-task-operator', domain: 'mfg', route: 'mfg/task-operators', title: '任务人员', baseUrl: '/api/mfg/task-operator', idField: 'id', menu: false, fields: ['taskId', 'employeeDisplay', 'employeeId', 'roleInTask', 'assignedTime'], filters: ['taskId', 'employeeId', 'roleInTask'], overrides: { taskId: { required: true }, employeeDisplay: { form: false, create: false, edit: false, width: 230 }, employeeId: { required: true, table: false }, roleInTask: { required: true, type: 'select', options: values([['LEADER', '班组长', 'success'], ['OPERATOR', '操作员', 'primary'], ['PRIMARY', '主操作员', 'success'], ['ASSISTANT', '协作人员', 'info']]) }, assignedTime: { required: true, width: 170 } } }),
   defineResource({
     key: 'mfg-work-report', domain: 'mfg', route: 'mfg/work-reports', title: '生产报工', icon: 'clipboard', baseUrl: '/api/mfg/work-report', idField: 'reportId',
     contextCreateOnly: true,

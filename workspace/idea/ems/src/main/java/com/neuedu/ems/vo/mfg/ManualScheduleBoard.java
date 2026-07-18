@@ -11,12 +11,14 @@ import java.util.List;
 @Data
 public class ManualScheduleBoard {
     private MfgScheduleScenario workspaceDraft;
+    private MfgScheduleScenario activeAiBatch;
     private List<ManualScheduleBoardItem> timelineItems = new ArrayList<>();
     private List<ManualScheduleBoardWorkingWindow> workingWindows = new ArrayList<>();
     private List<MfgProductionOrder> pendingOrders = new ArrayList<>();
     private LocalDateTime horizonStart;
     private LocalDateTime horizonEnd;
     private Integer manualItemCount;
+    private Integer aiBatchItemCount;
     private Integer productionPlanCount;
     private Integer conflictCount;
     private Integer lateCount;

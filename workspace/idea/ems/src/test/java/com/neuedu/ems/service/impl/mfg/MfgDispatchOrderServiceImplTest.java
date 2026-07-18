@@ -9,9 +9,12 @@ import com.neuedu.ems.entity.factory.FactoryStationOperation;
 import com.neuedu.ems.entity.mfg.MfgDispatchOrder;
 import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.entity.mfg.MfgTask;
+import com.neuedu.ems.entity.mfg.MfgTaskOperator;
 import com.neuedu.ems.entity.mfg.MfgWorkOrder;
 import com.neuedu.ems.entity.mfg.MfgWorkOrderMaterial;
+import com.neuedu.ems.entity.mdm.MdmProduct;
 import com.neuedu.ems.entity.org.OrgTeam;
+import com.neuedu.ems.entity.org.OrgTeamMember;
 import com.neuedu.ems.entity.process.ProcessRouteItem;
 import com.neuedu.ems.entity.sys.SysOperationLog;
 import com.neuedu.ems.entity.sys.SysStatusChangeLog;
@@ -21,10 +24,13 @@ import com.neuedu.ems.mapper.factory.FactoryStationOperationMapper;
 import com.neuedu.ems.mapper.mfg.MfgDispatchOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.mapper.mfg.MfgTaskMapper;
+import com.neuedu.ems.mapper.mfg.MfgTaskOperatorMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkOrderMaterialMapper;
 import com.neuedu.ems.mapper.mfg.MfgWorkReportMapper;
+import com.neuedu.ems.mapper.mdm.MdmProductMapper;
 import com.neuedu.ems.mapper.org.OrgTeamMapper;
+import com.neuedu.ems.mapper.org.OrgTeamMemberMapper;
 import com.neuedu.ems.mapper.process.ProcessRouteItemMapper;
 import com.neuedu.ems.mapper.sys.SysOperationLogMapper;
 import com.neuedu.ems.mapper.sys.SysStatusChangeLogMapper;
@@ -45,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,13 +60,16 @@ class MfgDispatchOrderServiceImplTest {
     private MfgDispatchOrderServiceImpl service;
     private MfgDispatchOrderMapper dispatchMapper;
     private MfgTaskMapper taskMapper;
+    private MfgTaskOperatorMapper taskOperatorMapper;
     private MfgWorkOrderMapper workOrderMapper;
     private MfgWorkOrderMaterialMapper materialMapper;
     private MfgProductionPlanMapper planMapper;
+    private MdmProductMapper productMapper;
     private ProcessRouteItemMapper routeItemMapper;
     private FactoryStationOperationMapper stationOperationMapper;
     private FactoryStationMapper stationMapper;
     private OrgTeamMapper teamMapper;
+    private OrgTeamMemberMapper teamMemberMapper;
     private MfgWorkReportMapper reportMapper;
     private MfgResponsibilityNotificationService notificationService;
 
@@ -70,13 +80,16 @@ class MfgDispatchOrderServiceImplTest {
         service = new MfgDispatchOrderServiceImpl();
         dispatchMapper = mock(MfgDispatchOrderMapper.class);
         taskMapper = mock(MfgTaskMapper.class);
+        taskOperatorMapper = mock(MfgTaskOperatorMapper.class);
         workOrderMapper = mock(MfgWorkOrderMapper.class);
         materialMapper = mock(MfgWorkOrderMaterialMapper.class);
         planMapper = mock(MfgProductionPlanMapper.class);
+        productMapper = mock(MdmProductMapper.class);
         routeItemMapper = mock(ProcessRouteItemMapper.class);
         stationOperationMapper = mock(FactoryStationOperationMapper.class);
         stationMapper = mock(FactoryStationMapper.class);
         teamMapper = mock(OrgTeamMapper.class);
+        teamMemberMapper = mock(OrgTeamMemberMapper.class);
         reportMapper = mock(MfgWorkReportMapper.class);
         notificationService = mock(MfgResponsibilityNotificationService.class);
         SysStatusChangeLogMapper statusLogMapper = mock(SysStatusChangeLogMapper.class);
@@ -84,20 +97,26 @@ class MfgDispatchOrderServiceImplTest {
 
         ReflectionTestUtils.setField(service, "baseMapper", dispatchMapper);
         ReflectionTestUtils.setField(service, "taskMapper", taskMapper);
+        ReflectionTestUtils.setField(service, "taskOperatorMapper", taskOperatorMapper);
         ReflectionTestUtils.setField(service, "workReportMapper", reportMapper);
         ReflectionTestUtils.setField(service, "workOrderMapper", workOrderMapper);
         ReflectionTestUtils.setField(service, "workOrderMaterialMapper", materialMapper);
         ReflectionTestUtils.setField(service, "productionPlanMapper", planMapper);
+        ReflectionTestUtils.setField(service, "productMapper", productMapper);
         ReflectionTestUtils.setField(service, "routeItemMapper", routeItemMapper);
         ReflectionTestUtils.setField(service, "stationOperationMapper", stationOperationMapper);
         ReflectionTestUtils.setField(service, "stationMapper", stationMapper);
         ReflectionTestUtils.setField(service, "teamMapper", teamMapper);
+        ReflectionTestUtils.setField(service, "teamMemberMapper", teamMemberMapper);
         ReflectionTestUtils.setField(service, "statusLogMapper", statusLogMapper);
         ReflectionTestUtils.setField(service, "operationLogMapper", operationLogMapper);
         ReflectionTestUtils.setField(service, "notificationService", notificationService);
         when(statusLogMapper.insert(any(SysStatusChangeLog.class))).thenReturn(1);
         when(operationLogMapper.insert(any(SysOperationLog.class))).thenReturn(1);
         when(materialMapper.selectList(any())).thenReturn(List.of(readyRequirement()));
+        when(productMapper.selectOne(any())).thenReturn(matchProduct());
+        when(teamMemberMapper.selectList(any())).thenReturn(List.of(teamMember(71L), teamMember(72L)));
+        when(taskOperatorMapper.insert(any(MfgTaskOperator.class))).thenReturn(1);
     }
 
     @Test
@@ -127,6 +146,23 @@ class MfgDispatchOrderServiceImplTest {
     @Test
     void detachedDispatchCreationIsRejected() {
         assertThrows(BusinessException.class, () -> service.saveDispatchOrder(new MfgDispatchOrder()));
+        verify(dispatchMapper, never()).insert(any(MfgDispatchOrder.class));
+    }
+
+    @Test
+    void generateDispatchRejectsTeamThatDoesNotMatchProductType() {
+        OrgTeam trainTeam = team();
+        trainTeam.setTeamCode("TEAM-TRAIN-01");
+        trainTeam.setTeamName("训练球一班");
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
+        when(planMapper.selectOne(any())).thenReturn(plan());
+        when(teamMapper.selectOne(any())).thenReturn(trainTeam);
+        MfgDispatchOrder request = new MfgDispatchOrder();
+        request.setTeamId(7L);
+        request.setDueTime(LocalDateTime.now().plusHours(4));
+
+        assertThrows(BusinessException.class, () -> service.generateDispatchOrder(3L, request, 9L));
+
         verify(dispatchMapper, never()).insert(any(MfgDispatchOrder.class));
     }
 
@@ -166,7 +202,39 @@ class MfgDispatchOrderServiceImplTest {
         assertEquals(30L, tasks.get(0).getStationId());
         assertEquals(3L, tasks.get(0).getWorkOrderId());
         assertEquals(new BigDecimal("100"), tasks.get(0).getPlannedQuantity());
-        verify(notificationService).publishTaskUnassigned(tasks.get(0), 7L, 70L);
+        ArgumentCaptor<MfgTaskOperator> assignmentCaptor = ArgumentCaptor.forClass(MfgTaskOperator.class);
+        verify(taskOperatorMapper, times(6)).insert(assignmentCaptor.capture());
+        assertTrue(assignmentCaptor.getAllValues().stream()
+                .anyMatch(item -> item.getTaskId().equals(tasks.get(0).getTaskId())
+                        && item.getEmployeeId().equals(70L)
+                        && "LEADER".equals(item.getRoleInTask())));
+        assertTrue(assignmentCaptor.getAllValues().stream()
+                .anyMatch(item -> item.getTaskId().equals(tasks.get(0).getTaskId())
+                        && item.getEmployeeId().equals(71L)
+                        && "OPERATOR".equals(item.getRoleInTask())));
+        verify(notificationService).publishTaskAssigned(tasks.get(0).getTaskId(), 70L, 9L);
+        verify(notificationService).publishTaskAssigned(tasks.get(0).getTaskId(), 71L, 9L);
+        verify(notificationService, never()).publishTaskUnassigned(any(), any(), any());
+    }
+
+    @Test
+    void releaseDispatchRejectsTeamWithoutAssignees() {
+        OrgTeam team = team();
+        team.setLeaderId(null);
+        when(dispatchMapper.selectOne(any())).thenReturn(dispatch("WAIT_DISPATCH"));
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder());
+        when(planMapper.selectOne(any())).thenReturn(plan());
+        when(routeItemMapper.selectList(any())).thenReturn(List.of(routeItem(11L, 1)));
+        when(taskMapper.selectCount(any())).thenReturn(0L);
+        when(teamMapper.selectOne(any())).thenReturn(team);
+        when(teamMemberMapper.selectList(any())).thenReturn(List.of());
+
+        assertThrows(BusinessException.class,
+                () -> service.releaseDispatchOrder(20L, 9L, null));
+
+        verify(taskMapper, never()).insert(any(MfgTask.class));
+        verify(taskOperatorMapper, never()).insert(any(MfgTaskOperator.class));
+        verify(dispatchMapper, never()).updateById(any(MfgDispatchOrder.class));
     }
 
     @Test
@@ -265,6 +333,7 @@ class MfgDispatchOrderServiceImplTest {
         MfgWorkOrder workOrder = new MfgWorkOrder();
         workOrder.setWorkOrderId(3L);
         workOrder.setPlanId(4L);
+        workOrder.setProductId(100L);
         workOrder.setRouteId(5L);
         workOrder.setPlannedQuantity(new BigDecimal("100"));
         workOrder.setStatus(BusinessStatus.Document.RELEASED);
@@ -304,11 +373,31 @@ class MfgDispatchOrderServiceImplTest {
         return requirement;
     }
 
+    private MdmProduct matchProduct() {
+        MdmProduct product = new MdmProduct();
+        product.setProductId(100L);
+        product.setProductCode("P-MATCH-01");
+        product.setProductName("比赛球");
+        product.setProductModel("MATCH");
+        return product;
+    }
+
     private OrgTeam team() {
         OrgTeam team = new OrgTeam();
         team.setTeamId(7L);
+        team.setTeamCode("TEAM-MATCH-01");
+        team.setTeamName("比赛球一班");
         team.setLeaderId(70L);
         return team;
+    }
+
+    private OrgTeamMember teamMember(Long employeeId) {
+        OrgTeamMember member = new OrgTeamMember();
+        member.setTeamId(7L);
+        member.setEmployeeId(employeeId);
+        member.setStatus(BusinessStatus.Common.ENABLE);
+        member.setDeletedFlag(0);
+        return member;
     }
 
     private ProcessRouteItem routeItem(Long operationId, int sequence) {

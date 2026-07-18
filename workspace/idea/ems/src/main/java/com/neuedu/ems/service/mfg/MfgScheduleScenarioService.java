@@ -29,6 +29,12 @@ public interface MfgScheduleScenarioService extends IService<MfgScheduleScenario
 
     AiResponse generateManualScheduleBoardAdvice(Long operatorId);
 
+    MfgScheduleScenario generateManualAiBatch(Long operatorId);
+
+    MfgScheduleScenario withdrawManualAiBatch(Long scenarioId, Integer version, Long operatorId);
+
+    MfgScheduleScenario confirmManualAiBatch(Long scenarioId, Integer version, String remark, Long operatorId);
+
     List<ManualScheduleCandidateLine> listEligibleLines(Long scenarioId, Long productionOrderId);
 
     List<ManualScheduleCandidateLine> listEligibleLinesForOrder(Long productionOrderId);

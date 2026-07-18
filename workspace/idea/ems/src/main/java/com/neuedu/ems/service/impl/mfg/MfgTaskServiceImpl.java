@@ -342,7 +342,8 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
             throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "只有待开工任务可以开工，请刷新后确认任务状态");
         }
         Long employeeId = requireAssignedEmployee(taskId, operatorId);
-        MfgWorkOrder workOrder = requireRunningWorkOrder(existing.getWorkOrderId());
+        LocalDateTime now = LocalDateTime.now();
+        MfgWorkOrder workOrder = requireStartableWorkOrder(existing.getWorkOrderId(), operatorId, now);
         requireExecutableDispatch(existing.getDispatchId());
         requireMaterialReady(existing.getWorkOrderId());
         requirePredecessorsFinished(existing, workOrder);
@@ -360,7 +361,6 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         if (!updated) {
             throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(), "生产任务已被其他人员处理，请刷新后重试");
         }
-        LocalDateTime now = LocalDateTime.now();
         insertStatusLog(taskId, existing.getStatus(), BusinessStatus.Production.RUNNING,
                 "START_TASK", operatorId, "员工ID：" + employeeId, now);
         insertOperationLog(taskId, "START_TASK", operatorId, "员工ID：" + employeeId, now);
@@ -412,15 +412,86 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
         return roles != null && roles.contains("SUPER_ADMIN");
     }
 
-    private MfgWorkOrder requireRunningWorkOrder(Long workOrderId) {
+    private MfgWorkOrder requireStartableWorkOrder(Long workOrderId, Long operatorId, LocalDateTime now) {
         MfgWorkOrder workOrder = mfgWorkOrderMapper.selectOne(new LambdaQueryWrapper<MfgWorkOrder>()
                 .eq(MfgWorkOrder::getWorkOrderId, workOrderId)
-                .eq(MfgWorkOrder::getDeletedFlag, 0));
-        if (workOrder == null || !BusinessStatus.Production.RUNNING.equals(workOrder.getStatus())) {
+                .eq(MfgWorkOrder::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (workOrder == null || BusinessStatus.Document.CLOSED.equals(workOrder.getStatus())) {
             throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(),
-                    "父生产工单尚未开始或已关闭，任务不能开工");
+                    "父生产工单不存在或已关闭，任务不能开工");
         }
+        if (BusinessStatus.Document.RELEASED.equals(workOrder.getStatus())) {
+            MfgWorkOrder update = new MfgWorkOrder();
+            update.setWorkOrderId(workOrder.getWorkOrderId());
+            update.setVersion(workOrder.getVersion());
+            update.setStatus(BusinessStatus.Production.RUNNING);
+            update.setUpdatedBy(operatorId);
+            update.setUpdatedTime(now);
+            if (mfgWorkOrderMapper.updateById(update) == 0) {
+                throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(), "父生产工单状态已变化，请刷新后重试");
+            }
+            insertStatusLog("MFG_WORK_ORDER", workOrder.getWorkOrderId(), workOrder.getStatus(),
+                    BusinessStatus.Production.RUNNING, "START_BY_TASK", operatorId,
+                    "员工任务开工同步父工单为生产中", now);
+            workOrder.setStatus(BusinessStatus.Production.RUNNING);
+            workOrder.setVersion(workOrder.getVersion() == null ? null : workOrder.getVersion() + 1);
+        } else if (!BusinessStatus.Production.RUNNING.equals(workOrder.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "父生产工单状态不允许开工");
+        }
+        startPlanAndOrderIfNeeded(workOrder.getPlanId(), operatorId, now);
         return workOrder;
+    }
+
+    private void startPlanAndOrderIfNeeded(Long planId, Long operatorId, LocalDateTime now) {
+        MfgProductionPlan plan = mfgProductionPlanMapper.selectOne(new LambdaQueryWrapper<MfgProductionPlan>()
+                .eq(MfgProductionPlan::getPlanId, planId)
+                .eq(MfgProductionPlan::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (plan == null || BusinessStatus.Document.CLOSED.equals(plan.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "父生产计划不存在或已关闭");
+        }
+        if (BusinessStatus.Document.RELEASED.equals(plan.getStatus())) {
+            MfgProductionPlan update = new MfgProductionPlan();
+            update.setPlanId(plan.getPlanId());
+            update.setVersion(plan.getVersion());
+            update.setStatus(BusinessStatus.Production.RUNNING);
+            update.setUpdatedBy(operatorId);
+            update.setUpdatedTime(now);
+            if (mfgProductionPlanMapper.updateById(update) == 0) {
+                throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(), "父生产计划状态已变化，请刷新后重试");
+            }
+            insertStatusLog("MFG_PRODUCTION_PLAN", plan.getPlanId(), plan.getStatus(),
+                    BusinessStatus.Production.RUNNING, "START_BY_TASK", operatorId,
+                    "员工任务开工同步父计划为生产中", now);
+            plan.setStatus(BusinessStatus.Production.RUNNING);
+        } else if (!BusinessStatus.Production.RUNNING.equals(plan.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "父生产计划状态不允许开工");
+        }
+
+        MfgProductionOrder order = mfgProductionOrderMapper.selectOne(new LambdaQueryWrapper<MfgProductionOrder>()
+                .eq(MfgProductionOrder::getProductionOrderId, plan.getProductionOrderId())
+                .eq(MfgProductionOrder::getDeletedFlag, 0)
+                .last("FOR UPDATE"));
+        if (order == null || BusinessStatus.Document.CLOSED.equals(order.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "父生产订单不存在或已关闭");
+        }
+        if (BusinessStatus.Document.RELEASED.equals(order.getStatus())) {
+            MfgProductionOrder update = new MfgProductionOrder();
+            update.setProductionOrderId(order.getProductionOrderId());
+            update.setVersion(order.getVersion());
+            update.setStatus(BusinessStatus.Production.RUNNING);
+            update.setUpdatedBy(operatorId);
+            update.setUpdatedTime(now);
+            if (mfgProductionOrderMapper.updateById(update) == 0) {
+                throw new BusinessException(ResultCode.DATA_CONFLICT.getCode(), "父生产订单状态已变化，请刷新后重试");
+            }
+            insertStatusLog("MFG_PRODUCTION_ORDER", order.getProductionOrderId(), order.getStatus(),
+                    BusinessStatus.Production.RUNNING, "START_BY_TASK", operatorId,
+                    "员工任务开工同步父订单为生产中", now);
+        } else if (!BusinessStatus.Production.RUNNING.equals(order.getStatus())) {
+            throw new BusinessException(ResultCode.BUSINESS_ERROR.getCode(), "父生产订单状态不允许开工");
+        }
     }
 
     private void requireExecutableDispatch(Long dispatchId) {
@@ -964,7 +1035,7 @@ public class MfgTaskServiceImpl extends ServiceImpl<MfgTaskMapper, MfgTask> impl
                 .eq(stationId != null, MfgTask::getStationId, stationId)
                 .inSql(employeeId != null, MfgTask::getTaskId,
                         "SELECT task_id FROM mfg_task_operator WHERE employee_id = " + employeeId + " AND deleted_flag = 0");
-        if (workOrderId == null) {
+        if (workOrderId == null && dispatchId == null) {
             queryWrapper.inSql(MfgTask::getWorkOrderId,
                     "SELECT work_order_id FROM mfg_work_order WHERE deleted_flag = 0 "
                             + "AND status IN ('RUNNING', 'FINISHED', 'CLOSED')");

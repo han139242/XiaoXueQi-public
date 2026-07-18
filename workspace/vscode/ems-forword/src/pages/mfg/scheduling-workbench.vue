@@ -5,13 +5,16 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppIcon from '@/components/common/AppIcon.vue'
 import {
   addManualScheduleItem,
+  confirmManualAiBatch,
   getManualBoardAiAdvice,
   confirmManualScheduleItem,
+  generateManualAiBatch,
   getManualEligibleLines,
   getManualScheduleBoard,
   openManualScheduleDraft,
   removeManualScheduleItem,
-  updateManualSchedulePlacement
+  updateManualSchedulePlacement,
+  withdrawManualAiBatch
 } from '@/api/mfg/scheduling'
 import { loadReferenceOptions } from '@/utils/resource-options'
 import { hasPermission } from '@/utils/permission'
@@ -32,6 +35,9 @@ const savingPlacement = ref(false)
 const removingItem = ref(false)
 const confirmingItem = ref(false)
 const aiAdviceLoading = ref(false)
+const aiBatchGenerating = ref(false)
+const aiBatchWithdrawing = ref(false)
+const aiBatchConfirming = ref(false)
 const candidateOpen = ref(false)
 const placementOpen = ref(false)
 const addLineOpen = ref(false)
@@ -48,6 +54,7 @@ const visibleLineIds = ref([])
 const TIMELINE_ZOOM_MIN = 1.5
 const TIMELINE_ZOOM_MAX = 3
 const TIMELINE_ZOOM_DEFAULT = 1.5
+const TIMELINE_BLOCK_MIN_WIDTH_PX = 96
 // 非工作时段仍保留在时间轴上，但以更小的视觉权重显示，避免跨日计划留下大段空白。
 const NON_WORKING_TIME_SCALE = 0.14
 const timelineZoom = ref(TIMELINE_ZOOM_DEFAULT)
@@ -82,6 +89,12 @@ const filteredPendingOrders = computed(() => {
 })
 // 从时间轴中筛出仍可编辑的人工草稿项。
 const manualItems = computed(() => timelineItems.value.filter((item) => item.sourceType === 'MANUAL'))
+// 后端把AI一键排产草案作为独立批次返回，前端只负责高亮和批次操作。
+const activeAiBatch = computed(() => board.value?.activeAiBatch || null)
+const aiBatchItems = computed(() => manualItems.value.filter((item) => item.aiBatch))
+const aiBatchScheduledItems = computed(() => aiBatchItems.value.filter((item) => item.status === 'SCHEDULED'))
+const aiBatchConflictItems = computed(() => aiBatchItems.value.filter((item) => item.status === 'CONFLICT'))
+const aiBatchLateItems = computed(() => aiBatchItems.value.filter((item) => Number(item.tardinessMinutes || 0) > 0))
 // PLAN是正式计划，MANUAL是尚可调整的人工草稿项，两者在同一时间轴用不同样式展示。
 const productionPlanItems = computed(() => timelineItems.value.filter((item) => item.sourceType === 'PLAN'))
 // 收集已经加入人工排产的订单ID，便于快速判断重复安排。
@@ -101,6 +114,7 @@ const aiAdviceParagraphs = computed(() => formatAiAdviceParagraphs(aiAdvice.valu
 const conflictItems = computed(() => manualItems.value.filter((item) => item.status === 'CONFLICT'))
 // 每类操作分别判断后端权限码，按钮显示和实际请求保持一致。
 const selectedIsManual = computed(() => selectedItem.value?.sourceType === 'MANUAL')
+const selectedCanEditManual = computed(() => selectedIsManual.value && !selectedItem.value?.aiBatch)
 // 以下五项分别控制新增、修改、删除、AI建议和确认计划按钮权限。
 const canCreateSchedule = computed(() => hasPermission('mfg:schedule-scenario:create'))
 // 判断当前账号能否调整人工排产位置。
@@ -118,7 +132,7 @@ const placementMinimumWorkingMinutes = computed(() => Math.max(0, Number(placeme
 // 比较表单和原排产项，判断是否存在尚未保存的调整。
 const placementChanged = computed(() => {
   // 比较弹窗表单和原始排产项，只有发生修改时才需要先保存再确认。
-  if (!selectedIsManual.value || !selectedItem.value) return false
+  if (!selectedCanEditManual.value || !selectedItem.value) return false
   return String(placementForm.lineId) !== String(selectedItem.value.lineId)
     || normalizeDateTime(placementForm.startTime) !== normalizeDateTime(selectedItem.value.plannedStartTime)
     || normalizeDateTime(placementForm.endTime) !== normalizeDateTime(selectedItem.value.plannedEndTime)
@@ -133,15 +147,20 @@ const lineGroups = computed(() => {
     const lineId = Number(id)
     const items = scheduledItems.value.filter((item) => String(item.lineId) === id)
       .sort((left, right) => dayjs(left.plannedStartTime).valueOf() - dayjs(right.plannedStartTime).valueOf())
-    const trackEnds = []
+    const trackActualEnds = []
+    const itemsByTrack = []
     const layoutItems = items.map((item) => {
       const geometry = timelineGeometry(item)
-      const track = trackEnds.findIndex((end) => geometry.start >= end)
-      const timelineTrack = track === -1 ? trackEnds.length : track
-      trackEnds[timelineTrack] = geometry.end + 0.2
-      return { ...item, geometry, timelineTrack }
+      const track = trackActualEnds.findIndex((end) => geometry.actualStart >= end - 0.000001)
+      const timelineTrack = track === -1 ? trackActualEnds.length : track
+      trackActualEnds[timelineTrack] = geometry.actualEnd
+      const layoutItem = { ...item, geometry, timelineTrack }
+      if (!itemsByTrack[timelineTrack]) itemsByTrack[timelineTrack] = []
+      itemsByTrack[timelineTrack].push(layoutItem)
+      return layoutItem
     })
-    return { lineId, label: lineLabel(lineId), items: layoutItems, trackCount: Math.max(1, trackEnds.length) }
+    itemsByTrack.forEach(compactAdjacentBlocks)
+    return { lineId, label: lineLabel(lineId), items: layoutItems, trackCount: Math.max(1, trackActualEnds.length) }
 }).sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'))
 })
 // 将后端看板起点转换为dayjs对象，方便后续时间计算。
@@ -342,7 +361,7 @@ function formatDurationHours(minutes) {
 
 // 将安排的开始或结束时间按指定小时数前后微调。
 function shiftPlacementTime(field, hours) {
-  if (!canUpdateSchedule.value || !selectedIsManual.value || !['startTime', 'endTime'].includes(field)) return
+  if (!canUpdateSchedule.value || !selectedCanEditManual.value || !['startTime', 'endTime'].includes(field)) return
   const current = dayjs(placementForm[field])
   if (!current.isValid()) return
   placementForm[field] = current.add(hours, 'hour').format('YYYY-MM-DDTHH:mm:ss')
@@ -359,12 +378,24 @@ function timelineGeometry(item) {
   // 把计划开始/结束时间换算为时间轴上的百分比位置和宽度。
   const start = dayjs(item.plannedStartTime)
   const end = dayjs(item.plannedEndTime)
-  if (!start.isValid() || !end.isValid() || !end.isAfter(start)) return { start: 0, width: 0, end: 0 }
+  if (!start.isValid() || !end.isValid() || !end.isAfter(start)) {
+    return { start: 0, width: 0, end: 0, actualStart: 0, actualEnd: 0, compact: true }
+  }
   const left = timelineVisualPosition(start)
   const right = timelineVisualPosition(end)
   // 跨班计划使用起止时刻的非线性映射，条形连续越过被压缩的停工段。
-  const width = Math.min(100 - left, Math.max(0, right - left))
-  return { start: left, width, end: Math.min(100, left + width) }
+  const rawWidth = Math.min(100 - left, Math.max(0, right - left))
+  const minimumWidth = Math.min(100, TIMELINE_BLOCK_MIN_WIDTH_PX / Math.max(1, timelineCanvasWidth.value) * 100)
+  const width = Math.min(100, Math.max(rawWidth, minimumWidth))
+  const displayStart = Math.max(0, Math.min(left, 100 - width))
+  return {
+    start: displayStart,
+    width,
+    end: Math.min(100, displayStart + width),
+    actualStart: left,
+    actualEnd: Math.min(100, left + rawWidth),
+    compact: rawWidth < minimumWidth
+  }
 }
 
 function timelineVisualPosition(value) {
@@ -383,6 +414,20 @@ function timelineVisualPosition(value) {
 // 根据几何信息和重叠轨道号生成时间块行内样式。
 function timelineBlockStyle(item) {
   return { left: `${item.geometry.start}%`, width: `${item.geometry.width}%`, top: `${14 + item.timelineTrack * 66}px` }
+}
+
+function compactAdjacentBlocks(items) {
+  const gap = 0.18
+  items.sort((left, right) => left.geometry.actualStart - right.geometry.actualStart)
+  for (let index = 0; index < items.length - 1; index += 1) {
+    const current = items[index]
+    const next = items[index + 1]
+    if (current.geometry.end + gap <= next.geometry.start) continue
+    const cappedWidth = Math.max(0.7, next.geometry.start - current.geometry.start - gap)
+    current.geometry.width = Math.min(current.geometry.width, cappedWidth)
+    current.geometry.end = current.geometry.start + current.geometry.width
+    current.geometry.compact = true
+  }
 }
 
 // 清空待排订单的关键词、产品和交期筛选条件。
@@ -503,7 +548,7 @@ async function openPlacement(item) {
   placementForm.remark = item.remark || ''
   candidates.value = item.lineId ? [currentLineCandidate(item)] : []
   placementOpen.value = true
-  if (item.sourceType !== 'MANUAL' || !canUpdateSchedule.value) return
+  if (item.sourceType !== 'MANUAL' || item.aiBatch || !canUpdateSchedule.value) return
   candidateLoading.value = true
   try {
     const result = await getManualEligibleLines(item.scenarioId, item.productionOrderId)
@@ -523,7 +568,7 @@ async function openPlacement(item) {
 // 提交产线、时间和版本号保存人工安排，可选择保存后是否关闭弹窗。
 async function persistPlacement(closeAfterSave) {
   // 同时提交方案版本和明细版本，后端通过乐观锁阻止多人排产互相覆盖。
-  if (!canUpdateSchedule.value || !selectedIsManual.value || !selectedItem.value || !placementForm.lineId
+  if (!canUpdateSchedule.value || !selectedCanEditManual.value || !selectedItem.value || !placementForm.lineId
     || !placementForm.startTime || !placementForm.endTime) return false
   savingPlacement.value = true
   const scheduleItemId = selectedItem.value.scheduleItemId
@@ -626,7 +671,7 @@ async function savePlacement() {
 // 二次确认后移除人工排产项，使订单重新回到待排列表。
 async function removeItem() {
   // 移出草稿项前二次确认，成功后订单会重新回到待排列表。
-  if (!canDeleteSchedule.value || !selectedIsManual.value || !selectedItem.value || removingItem.value) return
+  if (!canDeleteSchedule.value || !selectedCanEditManual.value || !selectedItem.value || removingItem.value) return
   try {
     await ElMessageBox.confirm('移出后订单会回到待排列表。', '移出订单', {
       type: 'warning', confirmButtonText: '移出', cancelButtonText: '取消'
@@ -654,7 +699,7 @@ async function removeItem() {
 // 必要时先保存改动，再确认人工项并生成正式生产计划。
 async function confirmPlan() {
   // 若表单有未保存修改则先保存，再调用确认接口生成正式生产计划。
-  if (!canConfirmSchedule.value || !selectedIsManual.value || !selectedItem.value || confirmingItem.value) return
+  if (!canConfirmSchedule.value || !selectedCanEditManual.value || !selectedItem.value || confirmingItem.value) return
   try {
     await ElMessageBox.confirm('确认后将保存当前安排，并生成正式生产计划。', '生成生产计划', {
       type: 'warning', confirmButtonText: '确认并生成', cancelButtonText: '取消'
@@ -683,6 +728,105 @@ async function confirmPlan() {
     await showSchedulingError(error, '生成生产计划失败', '当前安排未能生成生产计划，请刷新后重试。')
   } finally {
     confirmingItem.value = false
+  }
+}
+
+// 对批量确认和批量撤回使用两层确认，避免误触影响整批排程草案。
+async function confirmTwice(firstMessage, firstTitle, secondMessage, secondTitle, confirmButtonText) {
+  await ElMessageBox.confirm(firstMessage, firstTitle, {
+    type: 'warning',
+    confirmButtonText: '继续',
+    cancelButtonText: '取消'
+  })
+  await ElMessageBox.confirm(secondMessage, secondTitle, {
+    type: 'warning',
+    confirmButtonText,
+    cancelButtonText: '取消'
+  })
+}
+
+// 生成一批可撤回的AI排产草案，后端负责排除已有计划和已有草案的订单。
+async function runAiBatchSchedule() {
+  if (!canCreateSchedule.value || aiBatchGenerating.value || activeAiBatch.value) return
+  if (!unscheduledPendingOrders.value.length) {
+    ElMessage.info('当前没有可一键排产的待排订单')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`将对 ${unscheduledPendingOrders.value.length} 个未排产订单生成可撤回草案，并直接显示到产线时间轴。`, 'AI一键排产', {
+      type: 'warning', confirmButtonText: '生成草案', cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  aiBatchGenerating.value = true
+  try {
+    const result = await generateManualAiBatch()
+    ElMessage.success(`AI一键排产草案已生成：${result?.data?.scheduledOrderCount || 0} 项可排`)
+    await loadBoard()
+  } catch (error) {
+    await showSchedulingError(error, 'AI一键排产失败', '本次未生成排产草案，请刷新后重试。')
+  } finally {
+    aiBatchGenerating.value = false
+  }
+}
+
+// 撤回只作用于当前AI批次，不能撤回已经确认生成正式计划的内容。
+async function withdrawAiBatch() {
+  if (!canDeleteSchedule.value || !activeAiBatch.value || aiBatchWithdrawing.value) return
+  try {
+    await confirmTwice(
+      `将撤回本次 AI 一键排产草案中的 ${aiBatchItems.value.length} 个时间块，订单会回到待排状态。`,
+      '撤回本次一键排产',
+      '第二次确认：撤回后本批次时间块会从时间轴消失，但不会影响已有手工安排和正式生产计划。',
+      '再次确认撤回',
+      '确认撤回'
+    )
+  } catch {
+    return
+  }
+  aiBatchWithdrawing.value = true
+  try {
+    await withdrawManualAiBatch(activeAiBatch.value.scenarioId, { scenarioVersion: activeAiBatch.value.version })
+    ElMessage.success('本次AI一键排产草案已撤回')
+    await loadBoard()
+  } catch (error) {
+    await showSchedulingError(error, '撤回一键排产失败', '本次一键排产草案未能撤回，请刷新后重试。')
+  } finally {
+    aiBatchWithdrawing.value = false
+  }
+}
+
+// 确认当前AI批次会生成正式生产计划，后端会重新校验所有时间块并在事务中提交。
+async function confirmAiBatch() {
+  if (!canConfirmSchedule.value || !activeAiBatch.value || aiBatchConfirming.value) return
+  if (aiBatchConflictItems.value.length) {
+    await showSchedulingError(null, '无法确认本次一键排产', '本次一键排产仍存在冲突订单，请先撤回或人工处理后再确认。')
+    return
+  }
+  try {
+    await confirmTwice(
+      `将把本次 AI 一键排产草案中的 ${aiBatchScheduledItems.value.length} 个时间块生成正式生产计划。`,
+      '确认本次一键排产',
+      '第二次确认：生成正式生产计划后不能再通过“撤回一键排产”恢复，只能走生产计划撤销或重新排产流程。',
+      '再次确认生成正式计划',
+      '确认生成'
+    )
+  } catch {
+    return
+  }
+  aiBatchConfirming.value = true
+  try {
+    await confirmManualAiBatch(activeAiBatch.value.scenarioId, {
+      scenarioVersion: activeAiBatch.value.version,
+      remark: '确认AI一键排产草案'
+    })
+    ElMessage.success('本次AI一键排产已生成正式生产计划')
+    await loadBoard()
+  } catch (error) {
+    await showSchedulingError(error, '确认一键排产失败', '本次一键排产未能生成正式生产计划，请刷新后重试。')
+  } finally {
+    aiBatchConfirming.value = false
   }
 }
 
@@ -722,6 +866,9 @@ onMounted(refreshWorkbench)
         <div><h1 class="mes-page-title">智能排产工作台</h1><p class="mes-page-subtitle">待排订单、手工安排与生产计划总览</p></div>
       </div>
       <div class="workbench-actions">
+        <el-button v-if="canCreateSchedule && !activeAiBatch" type="primary" :loading="aiBatchGenerating" :disabled="loading || !unscheduledPendingOrders.length" @click="runAiBatchSchedule"><AppIcon name="bot" :size="15" />AI 一键排产</el-button>
+        <el-button v-if="canConfirmSchedule && activeAiBatch" type="success" :loading="aiBatchConfirming" :disabled="loading || aiBatchWithdrawing || !aiBatchScheduledItems.length || aiBatchConflictItems.length > 0" @click="confirmAiBatch"><AppIcon name="check" :size="15" />确认本次排产</el-button>
+        <el-button v-if="canDeleteSchedule && activeAiBatch" type="danger" plain :loading="aiBatchWithdrawing" :disabled="loading || aiBatchConfirming" @click="withdrawAiBatch"><AppIcon name="trash" :size="15" />撤回本次排产</el-button>
         <el-tag type="primary" effect="plain">整体计划板</el-tag>
         <el-tooltip content="刷新工作台" placement="bottom"><el-button circle :loading="loading" aria-label="刷新工作台" @click="refreshWorkbench"><AppIcon name="refresh" :size="16" /></el-button></el-tooltip>
       </div>
@@ -759,13 +906,17 @@ onMounted(refreshWorkbench)
           <div class="tone-start"><span class="overview-icon"><AppIcon name="calendar" :size="21" /></span><span class="overview-copy"><small>当前计划最早开始</small><strong>{{ formatDateTime(board?.horizonStart) }}</strong></span></div>
           <div class="tone-end"><span class="overview-icon"><AppIcon name="calendar" :size="21" /></span><span class="overview-copy"><small>当前计划最晚结束</small><strong>{{ formatDateTime(board?.horizonEnd) }}</strong></span></div>
         </div>
+        <div v-if="activeAiBatch" class="ai-batch-summary">
+          <span class="overview-icon"><AppIcon name="bot" :size="22" /></span>
+          <span class="overview-copy"><small>当前 AI 草案</small><strong>{{ aiBatchScheduledItems.length }}<em>可确认</em> / {{ aiBatchConflictItems.length }}<em>冲突</em> / {{ aiBatchLateItems.length }}<em>延期</em></strong></span>
+        </div>
         <div class="overview-lines tone-lines"><span class="overview-icon"><AppIcon name="route" :size="22" /></span><span class="overview-copy"><small>已排产线</small><strong>{{ lineGroups.length }}<em>条</em></strong></span></div>
       </section>
     </section>
 
     <section class="mes-panel timeline-panel">
       <div class="mes-panel-header"><div><h2 class="mes-panel-title">生产排程总览</h2><span>{{ formatDateTime(horizonStart) }} 至 {{ formatDateTime(horizonEnd) }}</span></div><div class="timeline-actions"><el-button @click="addLineOpen = true"><AppIcon name="plus" :size="15" />添加产线</el-button></div></div>
-      <div class="timeline-toolbar"><div class="timeline-legend"><span><i class="manual" />手工安排</span><span><i class="formal" />生产计划</span><span><i class="risk" />风险安排</span></div><div class="timeline-zoom-controls" aria-label="时间轴缩放"><el-tooltip content="缩小时间轴" placement="top"><el-button circle size="small" aria-label="缩小时间轴" :disabled="timelineZoom <= TIMELINE_ZOOM_MIN" @click="changeTimelineZoom(-.1)"><AppIcon name="zoom-out" :size="14" /></el-button></el-tooltip><el-slider v-model="timelineZoom" :min="TIMELINE_ZOOM_MIN" :max="TIMELINE_ZOOM_MAX" :step=".05" :show-tooltip="false" /><span class="zoom-value">{{ timelineZoomPercent }}%</span><el-tooltip content="放大时间轴" placement="top"><el-button circle size="small" aria-label="放大时间轴" :disabled="timelineZoom >= TIMELINE_ZOOM_MAX" @click="changeTimelineZoom(.1)"><AppIcon name="zoom-in" :size="14" /></el-button></el-tooltip></div></div>
+      <div class="timeline-toolbar"><div class="timeline-legend"><span><i class="manual" />手工安排</span><span><i class="ai" />AI 草案</span><span><i class="formal" />生产计划</span><span><i class="risk" />风险安排</span></div><div class="timeline-zoom-controls" aria-label="时间轴缩放"><el-tooltip content="缩小时间轴" placement="top"><el-button circle size="small" aria-label="缩小时间轴" :disabled="timelineZoom <= TIMELINE_ZOOM_MIN" @click="changeTimelineZoom(-.1)"><AppIcon name="zoom-out" :size="14" /></el-button></el-tooltip><el-slider v-model="timelineZoom" :min="TIMELINE_ZOOM_MIN" :max="TIMELINE_ZOOM_MAX" :step=".05" :show-tooltip="false" /><span class="zoom-value">{{ timelineZoomPercent }}%</span><el-tooltip content="放大时间轴" placement="top"><el-button circle size="small" aria-label="放大时间轴" :disabled="timelineZoom >= TIMELINE_ZOOM_MAX" @click="changeTimelineZoom(.1)"><AppIcon name="zoom-in" :size="14" /></el-button></el-tooltip></div></div>
       <div v-if="lineGroups.length" class="timeline-board">
         <div class="timeline-inner" :style="{ '--timeline-width': `${timelineCanvasWidth}px` }">
           <div class="timeline-head">
@@ -782,7 +933,7 @@ onMounted(refreshWorkbench)
                   <span>开始：{{ formatDateTime(item.plannedStartTime) }}</span>
                   <span>结束：{{ formatDateTime(item.plannedEndTime) }}</span>
                 </template>
-                <button type="button" class="timeline-block" :class="{ formal: item.sourceType === 'PLAN', conflict: item.status === 'CONFLICT', late: Number(item.tardinessMinutes || 0) > 0 }" :style="timelineBlockStyle(item)" @click="openPlacement(item)"><strong>{{ scheduledOrderLabel(item) }}</strong><span>{{ scheduledProductLabel(item) }} · {{ formatDateTime(item.plannedStartTime) }}</span></button>
+                <button type="button" class="timeline-block" :class="{ ai: item.aiBatch, compact: item.geometry?.compact, formal: item.sourceType === 'PLAN', conflict: item.status === 'CONFLICT', late: Number(item.tardinessMinutes || 0) > 0 }" :style="timelineBlockStyle(item)" @click="openPlacement(item)"><strong>{{ scheduledOrderLabel(item) }}</strong><span>{{ scheduledProductLabel(item) }} · {{ formatDateTime(item.plannedStartTime) }}</span></button>
               </el-tooltip>
             </div>
           </div>
@@ -812,11 +963,11 @@ onMounted(refreshWorkbench)
 
     <el-dialog v-model="candidateOpen" title="选择生产产线" width="min(720px, calc(100vw - 32px))" destroy-on-close><p class="dialog-tip">{{ selectedOrder?.productionOrderNo }} · {{ productLabel(selectedOrder?.productId) }}</p><el-table v-live-column-resize v-loading="candidateLoading" element-loading-text="正在匹配可生产产线..." :data="candidates" size="small"><el-table-column label="产线" min-width="170"><template #default="{ row }"><strong>{{ row.lineCode || row.lineName }}</strong><small>{{ row.lineName }}</small></template></el-table-column><el-table-column label="车间" width="94"><template #default="{ row }">#{{ row.workshopId }}</template></el-table-column><el-table-column label="最早可用" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestStartTime) }}</template></el-table-column><el-table-column label="预计结束" min-width="142"><template #default="{ row }">{{ formatDateTime(row.earliestEndTime) }}</template></el-table-column><el-table-column label="操作" width="82"><template #default="{ row }"><el-button v-if="canCreateSchedule" link type="primary" :loading="String(addingLineId) === String(row.lineId)" :disabled="addingLineId !== null" @click="addToLine(row)">添加</el-button></template></el-table-column><template #empty><el-empty :description="candidateError || '没有符合能力和周历条件的产线'" :image-size="50" /></template></el-table></el-dialog>
 
-    <el-drawer v-model="placementOpen" :title="selectedIsManual ? '编辑计划安排' : '生产计划详情'" size="min(460px, 100vw)" destroy-on-close>
+    <el-drawer v-model="placementOpen" :title="selectedCanEditManual ? '编辑计划安排' : (selectedItem?.aiBatch ? 'AI草案详情' : '生产计划详情')" size="min(460px, 100vw)" destroy-on-close>
       <el-form label-position="top">
         <el-form-item label="订单"><el-input :model-value="selectedItem ? `${scheduledOrderLabel(selectedItem)} · ${scheduledProductLabel(selectedItem)}` : ''" disabled /></el-form-item>
         <el-form-item v-if="!selectedIsManual" label="计划编号"><el-input :model-value="selectedItem?.planNo || '--'" disabled /></el-form-item>
-        <el-form-item label="生产产线"><el-select v-model="placementForm.lineId" class="full-width" :disabled="!selectedIsManual || !canUpdateSchedule" :loading="candidateLoading" loading-text="正在加载候选产线"><el-option v-for="line in candidates" :key="line.lineId" :label="`${line.lineCode || line.lineName} · 车间 #${line.workshopId || '--'}`" :value="String(line.lineId)" /></el-select></el-form-item>
+        <el-form-item label="生产产线"><el-select v-model="placementForm.lineId" class="full-width" :disabled="!selectedCanEditManual || !canUpdateSchedule" :loading="candidateLoading" loading-text="正在加载候选产线"><el-option v-for="line in candidates" :key="line.lineId" :label="`${line.lineCode || line.lineName} · 车间 #${line.workshopId || '--'}`" :value="String(line.lineId)" /></el-select></el-form-item>
         <el-form-item label="所属车间"><el-input :model-value="placementLine?.workshopId ? `车间 #${placementLine.workshopId}` : '--'" disabled /></el-form-item>
 
         <div v-if="selectedIsManual" class="capacity-hint">
@@ -830,26 +981,26 @@ onMounted(refreshWorkbench)
           <div class="placement-time-stack">
             <div class="placement-time-row">
               <span>开始时间</span>
-              <el-date-picker v-model="placementForm.startTime" class="placement-time-input" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm" placeholder="选择开始时间" :disabled="!selectedIsManual || !canUpdateSchedule" />
-              <div v-if="selectedIsManual && canUpdateSchedule" class="time-stepper">
+              <el-date-picker v-model="placementForm.startTime" class="placement-time-input" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm" placeholder="选择开始时间" :disabled="!selectedCanEditManual || !canUpdateSchedule" />
+              <div v-if="selectedCanEditManual && canUpdateSchedule" class="time-stepper">
                 <el-tooltip content="增加 1 小时" placement="right"><button type="button" aria-label="开始时间增加1小时" @click="shiftPlacementTime('startTime', 1)"><AppIcon class="step-up-icon" name="chevron" :size="13" /></button></el-tooltip>
                 <el-tooltip content="减少 1 小时" placement="right"><button type="button" aria-label="开始时间减少1小时" @click="shiftPlacementTime('startTime', -1)"><AppIcon class="step-down-icon" name="chevron" :size="13" /></button></el-tooltip>
               </div>
             </div>
             <div class="placement-time-row">
               <span>结束时间</span>
-              <el-date-picker v-model="placementForm.endTime" class="placement-time-input" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm" placeholder="选择结束时间" :disabled="!selectedIsManual || !canUpdateSchedule" />
-              <div v-if="selectedIsManual && canUpdateSchedule" class="time-stepper">
+              <el-date-picker v-model="placementForm.endTime" class="placement-time-input" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm" placeholder="选择结束时间" :disabled="!selectedCanEditManual || !canUpdateSchedule" />
+              <div v-if="selectedCanEditManual && canUpdateSchedule" class="time-stepper">
                 <el-tooltip content="增加 1 小时" placement="right"><button type="button" aria-label="结束时间增加1小时" @click="shiftPlacementTime('endTime', 1)"><AppIcon class="step-up-icon" name="chevron" :size="13" /></button></el-tooltip>
                 <el-tooltip content="减少 1 小时" placement="right"><button type="button" aria-label="结束时间减少1小时" @click="shiftPlacementTime('endTime', -1)"><AppIcon class="step-down-icon" name="chevron" :size="13" /></button></el-tooltip>
               </div>
             </div>
           </div>
         </el-form-item>
-        <el-form-item label="备注"><el-input v-model="placementForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit :disabled="!selectedIsManual || !canUpdateSchedule" /></el-form-item>
+        <el-form-item label="备注"><el-input v-model="placementForm.remark" type="textarea" :rows="3" maxlength="500" show-word-limit :disabled="!selectedCanEditManual || !canUpdateSchedule" /></el-form-item>
       </el-form>
       <template #footer>
-        <div v-if="selectedIsManual" class="drawer-actions placement-drawer-actions">
+        <div v-if="selectedCanEditManual" class="drawer-actions placement-drawer-actions">
           <el-button v-if="canDeleteSchedule" class="placement-remove-button" type="danger" plain aria-label="移出安排" :loading="removingItem" :disabled="savingPlacement || confirmingItem" @click="removeItem"><AppIcon name="trash" :size="15" /><span class="placement-remove-label">移出安排</span></el-button>
           <span class="placement-action-spacer" />
           <el-button class="placement-cancel-button" :disabled="removingItem || savingPlacement || confirmingItem" @click="placementOpen = false">取消</el-button>
@@ -932,4 +1083,13 @@ onMounted(refreshWorkbench)
 .ai-advice-reference span{color:var(--mes-text);font-size:12px;font-weight:600}
 .ai-advice-reference small{margin:0;color:var(--mes-text-muted);font-size:10px}
 @media(max-width:680px){.ai-advice-actions{width:100%;justify-content:space-between}.ai-advice-references{grid-template-columns:1fr}}
+.workbench-actions :deep(.el-button)>span{display:inline-flex;align-items:center;gap:5px}
+.timeline-legend i.ai{background:#7c3aed}
+.timeline-block.ai{border-color:#6d28d9;background:#7c3aed;box-shadow:0 3px 8px rgb(124 58 237 / 18%)}
+.timeline-block.compact{padding-right:7px;padding-left:7px}
+.timeline-block.ai.late{border-color:#f2c15f;background:#7c3aed;box-shadow:0 0 0 2px rgb(169 109 0 / 18%),0 3px 8px rgb(124 58 237 / 18%)}
+.timeline-block.ai.conflict{border-color:#ffaaa5;background:#7c3aed;box-shadow:0 0 0 2px rgb(178 74 69 / 24%),0 3px 8px rgb(124 58 237 / 18%)}
+.ai-batch-summary{--overview-color:#7c3aed;display:grid;min-width:0;grid-template-columns:48px minmax(0,1fr);align-items:center;gap:10px;min-height:76px;padding:11px 13px;border-top:1px solid var(--mes-border);background:var(--mes-surface)}
+.ai-batch-summary .overview-copy strong{font-size:13px}
+@media(max-width:680px){.ai-batch-summary{grid-template-columns:42px minmax(0,1fr);gap:8px;padding:10px 12px}.ai-batch-summary .overview-copy strong{font-size:12px}}
 </style>

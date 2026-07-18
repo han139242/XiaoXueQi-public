@@ -158,6 +158,43 @@ class MfgTaskServiceImplTest {
     }
 
     @Test
+    void startTaskMovesReleasedParentsToRunning() {
+        when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.WAIT_START));
+        when(taskMapper.update(any(MfgTask.class), any())).thenReturn(1);
+        prepareStartGate();
+        MfgWorkOrder workOrder = workOrder(BusinessStatus.Document.RELEASED, 2);
+        workOrder.setRouteId(6L);
+        MfgProductionPlan plan = new MfgProductionPlan();
+        plan.setPlanId(7L);
+        plan.setProductionOrderId(11L);
+        plan.setLineId(8L);
+        plan.setStatus(BusinessStatus.Document.RELEASED);
+        plan.setVersion(3);
+        MfgProductionOrder order = new MfgProductionOrder();
+        order.setProductionOrderId(11L);
+        order.setStatus(BusinessStatus.Document.RELEASED);
+        order.setVersion(4);
+        when(workOrderMapper.selectOne(any())).thenReturn(workOrder);
+        when(productionPlanMapper.selectOne(any())).thenReturn(plan);
+        when(productionOrderMapper.selectOne(any())).thenReturn(order);
+        when(workOrderMapper.updateById(any(MfgWorkOrder.class))).thenReturn(1);
+        when(productionPlanMapper.updateById(any(MfgProductionPlan.class))).thenReturn(1);
+        when(productionOrderMapper.updateById(any(MfgProductionOrder.class))).thenReturn(1);
+
+        assertTrue(service.startTask(1L, null, 9L));
+
+        ArgumentCaptor<MfgWorkOrder> workOrderUpdate = ArgumentCaptor.forClass(MfgWorkOrder.class);
+        ArgumentCaptor<MfgProductionPlan> planUpdate = ArgumentCaptor.forClass(MfgProductionPlan.class);
+        ArgumentCaptor<MfgProductionOrder> orderUpdate = ArgumentCaptor.forClass(MfgProductionOrder.class);
+        verify(workOrderMapper).updateById(workOrderUpdate.capture());
+        verify(productionPlanMapper).updateById(planUpdate.capture());
+        verify(productionOrderMapper).updateById(orderUpdate.capture());
+        assertEquals(BusinessStatus.Production.RUNNING, workOrderUpdate.getValue().getStatus());
+        assertEquals(BusinessStatus.Production.RUNNING, planUpdate.getValue().getStatus());
+        assertEquals(BusinessStatus.Production.RUNNING, orderUpdate.getValue().getStatus());
+    }
+
+    @Test
     void repeatedStartIsRejectedBeforeUpdate() {
         when(taskMapper.selectOne(any())).thenReturn(task(BusinessStatus.Production.RUNNING));
 
@@ -337,6 +374,17 @@ class MfgTaskServiceImplTest {
     }
 
     @Test
+    void dispatchDetailQueryKeepsPreProductionTasksVisible() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"), MfgTask.class);
+        LambdaQueryWrapper<MfgTask> query = ReflectionTestUtils.invokeMethod(
+                service, "buildTaskQuery", null, null, 72L, null, null, null, null, "oldest");
+
+        String sql = query.getSqlSegment();
+        assertTrue(sql.contains("dispatch_id"));
+        assertFalse(sql.contains("mfg_work_order"));
+    }
+
+    @Test
     void detailIncludesSubmittedAndApprovedReportTotals() {
         MfgTask task = task(BusinessStatus.Production.RUNNING);
         MfgWorkReport submitted = report("12", "1", "SUBMITTED");
@@ -507,7 +555,12 @@ class MfgTaskServiceImplTest {
         dispatch.setStatus(BusinessStatus.Document.RELEASED);
         MfgProductionPlan plan = new MfgProductionPlan();
         plan.setPlanId(7L);
+        plan.setProductionOrderId(11L);
         plan.setLineId(8L);
+        plan.setStatus(BusinessStatus.Production.RUNNING);
+        MfgProductionOrder order = new MfgProductionOrder();
+        order.setProductionOrderId(11L);
+        order.setStatus(BusinessStatus.Production.RUNNING);
         FactoryStation station = new FactoryStation();
         station.setStationId(5L);
         station.setLineId(8L);
@@ -521,6 +574,7 @@ class MfgTaskServiceImplTest {
         when(workOrderMaterialMapper.selectList(any())).thenReturn(List.of(material("10", "10")));
         when(routeItemMapper.selectList(any())).thenReturn(List.of(routeItem(4L, 10)));
         when(productionPlanMapper.selectOne(any())).thenReturn(plan);
+        when(productionOrderMapper.selectOne(any())).thenReturn(order);
         when(stationMapper.selectOne(any())).thenReturn(station);
         when(stationOperationMapper.selectCount(any())).thenReturn(1L);
         when(equipmentMapper.selectList(any())).thenReturn(List.of());

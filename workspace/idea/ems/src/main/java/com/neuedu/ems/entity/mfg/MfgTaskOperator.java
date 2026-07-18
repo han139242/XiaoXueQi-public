@@ -1,6 +1,7 @@
 package com.neuedu.ems.entity.mfg;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
@@ -24,6 +25,14 @@ public class MfgTaskOperator {
     private Long employeeId;
     private String roleInTask;
     private LocalDateTime assignedTime;
+    @TableField(exist = false)
+    private String employeeNo;
+    @TableField(exist = false)
+    private String employeeName;
+    @TableField(exist = false)
+    private String username;
+    @TableField(exist = false)
+    private String employeeDisplay;
     private Long createdBy;
     private LocalDateTime createdTime;
     private Integer deletedFlag;

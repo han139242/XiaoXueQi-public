@@ -79,6 +79,7 @@ public class MfgScheduleScenarioServiceImpl
     private static final String STATUS_DRAFT = "DRAFT";
     private static final String STATUS_CALCULATED = "CALCULATED";
     private static final String STATUS_CONFIRMED = "CONFIRMED";
+    private static final String STATUS_CANCELLED = "CANCELLED";
     private static final String STATUS_RELEASED = "RELEASED";
     private static final String STATUS_CLOSED = "CLOSED";
     private static final String STATUS_ENABLE = "ENABLE";
@@ -89,6 +90,7 @@ public class MfgScheduleScenarioServiceImpl
     private static final String DECISION_SOURCE_MANUAL = "MANUAL";
     private static final String ALGORITHM_CODE = "RULE_V1";
     private static final String ALGORITHM_CODE_MANUAL_BOARD = "MANUAL_BOARD";
+    private static final String AI_BATCH_SCENARIO_PREFIX = "AI-BATCH-";
     private static final ZoneId SCHEDULE_ZONE = ZoneId.of("Asia/Shanghai");
     private static final int CAPACITY_SCALE = 8;
     private static final long MANUAL_CANDIDATE_CACHE_TTL_NANOS = Duration.ofSeconds(30).toNanos();
@@ -182,8 +184,10 @@ public class MfgScheduleScenarioServiceImpl
                 .orderByDesc("updated_time")
                 .orderByDesc("scenario_id");
         List<MfgScheduleScenario> existingDrafts = baseMapper.selectList(query);
-        if (!existingDrafts.isEmpty()) {
-            return existingDrafts.getFirst();
+        for (MfgScheduleScenario existingDraft : existingDrafts) {
+            if (!isAiBatchScenario(existingDraft)) {
+                return existingDraft;
+            }
         }
 
         LocalDateTime now = LocalDateTime.now(SCHEDULE_ZONE);
@@ -224,10 +228,21 @@ public class MfgScheduleScenarioServiceImpl
                 .collect(Collectors.toMap(MfgScheduleScenario::getScenarioId, item -> item));
         MfgScheduleScenario workspaceDraft = scenarios.stream()
                 .filter(item -> Objects.equals(item.getCreatedBy(), operatorId))
+                .filter(item -> !isAiBatchScenario(item))
                 .findFirst()
                 .orElse(null);
 
         List<MfgScheduleItem> manualItems = listEditableManualItems(scenarioMap.keySet());
+        Set<Long> scenarioIdsWithEditableItems = manualItems.stream()
+                .map(MfgScheduleItem::getScenarioId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        MfgScheduleScenario activeAiBatch = scenarios.stream()
+                .filter(item -> Objects.equals(item.getCreatedBy(), operatorId))
+                .filter(this::isAiBatchScenario)
+                .filter(item -> scenarioIdsWithEditableItems.contains(item.getScenarioId()))
+                .findFirst()
+                .orElse(null);
         QueryWrapper<MfgProductionPlan> planQuery = new QueryWrapper<>();
         planQuery.eq("deleted_flag", 0);
         List<MfgProductionPlan> allPlans = mfgProductionPlanMapper.selectList(planQuery);
@@ -279,12 +294,15 @@ public class MfgScheduleScenarioServiceImpl
 
         ManualScheduleBoard board = new ManualScheduleBoard();
         board.setWorkspaceDraft(workspaceDraft);
+        board.setActiveAiBatch(activeAiBatch);
         board.setTimelineItems(timelineItems);
         board.setWorkingWindows(buildManualBoardWorkingWindows(horizonStart, horizonEnd));
         board.setPendingOrders(pendingOrders);
         board.setHorizonStart(horizonStart);
         board.setHorizonEnd(horizonEnd);
         board.setManualItemCount(visibleManualItems.size());
+        board.setAiBatchItemCount((int) visibleManualItems.stream()
+                .filter(item -> isAiBatchScenario(scenarioMap.get(item.getScenarioId()))).count());
         board.setProductionPlanCount(visiblePlans.size());
         board.setConflictCount((int) visibleManualItems.stream()
                 .filter(item -> ITEM_STATUS_CONFLICT.equals(item.getStatus())).count());
@@ -327,6 +345,188 @@ public class MfgScheduleScenarioServiceImpl
     public AiResponse generateManualScheduleBoardAdvice(Long operatorId) {
         ManualScheduleBoard board = getManualScheduleBoard(operatorId);
         return aiService.getScheduleScenarioAdvice(buildManualBoardAiSummary(board));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MfgScheduleScenario generateManualAiBatch(Long operatorId) {
+        if (operatorId == null) {
+            throw invalid("当前登录用户不能为空");
+        }
+        MfgScheduleScenario existingBatch = findActiveManualAiBatch(operatorId);
+        if (existingBatch != null) {
+            throw invalid("已有未确认的一键排产草案，请先确认或撤回后再重新生成");
+        }
+        List<MfgProductionOrder> orders = listDraftOrdersAvailableForAiBatch();
+        if (orders.isEmpty()) {
+            throw invalid("当前没有可一键排产的待排订单");
+        }
+
+        LocalDateTime now = LocalDateTime.now(SCHEDULE_ZONE);
+        LocalDateTime horizonStart = now.plusHours(1).withMinute(0).withSecond(0).withNano(0);
+        MfgScheduleScenario scenario = new MfgScheduleScenario();
+        scenario.setScenarioNo(AI_BATCH_SCENARIO_PREFIX + operatorId + "-"
+                + now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")));
+        scenario.setScenarioName("AI一键排产草案");
+        scenario.setHorizonStart(horizonStart);
+        scenario.setHorizonEnd(horizonStart.toLocalDate().plusDays(30).atTime(23, 59, 59));
+        scenario.setAlgorithmCode(ALGORITHM_CODE_MANUAL_BOARD);
+        scenario.setStatus(STATUS_DRAFT);
+        scenario.setOrderCount(0);
+        scenario.setScheduledOrderCount(0);
+        scenario.setConflictOrderCount(0);
+        scenario.setLateOrderCount(0);
+        scenario.setTotalLoadMinutes(BigDecimal.ZERO);
+        scenario.setRemark("AI一键排产生成的可撤回草案，确认前不会创建正式生产计划");
+        scenario.setVersion(0);
+        scenario.setCreatedBy(operatorId);
+        scenario.setCreatedTime(now);
+        scenario.setUpdatedBy(operatorId);
+        scenario.setUpdatedTime(now);
+        scenario.setDeletedFlag(0);
+        if (baseMapper.insert(scenario) == 0 || scenario.getScenarioId() == null) {
+            throw new BusinessException(ResultCode.FAILED);
+        }
+
+        List<MfgScheduleItem> occupancy = new ArrayList<>(listGlobalEditableManualItems());
+        List<MfgScheduleItem> generatedItems = new ArrayList<>();
+        int sequenceNo = 1;
+        for (MfgProductionOrder order : orders) {
+            String inputProblem = validateOrderInput(order);
+            List<ManualScheduleCandidateLine> candidates = inputProblem == null
+                    ? buildEligibleLines(scenario, order, occupancy) : List.of();
+            MfgScheduleItem item = inputProblem != null
+                    ? createAiBatchConflictItem(scenario, order, sequenceNo, orders.size(), inputProblem, operatorId, now)
+                    : candidates.isEmpty()
+                    ? createAiBatchConflictItem(scenario, order, sequenceNo, orders.size(),
+                    "没有满足产线能力、班次日历、有效产能和当前占用条件的可用时间", operatorId, now)
+                    : createAiBatchScheduledItem(scenario, order, candidates.getFirst(), sequenceNo, orders.size(),
+                    operatorId, now);
+            if (mfgScheduleItemMapper.insert(item) == 0 || item.getScheduleItemId() == null) {
+                throw new BusinessException(ResultCode.FAILED);
+            }
+            generatedItems.add(item);
+            if (ITEM_STATUS_SCHEDULED.equals(item.getStatus())) {
+                occupancy.add(item);
+            }
+            sequenceNo++;
+        }
+        refreshManualScenarioSummary(scenario, STATUS_DRAFT, operatorId, now, generatedItems);
+        invalidateCandidateCache(scenario.getScenarioId());
+        insertOperationLog(scenario.getScenarioId(), "GENERATE_MANUAL_AI_BATCH", "mfg_schedule_scenario",
+                operatorId, "AI一键排产生成可撤回草案", now);
+        return getActiveScenario(scenario.getScenarioId());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MfgScheduleScenario withdrawManualAiBatch(Long scenarioId, Integer version, Long operatorId) {
+        MfgScheduleScenario scenario = requireManualAiBatch(scenarioId, version, operatorId);
+        List<MfgScheduleItem> items = listActiveScenarioItems(scenarioId);
+        if (items.isEmpty()) {
+            throw invalid("当前一键排产草案没有可撤回的时间块");
+        }
+        if (items.stream().anyMatch(item -> item.getPlanId() != null || STATUS_CONFIRMED.equals(item.getStatus()))) {
+            throw invalid("本次一键排产已有时间块生成正式计划，不能按草案撤回");
+        }
+
+        LocalDateTime now = LocalDateTime.now(SCHEDULE_ZONE);
+        for (MfgScheduleItem item : items) {
+            MfgScheduleItem update = new MfgScheduleItem();
+            update.setScheduleItemId(item.getScheduleItemId());
+            update.setVersion(item.getVersion());
+            update.setDeletedFlag(1);
+            update.setUpdatedBy(operatorId);
+            update.setUpdatedTime(now);
+            if (mfgScheduleItemMapper.updateById(update) == 0) {
+                throw conflict("一键排产草案已被其他操作修改，请刷新后重试");
+            }
+        }
+
+        MfgScheduleScenario update = new MfgScheduleScenario();
+        update.setScenarioId(scenarioId);
+        update.setVersion(scenario.getVersion());
+        update.setStatus(STATUS_CANCELLED);
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (baseMapper.updateById(update) == 0) {
+            throw conflict("一键排产草案已被其他操作修改，请刷新后重试");
+        }
+        invalidateCandidateCache(scenarioId);
+        insertStatusChangeLog(scenarioId, scenario.getStatus(), STATUS_CANCELLED, "MFG_SCHEDULE_SCENARIO",
+                "WITHDRAW_MANUAL_AI_BATCH", operatorId, "撤回AI一键排产草案", now);
+        insertOperationLog(scenarioId, "WITHDRAW_MANUAL_AI_BATCH", "mfg_schedule_scenario",
+                operatorId, "撤回AI一键排产草案", now);
+        return getActiveScenario(scenarioId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MfgScheduleScenario confirmManualAiBatch(Long scenarioId, Integer version, String remark, Long operatorId) {
+        MfgScheduleScenario scenario = requireManualAiBatch(scenarioId, version, operatorId);
+        List<MfgScheduleItem> items = listActiveScenarioItems(scenarioId);
+        if (items.isEmpty()) {
+            throw invalid("当前一键排产草案没有可确认的时间块");
+        }
+        if (items.stream().anyMatch(item -> ITEM_STATUS_CONFLICT.equals(item.getStatus()))) {
+            throw invalid("本次一键排产仍存在冲突订单，请先撤回或人工处理后再确认");
+        }
+        if (items.stream().anyMatch(item -> item.getPlanId() != null || STATUS_CONFIRMED.equals(item.getStatus()))) {
+            throw invalid("本次一键排产已有时间块生成正式计划，请刷新后查看");
+        }
+
+        List<ConfirmationEntry> entries = validateAndLoadConfirmationEntries(scenario, items);
+        if (items.stream().anyMatch(item -> item.getTardinessMinutes() != null && item.getTardinessMinutes() > 0)
+                && !StringUtils.hasText(remark)) {
+            throw invalid("本次一键排产存在预计延期订单，请填写延期风险确认说明");
+        }
+
+        LocalDateTime now = LocalDateTime.now(SCHEDULE_ZONE);
+        String normalizedRemark = StringUtils.hasText(remark) ? remark.trim() : "确认AI一键排产草案";
+        for (ConfirmationEntry entry : entries) {
+            MfgScheduleItem item = entry.item();
+            MfgProductionPlan plan = createProductionPlan(scenario, item, operatorId, now);
+            plan.setRemark("由AI一键排产草案 " + scenario.getScenarioNo() + " 确认生成");
+            if (mfgProductionPlanMapper.insert(plan) == 0 || plan.getPlanId() == null) {
+                throw new BusinessException(ResultCode.FAILED);
+            }
+
+            MfgScheduleItem itemUpdate = new MfgScheduleItem();
+            itemUpdate.setScheduleItemId(item.getScheduleItemId());
+            itemUpdate.setPlanId(plan.getPlanId());
+            itemUpdate.setStatus(STATUS_CONFIRMED);
+            itemUpdate.setVersion(item.getVersion());
+            itemUpdate.setUpdatedBy(operatorId);
+            itemUpdate.setUpdatedTime(now);
+            if (mfgScheduleItemMapper.updateById(itemUpdate) == 0) {
+                throw conflict("一键排产明细已被其他操作修改，请刷新后重试");
+            }
+            releaseOrderForConfirmedPlan(entry.order(), operatorId, normalizedRemark, now,
+                    "CONFIRM_MANUAL_AI_BATCH");
+
+            insertStatusChangeLog(plan.getPlanId(), null, STATUS_RELEASED, "MFG_PRODUCTION_PLAN",
+                    "GENERATE_FROM_MANUAL_AI_BATCH", operatorId, normalizedRemark, now);
+            insertStatusChangeLog(item.getScheduleItemId(), item.getStatus(), STATUS_CONFIRMED, "MFG_SCHEDULE_ITEM",
+                    "CONFIRM_MANUAL_AI_BATCH", operatorId, normalizedRemark, now);
+        }
+
+        MfgScheduleScenario update = new MfgScheduleScenario();
+        update.setScenarioId(scenarioId);
+        update.setVersion(scenario.getVersion());
+        update.setStatus(STATUS_CONFIRMED);
+        update.setConfirmedBy(operatorId);
+        update.setConfirmedTime(now);
+        update.setUpdatedBy(operatorId);
+        update.setUpdatedTime(now);
+        if (baseMapper.updateById(update) == 0) {
+            throw conflict("一键排产草案已被其他操作修改，请刷新后重试");
+        }
+        invalidateCandidateCache(scenarioId);
+        insertStatusChangeLog(scenarioId, scenario.getStatus(), STATUS_CONFIRMED, "MFG_SCHEDULE_SCENARIO",
+                "CONFIRM_MANUAL_AI_BATCH", operatorId, normalizedRemark, now);
+        insertOperationLog(scenarioId, "CONFIRM_MANUAL_AI_BATCH", "mfg_schedule_scenario",
+                operatorId, normalizedRemark, now);
+        return getActiveScenario(scenarioId);
     }
 
     @Override
@@ -378,6 +578,7 @@ public class MfgScheduleScenarioServiceImpl
     public MfgScheduleItem addManualItem(Long scenarioId, Integer scenarioVersion, Long productionOrderId,
                                          Long lineId, Long operatorId) {
         MfgScheduleScenario scenario = requireManualScenario(scenarioId, false);
+        assertNotAiBatchScenario(scenario);
         assertScenarioVersion(scenario, scenarioVersion);
         MfgProductionOrder order = requireDraftOrderWithoutPlan(productionOrderId);
         if (lineId == null) {
@@ -436,6 +637,7 @@ public class MfgScheduleScenarioServiceImpl
                                                   Integer itemVersion, Long lineId, LocalDateTime plannedStartTime,
                                                   LocalDateTime plannedEndTime, String remark, Long operatorId) {
         MfgScheduleScenario scenario = requireManualScenario(scenarioId, false);
+        assertNotAiBatchScenario(scenario);
         assertScenarioVersion(scenario, scenarioVersion);
         MfgScheduleItem item = requireManualItem(scenarioId, scheduleItemId);
         if (!Objects.equals(item.getVersion(), itemVersion)) {
@@ -480,6 +682,7 @@ public class MfgScheduleScenarioServiceImpl
     public MfgScheduleScenario removeManualItem(Long scenarioId, Long scheduleItemId, Integer scenarioVersion,
                                                 Integer itemVersion, Long operatorId) {
         MfgScheduleScenario scenario = requireManualScenario(scenarioId, false);
+        assertNotAiBatchScenario(scenario);
         assertScenarioVersion(scenario, scenarioVersion);
         MfgScheduleItem item = requireManualItem(scenarioId, scheduleItemId);
         if (!Objects.equals(item.getVersion(), itemVersion)) {
@@ -511,6 +714,7 @@ public class MfgScheduleScenarioServiceImpl
             throw invalid("方案、排程明细、版本和确认人不能为空");
         }
         MfgScheduleScenario scenario = requireManualScenario(scenarioId, false);
+        assertNotAiBatchScenario(scenario);
         assertScenarioVersion(scenario, scenarioVersion);
         MfgScheduleItem item = requireManualItem(scenarioId, scheduleItemId);
         if (!Objects.equals(item.getVersion(), itemVersion)) {
@@ -576,6 +780,7 @@ public class MfgScheduleScenarioServiceImpl
     @Transactional(rollbackFor = Exception.class)
     public MfgScheduleScenario validateManualDraft(Long scenarioId, Integer scenarioVersion, Long operatorId) {
         MfgScheduleScenario scenario = requireManualScenario(scenarioId, false);
+        assertNotAiBatchScenario(scenario);
         assertScenarioVersion(scenario, scenarioVersion);
         List<MfgScheduleItem> items = listActiveScenarioItems(scenarioId);
         if (items.isEmpty()) {
@@ -691,6 +896,9 @@ public class MfgScheduleScenarioServiceImpl
         MfgScheduleScenario scenario = getActiveScenario(scenarioId);
         if (scenario == null) {
             throw notFound("排程方案不存在或已删除");
+        }
+        if (isAiBatchScenario(scenario)) {
+            throw invalid("AI一键排产草案只能通过批次确认入口生成正式生产计划");
         }
         if (!STATUS_CALCULATED.equals(scenario.getStatus())) {
             throw invalid("只有 CALCULATED 状态的排程方案可以确认");
@@ -838,6 +1046,17 @@ public class MfgScheduleScenarioServiceImpl
         return baseMapper.selectOne(wrapper);
     }
 
+    private boolean isAiBatchScenario(MfgScheduleScenario scenario) {
+        return scenario != null && scenario.getScenarioNo() != null
+                && scenario.getScenarioNo().startsWith(AI_BATCH_SCENARIO_PREFIX);
+    }
+
+    private void assertNotAiBatchScenario(MfgScheduleScenario scenario) {
+        if (isAiBatchScenario(scenario)) {
+            throw invalid("AI一键排产草案只能使用整批确认或整批撤回，不能按普通手工安排单独操作");
+        }
+    }
+
     private List<MfgScheduleItem> listActiveScenarioItems(Long scenarioId) {
         QueryWrapper<MfgScheduleItem> wrapper = new QueryWrapper<>();
         wrapper.eq("scenario_id", scenarioId);
@@ -865,10 +1084,17 @@ public class MfgScheduleScenarioServiceImpl
         QueryWrapper<MfgScheduleItem> wrapper = new QueryWrapper<>();
         wrapper.in("scenario_id", scenarioIds)
                 .eq("deleted_flag", 0)
+                .isNull("plan_id")
                 .in("status", ITEM_STATUS_SCHEDULED, ITEM_STATUS_CONFLICT)
                 .orderByAsc("planned_start_time")
                 .orderByAsc("schedule_item_id");
         return mfgScheduleItemMapper.selectList(wrapper);
+    }
+
+    private boolean isEditableManualOccupancy(MfgScheduleItem item) {
+        return item != null
+                && item.getPlanId() == null
+                && (ITEM_STATUS_SCHEDULED.equals(item.getStatus()) || ITEM_STATUS_CONFLICT.equals(item.getStatus()));
     }
 
     private List<MfgScheduleItem> listGlobalEditableManualItems() {
@@ -899,6 +1125,7 @@ public class MfgScheduleScenarioServiceImpl
                                                        MfgProductionOrder order) {
         ManualScheduleBoardItem result = new ManualScheduleBoardItem();
         result.setSourceType("MANUAL");
+        result.setAiBatch(isAiBatchScenario(scenario));
         result.setScenarioId(item.getScenarioId());
         result.setScenarioNo(scenario == null ? null : scenario.getScenarioNo());
         result.setScenarioVersion(scenario == null ? null : scenario.getVersion());
@@ -923,6 +1150,7 @@ public class MfgScheduleScenarioServiceImpl
     private ManualScheduleBoardItem toProductionPlanBoardItem(MfgProductionPlan plan, MfgProductionOrder order) {
         ManualScheduleBoardItem result = new ManualScheduleBoardItem();
         result.setSourceType("PLAN");
+        result.setAiBatch(false);
         result.setPlanId(plan.getPlanId());
         result.setPlanNo(plan.getPlanNo());
         result.setProductionOrderId(plan.getProductionOrderId());
@@ -1219,6 +1447,100 @@ public class MfgScheduleScenarioServiceImpl
         }
     }
 
+    private MfgScheduleScenario requireManualAiBatch(Long scenarioId, Integer version, Long operatorId) {
+        if (scenarioId == null || version == null || operatorId == null) {
+            throw invalid("一键排产草案、版本和操作人不能为空");
+        }
+        MfgScheduleScenario scenario = getActiveScenario(scenarioId);
+        if (scenario == null || !ALGORITHM_CODE_MANUAL_BOARD.equals(scenario.getAlgorithmCode())
+                || !isAiBatchScenario(scenario)) {
+            throw notFound("一键排产草案不存在或已删除");
+        }
+        if (!Objects.equals(scenario.getCreatedBy(), operatorId)) {
+            throw invalid("只能操作自己生成的一键排产草案");
+        }
+        if (!STATUS_DRAFT.equals(scenario.getStatus()) && !STATUS_CALCULATED.equals(scenario.getStatus())) {
+            throw invalid("当前一键排产草案已不能继续操作，请刷新排程总览");
+        }
+        assertScenarioVersion(scenario, version);
+        return scenario;
+    }
+
+    private MfgScheduleScenario findActiveManualAiBatch(Long operatorId) {
+        QueryWrapper<MfgScheduleScenario> query = new QueryWrapper<>();
+        query.eq("deleted_flag", 0)
+                .eq("algorithm_code", ALGORITHM_CODE_MANUAL_BOARD)
+                .eq("created_by", operatorId)
+                .in("status", STATUS_DRAFT, STATUS_CALCULATED)
+                .orderByDesc("updated_time")
+                .orderByDesc("scenario_id");
+        for (MfgScheduleScenario scenario : baseMapper.selectList(query)) {
+            if (isAiBatchScenario(scenario)
+                    && !listEditableManualItems(Set.of(scenario.getScenarioId())).isEmpty()) {
+                return scenario;
+            }
+        }
+        return null;
+    }
+
+    private List<MfgProductionOrder> listDraftOrdersAvailableForAiBatch() {
+        Set<Long> occupiedOrderIds = listGlobalEditableManualItems().stream()
+                .map(MfgScheduleItem::getProductionOrderId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        return listDraftOrdersWithoutPlan().stream()
+                .filter(order -> !occupiedOrderIds.contains(order.getProductionOrderId()))
+                .toList();
+    }
+
+    private MfgScheduleItem createAiBatchScheduledItem(MfgScheduleScenario scenario, MfgProductionOrder order,
+                                                       ManualScheduleCandidateLine candidate, int sequenceNo,
+                                                       int totalOrderCount, Long operatorId, LocalDateTime now) {
+        MfgScheduleItem item = createAiBatchBaseItem(scenario, order, sequenceNo, totalOrderCount, operatorId, now);
+        item.setRouteId(candidate.getRouteId());
+        item.setLineId(candidate.getLineId());
+        item.setPlannedStartTime(candidate.getEarliestStartTime());
+        item.setPlannedEndTime(candidate.getEarliestEndTime());
+        item.setEstimatedMinutes(candidate.getEstimatedMinutes());
+        item.setTardinessMinutes(calculateTardiness(order.getDeliveryDate(), candidate.getEarliestEndTime()));
+        item.setStatus(ITEM_STATUS_SCHEDULED);
+        item.setExplanation("AI一键排产按交期顺序自动选择最早可用产线；适配优先级="
+                + candidate.getPriorityLevel() + "，产品能力系数=" + candidate.getCapacityFactor());
+        return item;
+    }
+
+    private MfgScheduleItem createAiBatchConflictItem(MfgScheduleScenario scenario, MfgProductionOrder order,
+                                                      int sequenceNo, int totalOrderCount, String reason,
+                                                      Long operatorId, LocalDateTime now) {
+        MfgScheduleItem item = createAiBatchBaseItem(scenario, order, sequenceNo, totalOrderCount, operatorId, now);
+        item.setStatus(ITEM_STATUS_CONFLICT);
+        item.setConflictReason(reason);
+        item.setTardinessMinutes(0L);
+        item.setExplanation("AI一键排产未能生成可确认时间块：" + reason);
+        return item;
+    }
+
+    private MfgScheduleItem createAiBatchBaseItem(MfgScheduleScenario scenario, MfgProductionOrder order,
+                                                  int sequenceNo, int totalOrderCount,
+                                                  Long operatorId, LocalDateTime now) {
+        MfgScheduleItem item = new MfgScheduleItem();
+        item.setScenarioId(scenario.getScenarioId());
+        item.setProductionOrderId(order.getProductionOrderId());
+        item.setProductId(order.getProductId());
+        item.setSequenceNo(sequenceNo);
+        item.setPlannedQuantity(order.getOrderQuantity());
+        item.setPriorityScore(BigDecimal.valueOf(totalOrderCount - sequenceNo + 1L));
+        item.setDecisionSource(DECISION_SOURCE_MANUAL);
+        item.setRemark("AI一键排产批次：" + scenario.getScenarioNo());
+        item.setVersion(0);
+        item.setCreatedBy(operatorId);
+        item.setCreatedTime(now);
+        item.setUpdatedBy(operatorId);
+        item.setUpdatedTime(now);
+        item.setDeletedFlag(0);
+        return item;
+    }
+
     private MfgProductionOrder requireDraftOrderWithoutPlan(Long productionOrderId) {
         if (productionOrderId == null) {
             throw invalid("生产订单不能为空");
@@ -1506,6 +1828,9 @@ public class MfgScheduleScenarioServiceImpl
         List<MfgScheduleItem> occupiedItems = new ArrayList<>(allItems);
         occupiedItems.addAll(listGlobalEditableManualItems());
         for (MfgScheduleItem other : occupiedItems) {
+            if (!isEditableManualOccupancy(other)) {
+                continue;
+            }
             if (other.getScheduleItemId() != null && currentItem.getScheduleItemId() != null
                     && Objects.equals(other.getScheduleItemId(), currentItem.getScheduleItemId())) {
                 continue;
