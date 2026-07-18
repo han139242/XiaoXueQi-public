@@ -38,6 +38,8 @@ const productionLines = ref([])
 const pendingProductionOrderCount = ref(0)
 const scheduleError = ref('')
 const scheduleExpanded = ref(false)
+const SCHEDULE_BAR_MIN_WIDTH_PERCENT = 8
+const SCHEDULE_BAR_GAP_PERCENT = 0.45
 
 // 时钟每秒更新，业务数据每60秒更新；离开页面时必须清理。
 let clockTimer
@@ -179,36 +181,19 @@ const scheduledQuantity = computed(() => scheduleRows.value
 const scheduleSummaryText = computed(() => scheduleRows.value.length
   ? `${scheduledLineCount.value} 条产线 · ${scheduleRows.value.length} 项计划 · ${formatNumber(scheduledQuantity.value)} 件`
   : '当前窗口暂无生产计划')
-const minimumScheduleDisplayDuration = computed(() => {
-  if (scheduleRows.value.length < 2) return 6 * 60 * 60 * 1000
-  const earliest = Math.min(...scheduleRows.value.map((item) => dayjs(item.plannedStartTime).valueOf()))
-  const latest = Math.max(...scheduleRows.value.map((item) => dayjs(item.plannedEndTime).valueOf()))
-  return Math.max(6 * 60 * 60 * 1000, (latest - earliest) * 0.1)
-})
-
 function layoutLinePlans(plans) {
-  const laneEnds = []
   const layoutPlans = [...plans]
     .sort((left, right) => dayjs(left.plannedStartTime).valueOf() - dayjs(right.plannedStartTime).valueOf())
-    .map((plan) => {
-      const start = dayjs(plan.plannedStartTime).valueOf()
-      const end = dayjs(plan.plannedEndTime).valueOf()
-      const lane = laneEnds.findIndex((laneEnd) => start >= laneEnd)
-      const scheduleLane = lane === -1 ? laneEnds.length : lane
-      laneEnds[scheduleLane] = Math.max(end, start + minimumScheduleDisplayDuration.value)
-      return { ...plan, scheduleLane }
-    })
-  return { plans: layoutPlans, scheduleLaneCount: Math.max(1, laneEnds.length) }
+    .map((plan) => ({ ...plan, geometry: schedulePlanGeometry(plan) }))
+  resolveSingleRowSchedule(layoutPlans)
+  return { plans: layoutPlans, scheduleLaneCount: 1 }
 }
 
 function scheduleRowStyle(line, expanded = false) {
-  const laneCount = Math.max(1, Number(line.scheduleLaneCount || 1))
-  const laneStep = expanded ? 62 : 52
-  const verticalPadding = expanded ? 16 : 12
-  return { height: `${verticalPadding + laneCount * laneStep}px` }
+  return { height: expanded ? '92px' : '76px' }
 }
 
-// 同一产线的相邻计划按可视宽度分轨，避免短计划在时间轴上发生遮挡。
+// 大屏排期按产线分组，每条产线固定一行，计划框按开始时间横向排列。
 const scheduleLineRows = computed(() => {
   const grouped = new Map(productionLines.value.map((line) => [String(line.lineId), { ...line, plans: [] }]))
   scheduleRows.value.forEach((plan) => {
@@ -567,20 +552,58 @@ function pageRecords(result) {
   return Array.isArray(data) ? data : (data?.records || [])
 }
 
-// 把排期起止时间换算成时间轴中的left和width百分比。
-function scheduleBarStyle(item, expanded = false) {
-  // 把计划起止时间换算为展开排期弹窗中的百分比位置和宽度。
+function schedulePlanGeometry(item) {
   const { start, duration } = scheduleWindow.value
-  const lane = Math.max(0, Number(item.scheduleLane || 0))
-  const top = (expanded ? 10 : 8) + lane * (expanded ? 62 : 52)
-  if (!start || !duration) return { left: '0%', width: '0%', top: `${top}px` }
+  if (!start || !duration) {
+    return { start: 0, width: SCHEDULE_BAR_MIN_WIDTH_PERCENT, end: SCHEDULE_BAR_MIN_WIDTH_PERCENT, compact: true }
+  }
   const itemStart = dayjs(item.plannedStartTime).valueOf()
   const itemEnd = dayjs(item.plannedEndTime).valueOf()
-  const left = Math.max(0, Math.min(96, ((itemStart - start.valueOf()) / duration) * 100))
-  const naturalWidth = Math.max(0, ((itemEnd - itemStart) / duration) * 100)
-  const width = Math.max(10, Math.min(100 - left, naturalWidth))
-  const safeWidth = Math.min(100 - left, width)
-  return { left: `${left}%`, width: `${safeWidth}%`, top: `${top}px` }
+  const actualStart = Math.max(0, Math.min(100, ((itemStart - start.valueOf()) / duration) * 100))
+  const actualEnd = Math.max(actualStart, Math.min(100, ((itemEnd - start.valueOf()) / duration) * 100))
+  const rawWidth = Math.max(0, actualEnd - actualStart)
+  const width = Math.min(100 - actualStart, Math.max(rawWidth, SCHEDULE_BAR_MIN_WIDTH_PERCENT))
+  return {
+    start: actualStart,
+    width,
+    end: actualStart + width,
+    compact: rawWidth < SCHEDULE_BAR_MIN_WIDTH_PERCENT
+  }
+}
+
+function resolveSingleRowSchedule(items) {
+  let cursor = 0
+  const sortedItems = items.sort((left, right) => left.geometry.start - right.geometry.start)
+  sortedItems.forEach((item) => {
+    const start = Math.max(item.geometry.start, cursor)
+    const availableWidth = Math.max(1.2, 100 - start)
+    const width = Math.min(item.geometry.width, availableWidth)
+    item.geometry.start = start
+    item.geometry.width = width
+    item.geometry.end = start + width
+    item.geometry.compact = item.geometry.compact || width <= SCHEDULE_BAR_MIN_WIDTH_PERCENT
+    cursor = item.geometry.end + SCHEDULE_BAR_GAP_PERCENT
+  })
+  if (!sortedItems.length || sortedItems[sortedItems.length - 1].geometry.end <= 100) return
+
+  const totalGap = (sortedItems.length - 1) * SCHEDULE_BAR_GAP_PERCENT
+  const slotWidth = Math.max(1.2, (100 - totalGap) / sortedItems.length)
+  sortedItems.forEach((item, index) => {
+    const start = index * (slotWidth + SCHEDULE_BAR_GAP_PERCENT)
+    item.geometry.start = start
+    item.geometry.width = slotWidth
+    item.geometry.end = start + slotWidth
+    item.geometry.compact = true
+  })
+}
+
+function scheduleBarStyle(item, expanded = false) {
+  const geometry = item.geometry || schedulePlanGeometry(item)
+  return {
+    left: `${geometry.start}%`,
+    width: `${geometry.width}%`,
+    top: expanded ? '17px' : '13px'
+  }
 }
 
 // 拼接排期块的悬停提示，包含订单、产品、产线、时间、数量和状态。
@@ -986,12 +1009,12 @@ onBeforeUnmount(() => {
                       v-for="item in line.plans"
                       :key="item.planId"
                       class="schedule-bar"
-                      :class="`is-${item.statusTone}`"
+                      :class="[`is-${item.statusTone}`, { compact: item.geometry?.compact }]"
                       :style="scheduleBarStyle(item)"
                       :title="scheduleBarTitle(item)"
                     >
-                      <b>{{ formatProductLabel(item.productName) }}</b>
-                      <small>{{ formatNumber(item.plannedQuantity) }}件·{{ item.statusLabel }}</small>
+                      <b>{{ item.orderNo }}</b>
+                      <small>{{ formatProductLabel(item.productName) }} · {{ dayjs(item.plannedStartTime).format('MM-DD HH:mm') }}</small>
                     </span>
                   </div>
                 </div>
@@ -1246,12 +1269,12 @@ onBeforeUnmount(() => {
                     v-for="item in line.plans"
                     :key="`expanded-${item.planId}`"
                     class="schedule-bar"
-                    :class="`is-${item.statusTone}`"
+                    :class="[`is-${item.statusTone}`, { compact: item.geometry?.compact }]"
                     :style="scheduleBarStyle(item, true)"
                     :title="scheduleBarTitle(item)"
                   >
-                    <b>{{ formatProductLabel(item.productName) }}</b>
-                    <small>{{ formatNumber(item.plannedQuantity) }}件·{{ item.statusLabel }}</small>
+                    <b>{{ item.orderNo }}</b>
+                    <small>{{ formatProductLabel(item.productName) }} · {{ formatScheduleTime(item) }}</small>
                   </span>
                 </div>
               </div>
@@ -1657,7 +1680,6 @@ onBeforeUnmount(() => {
 
 .schedule-rows { min-height: 0; }
 .schedule-row {
-  height: 64px;
   align-items: stretch;
   border-bottom: 1px solid rgb(48 79 101 / 72%);
 }
@@ -1678,9 +1700,13 @@ onBeforeUnmount(() => {
 .schedule-row-meta span { color: #829caf; font-size: 14px; }
 .schedule-row-track {
   position: relative;
+  min-height: 100%;
   min-width: 0;
   overflow: hidden;
-  background-image: linear-gradient(90deg, rgb(72 108 134 / 18%) 1px, transparent 1px);
+  box-sizing: border-box;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 3%), transparent 34%),
+    linear-gradient(90deg, rgb(72 108 134 / 22%) 1px, transparent 1px);
   background-size: 16.6667% 100%;
 }
 .schedule-row-empty {
@@ -1694,14 +1720,13 @@ onBeforeUnmount(() => {
 }
 .schedule-bar {
   position: absolute;
-  top: 8px;
   display: grid;
-  height: 48px;
-  min-width: 48px;
+  height: 50px;
+  min-width: 0;
   align-content: center;
   gap: 2px;
   overflow: hidden;
-  padding: 5px 8px;
+  padding: 5px 9px;
   color: #eef7ff;
   border: 1px solid rgb(117 174 215 / 52%);
   border-radius: 4px;
@@ -1710,14 +1735,17 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
   white-space: nowrap;
 }
-.schedule-bar.is-released { border-color: rgb(90 169 209 / 60%); background: #2b6288; }
-.schedule-bar.is-running { border-color: rgb(83 194 139 / 58%); background: #26704f; }
+.schedule-bar.is-released { border-color: rgb(46 160 101 / 72%); background: #1b8f5a; }
+.schedule-bar.is-running { border-color: rgb(83 194 139 / 58%); background: #1b8f5a; }
 .schedule-bar.is-finished { border-color: rgb(215 166 83 / 58%); background: #765726; }
 .schedule-bar.is-closed { border-color: rgb(130 149 164 / 48%); background: #485765; }
 .schedule-bar b,
 .schedule-bar small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .schedule-bar b { font-size: 15px; font-weight: 700; }
 .schedule-bar small { color: rgb(239 247 252 / 78%); font-size: 12px; }
+.schedule-bar.compact { padding: 5px 6px; }
+.schedule-bar.compact b { font-size: 13px; }
+.schedule-bar.compact small { font-size: 10px; }
 
 .schedule-empty {
   display: grid;
@@ -1817,14 +1845,17 @@ onBeforeUnmount(() => {
 .expanded-board .schedule-tick { grid-template-rows: 19px 14px; }
 .expanded-board .schedule-tick strong { font-size: 19px; }
 .expanded-board .schedule-tick small { font-size: 14px; }
-.expanded-board .schedule-row { height: 78px; }
+.expanded-board .schedule-row { min-height: 92px; }
 .expanded-board .schedule-row-meta { gap: 3px; padding-left: 6px; }
 .expanded-board .schedule-row-meta strong { font-size: 20px; }
 .expanded-board .schedule-row-meta span { font-size: 16px; }
 .expanded-board .schedule-row-meta small { color: #6f93a9; font-size: 14px; white-space: nowrap; }
-.expanded-board .schedule-bar { top: 10px; height: 58px; padding: 7px 14px; }
+.expanded-board .schedule-bar { height: 58px; padding: 7px 14px; }
 .expanded-board .schedule-bar b { font-size: 19px; }
 .expanded-board .schedule-bar small { font-size: 16px; }
+.expanded-board .schedule-bar.compact { padding: 7px 9px; }
+.expanded-board .schedule-bar.compact b { font-size: 16px; }
+.expanded-board .schedule-bar.compact small { font-size: 13px; }
 .schedule-modal-footer {
   display: flex;
   align-items: center;
