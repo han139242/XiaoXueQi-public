@@ -5,7 +5,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neuedu.ems.common.AiQuestion;
 import com.neuedu.ems.common.AiResponse;
 import com.neuedu.ems.config.AiProperties;
+import com.neuedu.ems.entity.mfg.MfgProductionOrder;
+import com.neuedu.ems.entity.mfg.MfgProductionPlan;
 import com.neuedu.ems.exception.AiServiceException;
+import com.neuedu.ems.mapper.mfg.MfgProductionOrderMapper;
+import com.neuedu.ems.mapper.mfg.MfgProductionPlanMapper;
 import com.neuedu.ems.service.dashboard.DashboardService;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -15,6 +19,7 @@ import okhttp3.ResponseBody;
 import okio.Buffer;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.io.IOException;
 import java.util.List;
@@ -26,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -126,6 +132,34 @@ class AiServiceImplTest {
     }
 
     @Test
+    void generalChatIncludesPendingProductionOrderSummary() {
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        MfgProductionOrderMapper orderMapper = mock(MfgProductionOrderMapper.class);
+        MfgProductionPlanMapper planMapper = mock(MfgProductionPlanMapper.class);
+        MfgProductionOrder pendingOrder = new MfgProductionOrder();
+        pendingOrder.setProductionOrderId(101L);
+        pendingOrder.setProductionOrderNo("PO-DRAFT-001");
+        pendingOrder.setOrderQuantity(new BigDecimal("300"));
+        pendingOrder.setDeliveryDate(LocalDate.of(2026, 7, 20));
+        pendingOrder.setStatus("DRAFT");
+        when(orderMapper.selectList(any())).thenReturn(List.of(pendingOrder));
+        when(planMapper.selectList(any())).thenReturn(List.of());
+        AiServiceImpl service = createService(enabledProperties(), responseClient(200,
+                upstreamResponse("{\"answer\":\"当前有1个待排订单\",\"suggestions\":[]}"), request -> {
+                    Buffer buffer = new Buffer();
+                    request.body().writeTo(buffer);
+                    requestBody.set(buffer.readUtf8());
+                }), mock(DashboardService.class), orderMapper, planMapper);
+
+        AiResponse result = service.chat(question("现在有多少待排订单？", "general", null));
+
+        assertEquals("当前有1个待排订单", result.getAnswer());
+        assertTrue(requestBody.get().contains("pendingProductionOrders"));
+        assertTrue(requestBody.get().contains("orderCount"));
+        assertTrue(requestBody.get().contains("PO-DRAFT-001"));
+    }
+
+    @Test
     void plainTextModelResponseFallsBackToAnswer() {
         AiServiceImpl service = createService(enabledProperties(), responseClient(200,
                 upstreamResponse("请先检查设备状态。"), null), mock(DashboardService.class));
@@ -221,7 +255,14 @@ class AiServiceImplTest {
 
     private AiServiceImpl createService(AiProperties properties, OkHttpClient client,
                                         DashboardService dashboardService) {
-        return new AiServiceImpl(properties, client, objectMapper, dashboardService);
+        return createService(properties, client, dashboardService,
+                mock(MfgProductionOrderMapper.class), mock(MfgProductionPlanMapper.class));
+    }
+
+    private AiServiceImpl createService(AiProperties properties, OkHttpClient client,
+                                        DashboardService dashboardService, MfgProductionOrderMapper orderMapper,
+                                        MfgProductionPlanMapper planMapper) {
+        return new AiServiceImpl(properties, client, objectMapper, dashboardService, orderMapper, planMapper);
     }
 
     private AiProperties enabledProperties() {

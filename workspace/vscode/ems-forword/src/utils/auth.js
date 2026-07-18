@@ -17,6 +17,7 @@ export function getToken() {
 
 // 保存后端签发的JWT；remember决定使用7天Cookie还是仅当前浏览器会话有效。
 export function setToken(token, remember = true) {
+  sessionStorage.removeItem(PREVIEW_KEY)
   // remember=true时Cookie保存7天，否则关闭浏览器会话后失效。
   const options = { sameSite: 'Lax' }
   if (remember) {
