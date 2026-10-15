@@ -1,26 +1,21 @@
-# XiaoXueQi
+# 羽毛球 MES 课程项目
 
-羽毛球 MES 系统协同开发仓库。
+面向羽毛球生产流程的制造执行系统，覆盖生产计划、工单、质量、仓储和权限管理，并包含PC与小程序相关代码。
 
-协作入口：
+## 源码入口
 
-- [协同开发说明](COLLABORATION.md)
-- [AI Agent 指令](AGENTS.md)
-- [MES 专用 AI Skills](.agents/skills)
-- [数据库表结构设计文档](相关文档，图片/md/数据库表结构设计文档.md)
-- [数据库数据设计文档](相关文档，图片/md/数据库数据设计文档.md)
-- [企业级 MES 最终基础数据说明](相关文档，图片/md/企业级MES最终基础数据说明.md)
-- [智能排产数据基础交接文档](相关文档，图片/md/智能排产数据基础交接文档.md)
-- [后端接口文档](相关文档，图片/md/后端接口文档.md)
-- [MES 系统设计文档](相关文档，图片/md/MES系统设计文档.md)
-- [后端分层理解手册](相关文档，图片/md/后端分层理解手册.md)
-- [后端 A/B/C 分工 AI 提示词](相关文档，图片/md/后端ABC分工AI提示词规范.md)
-- [数据库共享操作文档](相关文档，图片/md/数据库共享操作文档.md)
-- [MES 参考 PDF](相关文档，图片/does/mes.pdf)
-- [后端开发约束框架](workspace/idea/ems/docs/羽毛球MES开发约束框架.md)
+- 后端：`workspace/idea/ems`，Spring Boot与MySQL。
+- PC前端：`workspace/vscode/ems-forword`，Vue。
+- 开发约束：`workspace/idea/ems/docs/羽毛球MES开发约束框架.md`。
 
-首次拉取后建议启用提交提醒：
+## 本地使用
 
-```powershell
-.\scripts\setup-git-hooks.ps1
-```
+在自己的环境配置数据库及服务凭据，参照后端`pom.xml`和前端`package.json`安装项目所需依赖。AI服务等外部凭据通过环境变量提供。私有共享数据库、课程材料、身份信息和预编译程序保留在私有原件中。
+
+---
+
+## 公开版本说明
+
+本项目用于羽毛球生产制造场景的MES开发实践，后端采用Spring Boot，PC端采用Vue，数据存储采用MySQL。公开内容保留源码，运行凭据通过本地环境变量配置。
+
+运行前配置本机依赖及环境变量，不将真实配置提交到Git。

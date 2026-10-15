@@ -33,3 +33,11 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Private runtime material stays local
+.env
+.env.local
+*.pem
+*.key
+*.log
+__pycache__/
